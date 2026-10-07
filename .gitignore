@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.astro/
+
+# Генерируется `npm run legacy:extract` из JS/*.html — эталон лежит в самих оригиналах.
+legacy/extracted/
+
+test-results/
+playwright-report/
+.DS_Store
+.vitest/

@@ -1,0 +1,48 @@
+---
+/**
+ * Абзац на тёмной панели.
+ *
+ * Отдельный компонент, а не класс, по той же причине, что и `Callout`: на чернилах у текста
+ * своя пара цветов (приглушённый #B8B4AA для прозы и светлый #E9E6DE для кода), и повторять
+ * её в каждом уроке — верный способ однажды написать не тот оттенок.
+ */
+interface Props {
+  size?: number;
+  lh?: number;
+  /** Устарел: текст идёт на всю ширину колонки (решение автора, 2026-09-28). Проп оставлен для совместимости. */
+  maxWidth?: number;
+  tone?: 'secondary' | 'prose';
+}
+
+const { size = 16, lh = 1.6, tone = 'secondary' } = Astro.props;
+---
+
+<div
+  class="dark-text"
+  data-tone={tone}
+  style={`--dt-fs:calc(${size}px * var(--fs-scale));--dt-lh:${lh}`}
+>
+  <slot />
+</div>
+
+<style>
+  .dark-text {
+    --inline-code-bg: transparent;
+    /* Та же ступень, что у прозы страницы; проп `size` размер больше не задаёт (2026-09-30). */
+    font-size: var(--fs-6);
+    line-height: 1.6;
+  }
+  .dark-text[data-tone='secondary'] {
+    color: var(--ink-secondary);
+  }
+  .dark-text[data-tone='prose'] {
+    color: var(--ink-prose);
+  }
+  .dark-text :global(code) {
+    color: var(--code-fg);
+  }
+  /* Ссылка на чернилах — см. `DarkCard`: акцент курса даёт на `--ink` 3.17:1 при пороге 4.5:1. */
+  .dark-text :global(a) {
+    color: var(--tone-info-on-ink);
+  }
+</style>

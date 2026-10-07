@@ -1,0 +1,169 @@
+time="2026-09-15T15:56:49+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+time="2026-09-15T15:56:49+03:00" level=info msg="Start server on http://192.168.0.130:34569"
+[p3-matrix/install] ⭐ Run Set up job
+[p3-matrix/install] 🚀  Start image=node:22-slim
+[p3-matrix/install]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p3-matrix/install]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/install]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/install]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p3-matrix/install]   ✅  Success - Set up job
+[p3-matrix/install]   ☁  git clone 'https://github.com/actions/upload-artifact' # ref=v4
+[p3-matrix/install] ⭐ Run Main install
+[p3-matrix/install]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/mk] user= workdir=
+[p3-matrix/install]   ❓  ::mark::install|install|begin|1789477011533
+[p3-matrix/install]   | installed 300 files
+[p3-matrix/install]   ❓  ::mark::install|install|end|1789477011585
+[p3-matrix/install]   ✅  Success - Main install [141.958833ms]
+[p3-matrix/install]   ⚙  ::set-output:: count=300
+[p3-matrix/install] ⭐ Run Main actions/upload-artifact@v4
+[p3-matrix/install]   🐳  docker cp src=/Users/ivankrylov/.cache/act/actions-upload-artifact@v4/ dst=/var/run/act/actions/actions-upload-artifact@v4/
+[p3-matrix/install]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/actions/actions-upload-artifact@v4/dist/upload/index.js] user= workdir=
+[p3-matrix/install]   | (node:55) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[p3-matrix/install]   | (Use `node --trace-deprecation ...` to show where the warning was created)
+[p3-matrix/install]   | With the provided path, there will be 300 files uploaded
+[p3-matrix/install]   | Artifact name is valid!
+[p3-matrix/install]   | Root directory input is valid!
+[p3-matrix/install]   | Beginning upload of artifact content to blob storage
+[p3-matrix/install]   | Uploaded bytes 46082
+[p3-matrix/install]   | Finished uploading artifact content to blob storage!
+[p3-matrix/install]   | SHA256 digest of uploaded artifact zip is 1807eec5a81a4b687bb1b82ed8f8296fdc547432b16ecedb555cdae118d3b746
+[p3-matrix/install]   | Finalizing artifact upload
+[p3-matrix/install]   | Artifact work.zip successfully finalized. Artifact ID 1536741984
+[p3-matrix/install]   | Artifact work has been successfully uploaded! Final size is 46082 bytes. Artifact ID is 1536741984
+[p3-matrix/install]   | Artifact download URL: https://github.com/nektos/act/actions/runs/1/artifacts/1536741984
+[p3-matrix/install]   ✅  Success - Main actions/upload-artifact@v4 [1.295514958s]
+[p3-matrix/install]   ⚙  ::set-output:: artifact-id=1536741984
+[p3-matrix/install]   ⚙  ::set-output:: artifact-digest=1807eec5a81a4b687bb1b82ed8f8296fdc547432b16ecedb555cdae118d3b746
+[p3-matrix/install]   ⚙  ::set-output:: artifact-url=https://github.com/nektos/act/actions/runs/1/artifacts/1536741984
+[p3-matrix/install] ⭐ Run Complete job
+[p3-matrix/install] Cleaning up container for job install
+[p3-matrix/install]   ✅  Success - Complete job
+[p3-matrix/install] 🏁  Job succeeded
+[p3-matrix/test-3 ] ⭐ Run Set up job
+[p3-matrix/test-3 ] 🚀  Start image=node:22-slim
+[p3-matrix/test-2 ] ⭐ Run Set up job
+[p3-matrix/test-1 ] ⭐ Run Set up job
+[p3-matrix/test-2 ] 🚀  Start image=node:22-slim
+[p3-matrix/test-1 ] 🚀  Start image=node:22-slim
+[p3-matrix/test-2 ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p3-matrix/test-1 ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p3-matrix/test-3 ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p3-matrix/test-2 ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/test-3 ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/test-1 ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/test-2 ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/test-3 ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/test-1 ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/test-1 ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p3-matrix/test-3 ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p3-matrix/test-2 ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p3-matrix/test-2 ]   ✅  Success - Set up job
+[p3-matrix/test-1 ]   ✅  Success - Set up job
+[p3-matrix/test-3 ]   ✅  Success - Set up job
+[p3-matrix/test-2 ]   ☁  git clone 'https://github.com/actions/download-artifact' # ref=v4
+[p3-matrix/test-1 ]   ☁  git clone 'https://github.com/actions/download-artifact' # ref=v4
+[p3-matrix/test-3 ]   ☁  git clone 'https://github.com/actions/download-artifact' # ref=v4
+[p3-matrix/test-2 ] 🧪  Matrix: map[shard:2]
+[p3-matrix/test-2 ] ⭐ Run Main actions/download-artifact@v4
+[p3-matrix/test-2 ]   🐳  docker cp src=/Users/ivankrylov/.cache/act/actions-download-artifact@v4/ dst=/var/run/act/actions/actions-download-artifact@v4/
+[p3-matrix/test-2 ]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/actions/actions-download-artifact@v4/dist/index.js] user= workdir=
+[p3-matrix/test-2 ]   | Downloading single artifact
+[p3-matrix/test-2 ]   | (node:30) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[p3-matrix/test-2 ]   | (Use `node --trace-deprecation ...` to show where the warning was created)
+[p3-matrix/test-2 ]   | Preparing to download the following artifacts:
+[p3-matrix/test-2 ]   | - work (ID: 1536741984, Size: 96, Expected Digest: undefined)
+[p3-matrix/test-2 ]   | Redirecting to blob download url: http://192.168.0.130:34569/twirp/github.actions.results.api.v1.ArtifactService/DownloadArtifact
+[p3-matrix/test-2 ]   | Starting download of artifact to: /private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p3-matrix/test-2 ]   | (node:30) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+[p3-matrix/test-2 ]   | SHA256 digest of downloaded artifact is 1807eec5a81a4b687bb1b82ed8f8296fdc547432b16ecedb555cdae118d3b746
+[p3-matrix/test-2 ]   | Artifact download completed successfully.
+[p3-matrix/test-2 ]   | Total of 1 artifact(s) downloaded
+[p3-matrix/test-2 ]   | Download artifact has finished successfully
+[p3-matrix/test-2 ]   ✅  Success - Main actions/download-artifact@v4 [779.162292ms]
+[p3-matrix/test-2 ]   ⚙  ::set-output:: download-path=/private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p3-matrix/test-2 ] ⭐ Run Main test shard
+[p3-matrix/test-2 ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[p3-matrix/test-2 ]   ❓  ::mark::test-2|test|begin|1789477015533
+[p3-matrix/test-1 ] 🧪  Matrix: map[shard:1]
+[p3-matrix/test-2 ]   | shard 2/3: 100 files checked
+[p3-matrix/test-2 ]   ❓  ::mark::test-2|test|end|1789477015566
+[p3-matrix/test-2 ]   ✅  Success - Main test shard [149.94425ms]
+[p3-matrix/test-1 ] ⭐ Run Main actions/download-artifact@v4
+[p3-matrix/test-2 ] ⭐ Run Complete job
+[p3-matrix/test-2 ] Cleaning up container for job test
+[p3-matrix/test-1 ]   🐳  docker cp src=/Users/ivankrylov/.cache/act/actions-download-artifact@v4/ dst=/var/run/act/actions/actions-download-artifact@v4/
+[p3-matrix/test-2 ]   ✅  Success - Complete job
+[p3-matrix/test-2 ] 🏁  Job succeeded
+[p3-matrix/test-1 ]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/actions/actions-download-artifact@v4/dist/index.js] user= workdir=
+[p3-matrix/test-1 ]   | Downloading single artifact
+[p3-matrix/test-1 ]   | (node:29) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[p3-matrix/test-1 ]   | (Use `node --trace-deprecation ...` to show where the warning was created)
+[p3-matrix/test-1 ]   | Preparing to download the following artifacts:
+[p3-matrix/test-1 ]   | - work (ID: 1536741984, Size: 96, Expected Digest: undefined)
+[p3-matrix/test-1 ]   | Redirecting to blob download url: http://192.168.0.130:34569/twirp/github.actions.results.api.v1.ArtifactService/DownloadArtifact
+[p3-matrix/test-1 ]   | Starting download of artifact to: /private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p3-matrix/test-1 ]   | (node:29) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+[p3-matrix/test-3 ] 🧪  Matrix: map[shard:3]
+[p3-matrix/test-3 ] ⭐ Run Main actions/download-artifact@v4
+[p3-matrix/test-3 ]   🐳  docker cp src=/Users/ivankrylov/.cache/act/actions-download-artifact@v4/ dst=/var/run/act/actions/actions-download-artifact@v4/
+[p3-matrix/test-1 ]   | SHA256 digest of downloaded artifact is 1807eec5a81a4b687bb1b82ed8f8296fdc547432b16ecedb555cdae118d3b746
+[p3-matrix/test-1 ]   | Artifact download completed successfully.
+[p3-matrix/test-1 ]   | Total of 1 artifact(s) downloaded
+[p3-matrix/test-1 ]   | Download artifact has finished successfully
+[p3-matrix/test-1 ]   ✅  Success - Main actions/download-artifact@v4 [985.925833ms]
+[p3-matrix/test-1 ]   ⚙  ::set-output:: download-path=/private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p3-matrix/test-1 ] ⭐ Run Main test shard
+[p3-matrix/test-1 ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[p3-matrix/test-1 ]   ❓  ::mark::test-1|test|begin|1789477016849
+[p3-matrix/test-1 ]   | shard 1/3: 100 files checked
+[p3-matrix/test-1 ]   ❓  ::mark::test-1|test|end|1789477016895
+[p3-matrix/test-1 ]   ✅  Success - Main test shard [214.126917ms]
+[p3-matrix/test-1 ] ⭐ Run Complete job
+[p3-matrix/test-1 ] Cleaning up container for job test
+[p3-matrix/test-3 ]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/actions/actions-download-artifact@v4/dist/index.js] user= workdir=
+[p3-matrix/test-1 ]   ✅  Success - Complete job
+[p3-matrix/test-1 ] 🏁  Job succeeded
+[p3-matrix/test-3 ]   | Downloading single artifact
+[p3-matrix/test-3 ]   | (node:29) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[p3-matrix/test-3 ]   | (Use `node --trace-deprecation ...` to show where the warning was created)
+[p3-matrix/test-3 ]   | Preparing to download the following artifacts:
+[p3-matrix/test-3 ]   | - work (ID: 1536741984, Size: 96, Expected Digest: undefined)
+[p3-matrix/test-3 ]   | Redirecting to blob download url: http://192.168.0.130:34569/twirp/github.actions.results.api.v1.ArtifactService/DownloadArtifact
+[p3-matrix/test-3 ]   | Starting download of artifact to: /private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p3-matrix/test-3 ]   | (node:29) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+[p3-matrix/test-3 ]   | SHA256 digest of downloaded artifact is 1807eec5a81a4b687bb1b82ed8f8296fdc547432b16ecedb555cdae118d3b746
+[p3-matrix/test-3 ]   | Artifact download completed successfully.
+[p3-matrix/test-3 ]   | Total of 1 artifact(s) downloaded
+[p3-matrix/test-3 ]   | Download artifact has finished successfully
+[p3-matrix/test-3 ]   ✅  Success - Main actions/download-artifact@v4 [1.046256583s]
+[p3-matrix/test-3 ]   ⚙  ::set-output:: download-path=/private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p3-matrix/test-3 ] ⭐ Run Main test shard
+[p3-matrix/test-3 ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[p3-matrix/test-3 ]   ❓  ::mark::test-3|test|begin|1789477017734
+[p3-matrix/test-3 ]   | shard 3/3: 100 files checked
+[p3-matrix/test-3 ]   ❓  ::mark::test-3|test|end|1789477017766
+[p3-matrix/test-3 ]   ✅  Success - Main test shard [134.062833ms]
+[p3-matrix/test-3 ] ⭐ Run Complete job
+[p3-matrix/test-3 ] Cleaning up container for job test
+[p3-matrix/test-3 ]   ✅  Success - Complete job
+[p3-matrix/test-3 ] 🏁  Job succeeded
+[p3-matrix/build  ] ⭐ Run Set up job
+[p3-matrix/build  ] 🚀  Start image=node:22-slim
+[p3-matrix/build  ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p3-matrix/build  ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/build  ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p3-matrix/build  ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p3-matrix/build  ]   ✅  Success - Set up job
+[p3-matrix/build  ] ⭐ Run Main build
+[p3-matrix/build  ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[p3-matrix/build  ]   ❓  ::mark::build|build|begin|1789477018718
+[p3-matrix/build  ]   | build: needs.test.result=[success] -- one result for the whole matrix
+[p3-matrix/build  ]   | build: needs.install.outputs.count is not reachable here: []
+[p3-matrix/build  ]   ❓  ::mark::build|build|end|1789477018720
+[p3-matrix/build  ]   ✅  Success - Main build [117.26025ms]
+[p3-matrix/build  ] ⭐ Run Complete job
+[p3-matrix/build  ] Cleaning up container for job build
+[p3-matrix/build  ]   ✅  Success - Complete job
+[p3-matrix/build  ] 🏁  Job succeeded

@@ -1,0 +1,49 @@
+---
+/**
+ * Сноска внутри карточки: отбита линией того же цвета, что рамка карточки.
+ *
+ * Линию берём из `--card-line`, а не из тона сноски: в оригинале зелёный текст в красной
+ * карточке отбит красной линией — граница принадлежит карточке, а не тексту.
+ */
+type Tone = 'ok' | 'prose' | 'err' | 'warn' | 'info';
+
+interface Props {
+  tone?: Tone;
+  size?: number;
+  lh?: number;
+}
+
+const { tone = 'ok', size = 15.5, lh = 1.6 } = Astro.props;
+---
+
+<div class="note" data-tone={tone} style={`--note-fs:calc(${size}px * var(--fs-scale));--note-lh:${lh}`}>
+  <slot />
+</div>
+
+<style>
+  .note {
+    border-top: 1px solid var(--card-line, var(--border));
+    padding-top: 11px;
+    /* Сноска часто состоит из одного длинного имени (`getOwnPropertyDescriptor`), а на
+       телефоне карточка уже этого имени: без разрешения переносить такое слово оно уносит
+       вбок всю страницу. */
+    overflow-wrap: break-word;
+    font-size: var(--note-fs);
+    line-height: var(--note-lh);
+  }
+  .note[data-tone='ok'] {
+    color: var(--tone-ok-text);
+  }
+  .note[data-tone='prose'] {
+    color: var(--prose);
+  }
+  .note[data-tone='err'] {
+    color: var(--tone-err-text);
+  }
+  .note[data-tone='warn'] {
+    color: var(--tone-warn-text);
+  }
+  .note[data-tone='info'] {
+    color: var(--tone-info-text);
+  }
+</style>

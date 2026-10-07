@@ -1,0 +1,388 @@
+---
+title: Сжатие в вебе
+heading: "Сжатие в вебе: gzip, Brotli, zstd"
+headingWidth: 24
+order: 20
+kicker: сеть и безопасность
+lead: "Один и тот же `app.js` уходит браузеру то в 85 КБ, то в 30 — смотря что браузер попросил и что лежит у сервера. О сжатии договариваются заголовками на каждом запросе. От того, кто и когда сжимает, зависят байты по сети, процессор сервера и даже то, можно ли по длине ответа угадать секрет."
+leadWidth: 66
+summary: "`Accept-Encoding`, `Content-Encoding` и `Vary`; что шлёт Chromium по HTTPS, по http и с `Range`; выбор по весам `q`, `*` и `identity;q=0` — функцией и тремя настоящими серверами; уровни gzip, brotli и zstd на файлах этого сайта; предсжатие против сжатия на лету; что не сжимать; `Content-Length` и `Range` у сжатого ответа; словари `dcb`/`dcz` на настоящем обмене с Chromium; BREACH."
+verifiedOn: "Node 24.11.0 (zlib 1.3.1, brotli 1.1.0, zstd 1.5.7), Chromium 153.0.8010.12 (Playwright 1.63), sirv 3.0.2, h3 1.15.11, negotiator 1.0.0, curl 8.7.1, октябрь 2026: заголовки, ответы серверов, ошибки длины и обмен словарём сняты стендом; размеры — на файлах dist/ этого сайта; функция выбора и BREACH сверяются tests/unit/compression.test.ts; формат dcb, окно zstd и цена уровней по процессору — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Договор заголовков }
+  - { id: s2, label: Выбор по весам }
+  - { id: s3, label: Заранее или на лету }
+  - { id: s4, label: Длина и Range }
+  - { id: s5, label: Словари }
+  - { id: s6, label: BREACH }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import CompressLab from '@/widgets/compress-lab/ui/CompressLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_CODING,
+  PREREQ,
+  PREREQ_NOTE,
+  HANDSHAKE_CODE,
+  HANDSHAKE_NOTE,
+  AE_ROWS,
+  AE_FACTS,
+  PLAIN_Q,
+  Q_RULES,
+  NEGOTIATE_CODE,
+  NEGOTIATE_NOTE,
+  AE_PRESETS,
+  AE_TRICKY,
+  LAB_FILES,
+  DEMO_CAPTION,
+  SERVER_ROWS,
+  SIRV_SNIPPET,
+  SERVER_NOTE,
+  LEVEL_HEAD,
+  LEVEL_ROWS,
+  LEVEL_NOTE,
+  CPU_NOTE,
+  CALLS_ROWS,
+  STATIC_NOTE,
+  SKIP_ROWS,
+  SKIP_NOTE,
+  LENGTH_ROWS,
+  LENGTH_NOTE,
+  RANGE_CODE,
+  RANGE_NOTE,
+  PLAIN_DICT,
+  DICT_CODE,
+  DICT_NOTE,
+  DICT_EDITS_NOTE,
+  DICT_ROWS,
+  DICT_ROWS_NOTE,
+  DICT_FACTS,
+  PLAIN_BREACH,
+  BREACH_CODE,
+  BREACH_ROWS,
+  BREACH_NOTE,
+  BREACH_FIXES,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Байты по сети" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Сжатие в HTTP — договор на каждый запрос. Браузер перечисляет в `Accept-Encoding`, что
+    умеет распаковать, сервер выбирает одно и называет его в `Content-Encoding`. Всё остальное —
+    уровни, готовые `.br`-файлы, словари — вопрос того, кто, когда и сколько раз платит
+    процессором за меньшее число байт.
+
+  </Callout>
+
+  Браузер распаковывает ответ сам, и скрипт страницы видит обычный текст. Поэтому сжатие
+  легко считать «включённым где-то на сервере» и забыть. Но у одного адреса теперь несколько
+  вариантов байтов, а это касается кеша, длины ответа, докачки и безопасности. Все размеры
+  в теме сняты на файлах этого сайта: его HTML, CSS, чанках JS и шрифте.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CODING} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Договор заголовков"
+  lead="Браузер называет всё, что умеет распаковать. Сервер выбирает одно, сжимает тело и пишет имя в `Content-Encoding`. И добавляет `Vary: Accept-Encoding`: у этого адреса есть и другие варианты байтов."
+  leadWidth={72}
+>
+  <Card title="Запрос и ответ" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HANDSHAKE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={HANDSHAKE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что шлют клиенты
+
+  <Table
+    head={['клиент', 'запрос', '`Accept-Encoding`']}
+    rows={AE_ROWS.map((r) => [r.who, r.when, r.ae.startsWith('`') ? r.ae : `\`${r.ae}\``])}
+    tones={AE_ROWS.map((r) => r.tone)}
+    toneColumn={2}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(130px,.6fr) minmax(260px,1.4fr) minmax(220px,1.1fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {AE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Выбор по весам"
+  lead="Правило выбора записано в RFC 9110 тремя пунктами. Короче всего оно выглядит функцией: посчитать вес каждого готового варианта и «без сжатия» и взять самый тяжёлый."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_Q} />
+
+  <Card title="Три правила RFC 9110" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <NumberedList items={Q_RULES} />
+  </Card>
+
+  <Card title="Функция выбора" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NEGOTIATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={NEGOTIATE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что выберет сервер
+
+  <CompressLab client:visible negotiateCode={NEGOTIATE_CODE} presets={AE_PRESETS} tricky={AE_TRICKY} files={LAB_FILES} caption={DEMO_CAPTION} />
+
+  ### Три настоящих сервера
+
+  Те же заголовки отправлены трём серверам Node, у которых рядом с `app.js` лежат `app.js.br`
+  и `app.js.gz`. negotiator считает веса, как функция выше. sirv и h3 — это раздача статики,
+  и у каждой своё упрощение.
+
+  <Table
+    head={['`Accept-Encoding`', 'negotiator', 'sirv 3.0.2', 'h3 1.15']}
+    rows={SERVER_ROWS.map((r) => [r.ae === null ? 'нет заголовка' : r.ae === '' ? 'пустой' : `\`${r.ae}\``, r.negotiator, r.sirv, r.h3])}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(250px,1.6fr) minmax(100px,.6fr) minmax(100px,.6fr) minmax(100px,.6fr)"
+    minWidth={600}
+  />
+
+  <Card title="Как выбирает sirv" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={SIRV_SNIPPET} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={SERVER_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Заранее или на лету"
+  lead="Сильное сжатие стоит процессора. Если файл одинаков для всех запросов, платить можно один раз — при сборке. Если ответ собирается заново на каждый запрос, сжимать приходится каждый раз, и уровень берут скромный."
+  leadWidth={72}
+>
+  <Table
+    head={LEVEL_HEAD}
+    rows={LEVEL_ROWS}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(190px,1.4fr) repeat(7, minmax(78px,.6fr))"
+    minWidth={780}
+  />
+
+  <Md text={LEVEL_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CPU_NOTE} />
+
+  ### Сколько раз сжимают
+
+  <Table
+    head={['способ', 'вызовов сжатия на 21 запрос', 'как устроено']}
+    rows={CALLS_ROWS.map((r) => [r.k, r.calls, r.how])}
+    tones={CALLS_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(150px,.7fr) minmax(170px,.8fr) minmax(300px,2fr)"
+    minWidth={680}
+  />
+
+  <Md text={STATIC_NOTE} />
+
+  ### Что не сжимать
+
+  <Table
+    head={['файл', 'исходный', 'gzip 9', 'br 11', 'zstd 19']}
+    rows={SKIP_ROWS}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(200px,1.4fr) repeat(4, minmax(90px,.6fr))"
+    minWidth={620}
+  />
+
+  <Md text={SKIP_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Длина и Range"
+  lead="`Content-Length` у сжатого ответа — длина сжатых байтов. Компрессор на лету её заранее не знает. `Range` тоже считает байты выбранного варианта — поэтому браузер, прося диапазон, от сжатия отказывается."
+  leadWidth={72}
+>
+  <Table
+    head={['ответ сервера', 'что сделал Chromium 153']}
+    rows={LENGTH_ROWS.map((r) => [r.k, r.got])}
+    tones={LENGTH_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(260px,1.2fr) minmax(300px,1.5fr)"
+    minWidth={620}
+  />
+
+  <Md text={LENGTH_NOTE} />
+
+  ### Диапазон сжатого файла
+
+  <Card title="sirv отвечает на Range" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RANGE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={RANGE_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Словари"
+  lead="Прошлая версия файла уже лежит у пользователя в кеше. Если сжать новую версию относительно старой, по сети поедет почти только разница. Так работает Compression Dictionary Transport, RFC 9842: Chromium 153 его поддерживает, а Node 24.11 умеет нужный вид zstd."
+  leadWidth={72}
+>
+  Сам обмен и лучший случай — правку в 25 байт в бандле Vue — показывает
+  [«Сеть и кеширование», раздел «Кеш и валидация»](/platform/network/#s2). Здесь — релиз
+  поближе к настоящему, поля заголовков и то, что ломается.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DICT} />
+
+  <Card title="Обмен Chromium 153 с сервером" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DICT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={DICT_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Сколько едет по сети
+
+  <Md text={DICT_EDITS_NOTE} />
+
+  <Table
+    head={['что и чем сжато', 'исходный', 'br 11', 'zstd 19', '`dcz`']}
+    rows={DICT_ROWS.map((r) => [r.k, r.raw.toLocaleString('ru-RU'), r.br11.toLocaleString('ru-RU'), r.zstd19.toLocaleString('ru-RU'), `**${r.dcz.toLocaleString('ru-RU')}**`])}
+    tones={DICT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(260px,1.8fr) repeat(4, minmax(80px,.5fr))"
+    minWidth={680}
+  />
+
+  <Md text={DICT_ROWS_NOTE} />
+
+  ### Что проверяет браузер
+
+  <CardGrid min={280} gap={14} align="start">
+    {DICT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="BREACH: длина как утечка"
+  lead="Сжатие делает длину ответа зависимой от содержимого. Если в одном ответе лежат секрет и текст, который прислал атакующий, длина подскажет, насколько его догадка похожа на секрет."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BREACH} />
+
+  <Card title="Страница с секретом и поиском" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BREACH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['знаков в догадке', '`csrf=` + верные знаки', '`csrf=` + неверные знаки']}
+    rows={BREACH_ROWS.map((r) => [String(r.k), `${r.right} байт`, `${r.wrong} байт`])}
+    kinds={['mono', 'ok', 'warn']}
+    cols="minmax(140px,.6fr) minmax(180px,1fr) minmax(180px,1fr)"
+    minWidth={520}
+  />
+
+  <Md text={BREACH_NOTE} />
+
+  <Card tone="ok" title="Как защищаются" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <NumberedList items={BREACH_FIXES} />
+  </Card>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Сжатие — это выбор варианта ответа, а не настройка сервера.** У каждого варианта
+      свои байты, длина, `ETag` и место в кеше. Тяжёлое сжатие делают заранее и один раз,
+      на лету — лёгкое и только для текста. И никогда не сжимают вместе секрет и то,
+      что прислал пользователь.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

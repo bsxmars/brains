@@ -1,0 +1,501 @@
+---
+title: "WebGPU: другая модель работы с видеокартой"
+order: 8
+kicker: браузер и рендеринг
+lead: "WebGPU — не следующая версия WebGL, а другой договор с видеокартой. Устройство и очередь — явные объекты, команды **записываются заранее и отправляются пачкой**, всё состояние собрано в неизменяемый конвейер. И видеокарта здесь не только рисует, но и просто считает."
+leadWidth: 66
+summary: "Чем WebGPU устроен иначе, чем WebGL: адаптер, устройство и очередь, запись команд отдельно от отправки, неизменяемый конвейер и группы привязок, вычислительные шейдеры и рабочие группы, асинхронное чтение результата и ошибки, которые не бросаются."
+verifiedOn: "Chromium 153.0.8010.12 (SwiftShader через --enable-unsafe-webgpu и Metal в полной сборке), Firefox 155 (с окном), WebKit 26.6 — Playwright 1.63, macOS; сентябрь 2026"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Другая модель }
+  - { id: s2, label: Запись и отправка }
+  - { id: s3, label: Вычисления }
+  - { id: s4, label: Чтение результата }
+  - { id: s5, label: Ошибки }
+  - { id: s6, label: Поддержка и выбор }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import GpuCompute from '@/widgets/gpu-compute/ui/GpuCompute.vue';
+import {
+  ADD_HOST_CODE,
+  ADD_WGSL,
+  BIND_FACTS,
+  CHOOSE_ROWS,
+  DEMO_NOTE,
+  DETECT_CODE,
+  ENCODE_FACTS,
+  ENGINE_NOTE,
+  ENGINE_ROWS,
+  ERROR_KINDS,
+  ERROR_TEXTS,
+  GLOSSARY,
+  GPU_PRESETS,
+  LOST_CODE,
+  LOST_NOTE,
+  MAP_FACTS,
+  MAP_STEPS,
+  MODEL_FACTS,
+  MODEL_ROWS,
+  PITFALLS,
+  PLAIN_BIND_GROUP,
+  PLAIN_ENCODER,
+  PLAIN_MAP,
+  PLAIN_MODEL,
+  PLAIN_SCOPE,
+  PLAIN_WORKGROUP,
+  PREREQ,
+  RELATED,
+  SCOPE_CODE,
+  SCOPE_FACTS,
+  SOURCES,
+  WGSL_NOTE,
+  WGSL_ROWS,
+  WORKGROUP_FACTS,
+  RACE_SCENE_CODE,
+  RACE_SCENE_NOTE,
+  RACE_STEPS,
+  PLAIN_RACE,
+  BROKEN_SCENE_CODE,
+  BROKEN_SCENE_NOTE,
+  BROKEN_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Идея" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    WebGL — это OpenGL ES в браузере, а модель OpenGL родом из начала девяностых:
+    <b>глобальное состояние, которое драйвер перепроверяет на каждом вызове</b>. Современные
+    графические API — Vulkan, Metal, Direct3D 12 — от этой модели отказались. WebGPU — их
+    модель, перенесённая в браузер.
+
+  </Callout>
+
+  Конвейер GPU тот же: вершины, растеризация, фрагменты, всё как в [«WebGL и конвейере
+  GPU»](/render/webgl/#s2). Меняется то, как вы им управляете, — и появляется то, чего в WebGL
+  не было вовсе: вычисления без рисования.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MODEL} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Другая модель: объекты вместо состояния"
+  lead="В WebGL есть «текущая программа», «текущий буфер», «включённое смешивание» — и каждый вызов отрисовки берёт из этого текущего то, что там лежит. В WebGPU текущего нет: всё, что нужно для работы, передаётся объектами."
+  leadWidth={72}
+>
+  <Table
+    head={MODEL_ROWS.head}
+    rows={MODEL_ROWS.rows}
+    cols={MODEL_ROWS.cols}
+    kinds={MODEL_ROWS.kinds}
+    minWidth={MODEL_ROWS.minWidth}
+  />
+
+  <Card pad={22} radius={5} gap={16}>
+    <div class="t-eyebrow t-eyebrow--panel">Три объекта до первой строчки работы</div>
+
+    <FlowChips
+      minWidth={640}
+      chips={[
+        { label: 'navigator.gpu' },
+        { label: 'requestAdapter() → адаптер или null', tone: 'warn' },
+        { label: 'requestDevice() → устройство', tone: 'info' },
+        { label: 'device.queue', tone: 'ok' },
+      ]}
+    />
+
+
+    Оба запроса — промисы. Адаптер отвечает на вопрос «какая видеокарта есть», устройство —
+    «с какими пределами и возможностями я с ней работаю», очередь — «куда отдавать работу».
+    В WebGL все три роли выполнял контекст канваса, и выбирать было нечего.
+
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {MODEL_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Главная мысль темы">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **WebGL проверяет на каждом вызове, WebGPU — при создании объектов.** Всё остальное
+      в API — следствие этого переноса: неизменяемые конвейеры, группы привязок, записанные
+      заранее команды, ошибки, которые приходят позже вызова.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Цена работы с GPU от этого не исчезает. Она переезжает из цикла кадра в подготовку:
+      конвейер создаётся долго и один раз, а выбирается в кадре мгновенно.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Запись и отправка"
+  lead="Команды не уходят на GPU по одной. Их пишут в энкодер, закрывают в командный буфер и отдают очереди пачкой — а всё, на что команды ссылаются, создано и проверено заранее."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENCODER} />
+
+  <Card title="Сложить два массива: весь путь от адаптера до результата" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={ADD_HOST_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      Это не сокращённый пример, а вся программа: так выглядит минимальный рабочий код.
+      Строк много, но каждая называет то, что в WebGL происходило неявно, — какие буферы,
+      под какими номерами, каким конвейером и когда именно ждать результат. Функция
+      исполнена в трёх движках: все суммы, включая переполнившие 32 бита, совпали
+      с расчётом на JS.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={290} gap={14} align="start">
+    {ENCODE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Раскладка и группы привязок
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BIND_GROUP} />
+
+  Шейдер объявляет ресурсы номерами — `@group(0) @binding(2)`. Раскладка в JS описывает
+  ту же форму: номер, тип (`storage`, `read-only-storage`, `uniform`), видимость по стадиям.
+  Группа привязок кладёт в эту форму конкретные буферы. Проверяется совпадение дважды:
+  раскладка против шейдера — при создании конвейера, буферы против раскладки — при создании
+  группы. До отправки команд несовпадение не доживает.
+
+  <CardGrid min={280} gap={14} align="start">
+    {BIND_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Вычисления: шейдер, который ничего не рисует"
+  lead="Вычислительный шейдер читает буферы и пишет буферы. Вершин, растеризации и пикселей нет — есть сетка рабочих групп, размер которой задаёте вы, и память, общая внутри группы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WORKGROUP} />
+
+  <Card title="Шейдер сложения" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ADD_WGSL} size={11.5} lh={1.7} pad="14px 16px" />
+
+    Каждый вызов берёт свой индекс и складывает одну пару. В WebGL то же самое делали через
+    рисование: массивы — в текстуры, сумма — в пиксели прямоугольника на весь буфер кадра,
+    результат — `readPixels`. Работало, но каждая задача притворялась картинкой.
+
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {WORKGROUP_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### WGSL против GLSL — коротко
+
+  <Table
+    head={WGSL_ROWS.head}
+    rows={WGSL_ROWS.rows}
+    cols={WGSL_ROWS.cols}
+    kinds={WGSL_ROWS.kinds}
+    minWidth={WGSL_ROWS.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={WGSL_NOTE} />
+  </Card>
+
+  ### Демо: ваш GPU против эталона на JS
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEMO_NOTE} />
+  </Card>
+
+  <GpuCompute client:visible presets={GPU_PRESETS} note="Этапы — те же вызовы, что в программе сложения выше. Времени демо не показывает намеренно: `submit` возвращается раньше, чем GPU начал работу, а на программном адаптере секундомер мерил бы процессор. Показано, **что** произошло и в каком порядке." />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Гистограмма — первая задача, где параллельность становится видна.** В сложении каждый
+    вызов пишет в свою ячейку, и порядок не важен. В гистограмме тысячи вызовов пишут в одни
+    и те же шестнадцать ячеек — и без `atomicAdd` теряют прибавления. Переключите демо
+    на «без атомиков»: шейдер корректен и собирается, а сумма по корзинам у вас будет
+    в сотни раз меньше верной.
+
+  </Card>
+
+  ### Как теряется прибавление
+
+  <CodeBlock code={RACE_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={RACE_SCENE_NOTE} />
+
+  Та же гистограмма — тремя способами.
+
+  <CardGrid min={290} gap={14} align="start">
+    {RACE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RACE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Чтение результата — отдельный шаг"
+  lead="Результат живёт в памяти видеокарты. Страница получает его не ответом на вызов, а доставкой: копия в особый буфер, промис, отображение в память страницы — и возврат буфера обратно."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MAP} />
+
+  <Card title="Пять шагов от storage-буфера до массива на JS" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={MAP_STEPS} size={15.5} />
+
+    <CardNote tone="prose">
+
+      Последовательность `mapState` в демо — `unmapped` → `pending` → `mapped` → `unmapped` —
+      снимается у вас в браузере, а не написана заранее. Во всех трёх движках она одна
+      и та же.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={290} gap={14} align="start">
+    {MAP_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Ошибки: почти ничего не бросается"
+  lead="Большинство ошибок WebGPU не исключения. Неверный объект создаётся, но помечается недействительным, а сообщение о нём приходит позже — промисом или событием."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCOPE} />
+
+  ### Один забытый флаг — через всю программу
+
+  <CodeBlock code={BROKEN_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={BROKEN_SCENE_NOTE} />
+
+  Та же программа сложения — шаг за шагом, с этой одной ошибкой.
+
+  <CardGrid min={290} gap={14} align="start">
+    {BROKEN_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Все виды ошибок
+
+  <Table
+    head={ERROR_KINDS.head}
+    rows={ERROR_KINDS.rows}
+    cols={ERROR_KINDS.cols}
+    kinds={ERROR_KINDS.kinds}
+    minWidth={ERROR_KINDS.minWidth}
+  />
+
+  <Card title="Область ошибок и то, что мимо неё" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCOPE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={290} gap={14} align="start">
+    {SCOPE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Одна ошибка — три текста" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Table
+      head={ERROR_TEXTS.head}
+      rows={ERROR_TEXTS.rows}
+      cols={ERROR_TEXTS.cols}
+      kinds={ERROR_TEXTS.kinds}
+      minWidth={ERROR_TEXTS.minWidth}
+    />
+
+    <CardNote tone="warn">
+
+      Совпадают тип ошибки (`GPUValidationError`) и позиция в шейдере — строка 9, колонка 19.
+      Текст у каждого движка свой, и ветвиться по нему нельзя.
+
+    </CardNote>
+  </Card>
+
+  ### Потеря устройства
+
+  <Card title="`device.lost` — промис, который не отклоняется никогда" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOST_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={LOST_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Поддержка и выбор"
+  lead="API есть во всех трёх движках. Различаются наличие адаптера, строгость проверок и тексты — и всё это видно только запуском."
+  leadWidth={72}
+>
+  <Table
+    head={ENGINE_ROWS.head}
+    rows={ENGINE_ROWS.rows}
+    cols={ENGINE_ROWS.cols}
+    kinds={ENGINE_ROWS.kinds}
+    minWidth={ENGINE_ROWS.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ENGINE_NOTE} />
+  </Card>
+
+  <Card tone="ok" title="Проверять адаптер, а не имя" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DETECT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="ok">
+
+      `navigator.gpu` есть только в защищённом контексте: на `http:` с не-`localhost` адреса
+      его нет вовсе (Chromium, Firefox). Отсюда две причины `null` у одной функции — и обе
+      ведут на запасной путь: WebGL или расчёт на процессоре.
+
+    </CardNote>
+  </Card>
+
+  ### Когда что брать
+
+  <Table
+    head={CHOOSE_ROWS.head}
+    rows={CHOOSE_ROWS.rows}
+    cols={CHOOSE_ROWS.cols}
+    kinds={CHOOSE_ROWS.kinds}
+    minWidth={CHOOSE_ROWS.minWidth}
+  />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Тонкие места"
+  lead="Большая часть из них молчит: ни исключения, ни предупреждения — просто не те числа."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+  lead="Спецификации — чтобы проверить формулировку, остальное — чтобы понять, почему формулировка такая."
+  leadWidth={72}
+>
+  <SourceList items={SOURCES} />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

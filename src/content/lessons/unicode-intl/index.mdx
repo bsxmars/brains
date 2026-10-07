@@ -1,0 +1,515 @@
+---
+title: "Unicode и Intl"
+heading: "Unicode и Intl: символы, графемы и сравнение строк"
+headingWidth: 24
+order: 24
+lead: "`'👨‍👩‍👧'.length` равно 8, `'straße'.toUpperCase()` длиннее исходной строки, `sort()` ставит «ёлку» после «яблока», а `n === 1 ? 'файл' : 'файлов'` пишет «21 файлов». Каждая из этих ошибок — про то, что «символ», «буква» и «по алфавиту» в JS означают не то, что видит человек. Как устроены три единицы текста и что `Intl` знает о языке."
+leadWidth: 66
+summary: "Кодовые единицы UTF-16, кодовые точки и суррогатные пары; графемы по правилам UAX #29 — учебная функция, сверенная с `Intl.Segmenter`; одинокий суррогат, `isWellFormed` и обрезка по графемам; нормализация для поиска; регистр: «ß», турецкая «i»; `Intl.Collator`: уровни сравнения, `numeric`, `sensitivity`, языки; `Intl.PluralRules` для русского по правилам CLDR; `NumberFormat`, `ListFormat`, `RelativeTimeFormat`; байты UTF-8; разные версии ICU в Node и Chromium."
+verifiedOn: "Node 24.11.0 (ICU 77.1, Unicode 16.0, CLDR 47.0) и Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: один набор проб в двух движках, ~200 значений совпали, расходятся только знаки Юникода 17; учебная разбивка на графемы сверена с Intl.Segmenter полным перебором пар кодовых точек и 100 000 случайных строк, правила CLDR — с Intl.PluralRules на 270 000 чисел. Всё повторяет tests/unit/unicode-intl.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Единицы и точки }
+  - { id: s2, label: Графемы }
+  - { id: s3, label: Половинка символа }
+  - { id: s4, label: Нормализация }
+  - { id: s5, label: Регистр }
+  - { id: s6, label: Сортировка }
+  - { id: s7, label: Числа и слова }
+  - { id: s8, label: Байты }
+  - { id: s9, label: Разные ICU }
+  - { id: s10, label: Тонкие места }
+  - { id: s11, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import GraphemeLab from '@/widgets/unicode-lab/ui/GraphemeLab.vue';
+import PluralLab from '@/widgets/unicode-lab/ui/PluralLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_LAYERS,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_SURROGATE,
+  UNITS_CODE,
+  UNITS_NOTE,
+  UNIT_API_ROWS,
+  UNIT_API_NOTE,
+  PLAIN_GRAPHEME,
+  GRAPHEME_CODE,
+  GRAPHEME_NOTE,
+  GRAPHEME_ROWS,
+  GRAPHEME_ROWS_NOTE,
+  STRING_SAMPLES,
+  RULE_NOTES,
+  DEMO_CAPTION,
+  PLAIN_BROKEN,
+  BROKEN_CODE,
+  BROKEN_NOTE,
+  TRUNCATE_CODE,
+  TRUNCATE_NOTE,
+  NORMALIZE_CODE,
+  NORMALIZE_NOTE,
+  NORMALIZE_RULE,
+  CASE_CODE,
+  CASE_NOTE,
+  CASE_ROWS,
+  CASELESS_CODE,
+  CASELESS_NOTE,
+  SORT_CODE,
+  SORT_ROWS,
+  SORT_NOTE,
+  PLAIN_LEVELS,
+  LEVELS_CODE,
+  SENSITIVITY_ROWS,
+  GERMAN_ROWS,
+  GERMAN_NOTE,
+  COLLATOR_OPTIONS,
+  PLAIN_PLURAL,
+  PLURAL_CODE,
+  PLURAL_NOTE,
+  PLURAL_FORMS,
+  PLURAL_RULES,
+  NUMBER_SAMPLES,
+  NUMBER_CAPTION,
+  FILES_CODE,
+  FILES_NOTE,
+  PLURAL_FACTS,
+  FORMAT_CODE,
+  FORMAT_NOTE,
+  SEPARATOR_CODE,
+  SEPARATOR_NOTE,
+  BYTES_ROWS,
+  BYTES_NOTE,
+  BYTES_CUT_CODE,
+  BYTES_CUT_NOTE,
+  ICU_ROWS,
+  ICU_NOTE,
+  ICU_RULE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Три счёта" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    У одного «символа» в JS три размера: ячейки, в которых он хранится, номера знаков,
+    из которых он собран, и то, что видит человек. Строковые методы считают ячейки, итератор —
+    номера, и только `Intl.Segmenter` — то, что на экране. Порядок букв, регистр и форма слова
+    при числе — тоже не свойства символов, а правила языка, и их знает `Intl`.
+
+  </Callout>
+
+  Почти все ошибки с текстом в JS — ошибки счёта. Длину поля считают по `length` и режут эмодзи
+  пополам. Переворачивают строку и отрывают тон кожи от пальца. Сортируют `sort()` и получают
+  заглавные отдельно от строчных. Пишут «файлов» после любого числа, кроме единицы. Чтобы
+  не гадать, надо знать, что именно считает каждый инструмент.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYERS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Кодовые единицы и кодовые точки"
+  lead="Юникод нумерует знаки от `U+0000` до `U+10FFFF`, а строка JS хранит их в 16-битных ячейках, где помещается номер не больше `U+FFFF`. Знаку с большим номером нужны две ячейки — суррогатная пара. Все эмодзи, кроме самых старых, живут именно там."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SURROGATE} />
+
+  <Card title="Одна пара по ячейкам" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={UNITS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={UNITS_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Кто что считает
+
+  Один и тот же 👍🏽 — палец и модификатор тона кожи, две кодовые точки, четыре ячейки.
+
+  <Table
+    head={['выражение', 'считает', 'для 👍🏽']}
+    rows={UNIT_API_ROWS.map((r) => ['`' + r.code + '`', r.unit, '`' + r.out + '`'])}
+    kinds={['mono', 'prose', 'mono']}
+    cols="minmax(300px,1.6fr) minmax(150px,.8fr) minmax(90px,.5fr)"
+    minWidth={600}
+  />
+
+  <Md text={UNIT_API_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Графемы: где кончается символ"
+  lead="Графема — кусок текста, который человек видит одним символом и который курсор перепрыгивает целиком. Её границы не записаны в строке: их вычисляют по правилам UAX #29 из вида соседних кодовых точек. Эти правила и исполняет `Intl.Segmenter`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GRAPHEME} />
+
+  <Table
+    head={['строка', '`length`', 'точки', 'графемы', 'байт UTF-8', 'что склеивает']}
+    rows={GRAPHEME_ROWS.map((r) => [r.label, String(r.length), String(r.points), String(r.graphemes), String(r.utf8), r.glue])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(200px,1.6fr) minmax(70px,.5fr) minmax(60px,.5fr) minmax(70px,.5fr) minmax(90px,.6fr) minmax(110px,.8fr)"
+    minWidth={680}
+  />
+
+  <Md text={GRAPHEME_ROWS_NOTE} />
+
+  ### Правила в коде
+
+  Учебная функция берёт шесть правил из стандарта — те, что держат вместе кириллицу, латиницу
+  с диакритикой и эмодзи. За бортом остались правила для корейских слогов, индийских связок
+  и нескольких редких классов: там функция честно ошибётся, и демо это покажет. Вид кодовой
+  точки она узнаёт классами `\p{…}` из регулярных выражений — теми же таблицами, по которым
+  работает `Intl.Segmenter`.
+
+  <Card title="Разбивка на графемы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GRAPHEME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={GRAPHEME_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Граница за границей
+
+  <GraphemeLab client:visible graphemeCode={GRAPHEME_CODE} samples={STRING_SAMPLES} ruleNotes={RULE_NOTES} caption={DEMO_CAPTION} start="family" />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Половинка символа"
+  lead="`slice`, индексы и `substring` режут по ячейкам и не знают о парах. Разрез посередине пары оставляет одинокий суррогат — половинку, которая знаком не является. JS такую строку принимает, ошибка появляется позже, там, где текст превращается в байты."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BROKEN} />
+
+  <Card title="Откуда берётся и где ломается" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BROKEN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={BROKEN_NOTE} />
+    </CardNote>
+  </Card>
+
+  `isWellFormed()` отвечает, есть ли в строке одинокие суррогаты, `toWellFormed()` заменяет
+  каждый на `U+FFFD`. Это проверка и последняя линия обороны перед отправкой. Само место
+  разреза они не чинят: эмодзи уже потерян, остался знак замены.
+
+  ### Обрезать, не разрывая
+
+  <Card title="Обрезка по графемам" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TRUNCATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TRUNCATE_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Нормализация для поиска"
+  lead="Одну и ту же букву можно записать одной кодовой точкой или основой и значком. Пока строки не приведены к одной форме, `===`, `includes`, ключи `Map` и уникальные индексы считают такие записи разными."
+  leadWidth={72}
+>
+  Коротко о формах: NFC собирает букву со значком в одну точку, NFD раскладывает обратно,
+  NFKC ещё и заменяет «оформление» на суть (`ﬁ` на `fi`). Подробно — в [«Строках в V8»,
+  раздел «„Символ“ — это четыре разных числа»](/js/v8-strings/#s5).
+
+  <Card title="Поиск по ненормализованному тексту" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NORMALIZE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={NORMALIZE_NOTE} />
+    </CardNote>
+  </Card>
+
+  Второй пример показывает, что нормализация — не только «собрать или разложить». Значков
+  на одной букве бывает несколько, и записать их можно в любом порядке. У каждого значка
+  есть «класс соседства»: точка снизу — 220, ударение сверху — 230. Нормализация сортирует
+  значки по этому классу, и обе записи сходятся в одну.
+
+  <Card tone="warn" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={NORMALIZE_RULE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Регистр: не буква в букву"
+  lead="`toUpperCase` и `toLowerCase` выглядят как замена каждой буквы парной. На деле это таблица правил Юникода, где одна буква может стать двумя, результат зависит от соседей, а у некоторых языков правила свои."
+  leadWidth={72}
+>
+  <Card title="Пять неожиданностей" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CASE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CASE_NOTE} />
+    </CardNote>
+  </Card>
+
+  Турецкий случай — самый коварный, потому что ломает обычный английский текст. В турецком
+  у «i» с точкой заглавная «İ», а у заглавной «I» строчная — «ı» без точки. Код, который
+  нормализует ключи регистром и запускается на машине с турецкой локалью, перестаёт находить
+  свои же ключи.
+
+  <Table
+    head={['вызов', 'чьи правила']}
+    rows={CASE_ROWS.map((r) => [r.k, r.how])}
+    tones={CASE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose']}
+    cols="minmax(230px,.9fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+
+  ### Сравнить без учёта регистра
+
+  <Card title="toLowerCase против коллатора" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CASELESS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CASELESS_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Сортировка для человека"
+  lead="`sort()` без функции сравнения упорядочивает строки по номерам кодовых единиц. Для машины это верно, для человека — нет. `Intl.Collator` сравнивает по правилам языка из CLDR и умеет то, чего нет в номерах: читать цифры числом и не замечать регистр."
+  leadWidth={72}
+>
+  <Card title="Один список — три порядка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SORT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['`sort()`', "`Collator('ru')`", '`+ numeric: true`']}
+    rows={SORT_ROWS}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(140px,1fr) minmax(140px,1fr) minmax(140px,1fr)"
+    minWidth={460}
+  />
+
+  <Md text={SORT_NOTE} />
+
+  ### Уровни сравнения
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LEVELS} />
+
+  Коллатор сравнивает строки в несколько проходов. На первом уровне — только буквы: «е»
+  и «ё», «е» и «Е» здесь равны. На втором — значки над буквами, на третьем — регистр.
+  Следующий уровень смотрят, только если на предыдущем вся строка совпала. Поэтому три
+  «елки» ниже стоят вместе, а «ель» — после них: «к» меньше «ь» уже на первом уровне.
+
+  <CodeBlock code={LEVELS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  Опция `sensitivity` говорит, на каком уровне остановиться: всё, что глубже, считается
+  равным. Это и есть сравнение «без учёта регистра» или «без учёта ё» — по правилам
+  языка, без ручных замен.
+
+  <Table
+    head={['`sensitivity`', "`compare('е', 'ё')`", "`compare('е', 'Е')`", 'что различает']}
+    rows={SENSITIVITY_ROWS.map((r) => ['`' + r.s + '`', '`' + r.ee + '`', '`' + r.eE + '`', r.d])}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(110px,.7fr) minmax(130px,.7fr) minmax(130px,.7fr) minmax(220px,1.4fr)"
+    minWidth={620}
+  />
+
+  ### Порядок — свойство языка
+
+  <Table
+    head={['`sort()`', "`'de'`", "`'sv'`", "`'de-u-co-phonebk'`"]}
+    rows={GERMAN_ROWS}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(110px,1fr) minmax(110px,1fr) minmax(110px,1fr) minmax(150px,1fr)"
+    minWidth={520}
+  />
+
+  <Md text={GERMAN_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {COLLATOR_OPTIONS.map((o) => (
+      <Card title={o.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={o.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Форма слова при числе"
+  lead="«1 файл, 2 файла, 5 файлов» — три формы, и выбор между ними зависит от последних цифр числа. Правила для каждого языка лежат в CLDR, а `Intl.PluralRules` по ним говорит, какая категория у числа. Слова для категорий остаются за вами."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PLURAL} />
+
+  <Card title="Правила CLDR для русского" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PLURAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={PLURAL_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Число за числом
+
+  <PluralLab client:visible pluralCode={PLURAL_CODE} samples={NUMBER_SAMPLES} forms={PLURAL_FORMS} rules={PLURAL_RULES} caption={NUMBER_CAPTION} />
+
+  ### PluralRules в коде
+
+  <Card title="Слово при числе" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FILES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={FILES_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {PLURAL_FACTS.map((f) => (
+      <Card title={f.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={f.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Готовые форматтеры
+
+  <Card title="Единицы, списки, относительное время" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FORMAT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={FORMAT_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Пробел, которого нет на клавиатуре" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SEPARATOR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SEPARATOR_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Байты: UTF-8 против UTF-16"
+  lead="Внутри JS строка — кодовые единицы UTF-16. Наружу — в сеть, в файл, в базу — она уходит в UTF-8, где знак занимает от одного до четырёх байт в зависимости от номера."
+  leadWidth={72}
+>
+  <Table
+    head={['номера', 'примеры', 'байт UTF-8', 'единиц UTF-16', 'что там']}
+    rows={BYTES_ROWS.map((r) => [r.range, r.ex, r.utf8, r.utf16, r.who])}
+    kinds={['mono', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(170px,1fr) minmax(110px,.7fr) minmax(90px,.5fr) minmax(100px,.5fr) minmax(200px,1.3fr)"
+    minWidth={700}
+  />
+
+  <Md text={BYTES_NOTE} />
+
+  <Card title="Обрезать по байтам" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BYTES_CUT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={BYTES_CUT_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Node и браузер: разные ICU"
+  lead="`Intl` и классы `\p{…}` в Node и Chromium отвечают по таблицам библиотеки ICU, а она обновляется вместе с Юникодом — раз в год. Один и тот же набор проб на стенде совпал во всём, кроме знаков, добавленных в последней версии Юникода."
+  leadWidth={72}
+>
+  <Table
+    head={['что', 'Node 24.11', 'Chromium 153']}
+    rows={ICU_ROWS.map((r) => [r.k, r.node, r.chr])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(240px,1.4fr) minmax(170px,1fr) minmax(200px,1.1fr)"
+    minWidth={640}
+  />
+
+  <Md text={ICU_NOTE} />
+
+  <Card tone="warn" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={ICU_RULE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Спросите себя, что считает получатель.** Хранилище — кодовые единицы или байты, человек —
+      графемы, словарь — правила языка. `length`, `sort()` и `toUpperCase()` — инструменты
+      для машины. Всё, что увидит человек, считают и упорядочивают через `Intl` с явной локалью.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s11" eyebrow="Раздел 11" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

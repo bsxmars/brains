@@ -1,0 +1,86 @@
+---
+/**
+ * Демо «одна задача, две модели»: рамка и три острова внутри неё.
+ *
+ * Рамка статическая и нарисована здесь, а не в островах: она принадлежит всему демо, а не
+ * какой-то одной его половине. Островов три, и каждый на своём рантайме — React-половина,
+ * Vue-половина и общая панель действий. Ничего общего в памяти у них нет и быть не может,
+ * поэтому связь идёт событием на `window` (см. `model/bus.ts`).
+ *
+ * Все три гидратируются по `client:visible`: они стоят рядом и попадают на экран разом,
+ * а до того странице не нужен ни React, ни лишний Vue.
+ */
+import { inlineMd } from '@/shared/lib/format';
+import './panes.css';
+import type { ActionCopy } from '../model/types';
+import Controls from './Controls.vue';
+import ReactPane from './ReactPane.tsx';
+import VuePane from './VuePane.vue';
+
+interface Props {
+  actions: ActionCopy[];
+  /** Подпись под демо. Разрешена строчная разметка. */
+  foot?: string;
+}
+
+const { actions, foot } = Astro.props;
+---
+
+<div class="lab">
+  <div class="bar">
+    <Controls client:visible actions={actions} />
+  </div>
+
+  <div class="split">
+    <ReactPane client:visible />
+    <VuePane client:visible />
+  </div>
+
+  {foot && <div class="foot" set:html={inlineMd(foot)} />}
+</div>
+
+<style>
+  /* Та же приподнятая панель, что у `DemoFrame.vue`: демо обязано отличаться от карточки. */
+  .lab {
+    background: var(--surface);
+    border-radius: var(--r4);
+    box-shadow: var(--shadow-2);
+    overflow: hidden;
+  }
+
+  .bar {
+    padding: 14px 18px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--divider);
+  }
+
+  /*
+   * Линия между половинами нарисована зазором сетки поверх подложки, а не рамкой на первой
+   * панели. Причина в том, что детьми сетки здесь оказываются не панели, а `<astro-island>`,
+   * которыми Astro оборачивает острова: вешать стили на них — значит опираться на то, как
+   * соседний рантайм обернул свою половину. Зазор такой зависимости не имеет и одинаково
+   * работает в обеих раскладках — вертикальной линией на широком экране, горизонтальной
+   * на узком.
+   */
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1px;
+    background: var(--divider);
+  }
+
+  .foot {
+    padding: 16px 18px;
+    background: var(--surface-2);
+    border-top: 1px solid var(--divider);
+    font-size: var(--fs-5);
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 860px) {
+    .split {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,814 @@
+---
+title: Стримы и обратное давление
+order: 5
+kicker: сеть и безопасность
+lead: "Стрим — не труба, по которой что-то течёт само, а **очередь с лимитом** и правило «источник наполняет её только тогда, когда его об этом просят». Отсюда и обратное давление: это не сообщение «притормози», а **отсутствие вызова**, которое расходится вверх по цепочке до самого сокета."
+leadWidth: 66
+summary: "Очередь, `highWaterMark` и `desiredSize`: как медленный потребитель физически замедляет сервер и почему парсер потока обязан помнить, что было в прошлом чанке."
+verifiedOn: Node 24.11 и Chromium 153 (Playwright, headless), сентябрь 2026; раздел 6 переснят на Node 26.8.2 и Chromium 153.0.8010.12, свой байтовый источник, NDJSON и node:stream — только Node 26.8.2, переподключение EventSource — своим стендом в Chromium 153.0.8010.12; спецификации — WHATWG Streams и HTML Standard §9.2
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Три числа }
+  - { id: s2, label: Читаемый поток }
+  - { id: s3, label: Записываемый и HWM }
+  - { id: s4, label: Трансформация }
+  - { id: s5, label: Отмена, tee и блокировка }
+  - { id: s6, label: Итерация и байты }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import BackpressurePipe from '@/widgets/backpressure-pipe/ui/BackpressurePipe.vue';
+import SseSplit from '@/widgets/sse-split/ui/SseSplit.vue';
+import WaveDiagram from '@/widgets/streams-wave-diagram/ui/WaveDiagram.astro';
+import {
+  BACKPRESSURE_WAVE,
+  BYOB_CODE,
+  BYOB_FACTS,
+  BYTE_SOURCE_CODE,
+  BYTE_SOURCE_FACTS,
+  CANCEL_ROWS,
+  CANCEL_VERDICT,
+  CHAIN_CODE,
+  CONTROLLER_FACTS,
+  DESIRED_RULES,
+  EVENTSOURCE_ROWS,
+  EVENTSOURCE_VERDICT,
+  FINALLY_CODE,
+  HELPERS_ROWS,
+  HWM_ROWS,
+  INFLIGHT_ROWS,
+  ITER_CODE,
+  ITER_FACTS,
+  LOCK_CODE,
+  LOCK_FACTS,
+  MEASURED,
+  NDJSON_CODE,
+  NDJSON_NOTE,
+  NODE_BRIDGE_NOTE,
+  NODE_PIPE_CODE,
+  NODE_PIPE_NOTE,
+  NODE_STREAMS_INTRO,
+  NODE_WRITE_CODE,
+  NODE_WRITE_NOTE,
+  NUMBERS,
+  PARSER_CODE,
+  PIPE_DEFAULTS,
+  PIPE_THROUGH_CODE,
+  PITFALLS,
+  PULL_PROMISE_NOTE,
+  PULL_STEPS,
+  PUSH_CODE,
+  RESUME_CODE,
+  RESUME_CODE_NOTE,
+  RESUME_NOTE,
+  RESUME_ROWS,
+  RESUME_SERVER_NOTE,
+  SERVER_BACKPRESSURE_NOTE,
+  READY_VS_WRITE,
+  SINK_CODE,
+  SOURCES,
+  SOURCE_CODE,
+  SSE_CASES,
+  SSE_RULES,
+  STRATEGY_CODE,
+  STRATEGY_TRAP,
+  TAP_CODE,
+  TEE_FACTS,
+  THROUGHPUT_MEASURE,
+  TRANSFORM_CODE,
+  TRANSFORM_FACTS,
+  TRANSFORM_PAIR,
+  WRITE_LOOP_CODE,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  INFLIGHT_NOTE,
+  HELPERS_NOTE,
+  RELATED,
+  PLAIN_FLOW,
+  PLAIN_HWM,
+  PLAIN_PUSH,
+  PLAIN_TRANSFORM,
+  PLAIN_BYOB,
+  PIPE_DEMO_NOTE,
+  SSE_DEMO_NOTE,
+  WRITE_SCENE_NOTE,
+  WRITE_STEPS,
+  PLAIN_WRITE_LOOP,
+  STOP_SCENE_NOTE,
+  STOP_STEPS,
+  PLAIN_STOP,
+  WAVE_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Данные никуда не текут" gap={24}>
+
+  Обычное чтение ответа — `await res.text()` или `res.json()` — ждёт тело целиком и держит его
+  в памяти. Пока не пришёл последний байт, у вас нет ничего. Для файла на гигабайт это риск
+  уронить вкладку по памяти, для бесконечной ленты событий — тупик, а для ответа модели,
+  который должен печататься по словам, — разница между «продукт живой» и «продукт завис».
+
+  <Callout size={19} pad="24px 26px">
+
+    Слово «поток» сбивает интуицию: кажется, что данные текут сами, а ваше дело — их ловить.
+    Всё наоборот. <b>Web Stream — это очередь с лимитом плюс правило «источник наполняет
+    очередь только тогда, когда его об этом просят».</b> Данные никуда не текут. Пока в очереди
+    есть место — платформа зовёт вашу функцию. Места нет — <b>перестаёт звать</b>. Это и есть
+    весь механизм регулировки скорости.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLOW} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Три числа, из которых состоит вся механика"
+  lead="Всё поведение стримов сводится к трём величинам, и в отладке смотрят именно на них. Стримы в демо ниже настоящие: числа сняты с живых `ReadableStream` и `WritableStream` на каждом шаге."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HWM} />
+
+  <Table
+    head={['величина', 'что это', 'где смотреть']}
+    rows={NUMBERS.map((n) => [n.k, n.what, n.where])}
+    tones={NUMBERS.map((n) => n.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(160px,.8fr) minmax(260px,1.6fr) minmax(200px,1.1fr)"
+    minWidth={640}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PIPE_DEMO_NOTE} />
+  </Card>
+
+  <BackpressurePipe client:visible defaults={PIPE_DEFAULTS} />
+
+  {/* ⚠️ Три карточки после демо («Что стоит попробовать первым», «А теперь переключите
+      источник», «Отрицательное — это „перелили“») ушли: первые две стали подписью к демо,
+      третья — врезкой «на пальцах» про `highWaterMark`. */}
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUSH} />
+
+  <Card title="Как читать `desiredSize`" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={DESIRED_RULES} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Читаемый поток: кто кого зовёт"
+  lead="Источник данных описывают объектом с тремя необязательными методами. Очередь, состояния и промисы ведёт платформа, а от вас ей нужно только «дай следующий кусок» и «прибери за собой»."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Источник — это три метода" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SOURCE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card title="Разбор `pull` по шагам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <NumberedList items={PULL_STEPS} size={14.5} />
+
+      <CardNote tone="warn">
+        <Md text={PULL_PROMISE_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={270} gap={14}>
+    {CONTROLLER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} label={fact.t} labelTone="tone" labelSize={12.5} pad={18} radius={5} gap={10} size={15.5}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" title="Push-источник: обратного давления нет, и решение принимаете вы" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    Когда вы сами решаете, брать ли данные, всё работает само: не зовут — не читаете. Когда
+    данные приходят сами, а вы только подписаны, событие прилетит независимо от остатка места,
+    и решение приходится принимать явно.
+
+    <CodeBlock code={PUSH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+
+      Если молча копить всё, что пришло, получится обычная утечка памяти. В снимке кучи она
+      видна не по размеру самой очереди, а по тому, сколько памяти освободится, если её убрать
+      (retained size; разобрано в <a href="/js/memory-profiling/#s4">«Профилировании памяти»,
+      раздел «Shallow против retained»</a>). Для порога очереди вывод практический: разобранные
+      объекты считайте штуками, а не байтами — точного размера в байтах у них нет.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Записываемый поток и отметка воды"
+  lead="Записываемый стрим — приёмник, куда данные уходят по частям. Объект с его методами называют стоком (sink). Свой сток пишут редко, чаще берут готовый конец цепочки. Но от его `desiredSize` зависит, будет ли цепочка тормозить источник."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сток — тоже несколько методов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SINK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        `close` и `abort` — не одно и то же, и разница практическая. При штатном закрытии файл
+        цел, и его надо дописать и закрыть. При аварийном он битый, и его чаще надо удалить.
+        Одного `finally` на оба случая не хватит.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Правильный цикл записи — и типичная ошибка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={WRITE_LOOP_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="warn">
+
+        Это два разных промиса про две разные вещи. Перепутать их легко: в коде они отличаются
+        одним словом.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14}>
+    {READY_VS_WRITE.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Md text={WRITE_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {WRITE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Ожидание:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WRITE_LOOP} />
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={THROUGHPUT_MEASURE} />
+  </Card>
+
+  <Card title="Стратегия очереди: чем меряете память, тем и ограничивайте" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    Платформа должна решать, полна ли очередь. Но «полна» зависит от того, в чём считать.
+    Три чанка по десять байт и три чанка по десять мегабайт — одинаковое число чанков
+    и совершенно разный объём памяти. Поэтому спецификация не выбирает за вас.
+
+    <CodeBlock code={STRATEGY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+      <Md text={STRATEGY_TRAP} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['что создаёте', 'HWM по умолчанию', 'чем меряет', 'почему так']}
+    rows={HWM_ROWS.map((r) => [r.k, r.hwm, r.unit, r.why])}
+    kinds={['mono', 'prose', 'muted', 'prose']}
+    cols="minmax(230px,1.1fr) minmax(90px,.4fr) minmax(130px,.7fr) minmax(240px,1.6fr)"
+    minWidth={780}
+  />
+
+  ### Второй API стримов: `node:stream`
+
+  <Md text={NODE_STREAMS_INTRO} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="`write()` вернул `false` — это `desiredSize ≤ 0`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NODE_WRITE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="warn">
+        <Md text={NODE_WRITE_NOTE} />
+      </CardNote>
+    </Card>
+
+    <Card tone="err" title="`.pipe()` не убирает за собой, `pipeline()` — убирает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NODE_PIPE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="err">
+        <Md text={NODE_PIPE_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} gap={10}>
+    <Md text={NODE_BRIDGE_NOTE} />
+    <Md text={SERVER_BACKPRESSURE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Трансформация: где живёт состояние"
+  lead="Трансформ — единственное звено цепочки, которое может хранить данные между чанками. На этом держится всё остальное. Поток приходит разрезанным где попало, и собрать из него целые сообщения можно только потому, что `transform` получает чанки строго по одному и помнит, что было в прошлом."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSFORM} />
+
+  <Card tone="ok" pad={18} radius={5} size={15.5} lh={1.6}>
+    <Md text={TRANSFORM_PAIR} />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Трансформ — это `transform` и `flush`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TRANSFORM_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card title="`pipeThrough` — это `pipeTo` в трансформ плюс его выход" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PIPE_THROUGH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Все три флага по умолчанию выключены. Значит, **ошибка или конец потока сами доходят
+        до обоих концов цепочки**. Промис от `pipeTo` обязательно обрабатывайте. Не поймали —
+        получили `unhandledrejection`, и ошибка сети превратилась в «в консоли что-то красное,
+        но непонятно откуда».
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={270} gap={14}>
+    {TRANSFORM_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Цепочка звеньев и обратная волна
+
+  <Card pad={22} radius={5} gap={16}>
+    <div class="t-eyebrow t-eyebrow--panel">Как выглядит полная цепочка</div>
+
+    <FlowChips
+      minWidth={680}
+      chips={[
+        { label: 'res.body' },
+        { label: 'Decompression', tone: 'info' },
+        { label: 'TextDecoder', tone: 'info' },
+        { label: 'SSEDecoder', tone: 'warn' },
+        { label: 'render', tone: 'ok' },
+      ]}
+    />
+
+    <CodeBlock code={CHAIN_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    Каждое звено — отдельный объект со своей очередью, своим порогом и своими данными.
+    Обратное давление проходит через всю цепочку само: звенья соединены через `pipeTo`,
+    а он перед каждой подачей ждёт `ready` следующего звена.
+
+  </Card>
+
+  Та же цепочка сверху вниз: данные идут к рендеру, а сигнал «хватит» поднимается от него звено за звеном до сервера.
+
+  <WaveDiagram diagram={WAVE_DIAGRAM} />
+
+  <Card title="Обратная волна: что происходит, когда потребитель перестал читать" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={BACKPRESSURE_WAVE} />
+
+    <CardNote tone="prose">
+
+      Медленный рендер в браузере физически замедляет запись в сокет на сервере — без единого
+      явного сигнала. Ради этого стримы и нужны: дело не только в экономии памяти, а в том, что
+      производитель и потребитель **сами подстраиваются друг под друга по скорости, через всю
+      систему**.
+
+    </CardNote>
+  </Card>
+
+  <DarkPanel eyebrow="Почему порог на выходе трансформа — ноль">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      Порог выхода равен нулю, поэтому первый же `enqueue` внутри `transform` делает место
+      отрицательным: −1. Платформа сразу отмечает вход **того же** трансформа как «хватит» —
+      и звено выше по цепочке перестаёт отдавать данные. На практике это значит:
+      **`pipeThrough` по умолчанию не создаёт скрытых буферов.**
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Проверено запуском: если не читать результат вовсе, из источника успевают взять ровно
+      два чанка. Один лежит в очереди, ещё один ушёл в `transform`, пока платформа не отметила
+      «хватит». Поднимите порог до единицы — станет три, до четырёх — шесть. Если выстроить
+      цепочку из пяти трансформов и не читать результат, в памяти застрянет около пяти чанков,
+      а не пять бездонных очередей.
+
+    </DarkText>
+  </DarkPanel>
+
+  <Table
+    head={['порог на выходе трансформа', 'чанков в пути', 'чем платите']}
+    rows={INFLIGHT_ROWS.map((r) => [r.k, r.n, r.what])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(170px,.8fr) minmax(130px,.6fr) minmax(280px,1.8fr)"
+    minWidth={620}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={INFLIGHT_NOTE} />
+  </Card>
+
+  ### Разбор потока на примере SSE
+
+  <Card title="Правила разбора, на которых ломаются самописные разборщики" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    SSE (Server-Sent Events) — формат, в котором сервер шлёт события обычным текстом. Каждое событие — несколько строк вида `поле: значение`, например
+    `event: token` и `data: привет`, а пустая строка завершает событие. Сеть режет этот текст
+    на чанки где угодно, поэтому разборщику нужны правила ниже.
+
+    <NumberedList items={SSE_RULES} size={14.5} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SSE_DEMO_NOTE} />
+  </Card>
+
+  <SseSplit client:visible cases={SSE_CASES} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Всё держится на одном куске кода" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PARSER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Незаконченная строка остаётся в буфере до следующего чанка, а `\r` на конце — вместе
+        с ней. Вывод, который стоит запомнить: **разборщик, хранящий данные между чанками,
+        создаётся один раз на весь стрим.** Если создавать его заново на каждый чанк, ошибка
+        гарантирована.
+
+      </CardNote>
+    </Card>
+
+    <Card title="NDJSON: тот же приём, формат проще" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={NDJSON_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <Md text={NDJSON_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="Почему не встроенный клиент, если протокол тот же" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    В браузере есть готовый клиент для SSE — `EventSource`. Он сам разбирает события и сам
+    переподключается. Но возможностей у него меньше, чем у `fetch` со стримами:
+
+    <Table
+      head={['', '`EventSource`', '`fetch` + Streams']}
+      rows={EVENTSOURCE_ROWS.map((r) => [r.k, r.es, r.fetchRow])}
+      kinds={['prose', 'muted', 'prose']}
+      cols="minmax(170px,.8fr) minmax(190px,1fr) minmax(220px,1.2fr)"
+      minWidth={600}
+    />
+
+    <CardNote tone="prose">
+      <Md text={EVENTSOURCE_VERDICT} />
+    </CardNote>
+  </Card>
+
+  ### Возобновление после обрыва
+
+  <Card title="Что `EventSource` отправляет при переподключении" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <Md text={RESUME_NOTE} />
+
+    <Table
+      head={['что сделал сервер', 'что было дальше']}
+      rows={RESUME_ROWS.map((r) => [r.k, r.v])}
+      tones={RESUME_ROWS.map((r) => r.tone)}
+      kinds={['prose', 'prose']}
+      cols="minmax(200px,.9fr) minmax(260px,1.4fr)"
+      minWidth={560}
+    />
+
+    <CardNote tone="prose">
+      <Md text={RESUME_SERVER_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card tone="ok" title="То же на `fetch`: каждое решение — строка кода" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RESUME_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="ok">
+      <Md text={RESUME_CODE_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Отмена, `tee` и блокировка читателя"
+  lead="У стрима ровно один потребитель. `cancel` и `abort` — не синонимы: только один из них отличим от нормального конца. А ветвление через `tee` копит в памяти всё, что не успела прочитать медленная ветка."
+  leadWidth={72}
+>
+  <CardGrid min={270} gap={14}>
+    {LOCK_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" title="Порядок действий при обработке ошибок" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={LOCK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    Тело читают **либо** целиком (`res.text()`, `res.json()`), **либо** стримом — не оба,
+    в любом порядке. Если начать со стрима, а потом увидеть статус 500, прочитать тело ошибки
+    уже нечем, а обычно только там и написано, что пошло не так. Нужны два потребителя?
+    Скажите это явно через `tee` и примите его цену.
+
+  </Card>
+
+  <Md text={STOP_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {STOP_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Что это:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STOP} />
+
+  <Card title="`cancel` против `abort`: не синонимы" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['', '`controller.abort()`', '`reader.cancel()`']}
+      rows={CANCEL_ROWS.map((r) => [r.k, r.abortCol, r.cancelCol])}
+      kinds={['prose', 'muted', 'muted']}
+      cols="minmax(170px,.8fr) minmax(220px,1.1fr) minmax(220px,1.1fr)"
+      minWidth={640}
+    />
+
+    <CardNote tone="err">
+      <Md text={CANCEL_VERDICT} />
+    </CardNote>
+
+    <CardNote tone="prose">
+
+      Держите **один `AbortController` на весь запрос**. Он отменяет `fetch` до получения
+      заголовков, его сигнал передают в `pipeTo({ signal })`, его же объединяют с таймаутом через
+      `AbortSignal.any`. Почему сигнал не останавливает уже запущенный синхронный код, а только
+      следующий шаг, разобрано в <a href="/js/task-scheduling/#s2">«Планировании задач»,
+      подраздел «Нарезанную работу нужно уметь отменить»</a>.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {TEE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="Что делать вместо ветвления" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TAP_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="ok">
+
+        Раздваивайте не стрим, а **уже разобранные данные**: один потребитель и отрисовывает,
+        и считает. Если нужно подсмотреть сами байты, вставьте трансформ, который пропускает чанк
+        дальше без изменений. Обратное давление сохраняется полностью, лишнего запаса нет.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="`reader.cancel()` в `finally` — не украшение" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FINALLY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="warn">
+
+        Отмена сама идёт вверх по цепочке, потому что флаги `prevent*` по умолчанию выключены.
+        А `.catch(() => {})` нужен, потому что `cancel` тоже может завершиться ошибкой. В `finally`
+        она заменила бы собой исходное исключение.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Кнопка «стоп» в интерфейсе — это `abort`, а не `cancel`: только его можно отличить
+    от нормального конца. И страница должна оставаться отзывчивой, как везде: долгий разбор
+    чанка в обработчике задерживает отрисовку кадра, поэтому <a href="/js/task-scheduling/">уступать
+    циклу событий</a> надо и здесь. Обратное давление решает, **сколько** данных придёт, а не
+    сколько времени вы потратите на каждый кусок.
+
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Итерация над стримом и байтовые читатели"
+  lead="Два способа читать, которые выглядят просто удобной записью. У обоих есть скрытое поведение: цикл **отменяет стрим** на выходе, а байтовый читатель **забирает** переданный ему буфер."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Цикл вместо ручного `read()`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ITER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="Чем `break` отличается от конца потока" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Дочитали до конца — стрим закрылся сам. Вышли досрочно — **вы его отменили**, хотя в коде
+      нет ни одной строки про отмену. Если ответ читают до конца, разницы нет. Если стрим нужен
+      дальше — разница решающая.
+
+      <CardNote tone="err">
+
+        Это правило из [объектной модели, раздел «Итераторы и генераторы»](/js/object-model/#s8):
+        досрочный выход из цикла закрывает итератор, а тот — источник. Для сетевого ответа это
+        разрыв соединения.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={270} gap={14}>
+    {ITER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Байтовые читатели: буфер даёте вы
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BYOB} />
+
+  <Card title="`getReader({ mode: 'byob' })`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={BYOB_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {BYOB_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Свой байтовый источник: писать прямо в буфер читателя
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`type: 'bytes'` и `byobRequest`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BYTE_SOURCE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <CardGrid min={260} gap={12}>
+      {BYTE_SOURCE_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.6}>
+          <Md text={fact.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+  </CardGrid>
+
+  ### Короткие приёмы, которые экономят по десять строк
+
+  <Table
+    head={['приём', 'коротко', 'что он даёт']}
+    rows={HELPERS_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['mono', 'muted', 'prose']}
+    cols="minmax(230px,1fr) minmax(130px,.55fr) minmax(300px,1.9fr)"
+    minWidth={760}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={HELPERS_NOTE} />
+  </Card>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  <Card title="Что из этого проверено запуском" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['утверждение', 'замер', 'где']}
+      rows={MEASURED.map((m) => [m.k, m.v, m.where])}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(260px,1.5fr) minmax(190px,1fr) minmax(120px,.55fr)"
+      minWidth={680}
+    />
+
+    <CardNote tone="prose">
+
+      «Обе среды» — Node и Chromium, и числа в них совпали до единицы. Чего таблица не покрывает:
+      того, что происходит в сети, — порога у `res.body`, того, доходит ли отмена до бэкенда,
+      и прокси, который копит ответ у себя.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+
+    <CardNote tone="prose">
+
+      Спецификации меняются: редакторы уточняют алгоритмы. Пример — поведение `releaseLock`,
+      оно менялось в 2022 году. Сверяйтесь со спецификацией на день чтения, а не с этой страницей.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

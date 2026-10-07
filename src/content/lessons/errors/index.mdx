@@ -1,0 +1,552 @@
+---
+title: "Ошибки и стеки: от throw до отчёта"
+heading: "Ошибки и стеки: от throw до отчёта"
+headingWidth: 22
+order: 22
+lead: "В отчёте об ошибке из продакшена пусто: `{}`. В стеке нет функции, которая бросила, зато есть та, что ошибку создала. После `await` половина вызовов на месте, после `.then` — пропала. А ошибка из скрипта с CDN пришла как «Script error.» без единой подробности. Всё это — не баги, а устройство объекта ошибки, стека V8 и глобальных обработчиков."
+leadWidth: 66
+summary: "Что лежит в объекте ошибки и почему `JSON.stringify` даёт `{}`; `cause`, `AggregateError` и брошенные не-ошибки; стек снимается в `new Error`, а печатается при первом чтении; `captureStackTrace`, `stackTraceLimit` и CallSite API; какие кадры V8 восстанавливает после `await`; `onerror`, `unhandledrejection` и «Script error.» в браузере, `uncaughtException` и коды выхода в Node; `finally`, `using` и `SuppressedError`; сборка отчёта с цепочкой причин и разбор стека на кадры."
+verifiedOn: "Node 24.11.0 (V8 13.6) и 26.8.2 для сравнения, Chromium 153.0.8010.12 (Playwright 1.63, headless), октябрь 2026: примеры исполнены отдельными процессами Node, асинхронные стеки и глобальные обработчики — в Chromium со своего node:http на двух источниках. Разбор стека сверен с CallSite API V8, сборка отчёта — со structuredClone. Всё повторяет tests/unit/errors.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Объект ошибки }
+  - { id: s2, label: Когда снимается стек }
+  - { id: s3, label: Асинхронный стек }
+  - { id: s4, label: Необработанные }
+  - { id: s5, label: finally }
+  - { id: s6, label: Отчёт }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import StackLab from '@/widgets/error-lab/ui/StackLab.vue';
+import ReportLab from '@/widgets/error-lab/ui/ReportLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_ERROR,
+  PREREQ,
+  PREREQ_NOTE,
+  ANATOMY_RUN,
+  ANATOMY_ROWS,
+  ANATOMY_NOTE,
+  CLASS_RUN,
+  CLASS_NOTE,
+  THROWN_RUN,
+  THROWN_NOTE,
+  THROW_STRING_RUN,
+  PLAIN_SNAPSHOT,
+  WHERE_RUN,
+  WHERE_NOTE,
+  LAZY_RUN,
+  LAZY_NOTE,
+  CAPTURE_RUN,
+  CAPTURE_NOTE,
+  LIMIT_RUN,
+  LIMIT_NOTE,
+  PREPARE_RUN,
+  PREPARE_FACTS,
+  PLAIN_ASYNC,
+  ASYNC_CASES,
+  ASYNC_CAPTION,
+  ASYNC_HOW,
+  ASYNC_ROWS,
+  ASYNC_DEVTOOLS_NOTE,
+  ASYNC_PRACTICE,
+  GLOBAL_CODE,
+  GLOBAL_FACTS,
+  BROWSER_ROWS,
+  PLAIN_MUTED,
+  MUTED_NOTE,
+  NODE_ROWS,
+  CRASH_RUN,
+  CRASH_NOTE,
+  HANDLERS_RUN,
+  HANDLERS_NOTE,
+  LATE_RUN,
+  LATE_NOTE,
+  FINALLY_ORDER_RUN,
+  FINALLY_ORDER_NOTE,
+  FINALLY_LOSS_RUN,
+  FINALLY_LOSS_NOTE,
+  USING_RUN,
+  USING_NOTE,
+  PROMISE_FINALLY_RUN,
+  PROMISE_FINALLY_NOTE,
+  REPORT_FIELDS,
+  REPORT_NOT,
+  CLONE_ROWS,
+  CLONE_NOTE,
+  SERIALIZE_CODE,
+  SERIALIZE_FACTS,
+  PARSE_CODE,
+  PARSE_NOTE,
+  REPORT_CASES,
+  REPORT_CAPTION,
+  MAX_FRAMES_OPTIONS,
+  REPORT_WHERE_CODE,
+  REPORT_WHERE_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Акт о происшествии" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Ошибка — обычный объект с тремя главными полями: что случилось, где и почему. Стек
+    в нём — снимок вызовов в момент `new Error`, а не в момент `throw`. Всё остальное —
+    куда ошибка улетит, кто о ней узнает и что дойдёт до вашего сервера — решают
+    обработчики, и решают по-разному в браузере и в Node.
+
+  </Callout>
+
+  Когда программа падает у пользователя, единственный свидетель — объект ошибки. По нему
+  нужно понять, какая функция упала, кто её вызвал и что было первопричиной. Для этого
+  надо знать, что в объекте есть, что движок туда записал, а что потерял по дороге:
+  на `await`, на чужом домене, в `finally` или при отправке на сервер.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ERROR} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Что лежит в объекте ошибки"
+  lead="Сквозной пример темы — сохранение заказа: база не ответила, и эту ошибку завернули в свою, понятную пользователю. Видно сразу три вещи: имя живёт в прототипе, своих полей у ошибки три, а `JSON.stringify` не видит ни одного из них."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="anatomy.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ANATOMY_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ANATOMY_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={ANATOMY_ROWS.head}
+    rows={ANATOMY_ROWS.rows}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(110px,.5fr) minmax(110px,.5fr) minmax(300px,2fr)"
+    minWidth={720}
+  />
+
+  <Md text={ANATOMY_NOTE} />
+
+  ### Свой класс ошибки
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="class.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CLASS_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={CLASS_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CLASS_NOTE} />
+  </CardGrid>
+
+  ### Бросить можно что угодно
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="thrown.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={THROWN_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={THROWN_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" title="Та же строка, но без catch" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={THROW_STRING_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+
+      Код выхода 1. Где брошено, Node не говорит: места у строки нет, а внутренняя строка
+      `run_main:107` — это его собственный код, который перебросил исключение.
+
+    </Card>
+  </CardGrid>
+
+  <Md text={THROWN_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Когда снимается стек и когда он становится строкой"
+  lead="Два разных момента. Кадры V8 записывает в конструкторе ошибки — какие функции на стеке прямо сейчас. Строку `stack` с заголовком `Error: текст` он собирает позже, когда её впервые прочтут. Почти все странности стека — из-за этой разницы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="where.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={WHERE_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={WHERE_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={WHERE_NOTE} />
+  </CardGrid>
+
+  ### Строка собирается при первом чтении
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="lazy.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LAZY_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={LAZY_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LAZY_NOTE} />
+  </CardGrid>
+
+  ### `Error.captureStackTrace`: снять стек заново и спрятать лишнее
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="capture.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CAPTURE_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={CAPTURE_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CAPTURE_NOTE} />
+  </CardGrid>
+
+  ### `Error.stackTraceLimit`: сколько кадров хранить
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="limit.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LIMIT_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={LIMIT_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LIMIT_NOTE} />
+  </CardGrid>
+
+  ### `Error.prepareStackTrace`: кадры объектами
+
+  Строка `stack` — только один из способов показать кадры. V8 даёт и сами кадры, объектами
+  CallSite: так работают инструменты, которым нужны числа, а не текст, — например, перевод
+  стека через карту исходников в Node.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="prepare.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PREPARE_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={PREPARE_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <CardGrid min={240} gap={12} align="start">
+      {PREPARE_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={16} radius={5} gap={8} size={15.5} lh={1.6} text={fact.d} />
+      ))}
+
+    </CardGrid>
+  </CardGrid>
+
+  Формат кадра `at имя (файл:строка:колонка)` — тоже изобретение V8. Firefox и Safari пишут
+  стек иначе, и предел кадров у них другой: сравнение — в теме
+  [«Три движка», раздел «Язык»](/render/browser-engines/#s2). А строка и колонка в стеке —
+  позиция в том файле, который исполнял движок; как довести её до исходника, разобрано
+  в [«Source maps изнутри»](/tooling/source-maps/#s3).
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Асинхронный стек: что остаётся после await"
+  lead="После `await` функция продолжает работу в новой микрозадаче, и на настоящем стеке под ней пусто: тех, кто её вызвал, там давно нет. Тем не менее Node и Chromium показывают их кадрами `at async …`. Эти кадры V8 достраивает сам — и только там, где есть за что зацепиться."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ASYNC} />
+
+  <Md text={ASYNC_HOW} />
+
+  <StackLab client:visible parseCode={PARSE_CODE} cases={ASYNC_CASES} caption={ASYNC_CAPTION} />
+
+  <Table
+    head={ASYNC_ROWS.head}
+    rows={ASYNC_ROWS.rows}
+    tones={ASYNC_ROWS.tones}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(320px,1.6fr)"
+    minWidth={600}
+  />
+
+  <Card tone="neutral" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ASYNC_DEVTOOLS_NOTE} />
+
+  <Md text={ASYNC_PRACTICE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Необработанные ошибки: браузер и Node"
+  lead="Ошибку, которую никто не поймал, получает среда. Браузер сообщает о ней событием и живёт дальше. Node по умолчанию печатает стек и завершает процесс. Куда попадает бросок из колбэка, разобрано в [«Колбэках»](/js/callbacks/#s5); здесь — что именно приходит в обработчик и что из этого можно отправить."
+  leadWidth={72}
+>
+  ### В браузере
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Глобальные обработчики" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={GLOBAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <CardGrid min={240} gap={12} align="start">
+      {GLOBAL_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={16} radius={5} gap={8} size={15.5} lh={1.6} text={fact.d} />
+      ))}
+
+    </CardGrid>
+  </CardGrid>
+
+  ### Чужой источник и «Script error.»
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MUTED} />
+
+  Опыт: страница на `localhost:53011` с этими обработчиками подключает скрипты с себя самой
+  и с `127.0.0.1:53012` — это уже другой источник. Что получил каждый обработчик в Chromium 153:
+
+  <Table
+    head={BROWSER_ROWS.head}
+    rows={BROWSER_ROWS.rows}
+    tones={BROWSER_ROWS.tones}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1.3fr) minmax(150px,.9fr) minmax(200px,1.2fr) minmax(140px,.8fr)"
+    minWidth={780}
+  />
+
+  <Md text={MUTED_NOTE} />
+
+  CORS, заголовок `Access-Control-Allow-Origin` и правило одного источника разобраны в теме
+  [«Безопасность фронтенда», раздел «CORS и preflight»](/platform/security/#s2).
+
+  ### В Node
+
+  <Table
+    head={NODE_ROWS.head}
+    rows={NODE_ROWS.rows}
+    tones={NODE_ROWS.tones}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(220px,1.1fr) minmax(320px,2fr) minmax(90px,.4fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="crash-timer.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CRASH_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={CRASH_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CRASH_NOTE} />
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="handlers.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HANDLERS_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={HANDLERS_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={HANDLERS_NOTE} />
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="late.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LATE_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={LATE_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      <Md text={LATE_NOTE} />
+
+      Граница «успел — опоздал» и флаги `--unhandled-rejections` — в теме
+      [«Промис изнутри», раздел «Отказ»](/js/promise-internals/#s5).
+
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="finally и порядок: где теряется исходная ошибка"
+  lead="`finally` выполняется всегда — после `return`, после `throw`, после `await`. Именно поэтому он может перехватить выход из функции: подменить возвращаемое значение или летящую ошибку. В отчёт тогда уходит не то, что случилось первым."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="order.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FINALLY_ORDER_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={FINALLY_ORDER_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FINALLY_ORDER_NOTE} />
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="loss.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FINALLY_LOSS_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={FINALLY_LOSS_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FINALLY_LOSS_NOTE} />
+  </CardGrid>
+
+  ### `using`: закрыть и не потерять
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="using.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={USING_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={USING_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={USING_NOTE} />
+  </CardGrid>
+
+  ### `.finally()` у промиса
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="promise-finally.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PROMISE_FINALLY_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={PROMISE_FINALLY_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PROMISE_FINALLY_NOTE} />
+  </CardGrid>
+
+  Как `finally` ведёт себя в генераторе, где внутри него может стоять `yield`, — в теме
+  [«Генераторы», раздел «Ранний выход»](/js/generators/#s5).
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Отчёт об ошибке"
+  lead="Отчёт — то, что от ошибки доедет до сервера. Объект ошибки туда не отправить: по сети идёт строка, и при переводе в строку теряется почти всё. Поэтому отчёт собирают явно — поле за полем, с цепочкой причин и обрезанным стеком."
+  leadWidth={72}
+>
+  <CardGrid min={260} gap={14} align="start">
+    {REPORT_FIELDS.map((f) => (
+      <Card title={f.k} titleSize={16} pad={16} radius={5} gap={8} size={15.5} lh={1.6} text={f.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={REPORT_NOT} />
+
+  ### Что берёт каждый способ сериализации
+
+  <Table
+    head={CLONE_ROWS.head}
+    rows={CLONE_ROWS.rows}
+    tones={CLONE_ROWS.tones}
+    kinds={['prose', 'prose', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,1fr) minmax(110px,.7fr) minmax(130px,.8fr) minmax(130px,.8fr) minmax(80px,.5fr) minmax(130px,.8fr)"
+    minWidth={820}
+  />
+
+  <Md text={CLONE_NOTE} />
+
+  ### Сборка отчёта
+
+  <Card title="serializeError" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SERIALIZE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {SERIALIZE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={16} radius={5} gap={8} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Разбор стека на кадры
+
+  <Card title="parseStack" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PARSE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={PARSE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Отчёт по шагам
+
+  <ReportLab
+    client:visible
+    parseCode={PARSE_CODE}
+    serializeCode={SERIALIZE_CODE}
+    cases={REPORT_CASES}
+    frameOptions={MAX_FRAMES_OPTIONS}
+    caption={REPORT_CAPTION}
+  />
+
+  ### Где ловить
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Обработчики, которые шлют отчёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REPORT_WHERE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={REPORT_WHERE_NOTE} />
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Ошибку создают там, где знают, что случилось, и оборачивают с `cause`, а не правят.**
+      Стек снимется в нужном месте, причина не потеряется, а отчёт соберёт всю цепочку —
+      если собирать его явным обходом, а не `JSON.stringify`.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

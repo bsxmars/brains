@@ -1,0 +1,234 @@
+---
+/**
+ * Раскраска чанков на одном графе — статичная схема к разделу «Чанки и кеш».
+ *
+ * Колонки схемы — это файлы сборки, а не слои графа: так видно главное, ради чего раскраска
+ * существует, — модули одного цвета лежат в одном файле, а модуль двух маршрутов стоит
+ * между ними в единственном экземпляре. Связи «кто кого импортирует» подписаны в карточке
+ * модуля: стрелки через колонки на узком экране превращаются в кашу.
+ *
+ * Все строки приходят пропом из `data.ts` темы (`CHUNK_DIAGRAM`) и печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface DiagramModule {
+  file: string;
+  note: string;
+}
+
+interface Props {
+  diagram: {
+    title: string;
+    entry: { name: string; color: string; module: DiagramModule };
+    edge: string;
+    chunks: { name: string; color: string; tone: 'info' | 'warn' | 'ok'; modules: DiagramModule[] }[];
+    preload: string;
+  };
+}
+
+const { diagram } = Astro.props;
+---
+
+<figure class="mcd-frame">
+  <figcaption class="t-eyebrow t-eyebrow--panel">{diagram.title}</figcaption>
+
+  <div class="mcd-chunk mcd-chunk--entry">
+    <div class="mcd-head">
+      <span class="mcd-name">{diagram.entry.name}</span>
+      <span class="mcd-color">{diagram.entry.color}</span>
+    </div>
+    <div class="mcd-module">
+      <span class="mcd-file">{diagram.entry.module.file}</span>
+      <span class="mcd-note" set:html={inlineMd(diagram.entry.module.note)} />
+    </div>
+  </div>
+
+  <div class="mcd-edges" aria-hidden="true">
+    <span class="mcd-edge" data-col="1">
+      <span class="mcd-edge__line"></span>
+      <span class="mcd-edge__tip">▼</span>
+    </span>
+    <span class="mcd-edge mcd-edge--label" data-col="2" set:html={inlineMd(diagram.edge)} />
+    <span class="mcd-edge" data-col="3">
+      <span class="mcd-edge__line"></span>
+      <span class="mcd-edge__tip">▼</span>
+    </span>
+  </div>
+
+  <div class="mcd-chunks">
+    {
+      diagram.chunks.map((chunk) => (
+        <div class={`mcd-chunk mcd-chunk--${chunk.tone}`}>
+          <div class="mcd-head">
+            <span class="mcd-name">{chunk.name}</span>
+            <span class="mcd-color">{chunk.color}</span>
+          </div>
+          {chunk.modules.map((mod) => (
+            <div class="mcd-module">
+              <span class="mcd-file">{mod.file}</span>
+              <span class="mcd-note" set:html={inlineMd(mod.note)} />
+            </div>
+          ))}
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="mcd-preload" set:html={inlineMd(diagram.preload)} />
+</figure>
+
+<style>
+  .mcd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+  .mcd-frame > figcaption {
+    margin-bottom: 6px;
+  }
+
+  .mcd-chunks {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .mcd-chunk {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--r3);
+    background: var(--surface-2);
+  }
+  .mcd-chunk--entry {
+    align-self: center;
+    width: min(100%, 420px);
+    border-style: solid;
+    border-color: var(--ink);
+    background: var(--surface);
+  }
+  .mcd-chunk--info {
+    border-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+  }
+  .mcd-chunk--warn {
+    border-color: var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+  }
+  .mcd-chunk--ok {
+    border-color: var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+  }
+
+  .mcd-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px 10px;
+  }
+  .mcd-name {
+    font-size: var(--fs-3);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .mcd-color {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .mcd-chunk--info .mcd-color {
+    color: var(--tone-info-strong);
+  }
+  .mcd-chunk--warn .mcd-color {
+    color: var(--tone-warn-strong);
+  }
+  .mcd-chunk--ok .mcd-color {
+    color: var(--tone-ok-strong);
+  }
+
+  .mcd-module {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    background: var(--surface);
+  }
+  .mcd-file {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .mcd-note {
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    color: var(--prose);
+  }
+
+  /* Два ленивых перехода из входа: в чанк A (первая колонка) и в чанк B (третья). */
+  .mcd-edges {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: center;
+    justify-items: center;
+    color: var(--ghost);
+  }
+  .mcd-edge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .mcd-edge__line {
+    height: 22px;
+    border-left: 2px dashed currentcolor;
+  }
+  .mcd-edge__tip {
+    font-size: var(--fs-1);
+    line-height: 1;
+  }
+  /* Подпись — строка текста, а не столбик: `code` и слова внутри неё не должны стать флекс-элементами. */
+  .mcd-edge--label {
+    display: block;
+    white-space: nowrap;
+    font-size: var(--fs-3);
+    text-align: center;
+    color: var(--text-muted);
+  }
+
+  .mcd-preload {
+    padding: 10px 12px;
+    border-left: 3px solid var(--tone-info-line);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--prose);
+  }
+
+  /* На узком экране колонки встают друг под друга; стрелки тогда указывают вниз на всю стопку. */
+  @media (max-width: 620px) {
+    .mcd-chunks {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .mcd-edges {
+      grid-template-columns: auto auto;
+      justify-content: center;
+    }
+    .mcd-edge[data-col='3'] {
+      display: none;
+    }
+  }
+</style>

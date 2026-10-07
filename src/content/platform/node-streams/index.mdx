@@ -1,0 +1,505 @@
+---
+title: "node:stream изнутри"
+order: 6
+kicker: сеть и безопасность
+lead: "Readable, Writable, Duplex и Transform — это буфер, пара флагов и правило «звать `_read`, пока буфер ниже порога и прошлый вызов получил ответ». Из этого правила выводятся четыре режима чтения, порядок событий `'end'`, `'finish'` и `'close'` и то, почему `for await` тормозит источник, а `on('data')` — нет."
+leadWidth: 68
+summary: "Внутреннее состояние Readable и Writable по шагам, четыре режима чтения на модели, сверенной с Node, objectMode и размер, порядок end/finish/close, destroy и finished, генераторы, cork и _writev, отличия от Web Streams."
+verifiedOn: "Node 26.8.2, сентябрь 2026: каждый пример исполняет тест, вывод в теме — их вывод; модель демо сверена с node:stream на каждом сочетании переключателей"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Четыре класса }
+  - { id: s2, label: Состояние }
+  - { id: s3, label: Режимы чтения }
+  - { id: s4, label: objectMode и размер }
+  - { id: s5, label: Порядок событий }
+  - { id: s6, label: Ошибки и destroy }
+  - { id: s7, label: Генераторы }
+  - { id: s8, label: 'cork и _writev' }
+  - { id: s9, label: Против Web Streams }
+  - { id: s10, label: Тонкие места }
+  - { id: s11, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import NsTickLab from '@/widgets/ns-tick-lab/ui/NsTickLab.vue';
+import {
+  CLASSES,
+  COMPARE,
+  COMPARE_NOTE,
+  CORK_CODE,
+  CORK_NOTE,
+  CORK_OUT,
+  DEMO_CAPTION,
+  DEMO_DEFAULTS,
+  DEMO_NOTE,
+  DEMO_OPTIONS,
+  DESTROY_CODE,
+  DESTROY_FACTS,
+  DESTROY_OUT,
+  DUPLEX_CODE,
+  DUPLEX_NOTE,
+  DUPLEX_OUT,
+  EVENTS,
+  EVENTS_CODE,
+  EVENTS_OUT,
+  FIELDS,
+  FIELDS_NOTE,
+  FROM_CODE,
+  FROM_FACTS,
+  FROM_OUT,
+  GLOSSARY,
+  METHODS,
+  MODEL_LIMITS,
+  MODEL_NOTE,
+  MODES,
+  MODES_CODE,
+  MODES_FACTS,
+  MODES_OUT,
+  NS_MODEL_CODE,
+  NS_MODES,
+  NS_SCENARIO_CODE,
+  PIPELINE_NOTE,
+  PITFALLS,
+  PLAIN_EVENTS,
+  PLAIN_FLOWING,
+  PLAIN_READ,
+  PLAIN_SHELF,
+  PLAIN_SIZE,
+  PREREQ,
+  RELATED,
+  SAMPLE_CODE,
+  SAMPLE_EVENTS_NOTE,
+  SAMPLE_NOTE,
+  SAMPLE_OUT,
+  SCENARIO_NOTE,
+  SIZE_CODE,
+  SIZE_NOTE,
+  SIZE_OUT,
+  SIZE_ROWS,
+  SOURCES,
+  STATE_CODE,
+  STATE_NOTE,
+  STATE_TABLE,
+  WSTATE_CODE,
+  WSTATE_NOTE,
+  WSTATE_TABLE,
+  RELAY_SCENE_CODE,
+  RELAY_SCENE_NOTE,
+  RELAY_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Буфер, порог и флаги" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Снаружи `node:stream` — это события и методы. Внутри — **буфер с порогом и несколько флагов**,
+    а всё поведение, от «почему `'end'` не пришёл» до «почему `for await` тормозит источник,
+    а `on('data')` — нет», выводится из того, **когда стрим зовёт `_read`**. Кто знает это
+    правило, читает журнал событий как код; кто не знает — подбирает `pause()` и `resume()` наугад.
+
+  </Callout>
+
+  Классическая поломка выглядит так: сервер пересылает файл клиенту строкой
+  `file.on('data', (c) => res.write(c))`. Диск читает быстрее, чем уходит в сеть, `write()`
+  отвечает `false`, но этот ответ никто не слушает — и всё, что клиент ещё не забрал, копится
+  в памяти процесса. Та же пересылка через `pipeline(file, res)` держит в памяти несколько
+  чанков. Разница не в API, а в том, кто и когда зовёт `_read`.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHELF} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Четыре класса и методы, которые пишете вы"
+  lead="Каждый класс — готовая машина с пустыми слотами под методы с подчёркиванием. Вы заполняете слоты, а когда их звать, решает `node:stream`."
+  leadWidth={72}
+>
+  <Table
+    head={CLASSES.head}
+    rows={CLASSES.rows}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(120px,.6fr) minmax(220px,1.2fr) minmax(260px,1.6fr)"
+    minWidth={680}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_READ} />
+
+  <Table
+    head={METHODS.head}
+    rows={METHODS.rows}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(170px,.8fr) minmax(240px,1.4fr) minmax(240px,1.4fr)"
+    minWidth={720}
+  />
+
+  ### Сквозной пример: источник, звено и сток
+
+  <Card title="Три класса по одному методу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={SAMPLE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SAMPLE_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Состояние изнутри: буфер, порог и флаги"
+  lead="У Readable и Writable внутри по объекту состояния — `_readableState` и `_writableState`. Пара полей из них отвечает на вопрос «почему стрим встал»: например, `reading: true` без движения значит, что `_read` вызван, а ваш источник так и не ответил `push`."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Readable по шагам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STATE_CODE} size={11} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLOWING} />
+  </CardGrid>
+
+  <Table
+    head={STATE_TABLE.head}
+    rows={STATE_TABLE.rows}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(170px,1.3fr) minmax(60px,.5fr) minmax(90px,.8fr) minmax(56px,.4fr) minmax(64px,.5fr) minmax(56px,.45fr) minmax(90px,.55fr) minmax(76px,.5fr)"
+    minWidth={780}
+  />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={STATE_NOTE} />
+  </Card>
+
+  <Table
+    head={FIELDS.head}
+    rows={FIELDS.rows}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(170px,.9fr) minmax(260px,1.7fr) minmax(150px,.8fr)"
+    minWidth={660}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={FIELDS_NOTE} />
+  </Card>
+
+  ### Writable по шагам
+
+  <Card title="Медленный сток с порогом 2" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={WSTATE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={WSTATE_TABLE.head}
+    rows={WSTATE_TABLE.rows}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(140px,1.1fr) minmax(60px,.5fr) minmax(56px,.4fr) minmax(80px,.6fr) minmax(64px,.5fr) minmax(76px,.55fr) minmax(96px,.6fr) minmax(110px,.65fr)"
+    minWidth={800}
+  />
+
+  <Card tone="warn" pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={WSTATE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Четыре способа читать — и кто из них тормозит источник"
+  lead="Режим чтения выбирается не флагом, а тем, на что вы подписались. От него зависит, кто зовёт `read()`, — а значит, дойдёт ли медленность потребителя до источника."
+  leadWidth={72}
+>
+  <Table
+    head={MODES.head}
+    rows={MODES.rows}
+    kinds={['mono', 'mono', 'prose', 'prose']}
+    cols="minmax(180px,1fr) minmax(110px,.55fr) minmax(180px,1fr) minmax(240px,1.5fr)"
+    minWidth={740}
+  />
+
+  ### Одна пересылка файла: где теряется медленность клиента
+
+  <CodeBlock code={RELAY_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Md text={RELAY_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {RELAY_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Демо: тот же выбор на тиках
+
+  <Card title="Сценарий демо: источник, четыре потребителя и тики" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={NS_SCENARIO_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SCENARIO_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEMO_NOTE} />
+  </Card>
+
+  <NsTickLab
+    client:visible
+    model={NS_MODEL_CODE}
+    scenario={NS_SCENARIO_CODE}
+    modes={NS_MODES}
+    defaults={DEMO_DEFAULTS}
+    options={DEMO_OPTIONS}
+    caption={DEMO_CAPTION}
+  />
+
+  ### Три правила, которые видно только запуском
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Подписки и `_read` без ответа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MODES_CODE} size={11} lh={1.7} pad="14px 16px" />
+      <CodeBlock code={MODES_OUT.join('\n')} tone="ok" size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <CardGrid min={260} gap={12}>
+      {MODES_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.6} text={fact.d} />
+      ))}
+
+    </CardGrid>
+  </CardGrid>
+
+  ### Модель, на которой работает демо
+
+  <Card title="Readable и Writable одним файлом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <Md text={MODEL_NOTE} />
+
+    <NumberedList items={MODEL_LIMITS} size={14.5} />
+
+    <CodeBlock code={NS_MODEL_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="`objectMode`: что считается размером"
+  lead="Порог сравнивается с `length`, а что прибавляется к `length` за один чанк, зависит от режима. От этого зависит, сколько памяти на самом деле держит полный буфер."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SIZE} />
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Три режима и два сюрприза" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SIZE_CODE} size={11} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SIZE_OUT.join('\n')} tone="ok" size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={SIZE_ROWS.head}
+    rows={SIZE_ROWS.rows}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(170px,.9fr) minmax(240px,1.4fr) minmax(170px,.9fr)"
+    minWidth={640}
+  />
+
+  <Card tone="warn" pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={SIZE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Порядок событий: `'end'`, `'finish'` и `'close'`"
+  lead="Три события о конце отвечают на три разных вопроса, и перепутать их — значит закрыть ресурс раньше, чем данные дошли, или ждать события, которое не придёт."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EVENTS} />
+
+  <Table
+    head={EVENTS.head}
+    rows={EVENTS.rows}
+    kinds={['mono', 'muted', 'prose', 'prose']}
+    cols="minmax(90px,.45fr) minmax(90px,.45fr) minmax(220px,1.3fr) minmax(240px,1.4fr)"
+    minWidth={700}
+  />
+
+  <Card title="Сквозной пример: в каком порядке всё кончилось" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SAMPLE_OUT.join('\n')} tone="ok" size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={SAMPLE_EVENTS_NOTE} />
+  </Card>
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Без читателя, без autoDestroy, без close" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={EVENTS_CODE} size={11} lh={1.7} pad="14px 16px" />
+      <CodeBlock code={EVENTS_OUT.join('\n')} tone="ok" size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card title="Duplex: две половины, два конца" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={DUPLEX_CODE} size={11} lh={1.7} pad="14px 16px" />
+      <CodeBlock code={DUPLEX_OUT.join('\n')} tone="ok" size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <Md text={DUPLEX_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Ошибки и `destroy`"
+  lead="У стрима нет исключений в привычном смысле: ошибка — это `destroy(err)`, а о ней сообщают события на следующем тике. Отсюда и главные правила: кто слушает `'error'` и как отличить конец от обрыва."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="`destroy`, `finished` и `addAbortSignal`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DESTROY_CODE} size={11} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DESTROY_OUT.join('\n')} tone="ok" size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14}>
+    {DESTROY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={PIPELINE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Генераторы: `Readable.from`, `pipeline` и `compose`"
+  lead="Асинхронный генератор — самый короткий способ написать источник или звено: `next()` зовут по запросу, а `finally` отрабатывает на разрушении стрима."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Генератор как источник и как звено" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FROM_CODE} size={11} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FROM_OUT.join('\n')} tone="ok" size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14}>
+    {FROM_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="`cork`, `uncork` и `_writev`"
+  lead="Пробка копит записи, чтобы отдать их одной пачкой: один системный вызов вместо нескольких. Работает, только если у стока есть `_writev`."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Пачкой и по одному" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CORK_CODE} size={11} lh={1.7} pad="14px 16px" />
+      <CodeBlock code={CORK_OUT.join('\n')} tone="ok" size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card pad={20} gap={11} size={15.5} lh={1.6}>
+      <Md text={CORK_NOTE} />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Против Web Streams: то же устройство, другие сигналы"
+  lead="Оба API — очередь с порогом и отказ звать источник, когда она полна. Расходятся они в том, как сообщают о состоянии, и в том, сколько очередей прячут."
+  leadWidth={72}
+>
+  <Table
+    head={COMPARE.head}
+    rows={COMPARE.rows}
+    kinds={['prose', 'muted', 'prose']}
+    cols="minmax(150px,.7fr) minmax(220px,1.2fr) minmax(240px,1.3fr)"
+    minWidth={680}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={COMPARE_NOTE} />
+  </Card>
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s11" eyebrow="Раздел 11" title="Источники">
+  <Card title="Документация и исходники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

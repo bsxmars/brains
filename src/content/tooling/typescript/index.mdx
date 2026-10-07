@@ -1,0 +1,1167 @@
+---
+title: TypeScript на уровне типов
+order: 2
+kicker: сборка и инструменты
+lead: "Типы в TypeScript — это отдельный маленький язык: он выполняется внутри компилятора и исчезает при сборке. Половина проблем с ним — оттого, что его читают как подписи к переменным, а он вычисляет."
+leadWidth: 66
+summary: "Откуда берётся выведенный тип, `type` против `interface`, сужение и где оно врёт, условные типы и `infer`, mapped-типы и сохранение формы, рекурсия и её измеренные пределы, вариантность, бренды и схемы, классы, миксины и декораторы, слияние объявлений и поиск медленного типа — и что из TypeScript переживает сборку."
+verifiedOn: "TypeScript 6.0.3, программный прогон `tsc --noEmit` со `strict`, сентябрь 2026. Каждое число снято компилятором и закреплено `tests/unit/ts-type-level.test.ts`. Пределы рекурсии — деталь реализации компилятора, а не контракт языка: они менялись и будут меняться"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Тип как вычисление }
+  - { id: s2, label: Сужение }
+  - { id: s3, label: Условные типы и infer }
+  - { id: s4, label: Mapped-типы }
+  - { id: s5, label: Рекурсия и её пределы }
+  - { id: s6, label: Вариантность }
+  - { id: s7, label: Классы }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import VarianceDiagram from '@/widgets/typescript-variance-diagram/ui/VarianceDiagram.astro';
+import {
+  ANNOTATION_CODE,
+  AUGMENT_CODE,
+  DIAG_ROWS,
+  FAST_CODE,
+  HKT_CODE,
+  HKT_NOTE,
+  ISOLATED_CODE,
+  ISOLATED_DTS_CODE,
+  ISOLATED_NOTES,
+  MERGE_CODE,
+  MERGE_NOTES,
+  PLAIN_HKT,
+  SCHEMA_CODE,
+  SCHEMA_NOTES,
+  SLOW_CODE,
+  THIS_CODE,
+  THIS_MORE_CODE,
+  THIS_NOTES,
+  TRACE_STEPS,
+  TYPE_TESTS_CODE,
+  TYPE_TESTS_NOTES,
+  ZOD_CODE,
+  ANNOTATION_NOTES,
+  ARRAY_COVARIANCE_CODE,
+  ASSIGN_ROWS,
+  AS_KILLS_CODE,
+  BRAND_CODE,
+  BRAND_NOTE,
+  DEEP_PARTIAL_CODE,
+  DEEP_PARTIAL_NOTES,
+  DEPTH_GUARD_CODE,
+  DIST_CODE,
+  DIST_EXAMPLES_CODE,
+  BOOL_NOTE,
+  EQ_CODE,
+  EQ_NOTE,
+  INFER_VALUES_CODE,
+  INFER_VALUES_NOTES,
+  INTRINSIC_NOTE,
+  ERASURE_CODE,
+  ERASURE_FLAG_NOTE,
+  ERASURE_IMPORT_NOTE,
+  ERASURE_NOTES,
+  ERASURE_ROWS,
+  EXCLUDE_CODE,
+  EXPLOSION_ROWS,
+  FN_VARIANCE_CODE,
+  HOMOMORPHIC_ROWS,
+  INFER_BASIC_CODE,
+  INFER_EXTENDS_CODE,
+  INFER_POSITION_CODE,
+  INTRINSIC_CODE,
+  IS_ANY_CODE,
+  KEYOF_UNION_CODE,
+  LANG_ROWS,
+  LIMIT_ROWS,
+  MAPPED_BASICS_CODE,
+  MECHANISMS_CODE,
+  METHOD_CODE,
+  NAIVE_BREAKAGE,
+  NAIVE_DEEP_PARTIAL_CODE,
+  NAKED_CODE,
+  OPTIONAL_CODE,
+  OVERLOAD_CODE,
+  PATHS_CODE,
+  PITFALLS,
+  REMAP_CODE,
+  REPEAT_CODE,
+  SIMPLIFY_CODE,
+  SIMPLIFY_NOTES,
+  SOURCES,
+  SPECIALS,
+  TAIL_FORMS_CODE,
+  TEMPLATE_CODE,
+  TUPLE_MATH_CODE,
+  U2I_CODE,
+  U2I_STEPS,
+  VALIDATOR_CODE,
+  VARIANCE_DIAGRAM,
+  VARIANCE_ROWS,
+  VERIFIED,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_DISTRIBUTION,
+  PLAIN_INFER,
+  PLAIN_HOMOMORPHIC,
+  PLAIN_TAIL,
+  PLAIN_VARIANCE,
+  TRACE_NON_TAIL,
+  TRACE_TAIL,
+  VARIANCE_SCENE_NOTE,
+  VARIANCE_STEPS,
+  PLAIN_VARIANCE_PLACES,
+  TYPE_IFACE_CODE,
+  TYPE_IFACE_NOTE,
+  TYPE_IFACE_ROWS,
+  UNTYPED_CODE,
+  UNTYPED_NOTES,
+  PLAIN_NARROWING,
+  NARROW_BASICS_CODE,
+  NARROW_ROWS,
+  STATE_CODE,
+  STATE_NOTES,
+  GUARD_CODE,
+  GUARD_NOTES,
+  NARROW_LIES_CODE,
+  NARROW_LIES_NOTES,
+  PLAIN_PRIVATE,
+  CLASS_PRIVATE_CODE,
+  VISIBILITY_ROWS,
+  CLASS_CONTRACT_CODE,
+  CLASS_CONTRACT_NOTES,
+  THIS_LOST_CODE,
+  THIS_LOST_NOTES,
+  PLAIN_MIXIN,
+  MIXIN_CODE,
+  MIXIN_NOTES,
+  DECORATOR_CODE,
+  DECORATOR_NOTES,
+  DECORATOR_EMIT_ROWS,
+  LEGACY_DECORATOR_CODE,
+  LEGACY_EMIT,
+  LEGACY_NOTE,
+} from './data';
+
+<Section variant="intro" eyebrow="Язык, у которого нет рантайма" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Типы живут только внутри компилятора и исчезают при сборке: в бандл, в движок, в память
+    от них не попадает **ни байта**. Никакая ошибка типов не уронит продакшен — но и никакой
+    тип не спасёт от кривого JSON.
+
+  </Callout>
+
+  Отсюда и главная путаница. Типы читают как подписи к переменным, а это **отдельный язык
+  программирования**. В нём есть свой `if`, своё сопоставление с образцом, свой цикл и своя
+  рекурсия. На нём можно выразить любое вычисление, но в нём нет арифметики и нет переменных,
+  которые можно менять. Всё, что называют «магией типов», написано на этом языке. А то, что
+  называют «сломанным выводом типов», обычно происходит на стыке с соседними механизмами —
+  о них раздел «Тип как вычисление».
+
+  Исключение из «исчезают при сборке» — четыре конструкции TypeScript, которые только
+  выглядят как типы, а на деле порождают код: `enum`, `namespace` со значением,
+  параметр-свойство и `const enum`. Они разобраны в конце раздела «Тип как вычисление».
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Тип как вычисление"
+  lead="«Вывод типов сломался» звучит как мистика по одной причине: под одними словами прячутся три разных механизма. Они срабатывают в разное время и по разным правилам, а ошибка почти всегда появляется на стыке двух из них."
+  leadWidth={72}
+>
+  <CodeBlock code={MECHANISMS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  ### Вывод из значений: откуда берётся тип, которого никто не писал
+
+  Большую часть типов в коде никто не пишет — компилятор выводит их из значений. Правила
+  вывода простые, но именно здесь рождается половина ошибок, которые потом всплывают
+  на проверке присваиваемости — в другой строке и с непонятным текстом.
+
+  <CodeBlock code={INFER_VALUES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что показывает пример" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={INFER_VALUES_NOTES} size={14.5} />
+  </Card>
+
+  ### Вычисление: язык типов как язык программирования
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Язык типов — это язык программирования" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['в обычном языке', 'в языке типов']}
+        rows={LANG_ROWS.map((r) => [r.k, r.ts])}
+        kinds={['prose', 'mono']}
+        cols="minmax(150px,.8fr) minmax(210px,1.2fr)"
+        minWidth={420}
+      />
+    </Card>
+
+    <Card tone="warn" title="Два ограничения, из которых растут все идиомы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      **Арифметики нет.** Число изображают длиной кортежа (массива фиксированной длины).
+      Поэтому «сложить 2 и 3» на уровне типов означает построить кортеж из пяти элементов.
+
+      **Переменных, которые можно менять, нет.** Накопить результат можно только одним
+      способом — передать накопленное дальше аргументом рекурсивного вызова. Отсюда разница
+      между хвостовой и нехвостовой рекурсией (раздел «Рекурсия и её пределы»): она меняет
+      допустимую глубину в двадцать раз.
+
+      <CardNote tone="warn">
+
+        Смотрите на типы как на язык, а не как на разметку, — и всё встаёт на места: `infer` —
+        это сопоставление с образцом, mapped-тип — это `for`, `never` — «нет значения».
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Проверка: `extends` — это присваиваемость
+
+  <Card title="`extends` в условном типе — это не наследование" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    Компилятор задаёт один вопрос: **можно ли значение типа `T` присвоить туда, где ждут
+    `U`?** Это та же проверка, что при обычном присваивании. Поэтому `T extends U` читается
+    как «`T` помещается в `U`», а не «`T` наследует `U`». В таблице `1` значит «да», `0` — «нет».
+
+    <Table
+      head={['выражение', 'результат', 'почему']}
+      rows={ASSIGN_ROWS.map((r) => [r.k, r.r, r.why])}
+      tones={ASSIGN_ROWS.map((r) => r.tone)}
+      kinds={['mono', 'ok', 'prose']}
+      cols="minmax(230px,1.2fr) minmax(90px,.4fr) minmax(230px,1.3fr)"
+      minWidth={640}
+    />
+
+    <CardNote tone="prose">
+
+      Третья строка — суть сравнения по форме: тип с лишними полями подходит туда, где ждут
+      меньше. Шестая — первый сюрприз темы: `any` попадает **в обе ветки сразу**.
+
+    </CardNote>
+  </Card>
+
+  ### Стирание — и то, что его переживает
+
+  Три механизма выше целиком живут внутри компилятора. Четвёртый на схеме обещает «чистый
+  JS», но у этого обещания есть граница: **стираются типы, а не весь синтаксис TypeScript**.
+  Четыре конструкции переживают компиляцию и попадают в бандл как обычный код.
+
+  <CodeBlock code={ERASURE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Table
+    head={['конструкция', 'что осталось в `.js`', '`erasableSyntaxOnly`', '`node файл.ts`']}
+    rows={ERASURE_ROWS.map((r) => [r.k, r.js, r.flag, r.node])}
+    tones={ERASURE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'mono', 'muted']}
+    cols="minmax(210px,1.1fr) minmax(230px,1.3fr) minmax(130px,.6fr) minmax(120px,.5fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Четыре подробности, которые видно только в выводе" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <NumberedList items={ERASURE_NOTES} size={14.5} />
+    </Card>
+
+    <Card tone="warn" title="Обратная сторона: стирание уносит и то, что написано" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <Md text={ERASURE_IMPORT_NOTE} />
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" title="Зачем флаг `erasableSyntaxOnly`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={ERASURE_FLAG_NOTE} />
+
+    <CardNote tone="info">
+
+      И список четырёх конструкций, и код `ts(1294)` — правила компилятора (здесь 6.0.3),
+      а не языка: на другой версии их стоит проверить заново.
+
+    </CardNote>
+  </Card>
+
+  ### `.d.ts` без проверки типов: `isolatedDeclarations`
+
+  Стирание делает из `.ts` файл `.js`. Второй продукт сборки библиотеки — файл объявлений
+  `.d.ts`, по которому её типы видят другие пакеты. Обычно его пишет сам компилятор, и для
+  этого ему нужна проверка всей программы. Флаг `isolatedDeclarations` (5.5) меняет правило:
+  тип всего экспортируемого обязан читаться прямо из текста файла.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Исходник с флагом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ISOLATED_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="`.d.ts` из того же файла без строк с ошибками" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ISOLATED_DTS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Зачем это нужно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={ISOLATED_NOTES} size={14.5} />
+  </Card>
+
+  ### `type` или `interface`
+
+  Для объекта годятся оба: `type User = { name: string }` и `interface User { name: string }`
+  описывают одно и то же. Разница не в том, что можно описать, а в том, **когда компилятор
+  ругается** — и ругается ли вообще.
+
+  <CodeBlock code={TYPE_IFACE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={['', '`interface`', '`type`']}
+    rows={TYPE_IFACE_ROWS.map((r) => [r.k, r.iface, r.type])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(190px,1fr) minmax(200px,1fr) minmax(220px,1.1fr)"
+    minWidth={640}
+  />
+
+  <Card tone="ok" title="Объекты — `interface`, остальное — `type`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <Md text={TYPE_IFACE_NOTE} />
+  </Card>
+
+  ### Слияние объявлений: `interface` открыт, `type` закрыт
+
+  Два объявления `interface` с одним именем — не ошибка, а одно объявление, записанное
+  в двух местах. На этом держится способ дописать поле в чужой пакет, не трогая его.
+
+  <CodeBlock code={MERGE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Дополнение чужого модуля: три файла одной программы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={AUGMENT_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Что показывают оба примера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={MERGE_NOTES} size={14.5} />
+  </Card>
+
+  ### Пакет без типов
+
+  Дополнять приходится пакеты, у которых типы есть. У старых пакетов на чистом JS их нет
+  вовсе, и тогда та же запись `declare module` не дописывает поле, а объявляет модуль целиком.
+
+  <CodeBlock code={UNTYPED_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+  <Card title="Откуда компилятор берёт типы пакета" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={UNTYPED_NOTES} size={14.5} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HKT} />
+
+  <Card tone="info" title="Где слияние работает как инструмент: типы высшего порядка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HKT_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="info">
+      <Md text={HKT_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Сужение"
+  lead="Объединение `string | number` разрешает только то, что годится для всех членов сразу. Чтобы вызвать `toLowerCase`, надо выяснить, что там строка, — проверкой при выполнении. Компилятор читает эти проверки и в каждой ветке считает тип уже. Это называют сужением (narrowing): типы не вычисляются, а следуют за `if`, `switch` и `return`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NARROWING} />
+
+  <CodeBlock code={NARROW_BASICS_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Table
+    head={['проверка', 'что сужает', 'где обманывает']}
+    rows={NARROW_ROWS.map((r) => [r.k, r.what, r.trap])}
+    tones={NARROW_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(220px,1.1fr) minmax(260px,1.3fr)"
+    minWidth={700}
+  />
+
+  ### Размеченное объединение
+
+  Самый полезный вид объединения в прикладном коде — объекты с общим полем-меткой. Состояние
+  загрузки, ответ API, событие, действие в редьюсере: каждый вариант несёт свои поля,
+  а метка говорит, какой вариант перед нами.
+
+  <CodeBlock code={STATE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что здесь работает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={STATE_NOTES} size={14.5} />
+  </Card>
+
+  ### Свой предикат: `x is T` и `asserts`
+
+  Встроенных проверок хватает на примитивы, классы и метки. Для «похоже ли это на `User`»
+  проверку пишут сами и сообщают компилятору, что она доказывает.
+
+  <CodeBlock code={GUARD_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card tone="warn" title="Предикат — обещание, а не проверка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={GUARD_NOTES} size={14.5} />
+  </Card>
+
+  ### Где сужение теряется — и где врёт
+
+  Компилятор не исполняет код, он следит за ним по тексту. Поэтому у сужения есть границы:
+  в одном месте оно держится дольше, чем можно, в другом — пропадает, хотя кажется очевидным.
+
+  <CodeBlock code={NARROW_LIES_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card tone="err" title="Три границы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={NARROW_LIES_NOTES} size={14.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Условные типы и `infer`"
+  lead="Если в условный тип пришло объединение, TypeScript проверяет каждый его член отдельно и собирает ответы обратно. Это называют дистрибутивностью, и на ней построена половина остального. А почти все странные результаты самописных типов — это она же, встретившая `never`, `any` или `boolean`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISTRIBUTION} />
+
+  <CodeBlock code={DIST_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <Card tone="info" title="Почему `IsString<boolean>` — это `'нет'`, а не `'да' | 'нет'`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DIST_EXAMPLES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="info">
+      <Md text={BOOL_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Что такое «голый параметр»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAKED_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Последняя строка важнее остальных: раздача по членам зависит от **параметра**,
+        а не от объединения. Объединение, написанное слева прямо, не раскладывается никогда.
+        Раскладывается только то, что пришло в параметр `T`.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="ok" title="Единственный способ пройтись по объединению, как `map` по массиву" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={EXCLUDE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="ok">
+
+        `Exclude`, `Extract` и `NonNullable` работают только благодаря этому механизму.
+        При сборке ответов `never` из объединения просто исчезает: это «пустое множество
+        значений», и добавить его — всё равно что добавить ноль.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    {SPECIALS.map((item) => (
+      <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={16} pad={17} radius={5} gap={10} size={15.5} lh={1.6}>
+        <CodeBlock code={item.code} size={10.5} lh={1.65} pad="12px 14px" />
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Как распознать `any`" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={IS_ANY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      В свежей версии библиотеки type-fest он записан как `0 extends 1 & NoInfer<T> ? true : false`.
+      `NoInfer` добавлен, чтобы компилятор не выводил `T` отсюда, когда `IsAny` стоит внутри
+      сигнатуры функции. Все четыре строки результата проверены компилятором.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="ok" title="Как проверить, что тип получился тем, что написано в комментарии" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={EQ_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="ok">
+      <Md text={EQ_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="То же готовым инструментом: `expect-type` и `tsd`" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={TYPE_TESTS_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <NumberedList items={TYPE_TESTS_NOTES} size={14.5} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INFER} />
+
+  <Card tone="info" title="`infer` — единственный способ достать тип изнутри" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Условный тип умеет спрашивать только «подходит ли `T` под форму `U`» — да или нет.
+    А обычно нужно другое: «подходит ли `T` под форму `Promise` чего-то, и если да — дай мне
+    это что-то». `infer R` отмечает **дырку в образце**: компилятор прикладывает форму
+    и подставляет в дырку то, что там нашёл.
+
+    <CodeBlock code={INFER_BASIC_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="info">
+
+      Имя `R` доступно только в ветке «да»; в ветке «нет» его не существует. И отдельный
+      приём на том же механизме: `T extends infer X ? … : never` — это **локальная переменная**.
+      Условие верно всегда, зато длинное выражение вычисляется один раз, а не трижды по тексту.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Одно имя в двух местах: результат зависит от того, вход это или выход" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={INFER_POSITION_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Логика не случайная. Если значение **отдают** (ковариантная позиция), безопасный общий
+        тип — тот, что вмещает оба варианта: `string | number`. Если значение **принимают**
+        (контравариантная позиция), нужен тип, который устроит обе функции сразу: `string & number`.
+        Значений такого типа не бывает, но ответ верный: функции, годной и туда и туда, нет.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="`UnionToIntersection` — и почему он работает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={U2I_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <NumberedList items={U2I_STEPS} size={14.5} />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`infer … extends` с 4.7" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={INFER_EXTENDS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Второе применение интереснее первого: это **единственный штатный способ** превратить
+        строку `'42'` в число `42` на уровне типов. До 4.7 число приходилось собирать кортежем.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="err" title="Две ловушки сопоставления" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OVERLOAD_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="err">
+
+        Обратите внимание: при **вызове** перегруженной функции выбирается первая подходящая
+        сигнатура, а при **извлечении типа** — последняя объявленная. Оба факта проверены
+        компилятором. Отсюда совет: не стройте публичные утилиты поверх `ReturnType`
+        от перегрузок — нужны все сигнатуры, перечисляйте их вручную.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="Строки на уровне типов: все сочетания сразу" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={TEMPLATE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    Главное свойство шаблона: он **перебирает все сочетания членов во всех позициях сразу**.
+    Два размера на две стороны дают четыре строки, но число строк растёт умножением.
+    Опасность здесь практическая — вот измеренная граница.
+
+    <Table
+      head={['шаблон', 'строк в объединении', 'ответ компилятора']}
+      rows={EXPLOSION_ROWS.map((r) => [r.k, r.n, r.verdict])}
+      tones={EXPLOSION_ROWS.map((r) => r.tone)}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(170px,.9fr) minmax(120px,.5fr) minmax(250px,1.5fr)"
+      minWidth={640}
+    />
+
+    <CardNote tone="prose">
+
+      Редактор начинает тормозить задолго до предела: тип пересчитывается на каждой подсказке.
+      Практическое правило: шаблон, который строит объединение, годится до сотен вариантов.
+      Дальше задачу переворачивают — как в карточке ниже.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="Не «породить множество», а «проверить строку»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VALIDATOR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Четыре типа, встроенные в компилятор" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={INTRINSIC_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <Md text={INTRINSIC_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Mapped-типы и сохранение формы"
+  lead="Mapped-тип — это цикл `for` по ключам типа, который строит новый тип. От того, как записан этот цикл, зависит, останется ли массив массивом. На этом и ломается почти любой самописный `DeepPartial`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOMOMORPHIC} />
+
+  <CodeBlock code={MAPPED_BASICS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что сохраняет гомоморфный (сохраняющий форму) маппинг" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <Table
+      head={['выражение', 'результат', 'что сохранилось']}
+      rows={HOMOMORPHIC_ROWS.map((r) => [r.k, r.r, r.why])}
+      kinds={['mono', 'mono', 'prose']}
+      cols="minmax(200px,1fr) minmax(200px,1.1fr) minmax(200px,1.1fr)"
+      minWidth={700}
+    />
+
+    <CardNote tone="prose">
+
+      Гомоморфный маппинг — это строго `[K in keyof T]`, где `T` — параметр типа. Ни `as`,
+      ни любое другое выражение вместо `keyof T` не допускаются: стоит написать что-то ещё —
+      и форма исходного типа теряется целиком.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Тождественное `as K` — и массива больше нет" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={AS_KILLS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="err">
+
+        Цена `as` — потеря формы исходного типа. Поэтому его применяют к плоским объектам
+        и **никогда** внутри рекурсивных утилит вида `Deep*`.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="`keyof` от объединения даёт только общие ключи" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={KEYOF_UNION_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="warn">
+
+        Вот почему самописные утилиты вдруг возвращают пустой объект на объединениях.
+        Гомоморфные маппинги обходят проблему: они сами применяются к каждому члену
+        объединения отдельно. Негомоморфные так не умеют.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`as` в маппинге: переименовать ключ и удалить его" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REMAP_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Механизм простой: вместо ключа получилось `never` — ключ не попал в результат.
+        Это штатный и единственный способ отфильтровать поля.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="info" title="`-?` и два разных `undefined`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OPTIONAL_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="info">
+
+        Отдельно: флаг `exactOptionalPropertyTypes` различает эти два состояния и при
+        присваивании — с ним `{ x: undefined }` больше не подходит для `{ x?: string }`.
+        Проверено: `ts(2375)`.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="`Simplify` — зачем библиотеки пишут тип, который ничего не меняет" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={SIMPLIFY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <NumberedList items={SIMPLIFY_NOTES} size={15} />
+
+    <CardNote tone="prose">
+
+      `& {}` в конце — приём, который заставляет компилятор показать результат развёрнуто.
+      Вторая причина проверена отдельно: интерфейс не присваивается в `Record<string, unknown>`
+      (`ts(2322)`), а он же, пропущенный через `Simplify`, — присваивается.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Рекурсия и её пределы"
+  lead="Здесь язык типов упирается в ограничения компилятора, и у них есть конкретные числа. Хорошая новость: чтобы тип, падающий на пятидесяти шагах, заработал на тысяче, его достаточно переписать по шаблону, а не придумывать заново."
+  leadWidth={72}
+>
+  <CodeBlock code={TUPLE_MATH_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TAIL} />
+
+  <Card title="Две формы рекурсии" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={TAIL_FORMS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    С TS 4.5 компилятор узнаёт вторую форму и выполняет её **обычным циклом**: ему не нужно
+    помнить незаконченные вызовы. Вот что это даёт в числах — прогон `tsc --noEmit`
+    на TypeScript 6.0.3:
+
+    <Table
+      head={['форма', 'предел глубины', 'что происходит на превышении']}
+      rows={LIMIT_ROWS.map((r) => [r.k, r.depth, r.what])}
+      tones={LIMIT_ROWS.map((r) => r.tone)}
+      kinds={['prose', 'prose', 'muted']}
+      cols="minmax(140px,.7fr) minmax(200px,1fr) minmax(280px,1.6fr)"
+      minWidth={680}
+    />
+
+    <CardNote tone="prose">
+
+      Запоминать стоит не число, а соотношение: хвостовая форма держит глубину в двадцать раз
+      больше. Сами пределы — **особенность текущего компилятора**, а не правило языка, и от
+      версии к версии они сдвигаются.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card tone="ok" title="Одна и та же задача в двух формах" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REPEAT_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="ok">
+
+        Переписать почти всегда можно по шаблону. Заведите дополнительный параметр для
+        накопленного результата и верните его на последнем шаге — вместо того чтобы
+        достраивать результат после возврата. Склейка строк переезжает **в аргумент**,
+        то есть происходит до вызова.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="err" title="Рекурсия по объекту опаснее: он может ссылаться на себя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DEPTH_GUARD_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="err">
+
+        `Prev[D]` — это «минус один». При `D = 0` получается `never`, и условие
+        `[D] extends [never]` останавливает рекурсию. Обратите внимание на ошибку наивной
+        версии: на 6.0.3 это **только `ts(2615)`**, без `ts(2589)` — компилятор замечает цикл
+        раньше, чем кончается глубина.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="`Repeat<'ab', 3>`: что компилятор держит в памяти" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <NumberedList items={TRACE_NON_TAIL} size={14.5} />
+    </Card>
+
+    <Card tone="ok" title="`Repeat2<'ab', 3>`: помнить нечего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <NumberedList items={TRACE_TAIL} size={14.5} />
+    </Card>
+  </CardGrid>
+
+  <Card title="`Paths` и `Get` целиком" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={PATHS_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+    <CardNote tone="prose">
+
+      Главный приём — обратиться к построенному объекту сразу по всем ключам. Обращение по
+      объединению ключей возвращает объединение значений. Так временный объект превращается
+      в объединение путей; другого способа собрать объединение по всем полям нет.
+      `keyof T & string` вместо `keyof T` нужен потому, что ключи бывают символами (`Symbol`),
+      а символ в шаблонную строку не подставить.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="err" title="«Очевидный» `DeepPartial` ломает три вещи сразу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NAIVE_DEEP_PARTIAL_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <CardGrid min={260} gap={12}>
+      {NAIVE_BREAKAGE.map((item) => (
+        <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.55} text={item.d} />
+
+      ))}
+
+    </CardGrid>
+  </Card>
+
+  <Card tone="ok" title="Рабочая версия перечисляет исключения до маппинга" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DEEP_PARTIAL_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <CheckList items={DEEP_PARTIAL_NOTES} tone="ok" size={14.5} />
+
+    <CardNote tone="ok">
+
+      Те же поломки — у типичной самописной `DeepReadonly`. Массив там обычно обработан
+      отдельной веткой и выживает, а `Date` и функции всё равно разбираются на запчасти.
+      Список исключений лучше взять из папки `internal/` библиотеки type-fest, а не придумывать.
+
+    </CardNote>
+  </Card>
+
+  ### Как найти медленный тип
+
+  Пределы выше срабатывают ошибкой. Медленный тип ошибки не даёт: он просто заставляет
+  компилятор создать десятки тысяч типов, и редактор начинает думать над каждой правкой.
+  Гадать, какой именно тип виноват, незачем — компилятор умеет это показать.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Шаблон-произведение: 8000 строк" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SLOW_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="То же ограничение, проверенное по кускам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FAST_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="`tsc --noEmit --extendedDiagnostics` на обоих файлах" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <Table
+      head={['строка вывода', 'шаблон целиком', 'по кускам', 'что она значит']}
+      rows={DIAG_ROWS.map((r) => [r.k, r.slow, r.fast, r.what])}
+      kinds={['mono', 'mono', 'mono', 'prose']}
+      cols="minmax(150px,.8fr) minmax(110px,.6fr) minmax(110px,.6fr) minmax(260px,1.6fr)"
+      minWidth={680}
+    />
+
+    <CardNote tone="prose">
+
+      Сняты на TypeScript 6.0.3 с `--lib es2022`. На другой версии компилятора или с другим
+      `lib` числа будут другими — сравнивайте свой код со своим.
+
+    </CardNote>
+  </Card>
+
+  <Card title="От «медленно» до строки — по шагам" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={TRACE_STEPS} size={15} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Вариантность"
+  lead="Если `Dog` подходит туда, где ждут `Animal`, подходит ли туда же коробка с собаками? Это вопрос вариантности. В TS её обычно не объявляют: компилятор сам смотрит, где стоит параметр — на входе или на выходе, — и выводит ответ. А одно исключение из этого правила не выключается никаким флагом."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VARIANCE} />
+
+  <Md text={VARIANCE_SCENE_NOTE} />
+
+  Колонки на схеме стоят на месте, а стрелка присваивания между ними разворачивается: на выходе она та же, что у самой пары, на входе — обратная.
+
+  <VarianceDiagram diagram={VARIANCE_DIAGRAM} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {VARIANCE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Правило:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VARIANCE_PLACES} />
+
+  Те же четыре вида — в общем виде, для любого контейнера:
+
+  <Table
+    head={['вид', 'направление', 'кто так себя ведёт']}
+    rows={VARIANCE_ROWS.map((r) => [r.k, r.dir, r.who])}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(190px,1fr) minmax(180px,.9fr) minmax(250px,1.4fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="У параметров функции направление обратное, у возврата — прямое" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FN_VARIANCE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Это правило появилось в TS 2.6 вместе с флагом `strictFunctionTypes`, который входит
+        в `strict`. И это не придирка: без него обработчик только для собак спокойно
+        подставляется туда, где обещали принять любое животное.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="err" title="Методы проверяются в обе стороны всегда — и флаг тут ни при чём" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={METHOD_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="err">
+
+        Один и тот же контракт, две записи — и разная строгость проверки. Это не ошибка,
+        а сознательное решение: без проверки методов «в обе стороны» (бивариантности) не описать
+        типами половину `lib.dom.d.ts`. **Нужна настоящая проверка колбэка — объявляйте его
+        полем, а не методом.**
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" title="Массив собак подходит как массив животных — и это дыра в проверке" titleSize={17} pad={20} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={ARRAY_COVARIANCE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <Card title="Аннотации `in` / `out` с 4.7" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={ANNOTATION_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+    <NumberedList items={ANNOTATION_NOTES} size={15} />
+  </Card>
+
+  ### Полиморфный `this`
+
+  `this` в типе — тоже про направление: на выходе он даёт цепочкам вызовов тип наследника,
+  на входе сужает то, что метод согласен принять.
+
+  <CodeBlock code={THIS_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <CodeBlock code={THIS_MORE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что здесь происходит" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={THIS_NOTES} size={14.5} />
+  </Card>
+
+  <DarkPanel eyebrow="Сравнение по форме и как его обойти">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **TS сравнивает формы, а не имена.** `type UserId = string` и `type OrderId = string` —
+      это один и тот же тип. Новое имя (алиас) не создаёт никакой границы, и компилятор
+      не заметит, если передать один вместо другого.
+
+    </DarkText>
+
+    <CodeBlock code={BRAND_CODE} size={11} lh={1.7} pad="14px 16px" tone="deep" />
+
+    <DarkText size={16} lh={1.6}>
+      <Md text={BRAND_NOTE} />
+    </DarkText>
+  </DarkPanel>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6}>
+
+    При выполнении ничего из этого нет: после компиляции остаётся обычная строка — ни
+    лишнего объекта в памяти, ни скрытого класса. Как устроен сам объект, который описывает
+    тип, — свойства, дескрипторы, прототип — в теме [«Объектная модель»](/js/object-model/).
+
+  </Card>
+
+  ### Схема вместо предиката
+
+  Бренд доказывает, что проверку прошли, но саму проверку и тип всё ещё пишут отдельно.
+  Схема сводит их в одно описание: объект, который проверяет значение при выполнении,
+  а тип отдаёт компилятору.
+
+  <Card title="Схема без библиотек: двадцать строк" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={SCHEMA_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card tone="ok" title="То же на zod" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={ZOD_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Как это устроено" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={SCHEMA_NOTES} size={14.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Классы: что проверяет компилятор, а что движок"
+  lead="Класс в TypeScript — это класс JavaScript с подписями. Часть подписей стирается и работает только при компиляции, часть совпадает с настоящими возможностями движка, а декораторы компилятор не стирает, а переписывает в код. Ошибки в классах почти всегда — от того, что одно приняли за другое."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PRIVATE} />
+
+  <CodeBlock code={CLASS_PRIVATE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Table
+    head={['модификатор', 'кто проверяет', 'что остаётся в `.js`']}
+    rows={VISIBILITY_ROWS.map((r) => [r.k, r.who, r.js])}
+    tones={VISIBILITY_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(130px,.6fr) minmax(300px,1.6fr)"
+    minWidth={640}
+  />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6}>
+
+    `pin` из примера уехал в `JSON.stringify` — значит, в лог, в ответ сервера, в
+    `localStorage`. Всё, что не должно покидать объект, объявляйте через `#`: его не покажет
+    ни сериализация, ни перебор ключей. Параметр-свойство `public readonly id` в конструкторе —
+    одна из четырёх конструкций, которые порождают код (раздел «Тип как вычисление»).
+
+  </Card>
+
+  ### `implements` и `abstract`
+
+  <CodeBlock code={CLASS_CONTRACT_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что здесь проверено, а что нет" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={CLASS_CONTRACT_NOTES} size={14.5} />
+  </Card>
+
+  ### Потерянный `this`
+
+  Метод, переданный колбэком, — `onClick={cart.add}`, `setTimeout(cart.add)`,
+  деструктуризация — отрывается от объекта. Тип у него при этом не меняется, поэтому
+  компилятор молчит.
+
+  <CodeBlock code={THIS_LOST_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Три способа и их цена" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={THIS_LOST_NOTES} size={14.5} />
+  </Card>
+
+  ### Миксины
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MIXIN} />
+
+  <CodeBlock code={MIXIN_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Как это типизировано" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={MIXIN_NOTES} size={14.5} />
+  </Card>
+
+  ### Декоратор с типами
+
+  <CodeBlock code={DECORATOR_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что проверяет компилятор" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={DECORATOR_NOTES} size={14.5} />
+  </Card>
+
+  <Table
+    head={['настройка', 'что окажется в `.js`']}
+    rows={DECORATOR_EMIT_ROWS.map((r) => [r.k, r.js])}
+    tones={DECORATOR_EMIT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,.9fr) minmax(320px,1.6fr)"
+    minWidth={600}
+  />
+
+  <Card tone="warn" title="Типы, которые доезжают до выполнения: `emitDecoratorMetadata`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LEGACY_DECORATOR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <Md text="Что из этого записал компилятор:" />
+
+    <CodeBlock code={LEGACY_EMIT} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="warn">
+      <Md text={LEGACY_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  <Card title="Что из этого закрыто компилятором" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['утверждение', 'что сделал компилятор', 'диагностика']}
+      rows={VERIFIED.map((v) => [v.k, v.v, v.code])}
+      kinds={['prose', 'prose', 'mono']}
+      cols="minmax(260px,1.5fr) minmax(190px,1fr) minmax(130px,.6fr)"
+      minWidth={700}
+    />
+
+    <CardNote tone="prose">
+
+      Каждая строка — отдельный файл, прогнанный как `tsc --noEmit` со `strict` на TypeScript
+      6.0.3. «Ошибки нет» здесь такой же результат, как код ошибки: важно и где компилятор
+      падает, и где он молчит.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Источники"
+  lead="Handbook и release notes объясняют правила языка, а исходники библиотек показывают, как эти правила выглядят в настоящем коде."
+  leadWidth={72}
+>
+  <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
+    <SourceList items={SOURCES} />
+
+    <CardNote tone="prose">
+
+      Числа в теме — не из этих источников: пределы рекурсии и размер объединения нигде
+      не описаны, потому что они не часть языка. Они сняты прогоном компилятора 6.0.3, и на
+      другой версии `tsc` их придётся снять заново.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [модули](/tooling/modules/) — как типы и код приезжают в проект одними
+    и теми же путями и почему `moduleResolution` в библиотеке — ловушка. [Объектная
+    модель](/js/object-model/) — как устроен объект, который описывает тип.
+
+  </Card>
+</Section>

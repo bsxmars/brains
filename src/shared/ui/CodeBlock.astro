@@ -1,0 +1,41 @@
+---
+/**
+ * Блок кода. Монохромный — подсветки в уроках нет, и добавлять её нельзя.
+ *
+ * Код приходит строкой в пропе, а не слотом: так его же данные можно прогнать тестом
+ * (`tests/unit` исполняет примеры и сверяет вывод с тем, что написано на странице).
+ * Fenced-блоки из MDX сюда не заходят — им хватает стиля элемента `pre` из base.css.
+ *
+ * `tone="ok"` — это вывод программы, а не её текст: в оригинале он зелёный (#A7E8BC).
+ */
+interface Props {
+  code: string;
+  size?: number;
+  lh?: number;
+  pad?: string;
+  /** `ink` — обычный блок, `deep` — блок внутри тёмной панели, `ok` — вывод в консоль. */
+  tone?: 'ink' | 'deep' | 'ok';
+}
+
+const { code, size = 12, lh = 1.7, pad = '13px 15px', tone = 'ink' } = Astro.props;
+---
+
+<pre
+  data-tone={tone}
+  style={`--code-fs:calc(${size}px * var(--fs-scale));--code-lh:${lh};--code-pad:${pad}`}>{code}</pre>
+
+<style>
+  pre {
+    padding: var(--code-pad);
+    /* Нижняя граница — ступень `--fs-2`: проп `size={10.5}` давал 11.3px отрисованных,
+       ниже порога читаемости. Крупные размеры проходят как заданы. */
+    font-size: max(var(--code-fs), var(--fs-2));
+    line-height: var(--code-lh);
+  }
+  pre[data-tone='deep'] {
+    background: var(--ink-deep);
+  }
+  pre[data-tone='ok'] {
+    color: var(--tone-ok-on-ink);
+  }
+</style>

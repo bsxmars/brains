@@ -1,0 +1,711 @@
+---
+title: Планирование задач
+order: 6
+lead: "Если разрезать работу на куски, быстрее она не станет — зато страница продолжит откликаться. Задача на 500 мс, нарезанная на десять кусков по 50 мс, занимает главный поток столько же. Выигрыш в другом: между кусками браузер успевает нарисовать кадр и обработать клик."
+leadWidth: 66
+summary: "Чем возвращать управление циклу, как расставить приоритеты и что делается с очередями, когда вкладка уходит в фон."
+verifiedOn: Node 24.11 и 26.8
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Чем уступать }
+  - { id: s2, label: Цена уступки }
+  - { id: s3, label: INP }
+  - { id: s4, label: Фон }
+  - { id: s5, label: Тонкости }
+  - { id: s6, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import InpAnatomy from '@/widgets/inp-anatomy/ui/InpAnatomy.astro';
+import PageLifecycle from '@/widgets/page-lifecycle/ui/PageLifecycle.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import YieldCeiling from '@/widgets/yield-ceiling/ui/YieldCeiling.astro';
+import LongTaskTimeline from '@/widgets/long-task-timeline/ui/LongTaskTimeline.vue';
+import YieldCost from '@/widgets/yield-cost/ui/YieldCost.vue';
+import YieldMeter from '@/widgets/yield-meter/ui/YieldMeter.vue';
+import {
+  ABORT_FACTS,
+  BG_FACTS,
+  BUDGET_MS,
+  CHANNEL_CODE,
+  CHUNKER_ABORT_CODE,
+  CHUNKER_CODE,
+  IDLE_CODE,
+  IDLE_VS_POST_TASK,
+  INP_PARTS,
+  INPUT_PENDING_CODE,
+  LIFECYCLE_EDGES,
+  LIFECYCLE_NODES,
+  LONGTASK_CODE,
+  LONGTASK_FACTS,
+  NEW_QUEUE_CHIPS,
+  NEW_YIELD_CODE,
+  OLD_QUEUE_CHIPS,
+  OLD_YIELD_CODE,
+  PER_ITEM,
+  PITFALLS,
+  POST_TASK_CODE,
+  POST_TASK_FACTS,
+  PRIORITIES,
+  RUN_TO_COMPLETION_CODE,
+  RUN_TO_COMPLETION_NOTE,
+  SOURCES,
+  STATE_ROWS,
+  TASK_SIGNAL_CODE,
+  TASK_SIGNAL_NOTE,
+  TIMELINE_CLICKS,
+  TIMELINE_MODES,
+  TIMELINE_WORK,
+  TOOL_ROWS,
+  UNSLICEABLE,
+  YIELD_HELPER_CODE,
+  YIELD_SIZES,
+  YIELD_STRATEGIES,
+  YIELD_TOOLS,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  YIELD_DEMO_NOTE,
+  TIMELINE_DEMO_NOTE,
+  COST_DEMO_NOTE,
+  PLAIN_YIELD,
+  PLAIN_MICROTASK,
+  PLAIN_QUEUE_TAIL,
+  PLAIN_SOURCES,
+  PLAIN_LIFECYCLE,
+  YIELD_SCENE_CODE,
+  YIELD_SCENE_NOTE,
+  YIELD_WAYS,
+  INP_SCENE_CODE,
+  INP_STEPS,
+  INP_FIX_CODE,
+  INP_FIX_NOTE,
+  PLAIN_INP,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Зачем тема отдельно"
+  lead="Допустим, обработчик клика считает 400 мс. Все эти 400 мс страница не реагирует на клики, анимация стоит, новые кадры не рисуются. Помогают против этого два хода. Первый — **вынести работу в другой агент**, то есть в [воркер со своим циклом](/js/workers/). Второй — **разрезать работу на куски и между кусками возвращать управление браузеру**. Эта тема про второй."
+  leadWidth={70}
+  gap={24}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_YIELD} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TIMELINE_DEMO_NOTE} />
+  </Card>
+
+  <LongTaskTimeline
+    client:visible
+    work={TIMELINE_WORK}
+    modes={TIMELINE_MODES}
+    clicks={TIMELINE_CLICKS}
+  />
+
+  <Callout size={18.5} pad="22px 24px">
+
+    В JS действует сделка: <b>вам не нужны блокировки (локи), а взамен вы не занимаете поток надолго.</b>
+
+    Первую половину сделки язык выполняет сам. Вторую приходится соблюдать вручную — и интерфейсы
+    ломаются как раз на ней.
+
+  </Callout>
+
+  <CardGrid min={240} gap={14}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card
+    tone="info"
+    title="Когда работу лучше унести в воркер"
+    titleSize={17}
+    pad={20}
+    radius={5}
+    gap={12}
+    size={16}
+    lh={1.6}
+  >
+
+    Спросите себя: нужен ли этой работе DOM?
+
+    **Нужен** — она строит список, обновляет разметку, меряет элементы. Такую работу режут:
+    в воркере DOM нет, и ей всё равно придётся идти в главном потоке, между кадрами.
+
+    **Не нужен** — разбор мегабайтного JSON, сжатие, шифрование, физика. Нарезка даст такой
+    работе только отзывчивость, а поток она займёт целиком, как и раньше. Её лучше унести
+    в воркер: главный поток он не занимает вовсе и продолжает считать, даже когда вкладка
+    ушла в фон.
+
+    <CardNote tone="prose">
+
+      У переноса своя цена: всё, что уходит в воркер и возвращается, копируется. Сколько это
+      стоит — в теме про [воркеры и параллелизм](/js/workers/).
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad={20} radius={5} size={16.5} lh={1.6}>
+
+    Привычные приёмы — «сделаю через `Promise.resolve().then`», «оберну в `async`» — здесь
+    не помогают. **Асинхронность в JS не добавляет потоков.** Она только откладывает работу:
+    та всё равно выполнится в том же единственном потоке, просто позже.
+
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MICROTASK} />
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Чем возвращать управление циклу"
+  lead="Цикл нарезан на куски, и между кусками нужно отдать поток браузеру. Отложить продолжение умеют семь инструментов, но поток отпускают пять: микрозадача не отпускает его вовсе, а `requestAnimationFrame` зовёт вас только перед кадром. Пять остальных различаются не скоростью, а двумя вещами: встанет ли продолжение в конец общей очереди и можно ли сказать браузеру, какая работа важнее."
+>
+  ### Один момент — семь инструментов
+
+  Разница между инструментами видна на одном моменте: кусок работы доделан, и за время куска
+  в очередь успели встать клик пользователя и чужой таймер.
+
+  <CodeBlock code={YIELD_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={YIELD_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {YIELD_WAYS.map((w) => (
+      <Card tone={w.tone} color="tone" label={w.k} labelTone="tone" labelSize={12.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={w.what} />
+        <Md text={`**Чем платит:** ${w.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={['инструмент', 'задержка', 'приоритет', 'когда брать']}
+    rows={TOOL_ROWS.map((r) => [r.k, r.delay, r.prio, r.when])}
+    tones={TOOL_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'muted', 'muted', 'prose']}
+    cols="minmax(180px,1.1fr) minmax(130px,.8fr) minmax(160px,1fr) minmax(230px,1.5fr)"
+    minWidth={700}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE_TAIL} />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **В Node эта таблица не годится.** Там «уступить циклу» делают через `setImmediate`:
+    у него своя фаза цикла (check), отдельная от фазы таймеров. Но **«раньше `setTimeout(0)`»
+    гарантировано только внутри цикла ввода-вывода** — то есть в колбэке чтения файла, сокета,
+    таймера. На верхнем уровне модуля порядок этих двух не определён: это известная гонка,
+    а не особенность версии.
+
+    Глобального `scheduler` в Node нет: `typeof scheduler === 'undefined'`. Но модуль
+    `node:timers/promises` экспортирует собственный `scheduler` с рабочими `yield` и `wait` —
+    его нужно импортировать явно.
+
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={YIELD_DEMO_NOTE} />
+  </Card>
+
+  <YieldCeiling />
+
+  <YieldMeter client:visible />
+
+  <Card
+    title="MessageChannel — самая быстрая задача без планировщика"
+    titleSize={16.5}
+    pad={18}
+    radius={5}
+    gap={11}
+    size={15.5}
+  >
+    <CodeBlock code={CHANNEL_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+
+    Почему у сообщения порта нет минимальной задержки и чем эта уступка оборачивается в Node —
+    в теме про `MessageChannel`, раздел
+    [«Почему планировщик React построен не на `setTimeout`»](/js/message-channel/#s2).
+
+  </Card>
+
+  ### `requestIdleCallback`: работа на остаток кадра
+
+  <Card title="Минимальный рабочий вид" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={IDLE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={IDLE_VS_POST_TASK} />
+  </Card>
+
+  ### Три приоритета — фактически три очереди
+
+  `setTimeout` и `MessageChannel` ставят задачу **без приоритета**: фоновая аналитика
+  и продолжение работы, которой ждёт пользователь, борются за поток на равных.
+  `scheduler.postTask` различает три уровня.
+
+  <CardGrid min={250} gap={14}>
+    {PRIORITIES.map((p) => (
+      <Card tone={p.tone} label={p.k} labelTone="tone" labelSize={12.5} pad={18} radius={5} gap={10} size={15.5}>
+        <Md text={p.what} />
+        <CardNote tone="prose" size={14.5} lh={1.5}><Md text={p.when} /></CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CodeBlock code={POST_TASK_CODE} size={12.5} lh={1.75} pad="16px 18px" />
+
+  <CardGrid min={260} gap={12}>
+    {POST_TASK_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### `TaskSignal` — сигнал, у которого есть приоритет
+
+  <Card title="`TaskSignal` умеет всё, что `AbortSignal`, и ещё знает приоритет" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={TASK_SIGNAL_CODE} size={12} lh={1.75} pad="15px 17px" />
+
+    <Md text={TASK_SIGNAL_NOTE} />
+
+    <CardNote tone="ok">
+
+      Отсюда полезный приём, которым почти никто не пользуется. Подготовку следующего экрана
+      ставят с приоритетом `background` и подписываются на `prioritychange`. Когда пользователь
+      действительно пошёл на этот экран, приоритет поднимают до `user-blocking`. Работа при этом
+      не переставляется и не начинается заново — меняется только её место в очереди.
+
+    </CardNote>
+  </Card>
+
+  <Card
+    tone="info"
+    title="`scheduler.yield()` — не то же самое, что поставить новую задачу"
+    titleSize={18}
+    pad={22}
+    radius={5}
+    gap={16}
+  >
+    <CardGrid min={280} gap={16} align="start">
+      <Card tone="info" color="tone" pad={0} radius={0} gap={9} size={15} label="старый способ" labelTone="tone" labelSize={11}>
+        <CodeBlock code={OLD_YIELD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+        <FlowChips chips={OLD_QUEUE_CHIPS} minWidth={0} />
+
+
+        Продолжение встаёт в **КОНЕЦ** очереди. На оживлённой странице новые задачи приходят
+        постоянно, и продолжение может ждать сколько угодно.
+
+      </Card>
+
+      <Card tone="info" color="tone" pad={0} radius={0} gap={9} size={15} label="современный" labelTone="tone" labelSize={11}>
+        <CodeBlock code={NEW_YIELD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+        <FlowChips chips={NEW_QUEUE_CHIPS} minWidth={0} />
+
+
+        Продолжение получает приоритет прерванной работы: внутри `postTask` — её приоритет,
+        вне планировщика — `user-visible`, приоритет по умолчанию. Оно встаёт **ближе к НАЧАЛУ** очереди
+        и не ждёт минимальных 4 мс. Разница между «концом» и «началом» — это разница между
+        «работа завершится» и «работа завершится когда-нибудь».
+
+      </Card>
+    </CardGrid>
+
+    <CardNote tone="prose" size={16} lh={1.6}>
+
+      **Поддержка неполная.** Оба метода есть в Chromium 153 и Firefox 155, а в WebKit 26.6
+      нет ни `scheduler`, ни `TaskController`. Значит, запасной путь нужен, и писать его надо
+      через `globalThis` — иначе он не сработает там, где нужен. Почему — в разделе «Сколько
+      стоит сама уступка».
+
+    </CardNote>
+  </Card>
+
+  ### Чем приоритеты не управляют
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SOURCES} />
+
+  Над очередями задач есть ещё один слой планирования, до которого из JS не дотянуться:
+  его ведёт сам браузер. Он может поставить событие ввода раньше таймера и склеивает частые
+  `pointermove` в одно событие на кадр. Поэтому `user-blocking` не обгоняет настоящий ввод —
+  и не должен.
+
+  <Card title="Что здесь гарантировано, а что нет" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={RUN_TO_COMPLETION_CODE} size={12} lh={1.75} pad="15px 17px" />
+
+    <Md text={RUN_TO_COMPLETION_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Сколько стоит сама уступка"
+  lead="Уступка не бесплатна. Итог зависит от двух решений: как часто уступать и каким способом. Если уступать часто и дорогим способом, две секунды работы растягиваются в десятки секунд."
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={COST_DEMO_NOTE} />
+  </Card>
+
+  <YieldCost
+    client:visible
+    sizes={YIELD_SIZES}
+    strategies={YIELD_STRATEGIES}
+    tools={YIELD_TOOLS}
+    perItem={PER_ITEM}
+    budget={BUDGET_MS}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Чанкер — цикл, который уступает раз в 50 мс" titleSize={16.5} pad={18} radius={5} gap={11}>
+      <CodeBlock code={CHUNKER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card
+      tone="warn"
+      title="Почему `globalThis.scheduler`, а не просто `scheduler`"
+      titleSize={16.5}
+      pad={18}
+      radius={5}
+      gap={11}
+      size={15.5}
+      lh={1.6}
+    >
+
+      Запасной путь (фолбэк) обычно пишут так: `scheduler.yield?.() ?? new Promise(...)`.
+      Выглядит аккуратно, но работает только там, где планировщик уже есть. **Опциональная
+      цепочка `?.` спасает, когда нет свойства, но не спасает, когда не объявлена сама
+      переменная.** Обращение к необъявленному имени бросает `ReferenceError` раньше, чем дело
+      дойдёт до `??`, и запасной путь не выполняется никогда. В браузере без планировщика —
+      например, в WebKit 26.6 — такой чанкер не переходит на таймер, а падает.
+
+      <CardNote tone="ok">
+
+        `nosuchglobal.yield?.()` бросает ReferenceError, а `globalThis.nosuchglobal?.yield?.()`
+        возвращает `undefined` — и `??` уходит в таймер. Глобального `scheduler` нет и в Node,
+        так что там случай тот же.
+
+        `this` при такой записи не теряется: в `obj.method?.()` внутри метода `this`
+        по-прежнему равен `obj`. `bind` нужен, только если функцию сначала положили
+        в переменную: `const y = globalThis.scheduler?.yield?.bind(scheduler)`.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="Запасной путь — одна функция на весь проект" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={YIELD_HELPER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+
+    Поддержка планировщика в браузерах меняется от версии к версии. Пусть это знание живёт
+    в одном месте, а не в каждом цикле.
+
+  </Card>
+
+  ### Нарезанную работу нужно уметь отменить
+
+  Пользователь ввёл «кот», чанкер начал фильтровать сто тысяч строк, а пользователь уже
+  дописал «котлета». Теперь работают два цикла, и первый считает результат, который никто
+  не увидит. У чанкера выше **нет способа остановиться**. Длинная задача выполняется за один
+  раз, и отменять в ней нечего; у нарезанной впереди ещё куски — их и нужно уметь отменить.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Тот же чанкер, но отменяемый" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CHUNKER_ABORT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+
+      `throwIfAborted()` стоит **после** уступки, а не до неё, и это важно. Пока выполняется
+      синхронный кусок, ни один обработчик не запустится, а значит, и `abort()` позвать
+      некому: прийти он может только во время уступки. Проверка сразу после неё ловит отмену
+      до того, как начнётся следующий кусок; проверка перед уступкой увидела бы её только
+      через целый кусок, сделанный впустую.
+
+    </Card>
+
+    <CardGrid min={260} gap={12}>
+      {ABORT_FACTS.map((fact) => (
+        <Card title={fact.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15}>
+          <Md text={fact.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+  </CardGrid>
+
+  <CardGrid min={280} gap={12}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Размер куска задаёт время, а не количество.** «По 100 штук за раз» — плохая мера:
+      элементы бывают разной сложности, а устройства — разной скорости. Если мерить время через
+      `performance.now()`, страница откликается одинаково и на дешёвом телефоне, и на мощном
+      компьютере.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Уступка через задачу не теряет async-функцию.** `await` в этой точке завершает
+      текущую задачу, а продолжение придёт отдельной задачей. Сама функция при этом цела: движок сохраняет её место и переменные в объекте
+      вне стека и продолжает с того же места, когда промис разрешится. Как устроена эта
+      приостановка — в теме [«Промис изнутри»](/js/promise-internals/).
+
+    </Card>
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5}>
+
+      **50 мс — потолок, а не цель.** Он гарантирует одно: длинных задач (long task) вы
+      не создаёте. Если параллельно идёт анимация, режьте куски до ~8 мс — иначе ваш кусок
+      и отрисовка не поместятся в один кадр.
+
+    </Card>
+  </CardGrid>
+
+  ### Не всякую работу можно нарезать
+
+  Бывает работа, в которой нет границы между кусками, и резать её негде. Признак один:
+  уступку некуда поставить.
+
+  <CardGrid min={300} gap={14} align="start">
+    {UNSLICEABLE.map((item) => (
+      <Card title={item.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Часть работы можно не нарезать, а не делать вовсе: `content-visibility: auto` разрешает
+  браузеру не считать стили, раскладку и отрисовку того, что вне экрана, — [«Кадр браузера»,
+  раздел «Чтение и запись»](/render/render-pipeline/#s3).
+
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Long Task, INP и когда уступать"
+  lead="Откуда порог 50 мс. Если клик пришёл в начале такой задачи, его обработают не раньше чем через ~50 мс — плюс время самой обработки. А мгновенной человек считает реакцию примерно до 100 мс. Как INP считают и чем меряют — в [теме про критический путь и Web Vitals](/render/rendering-crp/)."
+  leadWidth={70}
+>
+  <InpAnatomy parts={INP_PARTS} />
+
+  ### Три слагаемых на одном обработчике
+
+  <CodeBlock code={INP_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={270} gap={12} align="start">
+    {INP_STEPS.map((step) => (
+      <Card title={step.k} titleSize={15.5} pad={16} radius={5} gap={8} size={15} lh={1.6}>
+        <Md text={step.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Третье слагаемое лечится одной строкой — уступкой сразу после видимого отклика:
+
+  <CodeBlock code={INP_FIX_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={INP_FIX_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INP} />
+
+  В лабораторном прогоне Lighthouse кликать некому, поэтому INP там нет, а вместо него
+  показывают TBT (Total Blocking Time — сумму того, на сколько каждая длинная задача
+  при загрузке превысила 50 мс); почему зелёный TBT не обещает зелёного INP — [«Критический путь и Web Vitals»,
+  раздел «Чем это мерить и чему верить»](/render/rendering-crp/#s5).
+
+  ### Как обнаружить длинную задачу
+
+  Долгие места видно не только в профайлере DevTools. У длинных задач есть свой наблюдатель,
+  и он работает у настоящих пользователей, а не только на вашей машине.
+
+  <Card title="`PerformanceObserver` и тип `longtask`" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={LONGTASK_CODE} size={12} lh={1.75} pad="15px 17px" />
+
+
+    Наблюдатель меряет не вашу функцию, а **задачу цикла**, внутри которой она выполнялась.
+    Поэтому он ловит любую долгую работу, чья бы она ни была, но имени виноватой функции
+    не назовёт.
+
+  </Card>
+
+  <CardGrid min={280} gap={12}>
+    {LONGTASK_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={15.5} pad={16} radius={4} gap={8} size={15}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card
+    tone="err"
+    title="`isInputPending` — приём, который перестали рекомендовать"
+    titleSize={17}
+    pad={20}
+    gap={13}
+    size={16}
+    lh={1.6}
+  >
+    <CodeBlock code={INPUT_PENDING_CODE} size={12.5} lh={1.75} pad="15px 17px" />
+
+
+    Идея понятная: уступать не каждые 50 мс подряд, а только когда кто-то действительно ждёт.
+    Отказаться от приёма стоит по трём причинам. Первая: он видит не все виды событий. Вторая,
+    главная: **он не говорит, пора ли дать браузеру нарисовать кадр**. А задержка до отрисовки
+    (presentation delay) тоже входит в INP, и кадр, который ждёт своей очереди, `isInputPending`
+    не видит. Цикл, который уступает «только когда есть ввод», по-прежнему съедает кадры.
+
+    Третья причина помельче: `isInputPending` существует только как черновик WICG (группы,
+    где обкатывают предложения) и реализован одним движком — Chromium. Если всё же используете
+    его, ветку «его здесь нет» пишите обязательно.
+
+    <CardNote tone="ok">
+
+      Приём уместен там, где рисовать нечего: фоновый пересчёт, при котором DOM не меняется.
+      Как общее правило он вреден. Сегодня советуют **уступать всегда, как только кусок
+      израсходовал свой бюджет времени**.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Фоновая вкладка, заморозка и bfcache"
+  lead="Пользователь ушёл на соседнюю вкладку — и страница перестала работать в полную силу: анимация не рисует ни кадра, таймеры срабатывают реже и пачками. Браузер может спрятать страницу, заморозить или выгрузить. Из всех этих состояний, кроме выгрузки, она возвращается с теми же переменными и теми же очередями."
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIFECYCLE} />
+
+  <PageLifecycle nodes={LIFECYCLE_NODES} edges={LIFECYCLE_EDGES} />
+
+  <Table
+    head={['состояние', 'что с циклом и очередями']}
+    rows={STATE_ROWS.map((r) => [r.k, r.v])}
+    tones={STATE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose']}
+    cols="minmax(170px,1fr) minmax(0,2.2fr)"
+    minWidth={560}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Числа в двух строках про фон — решение Chromium, а не требование стандарта.** «Раз
+    в секунду» и «раз в минуту после примерно пяти минут» — так делает конкретный движок,
+    и он может это поменять без предупреждения. Спецификация разрешает браузеру замедлять
+    таймеры в скрытой вкладке, но **никаких чисел не называет** и называть не обещает. Поэтому
+    опираться на них в коде нельзя ни в какую сторону: ни «у меня есть секунда», ни «раз
+    в минуту всё-таки сработает». Надёжно только общее правило из таблицы: в фоне кадров нет,
+    а таймеры срабатывают реже и пачками.
+
+  </Card>
+
+  <CardGrid min={290} gap={14}>
+    {BG_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Отдельно про чанкование">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Любая нарезка работы, привязанная к кадрам, в фоне останавливается совсем.** Чанкер на
+      `requestAnimationFrame` в скрытой вкладке не доработает никогда — не «медленно»,
+      а никогда.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Для фоновой обработки данных — индексации, экспорта, предрасчёта — чанкер на кадрах
+      не подходит в принципе. Нужен `scheduler.yield()` с запасным путём через задачу, а лучше
+      воркер: ему всё равно, видна ли вкладка.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s5" eyebrow="Раздел 5" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Источники и смежные темы"
+>
+  <Card title="Источники" titleSize={17} pad={20} gap={12}>
+
+    Поддержка в браузерах и числа замедления таймеров в фоне — не спецификация, а справочник
+    или решение конкретного движка. Устаревает это быстрее всего остального.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [цикл событий](/js/event-loop/) — откуда берутся задачи, когда
+    выполняются микрозадачи и почему у вложенных таймеров задержка не меньше 4 мс.
+    [Воркеры и параллелизм](/js/workers/) — первый ход из вступления и цена границы
+    между агентами. [Обмен сообщениями](/js/message-channel/) — задача без минимальной задержки
+    во всех подробностях. [Кадр браузера](/render/render-pipeline/) — что браузер успевает
+    сделать в паузе, которую вы дали уступкой. [Критический путь и Web Vitals](/render/rendering-crp/) —
+    как считают INP и почему хороший результат в лаборатории ничего не обещает.
+    [Планировщики](/algorithms/schedulers/) — двоичная куча и планировщик React: сроки приоритетов и нарезка по 5 мс.
+
+  </Card>
+</Section>

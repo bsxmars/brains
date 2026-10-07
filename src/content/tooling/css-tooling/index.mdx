@@ -1,0 +1,590 @@
+---
+title: CSS-инструменты
+heading: "CSS-инструменты: PostCSS, CSS-модули и Tailwind"
+headingWidth: 24
+order: 13
+kicker: сборка и инструменты
+lead: "Между CSS, который вы пишете, и CSS, который получает браузер, стоит цепочка программ. Одна разбирает файл в дерево и отдаёт его плагинам, другая переписывает новый синтаксис под старые браузеры, третья переименовывает классы, четвёртая пишет CSS по словам из ваших компонентов. Каждая делает понятную механическую работу — и у каждой есть место, где она молча делает не то."
+leadWidth: 66
+summary: "Дерево PostCSS и плагины-посетители, повторный обход изменённых узлов; lightningcss и targets: что понижается, а что нет, и почему dev и сборка Vite отдают разный CSS; имена CSS-модулей из хеша, `composes` и `:global`; атрибут `data-v` во Vue `scoped`; сканер кандидатов Tailwind v4, слои и байты вывода; порядок CSS в сборке."
+verifiedOn: "postcss 8.5.28, lightningcss 1.33.0, Tailwind 4.3.3 (oxide, @tailwindcss/node, @tailwindcss/postcss), Vite 8.3.0, @vitejs/plugin-vue 6.0.8, Vue 3.5.42, Node 24.11.0, Chromium 153, октябрь 2026: деревья, выводы, имена классов, атрибуты и байты сняты стендом и пересобираются tests/unit/css-tooling.test.ts; учебные функции совпадают с Vite посимвольно и с Tailwind по набору утилит"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: PostCSS и дерево }
+  - { id: s2, label: Понижение }
+  - { id: s3, label: CSS-модули }
+  - { id: s4, label: Vue scoped }
+  - { id: s5, label: Сканер Tailwind }
+  - { id: s6, label: Слои и байты }
+  - { id: s7, label: Порядок подключения }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ModuleNameLab from '@/widgets/css-tooling-lab/ui/ModuleNameLab.vue';
+import TwScanLab from '@/widgets/css-tooling-lab/ui/TwScanLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_PIPELINE,
+  PREREQ,
+  PREREQ_NOTE,
+  BUTTON_CSS,
+  PLAIN_TREE,
+  POSTCSS_TREE_PRINT,
+  NODE_TYPES,
+  PREFIX_PLUGIN_CODE,
+  PREFIX_OUT,
+  POSTCSS_FACTS,
+  NAIVE_PLUGIN_CODE,
+  NAIVE_NOTE,
+  PLAIN_FALLBACK,
+  LOWER_CODE,
+  LOWER_TARGETS,
+  LOWER_ROWS,
+  LOWER_FACTS,
+  VITE_LOWER_ROWS,
+  VITE_LOWER_NOTE,
+  PLAIN_MODULES,
+  MODULE_CSS,
+  CARD_MODULE_CSS,
+  MODULE_USE_CODE,
+  MODULE_CSS_OUT,
+  MODULE_NAME_CODE,
+  MODULE_STEPS,
+  MODULE_DEMO_FILES,
+  MODULE_DEMO_CAPTION,
+  MODULE_FACTS,
+  SCOPED_VUE,
+  SCOPED_CSS_OUT,
+  SCOPE_ID_CODE,
+  CARD_VUE,
+  SCOPED_HTML,
+  SCOPED_RULES,
+  SCOPED_FACTS,
+  ISOLATION_ROWS,
+  PLAIN_SCAN,
+  TW_INPUT_CSS,
+  SCAN_STEPS,
+  TW_SCAN_CODE,
+  TW_FILES,
+  TW_RULES,
+  TW_EMPTY_BYTES,
+  TW_DEMO_CAPTION,
+  SCAN_DIFF,
+  DYNAMIC_BAD_CODE,
+  DYNAMIC_OK_CODE,
+  SOURCE_INLINE_CODE,
+  SCAN_FACTS,
+  TW_LAYERS_CODE,
+  LAYER_PROBE,
+  TW_BYTES_ROWS,
+  TW_CLASS_COUNT,
+  TW_MARGINAL_ROWS,
+  TW_ALL_BYTES,
+  BYTES_NOTE,
+  ORDER_A_CODE,
+  ORDER_B_CODE,
+  ORDER_NOTE,
+  ORDER_FACTS,
+  CRP_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="От исходника к браузеру" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    CSS-инструменты не «улучшают» стили. Они **переписывают текст** по правилам, которые
+    можно повторить руками: разобрать в дерево, заменить узел, дописать запасную строку,
+    переименовать класс, выписать слова из файлов. Когда результат удивляет, причина почти
+    всегда в одном из этих правил.
+
+  </Callout>
+
+  Вы пишете вложенность, `oklch` и короткие имена классов вроде `.button`. Браузер у
+  пользователя может не знать вложенности, а `.button` есть в каждой второй библиотеке.
+  Поэтому между файлом и браузером стоят программы: PostCSS с плагинами, lightningcss,
+  CSS-модули сборщика, компилятор Vue, Tailwind. Сквозной пример на всю тему — стиль одной
+  кнопки.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PIPELINE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="PostCSS: CSS как дерево"
+  lead="PostCSS читает файл и строит из него дерево узлов. Плагины получают это дерево, меняют узлы, а PostCSS печатает результат обратно в текст. Сам PostCSS не знает ни одного свойства CSS — всё знание живёт в плагинах."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TREE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сквозной пример: button.css" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BUTTON_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Дерево после postcss.parse" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={POSTCSS_TREE_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Справа — строка и колонка, где узел начинается в файле. По ним плагин сообщает
+        об ошибке, а сборщик строит карту исходников.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['класс узла', 'type', 'что хранит']}
+    rows={NODE_TYPES.map((r) => [r.k, r.v, r.d])}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(120px,.5fr) minmax(90px,.4fr) minmax(300px,2fr)"
+    minWidth={600}
+  />
+
+  Значения в дереве — строки. `color-mix(in oklch, …)` для PostCSS такая же строка, как
+  `white`: чтобы понять, что внутри, плагин разбирает её сам или берёт отдельный парсер
+  значений. Так устроен почти весь мир PostCSS: ядро маленькое и ничего не решает.
+
+  ### Плагин — это посетитель
+
+  Плагин не ищет нужное место в тексте. Он говорит: «позовите меня на каждом объявлении
+  `user-select`» — и PostCSS зовёт при обходе. Тот же приём, что у правил ESLint:
+  обработчики на типы узлов. Ниже — autoprefixer в миниатюре: перед `user-select` он
+  дописывает версию с префиксом для Safari.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Плагин" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PREFIX_PLUGIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что изменилось в выводе" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PREFIX_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Одна новая строка. Остальные тринадцать строк файла напечатаны как были — с теми же
+        отступами и пустой строкой перед `&:hover`.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {POSTCSS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Посетитель, который видит сам себя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_PLUGIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NAIVE_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Понижение: lightningcss и targets"
+  lead="Понизить синтаксис — значит переписать новую конструкцию старыми средствами, которые поймёт браузер из списка целей. lightningcss делает это сам, без плагинов: разбирает CSS по-настоящему, со значениями и цветами, и сверяется с таблицей поддержки."
+  leadWidth={72}
+>
+  <Card title="Вызов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={LOWER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    {LOWER_TARGETS.map((x) => (
+      <Card title={`${x.label}: ${x.bytes} байт`} titleSize={16} pad={18} radius={5} gap={11} size={15.5}>
+        <Md text={`\`${x.query}\``} />
+        <CodeBlock code={x.out} size={11} lh={1.6} pad="12px 14px" />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FALLBACK} />
+
+  <Table
+    head={['конструкция', 'старые браузеры', 'цель Vite 8', 'свежие']}
+    rows={LOWER_ROWS.map((r) => [r.k, r.old, r.vite, r.fresh])}
+    tones={LOWER_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(190px,1fr) minmax(200px,1fr) minmax(170px,.9fr) minmax(110px,.6fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {LOWER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  Как строка `chrome 90, safari 14` превращается в версии и почему решение принимается
+  по таблице «с какой версии умеет» — разобрано для JavaScript в теме
+  [«Транспиляция и полифилы»](/tooling/transpilation/#s2). Для CSS таблица своя, логика та же.
+
+  ### Где это происходит в Vite
+
+  <Table
+    head={['режим', 'что получает браузер']}
+    rows={VITE_LOWER_ROWS.map((r) => [r.k, r.how])}
+    tones={VITE_LOWER_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,.8fr) minmax(320px,2fr)"
+    minWidth={600}
+  />
+
+  <Md text={VITE_LOWER_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="CSS-модули: имя класса из хеша"
+  lead="Класс в CSS глобален: `.button` из одного файла красит каждый `.button` на странице. CSS-модуль снимает конфликт не правилами каскада, а переименованием. Каждый класс файла получает уникальное имя, а компонент берёт его из объекта, который модуль экспортирует в JS."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MODULES} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="src/components/Button.module.css" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MODULE_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="src/card/Card.module.css" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CARD_MODULE_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Что видит компонент" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MODULE_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что видит браузер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MODULE_CSS_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Откуда берётся `_button_1dyov_1`
+
+  <Card title="Имя по умолчанию в Vite 8" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MODULE_NAME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {MODULE_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <ModuleNameLab client:visible code={MODULE_NAME_CODE} files={MODULE_DEMO_FILES} caption={MODULE_DEMO_CAPTION} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {MODULE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  Хеш от содержимого — тот же приём, которым сборщик называет файлы бандла: изменилось
+  содержимое — изменилось имя. Только здесь имя получает класс, а не файл. Как это устроено
+  для файлов — в теме [«Бандлер изнутри»](/tooling/bundler-internals/#s5).
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Vue scoped: атрибут вместо нового имени"
+  lead="Vue решает ту же задачу с другой стороны. Имя класса остаётся `.button`, зато каждый элемент шаблона получает атрибут `data-v-…` с id компонента, а каждый селектор стиля — условие на этот атрибут."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="src/components/Button.vue" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCOPED_VUE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="CSS сборки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCOPED_CSS_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Откуда id" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCOPE_ID_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Кнопка внутри карточки
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="src/components/Card.vue" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CARD_VUE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="HTML после рендера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCOPED_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="warn">
+
+        У `<button>` два атрибута: `data-v-6d1c2ff8` от кнопки и `data-v-91edec25` от
+        карточки. Правило карточки `.button[data-v-91edec25]` до него дотягивается.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Что компилятор делает с селектором
+
+  <Table
+    head={['в <style scoped>', 'в CSS сборки', 'что это значит']}
+    rows={SCOPED_RULES.map((r) => [r.k, r.out, r.d])}
+    tones={SCOPED_RULES.map((r) => r.tone)}
+    toneColumn={1}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(180px,.9fr) minmax(220px,1fr) minmax(260px,1.4fr)"
+    minWidth={700}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SCOPED_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Четыре способа изолировать стиль
+
+  <Table
+    head={['способ', 'как устроен', 'чужой CSS внутрь', 'свой CSS наружу']}
+    rows={ISOLATION_ROWS.map((r) => [r.k, r.how, r.inside, r.outside])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(120px,.6fr) minmax(200px,1fr) minmax(220px,1.1fr) minmax(170px,.9fr)"
+    minWidth={760}
+  />
+
+  CSS-модули и `scoped` — работа сборщика: в браузер приходит обычный CSS, и браузер не знает
+  ни о каких компонентах. Shadow DOM и `@scope` — механизмы самого браузера. Как граница
+  теневого дерева пропускает наследование и не пропускает селекторы — в теме
+  [«Стили веб-компонентов»](/render/web-components-styles/#s1); где в каскаде стоит `@scope` —
+  в [«Каскаде и вычислении стилей»](/render/css-cascade/#s1).
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Tailwind v4: сканер кандидатов"
+  lead="В Tailwind CSS не пишут — его генерируют. В исходниках стоят классы вроде `px-4` и `hover:bg-blue-700`, а Tailwind выписывает из файлов все похожие слова и для каждого, которое узнал, пишет правило. Правил для классов, которых нет в файлах, в выводе нет."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCAN} />
+
+  <Card title="Вход" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={TW_INPUT_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {SCAN_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Учебный сканер
+
+  <Card title="Учебный сканер" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TW_SCAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SCAN_DIFF} />
+    </CardNote>
+  </Card>
+
+  ### Три файла — что попало в CSS
+
+  <TwScanLab client:visible scanCode={TW_SCAN_CODE} files={TW_FILES} rules={TW_RULES} emptyBytes={TW_EMPTY_BYTES} caption={TW_DEMO_CAPTION} />
+
+  ### Класс, собранный из кусков
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Не попадёт в CSS" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DYNAMIC_BAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Попадёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DYNAMIC_OK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CodeBlock code={SOURCE_INLINE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {SCAN_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Что выходит в CSS: слои и байты"
+  lead="Вывод Tailwind v4 — четыре каскадных слоя: переменные темы, сброс стилей браузера, компоненты и утилиты. Утилиты объявлены последними и поэтому перебивают всё, что лежит в слоях раньше, — независимо от специфичности."
+  leadWidth={72}
+>
+  <Card title="Начало вывода" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={TW_LAYERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Ваш CSS рядом с утилитами
+
+  Слой сильнее специфичности, а правило вне слоёв сильнее любого слоя. Почему так и в каком
+  порядке браузер проверяет критерии — в [«Каскаде и вычислении стилей»](/render/css-cascade/#s1).
+  Для Tailwind из этого следует одно практическое правило, и проверить его просто:
+  кнопка `<button class="btn p-4">`, вывод Tailwind с `p-4` и рядом своё правило `.btn`.
+
+  <Table
+    head={['своё правило', 'padding', 'почему']}
+    rows={LAYER_PROBE.map((r) => [r.k, r.padding, r.d])}
+    tones={LAYER_PROBE.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(250px,1.1fr) minmax(80px,.3fr) minmax(280px,1.5fr)"
+    minWidth={680}
+  />
+
+  ### Сколько весит вывод
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Байты от набора классов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['классы', '+ байт', 'откуда']}
+        rows={TW_MARGINAL_ROWS.map((r) => [r.k, String(r.bytes), r.d])}
+        kinds={['mono', 'mono', 'prose']}
+        cols="minmax(150px,1fr) minmax(60px,.4fr) minmax(170px,1.3fr)"
+        minWidth={420}
+      />
+    </Card>
+
+    <Card title="Байты от числа классов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['классов', 'байт без сжатия']}
+        rows={TW_BYTES_ROWS.map((r) => [String(r.n), r.bytes.toLocaleString('ru-RU')])}
+        kinds={['mono', 'mono']}
+        cols="minmax(90px,.6fr) minmax(140px,1fr)"
+        minWidth={260}
+      />
+
+      <Md text={`Каждый k-й класс из полного списка Tailwind — ${TW_CLASS_COUNT.toLocaleString('ru-RU')} имён. Ноль классов — это сброс стилей браузера и переменные, нужные ему самому. Три файла из демо выше вместе дали ${TW_ALL_BYTES.toLocaleString('ru-RU')} байт.`} />
+    </Card>
+  </CardGrid>
+
+  <Md text={BYTES_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Порядок подключения и критический CSS"
+  lead="Сборщик решает не только какие правила будут в CSS, но и в каком порядке. А при равной специфичности побеждает правило, которое стоит ниже. Поэтому порядок, который выбрал сборщик, — часть того, как выглядит страница."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="neutral" title="Сначала danger, потом base" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ORDER_A_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="neutral" title="Сначала base, потом danger" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ORDER_B_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={ORDER_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {ORDER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" pad="16px 18px" radius={4} size={16} lh={1.6} text={CRP_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Смотрите на CSS, который получил браузер, а не на тот, что написали.** Понижение,
+      новые имена, атрибуты, сгенерированные утилиты и порядок правил — всё это видно только
+      в выводе сборки. Там же видно и то, чего инструмент не сделал: необработанный `@layer`
+      под старую цель, класс, которого нет в CSS, правило не на своём месте.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

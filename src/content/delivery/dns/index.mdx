@@ -1,0 +1,473 @@
+---
+title: "DNS: от имени до адреса"
+heading: "DNS: от имени до адреса и как он влияет на выкатку"
+headingWidth: 24
+order: 20
+kicker: доставка
+lead: "Вы сменили IP-адрес сервера в панели DNS — а половина пользователей ещё час ходит на старый. Это не сбой, а устройство системы: ответ про имя проходит через несколько кешей, и каждый держит его столько, сколько разрешил TTL. Как резолвер спускается от корня до вашей зоны, что лежит в пакете, почему нельзя CNAME на голом домене и как менять адрес, никого не потеряв."
+leadWidth: 66
+summary: "Stub, рекурсивный резолвер, корень, TLD и авторитетный сервер; делегирование NS и glue; пакет по байтам — заголовок, флаги RD/RA/AA, секции, сжатие имён указателями 0xC0; учебный итеративный резолвер с кешем по TTL и негативным кешем по SOA; CNAME и вершина зоны, ALIAS и CNAME flattening; смена адреса при TTL 3600 и 60, понижение TTL заранее, DNS-балансировка и долгие соединения; запись HTTPS, DoH, `dns.lookup` против `dns.Resolver` в Node."
+verifiedOn: "Node 24.11.0 (c-ares 1.34.5, libuv 1.51.0), dns-packet 5.6.1, DiG 9.10.6, октябрь 2026: свои авторитетные серверы и рекурсивный резолвер на node:dgram, без запросов в интернет; цепочка делегирований, байты пакетов, TTL из кеша, негативный кеш и ответы dns.Resolver сняты стендом и пересобираются tests/unit/dns.test.ts; учебный резолвер сверен с dig +norec по шагам и с пакетами серверов. ALIAS/ANAME, кеши ОС и браузера, DoH, EDNS и формат HTTPS — по документации и RFC"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Путь запроса }
+  - { id: s2, label: Пакет }
+  - { id: s3, label: Резолвер }
+  - { id: s4, label: TTL и кеш }
+  - { id: s5, label: CNAME и apex }
+  - { id: s6, label: Выкатка }
+  - { id: s7, label: Браузер и Node }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import DnsLab from '@/widgets/dns-lab/ui/DnsLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_DNS,
+  PREREQ,
+  PREREQ_NOTE,
+  PATH_CHIPS,
+  PATH_NOTE,
+  ZONES_NOTE,
+  ZONES,
+  SERVERS,
+  ROOT_HINTS,
+  ZONE_ROOT_TEXT,
+  ZONE_TLD_TEXT,
+  ZONE_SHOP_TEXT,
+  ZONE_CDN_TEXT,
+  PLAIN_GLUE,
+  DIG_STEPS,
+  DIG_RECURSIVE,
+  DIG_RECURSIVE_NOTE,
+  AUTH_CODE,
+  QUERY_HEX,
+  PACKET_ROWS,
+  PLAIN_POINTER,
+  PACKET_NOTE,
+  PARSE_CODE,
+  RESOLVER_CODE,
+  RESOLVER_NOTE,
+  DEMO_QUERIES,
+  DEMO_CAPTION,
+  CACHE_LEVELS,
+  CACHE_NOTE,
+  DIG_TTL,
+  PLAIN_NEGATIVE,
+  DIG_NEGATIVE,
+  NEGATIVE_NOTE,
+  CNAME_NOTE,
+  APEX_NOTE,
+  APEX_ROWS,
+  APEX_WARN,
+  ROLLOUT_SCENARIOS,
+  ROLLOUT_CAPTION,
+  ROLLOUT_STEPS,
+  BALANCE_NOTE,
+  STICKY_ROWS,
+  BROWSER_NOTE,
+  HTTPS_ROWS,
+  DIG_HTTPS,
+  HTTPS_NOTE,
+  ACME_NOTE,
+  NODE_RESOLVE_CODE,
+  NODE_RESOLVE_OUT,
+  NODE_ROWS,
+  NODE_NOTE,
+  POOL_PROBE_CODE,
+  POOL_PROBE_OUT,
+  POOL_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Имя → адрес" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    DNS — не одна база с адресами, а цепочка серверов, каждый из которых знает только
+    своё и ссылку на следующего. Ответ, пройдя её один раз, оседает в кешах по дороге
+    на срок TTL. Поэтому любая правка в DNS доходит до пользователей **не сразу и не
+    одновременно** — и выкатку, которая меняет адрес, планируют с этим расчётом.
+
+  </Callout>
+
+  Браузер не умеет соединяться с именем `shop.test`: TCP и QUIC работают с IP-адресами.
+  Перед первым запросом к домену кто-то должен превратить имя в адрес. Обычно это
+  незаметно — ответ уже лежит в кеше. Заметно становится в двух случаях: когда первый
+  заход на сайт медленный, и когда вы сменили адрес, а пользователи продолжают ходить
+  на старый.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DNS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Путь запроса: от корня до зоны"
+  lead="Вопрос «какой адрес у `www.shop.test`» проходит через два вида серверов. Одни ищут ответ за клиента, другие знают ответ про свою зону и больше ничего."
+  leadWidth={72}
+>
+  <Card title="Кто кого спрашивает" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={640} chips={PATH_CHIPS} />
+
+    <Md text={PATH_NOTE} />
+  </Card>
+
+  ### Пример: четыре сервера и пять зон
+
+  <Md text={ZONES_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Корень и TLD" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ZONE_ROOT_TEXT + '\n\n' + ZONE_TLD_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Магазин и CDN" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ZONE_SHOP_TEXT + '\n\n' + ZONE_CDN_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GLUE} />
+
+  ### Спуск по шагам
+
+  Так спускается резолвер — и так же делает `dig +trace`: шлёт вопрос **без** флага RD
+  («рекурсии не нужно») каждому серверу по очереди. На стенде каждый сервер слушает свой
+  порт на `127.0.0.1`: 5070 — корень, 5071 — `test.`, 5072 — `shop.test.`, 5074 — сервер CDN.
+
+  <CardGrid min={300} gap={14} align="start">
+    {DIG_STEPS.map((step) => (
+      <Card title={step.t} titleSize={16} pad={18} radius={5} gap={10} size={15.5} lh={1.6}>
+        <CodeBlock code={'$ ' + step.cmd + '\n' + step.out} size={11} lh={1.6} pad="12px 14px" />
+        <Md text={step.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Тот же вопрос рекурсивному резолверу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={'$ ' + DIG_RECURSIVE.cmd + '\n' + DIG_RECURSIVE.out} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <Md text={DIG_RECURSIVE_NOTE} />
+  </Card>
+
+  ### Как отвечает авторитетный сервер
+
+  Все четыре сервера стенда — одна функция над своими зонами. Она решает одно: моё это
+  имя или нет, а если моё — есть ли у него запись нужного типа.
+
+  <Card title="AUTH_CODE" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={AUTH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Пакет по байтам"
+  lead="Вопрос и ответ DNS — один и тот же формат: заголовок из 12 байт, секция вопроса и три секции записей — ответ, AUTHORITY и ADDITIONAL. Обычно всё это помещается в одну UDP-датаграмму."
+  leadWidth={72}
+>
+  <Md text={`Ниже — ответ сервера \`shop.test.\` на вопрос \`img.shop.test A\` целиком, 72 байта. Вопрос резолвера — это первые 31 байт того же пакета с нулевыми флагами и нулевыми счётчиками записей: \`${QUERY_HEX}\`. Сервер копирует вопрос в ответ, и по номеру ID клиент узнаёт свой ответ.`} />
+
+  <Table
+    head={['смещение', 'байты', 'поле', 'что значит']}
+    rows={PACKET_ROWS.map((r) => [String(r.at), r.hex, r.field, r.value])}
+    tones={PACKET_ROWS.map((r) => r.tone)}
+    toneColumn={2}
+    kinds={['mono', 'mono', 'prose', 'prose']}
+    cols="minmax(70px,.3fr) minmax(170px,1fr) minmax(120px,.6fr) minmax(260px,1.6fr)"
+    minWidth={720}
+  />
+
+  ### Сжатие имён
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POINTER} />
+
+  <Md text={PACKET_NOTE} />
+
+  <Card title="Разбор пакета: PARSE_CODE" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PARSE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Рекурсивный резолвер изнутри"
+  lead="Резолвер получает от клиента один вопрос с флагом RD и превращает его в серию вопросов без RD — по одному на каждый уровень делегирования."
+  leadWidth={72}
+>
+  <Card title="RESOLVER_CODE" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RESOLVER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={RESOLVER_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Вопросы и кеш во времени
+
+  <DnsLab
+    client:visible
+    mode="query"
+    authCode={AUTH_CODE}
+    resolverCode={RESOLVER_CODE}
+    zones={ZONES}
+    servers={SERVERS}
+    roots={ROOT_HINTS}
+    queries={DEMO_QUERIES}
+    scenarios={ROLLOUT_SCENARIOS}
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="TTL и кеш на каждом уровне"
+  lead="Между вашей зоной и вкладкой браузера стоит три-четыре кеша. Каждый держит ответ не дольше TTL, считая от момента, когда получил его сам."
+  leadWidth={72}
+>
+  <Table
+    head={['уровень', 'кто держит', 'сколько', 'как сбросить']}
+    rows={CACHE_LEVELS.map((r) => [r.k, r.who, r.ttl, r.flush])}
+    tones={CACHE_LEVELS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(220px,1.2fr) minmax(200px,1.1fr) minmax(200px,1fr)"
+    minWidth={760}
+  />
+
+  <Md text={CACHE_NOTE} />
+
+  <Card title="Из кеша — с остатком срока" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={'$ ' + DIG_TTL.cmd + '\n' + DIG_TTL.out} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Негативный кеш
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NEGATIVE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Ответ «такого нет»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={'$ ' + DIG_NEGATIVE.cmd + '\n' + DIG_NEGATIVE.out} size={11} lh={1.6} pad="12px 14px" />
+    </Card>
+
+    <Card title="Двести секунд спустя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DIG_NEGATIVE.later} size={11} lh={1.6} pad="12px 14px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={NEGATIVE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="CNAME и вершина зоны"
+  lead="CNAME — самый удобный способ отдать имя чужому сервису: CDN или хостинг меняет адреса у себя, а вы ничего не правите. У этого удобства два ограничения, и оба следуют из одного правила."
+  leadWidth={72}
+>
+  <Md text={CNAME_NOTE} />
+
+  <Md text={APEX_NOTE} />
+
+  <Table
+    head={['способ', 'как устроен', 'где и чем платят']}
+    rows={APEX_ROWS.map((r) => [r.k, r.how, r.who])}
+    tones={APEX_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(260px,1.5fr) minmax(220px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={APEX_WARN} />
+
+  Как это выглядит на конкретном хостинге — записи `A` на четыре адреса для корня и
+  `CNAME` для `www` — в теме [«GitHub Pages»](/delivery/github-pages/#s2).
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="DNS при выкатке"
+  lead="Смена адреса в DNS — не переключатель, а постепенный переезд. Сколько он продлится, решили не сейчас, а в момент, когда резолверы последний раз взяли старую запись: её TTL уже у них."
+  leadWidth={72}
+>
+  <DnsLab
+    client:visible
+    mode="rollout"
+    authCode={AUTH_CODE}
+    resolverCode={RESOLVER_CODE}
+    zones={ZONES}
+    servers={SERVERS}
+    roots={ROOT_HINTS}
+    queries={DEMO_QUERIES}
+    scenarios={ROLLOUT_SCENARIOS}
+    caption={ROLLOUT_CAPTION}
+  />
+
+  ### Порядок смены адреса
+
+  <CardGrid min={240} gap={14} align="start">
+    {ROLLOUT_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Почему клиенты держат старый адрес
+
+  <CardGrid min={260} gap={14} align="start">
+    {STICKY_ROWS.map((row) => (
+      <Card tone={row.tone ?? 'neutral'} title={row.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={row.d} />
+    ))}
+
+  </CardGrid>
+
+  Старый сервер снимают так же, как любой сервер из-под балансировщика: дожидаясь, пока
+  уйдут открытые соединения, — это разобрано в теме
+  [«Балансировка нагрузки», раздел «Плавный вывод»](/delivery/load-balancing/#s7).
+
+  ### DNS-балансировка
+
+  <Md text={BALANCE_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="DNS в браузере и в Node"
+  lead="Браузер и Node спрашивают имена по-разному и через разные кеши. От этого зависит, где искать задержку и почему два инструмента отвечают про одно имя разное."
+  leadWidth={72}
+>
+  <Md text={BROWSER_NOTE} />
+
+  ### Запись HTTPS
+
+  <Table
+    head={['байты', 'поле', 'что значит']}
+    rows={HTTPS_ROWS.map((r) => [r.hex, r.field, r.value])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(130px,.6fr) minmax(280px,1.8fr)"
+    minWidth={600}
+  />
+
+  <Card title="Тип, которого dig 9.10 не знает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={'$ ' + DIG_HTTPS.cmd + '\n' + DIG_HTTPS.out} size={11} lh={1.6} pad="12px 14px" />
+  </Card>
+
+  <Md text={HTTPS_NOTE} />
+
+  <Md text={ACME_NOTE} />
+
+  ### `dns.lookup` и `dns.Resolver`
+
+  <Table
+    head={['функция', 'как спрашивает', '`/etc/hosts` и ОС', 'пул потоков']}
+    rows={NODE_ROWS.map((r) => [r.k, r.how, r.hosts, r.pool])}
+    tones={NODE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(200px,1.1fr) minmax(200px,1.1fr) minmax(170px,.9fr)"
+    minWidth={720}
+  />
+
+  <Md text={NODE_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Resolver к своему серверу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NODE_RESOLVE_CODE} size={11} lh={1.6} pad="12px 14px" />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NODE_RESOLVE_OUT} size={11} lh={1.6} pad="12px 14px" />
+    </Card>
+  </CardGrid>
+
+  ### Занятый пул и «медленный DNS»
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="probe.cjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={POOL_PROBE_CODE} size={11} lh={1.6} pad="12px 14px" />
+    </Card>
+
+    <Card title="UV_THREADPOOL_SIZE=2" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={'$ UV_THREADPOOL_SIZE=2 node probe.cjs\n' + POOL_PROBE_OUT} size={11} lh={1.6} pad="12px 14px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={POOL_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **TTL — это решение, которое вы принимаете заранее.** Длинный TTL дешёв и устойчив, но
+      привязывает к адресу на час вперёд. Перед сменой адреса TTL понижают за старый срок
+      до переезда, старые серверы держат, пока на них идут запросы, а там, где нужна
+      мгновенная реакция на отказ, ставят балансировщик, а не DNS.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

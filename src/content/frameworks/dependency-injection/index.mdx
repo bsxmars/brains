@@ -1,0 +1,443 @@
+---
+title: Внедрение зависимостей
+heading: "Внедрение зависимостей во фреймворках: inject, provide, контекст"
+headingWidth: 24
+order: 25
+kicker: фреймворки изнутри
+lead: "Компонент просит «дайте логгер» — и получает чей-то. Чей именно, решает не он, а дерево над ним: Angular обходит иерархию инжекторов с флагами, Vue ищет по цепочке прототипов, React — ближайший провайдер. Как устроен каждый поиск, где они расходятся и почему один и тот же запрос в трёх фреймворках даёт разные ответы."
+leadWidth: 66
+summary: "Зачем DI — замена реализации в тестах и экземпляр на поддерево, Vue — объект provides с прототипом родителя, ключ-символ, значение по умолчанию и ref, React — ближайший провайдер, `Object.is` и `use(Context)`, Angular — EnvironmentInjector и ElementInjector, `providedIn: 'root'`, четыре вида провайдеров, `multi`, `InjectionToken`, флаги `optional`/`self`/`skipSelf`/`host`, `NG0200` и `NG0201`, и учебный инжектор, сверенный с Angular 21, Vue 3.5 и React 19."
+verifiedOn: "@angular/core 21.2.25 (JIT), Vue 3.5.42, React 19.3.0, pinia 4.0.3, happy-dom 20.14.5, TypeScript 6.0.3, Node 24.11.0, октябрь 2026: примеры исполнены, учебный инжектор и учебные provide/inject и контекст сверены с настоящими фреймворками на одних деревьях в tests/unit/dependency-injection.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Зачем }
+  - { id: s2, label: Vue }
+  - { id: s3, label: React }
+  - { id: s4, label: Инжекторы Angular }
+  - { id: s5, label: Провайдеры и флаги }
+  - { id: s6, label: Своими руками }
+  - { id: s7, label: Ошибки }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import DiLab from '@/widgets/di-lab/ui/DiLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_DI,
+  PREREQ,
+  CART_PLAIN_CODE,
+  CART_DI_CODE,
+  CART_SPEC_CODE,
+  WHY_NOTE,
+  WHY_ROWS,
+  PLAIN_PROVIDES,
+  VUE_CHAIN_CODE,
+  VUE_CHAIN_OUT,
+  VUE_SOURCE_CODE,
+  VUE_STEPS,
+  VUE_DEFAULTS_CODE,
+  VUE_DEFAULTS_OUT,
+  VUE_DEFAULTS_NOTE,
+  VUE_REACTIVE_CODE,
+  VUE_REACTIVE_OUT,
+  VUE_REACTIVE_NOTE,
+  VUE_APP_FACTS,
+  REACT_USE_CODE,
+  REACT_USE_OUT,
+  REACT_NOTE,
+  REACT_FACTS,
+  PLAIN_INJECTORS,
+  INJECTOR_ROWS,
+  INJECTOR_NOTE,
+  PROVIDED_IN_FACTS,
+  TOKENS_CODE,
+  TOKENS_OUT,
+  PROVIDER_ROWS,
+  TOKEN_NOTE,
+  MULTI_NOTE,
+  MENU_CODE,
+  MENU_OUT,
+  FLAG_ROWS,
+  FLAGS_NOTE,
+  VIEW_PROVIDERS_NOTE,
+  ANGULAR_DI_CODE,
+  MINI_STEPS,
+  MINI_NOTE,
+  VUE_PROVIDE_CODE,
+  REACT_CONTEXT_CODE,
+  REACT_MINI_NOTE,
+  DEMO_SPEC,
+  DEMO_DEFAULTS,
+  DEMO_TOKENS,
+  DEMO_TREE_CODE,
+  DEMO_CAPTION,
+  CYCLE_CODE,
+  CYCLE_OUT,
+  CYCLE_NOTE,
+  ERROR_ROWS,
+  PROD_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Кто даёт зависимость" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Класс не создаёт то, что ему нужно, а **просит по имени**. Ответ даёт дерево над ним:
+    ближайшее место, где для этого имени записан провайдер. Поменяли провайдер — поменялся
+    ответ, а код того, кто просит, остался прежним.
+
+  </Callout>
+
+  Во всех трёх фреймворках это одна идея: компонент называет токен, а значение находится
+  поиском вверх по дереву компонентов. Различаются правила поиска. Angular держит отдельный
+  инжектор у каждого элемента с компонентом, умеет создавать объекты сам и понимает флаги
+  «только у себя», «начиная с родителя», «не дальше хоста». Vue хранит провайдеры в объектах,
+  связанных прототипами, и ищет оператором `in`. React берёт ближайший `<Ctx value>` выше.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DI} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead="Четыре вещи: три разобраны в других темах, четвёртая объяснена прямо на карточке."
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Зачем просить, а не создавать"
+  lead="Корзина считает сумму по ценам с сервера. Пока она сама создаёт клиент API, проверить её без сети нельзя. Когда она только просит клиент, тест кладёт на его место подделку, и код корзины об этом не знает."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Сама создаёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CART_PLAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Просит у инжектора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CART_DI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Тест: подделка под тем же токеном" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CART_SPEC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={WHY_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['что даёт DI', 'как']}
+    rows={WHY_ROWS.map((r) => [r.k, r.d])}
+    kinds={['prose', 'prose']}
+    cols="minmax(180px,.7fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Vue: provide и inject"
+  lead="Во Vue у каждого компонента есть объект `provides`. Прототип этого объекта — объект родителя, а в самом конце цепочки стоит объект приложения. Поиск значения — обычное чтение свойства: движок JS сам пройдёт по прототипам вверх."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROVIDES} />
+
+  <Card title="Одно приложение, четыре компонента" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VUE_CHAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={VUE_CHAIN_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {VUE_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Исходник Vue 3.5, сокращённо" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VUE_SOURCE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Значение по умолчанию
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Второй и третий аргумент inject" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_DEFAULTS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CodeBlock code={VUE_DEFAULTS_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={VUE_DEFAULTS_NOTE} />
+  </CardGrid>
+
+  ### Реактивность — не от inject
+
+  <Card title="Число и ref рядом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VUE_REACTIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={VUE_REACTIVE_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VUE_REACTIVE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {VUE_APP_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="React: контекст"
+  lead="Контекст в React — та же схема поиска, что во Vue, без прототипов: компонент читает значение ближайшего провайдера над собой, а если провайдеров нет — значение, переданное в `createContext`. Создавать объекты React не умеет: провайдер отдаёт то, что ему передали."
+  leadWidth={72}
+>
+  <Card title="Свой провайдер не виден, use — после условия" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REACT_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={REACT_USE_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={REACT_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {REACT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Иерархия инжекторов Angular"
+  lead="В Angular инжектор — отдельный объект, и их два вида. Инжекторы окружения живут вне дерева компонентов: корень приложения, ленивые маршруты. Инжекторы элементов повторяют дерево компонентов. Запрос сначала идёт вверх по элементам, потом по окружениям."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INJECTORS} />
+
+  <Table
+    head={['инжектор', 'что в нём и откуда']}
+    rows={INJECTOR_ROWS.map((r) => [r.k, r.what])}
+    kinds={['prose', 'prose']}
+    cols="minmax(190px,.7fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={INJECTOR_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PROVIDED_IN_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Провайдеры, токены и флаги"
+  lead="Провайдер в Angular — рецепт: отдать готовое значение, создать экземпляр класса, вызвать функцию или сослаться на другой токен. Флаги в `inject` меняют, где начать поиск, где его закончить и что вернуть, если ничего не нашлось."
+  leadWidth={72}
+>
+  <Card title="Четыре рецепта и multi" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TOKENS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={TOKENS_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['рецепт', 'что делает инжектор', 'для чего']}
+    rows={PROVIDER_ROWS.map((r) => [r.k, r.what, r.note])}
+    kinds={['prose', 'prose', 'muted']}
+    cols="minmax(120px,.5fr) minmax(300px,2fr) minmax(160px,.8fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="InjectionToken" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TOKEN_NOTE} />
+
+    <Card tone="warn" title="multi — в одном инжекторе" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={MULTI_NOTE} />
+  </CardGrid>
+
+  ### Флаги: вложенное меню
+
+  <Card title="Меню в меню: родитель через skipSelf" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MENU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={MENU_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['флаг inject', 'декоратор', 'что меняет']}
+    rows={FLAG_ROWS.map((r) => [r.k, r.old, r.what])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(120px,.5fr) minmax(300px,2fr)"
+    minWidth={620}
+  />
+
+  <Md text={FLAGS_NOTE} />
+
+  <Card tone="info" title="providers и viewProviders" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={VIEW_PROVIDERS_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Иерархический инжектор своими руками"
+  lead="Полторы сотни строк: таблицы провайдеров на узлах дерева, поиск с четырьмя флагами, один экземпляр на инжектор, `multi` и метка, которая ловит цикл. Рядом — то же для Vue и React: им хватает сорока и двадцати строк, потому что создавать объекты и разбирать флаги не нужно."
+  leadWidth={72}
+>
+  <Card title="Учебный инжектор Angular" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ANGULAR_DI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {MINI_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={MINI_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Vue: provides и прототипы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_PROVIDE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="React: ближайший провайдер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REACT_CONTEXT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <Md text={REACT_MINI_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Дорога поиска
+
+  <Card title="Дерево для всех трёх режимов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DEMO_TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <DiLab
+    client:visible
+    spec={DEMO_SPEC}
+    tokens={DEMO_TOKENS}
+    defaults={DEMO_DEFAULTS}
+    angularCode={ANGULAR_DI_CODE}
+    vueCode={VUE_PROVIDE_CODE}
+    reactCode={REACT_CONTEXT_CODE}
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Циклы и другие ошибки"
+  lead="Два сервиса, которые просят друг друга, не создать ни в каком порядке. Angular замечает это по метке на записи и бросает `NG0200` с путём. Но та же метка однажды соврёт — и это стоит знать заранее."
+  leadWidth={72}
+>
+  <Card title="Цикл, нет провайдера — и снова «цикл»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CYCLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={CYCLE_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="warn">
+      <Md text={CYCLE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['код', 'когда', 'что делать']}
+    rows={ERROR_ROWS.map((r) => [r.k, r.when, r.fix])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(80px,.3fr) minmax(260px,1.4fr) minmax(260px,1.4fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PROD_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Где лежит провайдер — то и получите.** Один и тот же `inject(Store)` даёт общий
+      объект, если провайдер в корне, и свой у каждой карточки, если провайдер в карточке.
+      Перед тем как гадать, почему два компонента видят разное, найдите, у какого инжектора
+      поиск остановился: это всегда ближайший вверх, а во Vue и React — ближайший вверх
+      **начиная с родителя**.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

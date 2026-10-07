@@ -1,0 +1,847 @@
+---
+title: Сеть и кеширование
+order: 1
+kicker: сеть и безопасность
+lead: "Прежде чем браузер получит первый байт ответа, он узнаёт адрес сервера (DNS), устанавливает соединение и ждёт, пока сервер ответит. Почти ни один из этих шагов не зависит от скорости вашего кода. Самый быстрый запрос — тот, которого не было: один заголовок кеширования убирает все эти шаги разом."
+leadWidth: 66
+summary: "Почему страница ждёт сеть, даже когда файлы маленькие, чем различаются три версии HTTP, когда браузер берёт ответ из кеша, что качается первым и когда нужен Service Worker — с проверкой прямо в вашем браузере."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless) против локального сервера на Node 24.11, сентябрь 2026. HTTP/2, HTTP/3, QUIC, CDN и Service Worker замером не закрыты — локальный сервер отвечает по http/1.1"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Транспорт и RTT-бюджет }
+  - { id: s2, label: Кеш и валидация }
+  - { id: s3, label: Preflight и его кеш }
+  - { id: s4, label: Приоритеты загрузки }
+  - { id: s5, label: Service Worker }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import HolDiagram from '@/widgets/network-hol-diagram/ui/HolDiagram.astro';
+import CacheHeaders from '@/widgets/cache-headers/ui/CacheHeaders.vue';
+import ResourceWaterfall from '@/widgets/resource-waterfall/ui/ResourceWaterfall.vue';
+import {
+  CACHE_MODES,
+  CONDITIONAL_CODE,
+  EARLY_HINTS_CODE,
+  FETCHPRIORITY_CODE,
+  FRESHNESS_CODE,
+  H1_PRACTICES,
+  H2_REGRESSION,
+  HASH_CONFIG_CODE,
+  HASH_TODO,
+  HINTS_ROWS,
+  LAYERS_ROWS,
+  PITFALLS,
+  PREFLIGHT_CACHE_FACTS,
+  PREFLIGHT_MEASURED,
+  PREFLIGHT_RTT_CODE,
+  PREFLIGHT_RULES,
+  PRELOAD_ATTRS,
+  PRIORITY_ROWS,
+  QUIC_FACTS,
+  REQUEST_PATH,
+  RTT_BUDGET_CODE,
+  SOURCES,
+  STORAGE_CODE,
+  STORAGE_RULES,
+  SW_KILLSWITCH_CODE,
+  SW_LATE,
+  SW_LIFECYCLE_CODE,
+  SW_STRATEGIES,
+  SW_UPDATE_CODE,
+  SW_WHEN,
+  VALIDATORS,
+  VARY_ROWS,
+  VERSIONS_ROWS,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  LAYERS_NOTE,
+  PLAIN_RTT,
+  PLAIN_HOL,
+  PLAIN_FRESHNESS,
+  PLAIN_VARY,
+  PLAIN_PREFLIGHT,
+  PLAIN_SW,
+  WATERFALL_DEMO_NOTE,
+  CACHE_DEMO_NOTE,
+  TIMING_NOTE,
+  RANGE_CODE,
+  RANGE_NOTE,
+  COMPRESSION_NOTE,
+  COMPRESSION_MEASURED,
+  COMPRESSION_LEVELS,
+  PREFLIGHT_WHEN,
+  NODE_CLIENT_FACTS,
+  DNS_PRIVACY_NOTE,
+  DNS_PRIVACY_SOURCE,
+  DICTIONARY_CODE,
+  DICTIONARY_NOTE,
+  DICTIONARY_MEASURED,
+  DICTIONARY_LIMITS,
+  HOL_SCENE_CODE,
+  HOL_DIAGRAM,
+  HOL_SCENE_NOTE,
+  HOL_STEPS,
+  SW_DEPLOY_SCENE_CODE,
+  SW_DEPLOY_SCENE_NOTE,
+  SW_DEPLOY_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Что происходит до того, как браузер получил байты" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Сеть хочется представлять трубой: есть ширина, и вся оптимизация — передать поменьше байт.
+    Для больших файлов так и есть. Но обычная страница — это 60–150 мелких файлов, и время
+    там уходит **не на объём, а на то, сколько раз приходится ждать ответа сервера и сколько
+    из этих ожиданий идут друг за другом**.
+
+  </Callout>
+
+  Ключевое число здесь одно — **RTT** (round-trip time): сколько времени сигнал идёт
+  до сервера и обратно. Внутри города 5–20 мс, между континентами 100–200, на мобильной сети
+  с плохим сигналом 300+. И главное его свойство: **он почти не улучшается**. Скорость
+  интернета (полоса) растёт каждый год, а RTT упирается в скорость света и число промежуточных
+  узлов. Поэтому протоколы за пятнадцать лет улучшали одно — **сколько раз надо сходить туда
+  и обратно**, прежде чем придёт первый полезный байт.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RTT} />
+
+  Что браузер делает с байтами, когда они пришли, — в [«Критическом пути»](/render/rendering-crp/),
+  а где живёт сам сетевой процесс — в [«Устройстве браузера», раздел «Каталог процессов»](/js/browser-architecture/#s2).
+
+  <Card tone="warn" title="Одно правило, из которого следует вся тема" titleSize={17} pad={20} gap={11} size={16} lh={1.6}>
+
+    У загрузки страницы есть **бюджет RTT**. Каждый новый источник (origin — домен вместе
+    с протоколом и портом) стоит примерно 2–3 RTT только на то, чтобы установить соединение, —
+    ещё до первого байта запроса. Три сторонних домена в `<head>` — это до 9 RTT ожидания
+    подряд. На мобильной связи это секунда, потраченная впустую.
+
+    <CardNote tone="warn">
+
+      И весь этот бюджет **обнуляется**, если ответ уже лежит в кеше и ещё не устарел: ноль RTT.
+      Это на порядок сильнее любого улучшения протокола.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Транспорт и RTT-бюджет"
+  lead="Первый запрос к новому серверу проходит три отдельных круговых обмена, прежде чем вообще попросит страницу. Версии HTTP различаются прежде всего тем, сколько из этих кругов они убирают и что происходит с остальными файлами, когда теряется один пакет."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сколько стоит первый запрос к новому серверу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RTT_BUDGET_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      Четыре RTT уходят только на то, чтобы **начать** получать HTML. Дальше браузер его
+      разбирает, находит CSS и JS — и если они лежат на другом домене, снова платит 3 RTT
+      за новое соединение.
+
+      <CardNote tone="prose">
+
+        Что с этим делают. DNS-запрос убирают кеширование и подсказка `dns-prefetch`. TCP и TLS
+        в QUIC склеены в один шаг. Все три шага можно сделать заранее через `preconnect`.
+        Ожидание, пока сервер собирает ответ, убирает CDN — кеширующий сервер рядом
+        с пользователем. Четвёртый RTT частично прячет `103 Early Hints`.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="info" title="Кто может ответить на запрос по дороге к серверу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <NumberedList items={REQUEST_PATH} size={14.5} />
+
+      <CardNote tone="info">
+
+        **Любой слой может ответить сам и не пустить запрос дальше.** Понять, кто именно
+        ответил, — половина всей отладки. Service Worker стоит **перед** HTTP-кешем: если он
+        зарегистрирован, «правильные заголовки на сервере» перестают что-либо значить.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="Первый RTT виден всем: DNS и имя сайта в TLS" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <Md text={DNS_PRIVACY_NOTE} />
+
+    <CardNote tone="warn">
+      <Md text={DNS_PRIVACY_SOURCE} />
+    </CardNote>
+  </Card>
+
+  ### Водопад этой страницы
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={WATERFALL_DEMO_NOTE} />
+
+  <ResourceWaterfall client:visible />
+
+  <Card tone="info" title="Откуда демо берёт числа — и почему у чужих файлов там нули" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <Md text={TIMING_NOTE} />
+  </Card>
+
+  ### HTTP/1.1, HTTP/2 и HTTP/3
+
+  <Card title="HTTP/1.1: одна очередь на соединение" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    По одному соединению в каждый момент едет один запрос и один ответ. Слать запросы пачкой,
+    не дожидаясь ответов (pipelining), спецификация формально разрешает, но **во всех браузерах
+    это выключено**: ответы обязаны приходить в порядке запросов, и один медленный ответ
+    задерживает все остальные. Браузеры выкрутились иначе — **открывали несколько соединений
+    сразу**, и лимит устоялся на шести на источник.
+
+    <CardNote tone="prose">
+
+      Расхожая фраза «один запрос = одно TCP-соединение» неточна и путает. Соединение
+      **используется повторно** — за это отвечает `keep-alive`. Правильно так: одно соединение —
+      одна очередь, запросы в ней идут по одному, а параллельность даёт только открытие
+      нескольких соединений.
+      Это легко увидеть: двенадцать медленных ассетов с одного origin по `http/1.1` идут
+      не больше **6 одновременно**, остальные ждут в очереди.
+
+    </CardNote>
+
+    <Table
+      head={['приём времён HTTP/1.1', 'что решал', 'что с ним сегодня']}
+      rows={H1_PRACTICES.map((r) => [r.k, r.solved, r.now])}
+      tones={H1_PRACTICES.map((r) => r.tone)}
+      kinds={['mono', 'prose', 'muted']}
+      cols="minmax(180px,.9fr) minmax(210px,1.1fr) minmax(260px,1.6fr)"
+      minWidth={700}
+    />
+  </Card>
+
+  <Card tone="err" title="Что HTTP/2 не решил — и почему на плохой связи он бывает медленнее" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={H2_REGRESSION} />
+
+    <CardNote tone="err">
+
+      Каким протоколом ваш браузер получил эту страницу, видно в демо выше — в колонке
+      `nextHopProtocol`.
+
+    </CardNote>
+  </Card>
+
+  ### Одна потеря под тремя версиями HTTP
+
+  <CodeBlock code={HOL_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={HOL_SCENE_NOTE} />
+
+  <HolDiagram diagram={HOL_DIAGRAM} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {HOL_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOL} />
+
+  <Table
+    head={['', 'HTTP/1.1', 'HTTP/2', 'HTTP/3']}
+    rows={VERSIONS_ROWS.map((r) => [r.k, r.h1, r.h2, r.h3])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,.9fr) minmax(150px,1fr) minmax(150px,1fr) minmax(170px,1.1fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {QUIC_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Почему QUIC живёт в браузере, а не в ядре ОС">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **TCP нельзя починить: под него подстроилось полмира сетевого железа.** Роутеры с NAT,
+      файрволы и «оптимизаторы» операторов читают TCP-заголовки, а любое незнакомое расширение
+      режут или ломают. Это называют окостенением протокола (**ossification**). Выход один:
+      построить новый транспорт поверх UDP, внутрь которого промежуточное железо не заглядывает.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Отсюда всё остальное. Доставка без потерь, порядок пакетов, подстройка скорости под
+      загруженность сети и шифрование переехали из ядра операционной системы в обычные
+      программы — браузер и сервер (это называют userspace). Значит, обновляются они вместе
+      с браузером, а не вместе с ОС. Смысл HTTP при этом не изменился ни на букву: те же методы,
+      статусы и заголовки, другой только способ доставки.
+
+    </DarkText>
+  </DarkPanel>
+
+  ### Со стороны Node: исходящие соединения
+
+  <CardGrid min={280} gap={14}>
+    {NODE_CLIENT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Кеш и валидация"
+  lead="«Выкатили правку, а у пользователя старая версия» и «каждый заход качает всё заново» — две стороны одной путаницы. У ответа в кеше две разные фазы жизни, и заголовки кеширования путают потому, что эти фазы смешивают. Пока ответ **свежий**, браузер отдаёт его без всякой сети. Когда срок вышел, начинается **валидация**: браузер спрашивает сервер, годится ли ещё старая копия."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FRESHNESS} />
+
+  <CodeBlock code={FRESHNESS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **`ETag` не ускоряет загрузку.** Он экономит трафик: при `304` тело не передаётся. Ускоряет
+    только `max-age` — он один позволяет **не ходить в сеть**. Это разные фазы, и управляют
+    ими разные заголовки.
+
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CACHE_DEMO_NOTE} />
+
+  <CacheHeaders client:visible modes={CACHE_MODES} />
+
+  ### Условный запрос и метки версии
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Что на самом деле уходит по сети" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CONDITIONAL_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Если у браузера есть обе метки версии — `ETag` и дата изменения, — он шлёт **оба**
+        условия. Сервер, получив оба, обязан смотреть на `ETag`: он точнее. И ответ `304` обязан
+        повторить заголовки кеширования. Иначе кеш не продлит свежесть, и следующий запрос снова
+        пойдёт к серверу с вопросом «не изменилось ли».
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Метки версии (валидаторы): сильная, слабая и дата" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      {VALIDATORS.map((v) => (
+        <Md text={`**${v.t}.** ${v.d}`} />
+      ))}
+
+    </Card>
+  </CardGrid>
+
+  <Card title="Докачка: `Range`, `206` и `If-Range`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RANGE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <Md text={RANGE_NOTE} />
+  </Card>
+
+  ### `Vary` и сжатие: один URL, несколько вариантов
+
+  <Card title="`Vary`: как один заголовок ломает кеш" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    `Vary` перечисляет заголовки запроса, от которых зависит ответ, и кеш дописывает их значения
+    к ключу записи. Это правильно и нужно — но `Vary` **умножает число вариантов** одного URL.
+    А чем больше вариантов, тем **реже запрос попадает в готовую копию** (долю таких попаданий
+    называют hit rate). На некоторых заголовках вариантов столько, что кеш перестаёт работать.
+
+    <Table
+      head={['`Vary`', 'вариантов', 'вердикт']}
+      rows={VARY_ROWS.map((r) => [r.k, r.count, r.verdict])}
+      tones={VARY_ROWS.map((r) => r.tone)}
+      kinds={['mono', 'prose', 'muted']}
+      cols="minmax(180px,.8fr) minmax(130px,.5fr) minmax(280px,1.7fr)"
+      minWidth={680}
+    />
+
+    <CardNote tone="prose">
+
+      «`Vary: Cookie` обваливает долю попаданий» — это про **общие кеши**, CDN и прокси;
+      во что это обходится, посчитано в [«CDN и серверном кеше», раздел «Ключ и Vary»](/platform/cdn-cache/#s2).
+      Кеш браузера ведёт себя иначе: в Chromium 153 ответ с `Vary: Cookie` был взят из кеша
+      даже после смены куки, хотя новая кука до сервера доходила. Правило для обоих случаев
+      одно: список `Vary` держите коротким и явным, а если вариантов много — выносите
+      различие **в URL**.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VARY} />
+
+  <Card title="Сжатие: вариант, о котором договариваются заголовками" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={COMPRESSION_NOTE} />
+
+    <Table
+      head={COMPRESSION_MEASURED.head}
+      rows={COMPRESSION_MEASURED.rows}
+      cols={COMPRESSION_MEASURED.cols}
+      kinds={COMPRESSION_MEASURED.kinds}
+      minWidth={COMPRESSION_MEASURED.minWidth}
+    />
+
+    <CardNote tone="prose">
+      <Md text={COMPRESSION_LEVELS} />
+    </CardNote>
+  </Card>
+
+  <Card tone="ok" title="Сжатие со словарём: прошлая версия файла как подсказка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={DICTIONARY_NOTE} />
+
+    <CodeBlock code={DICTIONARY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Table
+      head={DICTIONARY_MEASURED.head}
+      rows={DICTIONARY_MEASURED.rows}
+      cols={DICTIONARY_MEASURED.cols}
+      kinds={DICTIONARY_MEASURED.kinds}
+      minWidth={DICTIONARY_MEASURED.minWidth}
+    />
+
+    <CardNote tone="ok">
+      <Md text={DICTIONARY_LIMITS} />
+    </CardNote>
+  </Card>
+
+  ### Хеш в имени файла и три слоя кеша
+
+  <Card tone="ok" title="Хеш в имени файла — основа всей схемы кеширования" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Два требования спорят друг с другом. Кешировать файлы навсегда — это скорость. Показать
+    новую версию сразу после деплоя — это корректность. Они несовместимы, **пока URL остаётся
+    прежним**. Решение — вписать в URL хеш содержимого: поменялось содержимое — поменялся хеш,
+    а с ним и URL. Для браузера это просто другой файл, и сбрасывать старый кеш не нужно вообще.
+
+    <CodeBlock code={HASH_CONFIG_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CheckList items={HASH_TODO} tone="ok" size={14.5} />
+
+    <CardNote tone="ok">
+
+      Почему на HTML `no-cache`, а не `no-store`. В HTML лежат **имена бандлов** — это вход
+      во всю схему. Закешировали его — пользователь застрял на старом наборе имён, и весь приём
+      с хешами разваливается. А `no-store` вместо `no-cache` заставит качать HTML целиком вместо
+      `304` на пару сотен байт и вдобавок поставит под удар bfcache — мгновенный возврат по кнопке
+      «назад»: такую страницу Chromium выбрасывает из кеша, стоит смениться куке
+      ([«Мгновенная навигация»](/platform/instant-navigation/#s2)).
+
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['', 'HTTP-кеш браузера', 'CDN / общий кеш', 'Service Worker']}
+    rows={LAYERS_ROWS.map((r) => [r.k, r.browser, r.cdn, r.sw])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(160px,.8fr) minmax(160px,1fr) minmax(160px,1fr) minmax(170px,1.1fr)"
+    minWidth={760}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={LAYERS_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Preflight: лишний запрос перед запросом — и его отдельный кеш"
+  lead="Запрос на другой источник, который не укладывается в «простой» — например, `POST` с JSON или со своим заголовком, — браузер отправляет не сразу. Сначала он спрашивает у сервера разрешение отдельным запросом `OPTIONS`: это и есть preflight. Он добавляет **ещё один RTT** к стоимости запроса, и у него собственный кеш, которым `Cache-Control` не управляет."
+  leadWidth={72}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={PREFLIGHT_WHEN} />
+
+  <CodeBlock code={PREFLIGHT_RTT_CODE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PREFLIGHT} />
+
+  ### Сколько `OPTIONS` дошло до сервера
+
+  <Table
+    head={PREFLIGHT_MEASURED.head}
+    rows={PREFLIGHT_MEASURED.rows}
+    cols={PREFLIGHT_MEASURED.cols}
+    kinds={PREFLIGHT_MEASURED.kinds}
+    minWidth={PREFLIGHT_MEASURED.minWidth}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PREFLIGHT_CACHE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Что с этим делать" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={PREFLIGHT_RULES} size={15.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Приоритеты загрузки"
+  lead="Когда браузер уже знает про десятки ресурсов, он решает, что качать первым и кому отдать канал. Приоритеты он расставляет сам — вы ничего не настраивали, но это уже происходит. Ваша задача — поправить его там, где он не может знать, что важно на самом деле."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Какие приоритеты браузер ставит сам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['ресурс', 'приоритет', 'почему']}
+        rows={PRIORITY_ROWS.map((r) => [r.k, r.p, r.why])}
+        kinds={['mono', 'prose', 'muted']}
+        cols="minmax(170px,1fr) minmax(120px,.6fr) minmax(160px,1fr)"
+        minWidth={520}
+      />
+
+      <CardNote tone="prose">
+
+        Главная тонкость про картинки. Картинка стартует с приоритетом **Low**, и он поднимается
+        только **после раскладки страницы (layout)** — когда браузер понял, что картинка видна
+        на экране. А для раскладки нужны загруженные стили. Значит, главная картинка первого
+        экрана неизбежно начинает с низкого приоритета. Для этого случая и придумали
+        `fetchpriority`.
+
+        Но приоритет помогает только ресурсу, про который браузер уже знает. Узнаёт он
+        об адресах раньше основного парсера — упреждающим парсером (preload scanner), и адрес
+        из CSS-фона или из кода тот не видит вовсе. Это и то, как задержка старта складывается
+        в LCP, разобрано в [«Критическом пути», раздел «LCP»](/render/rendering-crp/#s2).
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="`fetchpriority`: подсказка, а не приказ" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={FETCHPRIORITY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="warn">
+
+        **`high` на всём = `high` ни на чём.** Приоритет — это относительный порядок: пометили
+        десять ресурсов, и шкала просто сдвинулась. Практика — не больше одного-двух `high`
+        на страницу, обычно ровно один — LCP-элемент, самый крупный элемент первого экрана, —
+        и заметно больше `low`.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Подсказки: соединиться, скачать, подготовить заранее
+
+  <Card title="Пять подсказок, которые постоянно путают" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['подсказка', 'что делает', 'для чего', 'приоритет']}
+      rows={HINTS_ROWS.map((r) => [r.k, r.what, r.why, r.prio])}
+      kinds={['mono', 'prose', 'prose', 'muted']}
+      cols="minmax(150px,.8fr) minmax(190px,1.2fr) minmax(190px,1.2fr) minmax(110px,.5fr)"
+      minWidth={760}
+    />
+
+    <CheckList items={PRELOAD_ATTRS} tone="ok" size={14.5} />
+
+    <CardNote tone="prose">
+
+      `preconnect` экономит до 3 RTT, но занимает соединение и платит за его установку, **даже
+      если ресурс не понадобился**, — поэтому ставьте не больше двух-четырёх. А неиспользованное
+      соединение Chrome закрывает примерно через десять секунд: `preconnect` ради ресурса,
+      который загрузится через минуту, — пустая трата.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="`103 Early Hints` вместо Server Push" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={EARLY_HINTS_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+      Браузер получил `103` — и начал грузить CSS, **пока сервер ещё собирает HTML**. Выигрыш
+      равен времени сборки ответа: на медленном серверном рендеринге (SSR) это сотни миллисекунд.
+
+      <CardNote tone="ok">
+
+        Чем это лучше Server Push, от которого отказались. При Push сервер сам присылал файлы,
+        а здесь шлёт **не данные, а подсказку**. Браузер сам заглядывает в свой кеш и решает,
+        качать или нет, — и проблема «прислали то, что уже лежит в кеше» не возникает в принципе.
+        В Chromium 153 это видно по журналу сервера: по подсказке CSS запрашивается ещё до HTML,
+        а на повторном заходе, когда он уже в кеше, запроса за ним нет вовсе.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="err" title="Приоритеты HTTP/2: история неудачи" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Первая спецификация HTTP/2 (RFC 7540) предлагала дерево зависимостей между потоками
+      с весами. Идея хорошая, на практике провалилась: слишком сложно (серверы писали с багами), значительная доля серверов и CDN
+      приоритеты просто игнорировала, а браузеры расходились — Chrome строил линейную цепочку,
+      Firefox дерево с якорями, Safari почти ничего.
+
+      <CardNote tone="err">
+
+        Итог: в новой редакции HTTP/2 (RFC 9113) схема объявлена **устаревшей** (deprecated).
+        На замену пришёл RFC 9218 — простой заголовок `Priority` с двумя параметрами: `u`
+        (срочность 0–7, меньше — важнее) и `i` (можно ли отдавать по частям). Именно в него
+        браузер и переводит `fetchpriority`.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Service Worker"
+  lead="Service Worker — ваш JavaScript, который перехватывает запросы страницы раньше, чем браузер заглянет в свой кеш, и может вернуть что угодно. Это самый мощный и самый опасный слой. Поэтому брать его надо в последнюю очередь — и только для того, что нельзя сделать заголовками."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SW} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Чем Service Worker отличается от обычного скрипта" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Это скрипт, который живёт в **отдельном глобальном контексте**, вне страницы, и переживает
+      её: закрыли вкладку — SW может остаться жить. Доступа к DOM у него нет, общение только
+      через `postMessage`. Работает только по HTTPS, кроме `localhost`, — логично: механизм,
+      подменяющий любые ответы, по незащищённому каналу был бы готовым инструментом атаки.
+
+      <CardNote tone="prose">
+
+        **Он просыпается на событие и засыпает при простое.** Между событиями браузер
+        останавливает SW — обычно после десятков секунд тишины. Поэтому **глобальные переменные
+        простоя не переживают**: состояние храните в Cache Storage или IndexedDB. Это одна из самых частых
+        причин «работало-работало и перестало». Про то, что значит отдельный цикл событий, —
+        в [теме про event loop](/js/event-loop/).
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Жизненный цикл: от регистрации до управления страницей" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SW_LIFECYCLE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="warn">
+
+        В этой схеме обычно теряют одно состояние — **waiting**, — и именно оно объясняет
+        большинство вопросов «почему обновление не приехало». И отдельно: `activated`
+        («активирован») ещё **не значит** `controlling` («управляет страницей»). Особенно заметно на самой первой регистрации: SW
+        активировался, а текущая страница осталась неконтролируемой, и весь `fetch`-обработчик
+        на ней мёртв.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Пять стратегий перехвата
+
+  <CardGrid min={290} gap={14} align="start">
+    {SW_STRATEGIES.map((s) => (
+      <Card tone={s.tone ?? 'neutral'} title={s.t} titleSize={16} pad={17} radius={5} gap={10} size={15.5} lh={1.6}>
+        {s.code && <CodeBlock code={s.code} size={11} lh={1.65} pad="12px 14px" />}
+        <Md text={s.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Обновление и аварийная кнопка
+
+  <CodeBlock code={SW_DEPLOY_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={SW_DEPLOY_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {SW_DEPLOY_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" title="`skipWaiting()` — не безобидная строчка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Она означает вот что: страница, уже загруженная и работающая со **старым** набором ассетов,
+    внезапно попадает под управление **нового** SW. Дальше эта страница просит ленивый чанк
+    `route-abc123.js` — а новый SW про него не знает: заранее (precache) он сохранил файл
+    с другим именем, а старые записи только что вычистил в `activate`. Итог — `ChunkLoadError` посреди работающей сессии.
+
+    <CardNote tone="err">
+
+      Обратите внимание: `registerType: 'autoUpdate'` в `vite-plugin-pwa` включает **и
+      `skipWaiting`, и `clientsClaim`** — ровно тот режим, о котором речь, и включается он одной
+      строкой конфига, часто не глядя. Правило: `skipWaiting()` безопасен, только если приложение —
+      единый бандл без ленивых чанков; иначе его сопровождают немедленной перезагрузкой.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Как выкатывать обновления" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SW_UPDATE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Проверка `navigator.serviceWorker.controller` отделяет **обновление** от самой первой
+        установки: при первой контроллера ещё нет, и показывать «доступна новая версия»
+        бессмысленно. Флаг `reloaded` спасает от цикла перезагрузок.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="err" title="Аварийная кнопка: SW, который удаляет сам себя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SW_KILLSWITCH_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="err">
+
+        Работает это при двух условиях: `sw.js` не закеширован намертво (`no-cache` плюс
+        `updateViaCache: 'none'`) и старый SW **не перехватывает запрос за самим собой**. Отсюда
+        железное правило: обработчик `fetch` никогда не должен перехватывать `/sw.js`.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Когда он нужен и сколько места ему дают
+
+  <Card title="Почему SW не должен быть первым делом в проекте" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={SW_LATE} size={15} />
+
+    <CardNote tone="prose">
+
+      Если на вопрос «зачем SW» вы отвечаете «чтобы быстрее грузилось» — почти наверняка вам нужен
+      не SW, а правильные `Cache-Control` и `immutable`. А вот когда он действительно оправдан:
+
+    </CardNote>
+
+    <CheckList items={SW_WHEN} tone="ok" size={14.5} />
+  </Card>
+
+  <Card tone="info" title="Хранилище: сколько места дают, когда всё стирают и как попросить не стирать" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STORAGE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <CardGrid min={260} gap={12}>
+      {STORAGE_RULES.map((rule) => (
+        <Card tone={rule.tone ?? 'neutral'} title={rule.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.55}>
+          <Md text={rule.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="info">
+
+      Квоты по браузерам и семидневное вытеснение в Safari взяты из документации, и цифры
+      меняются от версии к версии. Поэтому правило — спрашивать `estimate()`, а не зашивать
+      лимит в код.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="Спецификации (RFC) меняются медленно, и в спорном вопросе последнее слово за ними. Статьи и блоги устаревают быстро, зато объясняют, зачем что-то придумано, — в RFC этого нет."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    {SOURCES.map((group) => (
+      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
+        {group.items.map((item) => (
+          <Md text={item} />
+        ))}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [CDN и серверный кеш](/platform/cdn-cache/) — общий кеш между вами и сервером:
+    `s-maxage`, устаревшие ответы, толпа при истечении и кеш внутри приложения.
+    [Долгие соединения: WebSocket, SSE и WebTransport](/platform/realtime/) — когда
+    одного запроса мало и соединение держат открытым.
+    [Критический путь и Web Vitals](/render/rendering-crp/) — preload scanner,
+    LCP и его разложение, `loading="lazy"`, CLS. [Устройство браузера](/js/browser-architecture/) —
+    процессы и то, где живёт сеть. [Event loop](/js/event-loop/) — почему Service Worker это
+    отдельный контекст со своим циклом событий. [Безопасность фронтенда](/platform/security/#s2) —
+    почему вообще возникает preflight. [Стримы](/platform/streams/) — что происходит с телом
+    ответа, пока оно едет по сети, и [SSE](/platform/streams/#s4) — ответ, который не заканчивается.
+    [Мгновенная навигация](/platform/instant-navigation/) — [кеш «назад-вперёд»](/platform/instant-navigation/#s2)
+    и [Speculation Rules](/platform/instant-navigation/#s4): переход, который не ждёт сети вовсе.
+    [HTTP/2 и HTTP/3](/platform/http2-http3/) — кадры, потоки и HPACK по байтам, QUIC и QPACK.
+    [REST, GraphQL и gRPC-web](/platform/api-styles/) — один экран тремя API: запросы, байты и кеш.
+    [Сжатие в вебе](/platform/compression/) — выбор кодировки по `Accept-Encoding`, уровни и словари сжатия.
+    [TLS и сертификаты](/delivery/tls-certificates/) — рукопожатие по сообщениям, цепочка доверия и ACME.
+
+  </Card>
+</Section>

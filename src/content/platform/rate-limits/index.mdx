@@ -1,0 +1,532 @@
+---
+title: Ограничение частоты в API
+heading: "Ограничение частоты в API: 429, Retry-After и ретраи с джиттером"
+headingWidth: 24
+order: 22
+kicker: сеть и безопасность
+lead: "Сервер отвечает 429 и просит подождать две секунды. Что сделает ваш клиент — повторит сразу, повторит через две секунды вместе с остальными сорока клиентами или не повторит вовсе? Лимит частоты — разговор двух сторон: сервер решает, кого и как считать, клиент — когда и что повторять. Ошибиться можно на обеих."
+leadWidth: 66
+summary: "429 против 503, `Retry-After` секундами и датой, заголовки `RateLimit` и `RateLimit-Policy` (черновик IETF, редакция 11) и `X-RateLimit-*` GitHub, CORS и чтение этих заголовков; ключ лимита и `X-Forwarded-For`; счётчик в Redis против счётчика на каждом экземпляре; что можно повторять, экспонента и три вида джиттера, громовое стадо, бюджет повторов и предохранитель; как ведут себя `fetch`, undici `RetryAgent`, TanStack Query, ky и axios-retry."
+verifiedOn: "Node 24.11.0, undici 8.10.2, Chromium 153.0.8010.12 (Playwright 1.63), nginx 1.30.0, Redis 7.4.11, aws-arch-backoff-simulator на Python 3.14, октябрь 2026: решения undici RetryAgent и fetch сняты на живом node:http и повторяются tests/unit/rate-limits.test.ts вместе с политикой и симуляцией темы; ky и axios-retry — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: 429 и 503 }
+  - { id: s2, label: Retry-After }
+  - { id: s3, label: Заголовки квоты }
+  - { id: s4, label: Ключ лимита }
+  - { id: s5, label: Лимит на кластере }
+  - { id: s6, label: Что повторять }
+  - { id: s7, label: Пауза и джиттер }
+  - { id: s8, label: Стадо после сбоя }
+  - { id: s9, label: Бюджет повторов }
+  - { id: s10, label: Готовые клиенты }
+  - { id: s11, label: Тонкие места }
+  - { id: s12, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import RetryLab from '@/widgets/retry-lab/ui/RetryLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_RATELIMIT,
+  PREREQ,
+  PREREQ_NOTE,
+  STATUS_ROWS,
+  STATUS_NOTE,
+  RESPONSE_429,
+  FETCH_CODE,
+  FETCH_NOTE,
+  CORS_ROWS,
+  CORS_NOTE,
+  PLAIN_RETRY_AFTER,
+  RETRY_AFTER_CODE,
+  RA_ROWS,
+  RA_NOTE,
+  DRAFT_CODE,
+  GH_HEADERS,
+  QUOTA_ROWS,
+  QUOTA_NOTE,
+  QUOTA_FACTS,
+  KEY_ROWS,
+  CLIENT_IP_CODE,
+  REALIP_ROWS,
+  REALIP_NOTE,
+  PLAIN_SHARED,
+  LIMIT_CODE,
+  CLUSTER_FACTS,
+  CLUSTER_NOTE,
+  DECIDE_ROWS,
+  POLICY_CODE,
+  DECIDE_NOTE,
+  PLAIN_JITTER,
+  BACKOFF_CODE,
+  STRATEGY_ROWS,
+  BACKOFF_SAMPLES,
+  SAMPLES_NOTE,
+  AWS_ROWS,
+  AWS_NOTE,
+  SIM_CODE,
+  HERD_SETUP,
+  HERD_ROWS,
+  HERD_NOTE,
+  RA_EFFECT_NOTE,
+  HERD_PRESET,
+  RA_MODES,
+  HERD_NOTES,
+  HERD_CAPTION,
+  RETRY_CODE,
+  PLAIN_BUDGET,
+  STREAM_SETUP,
+  STREAM_ROWS,
+  BUDGET_NOTE,
+  BREAKER_CODE,
+  BREAKER_NOTE,
+  UNDICI_CODE,
+  UNDICI_NOTE,
+  UNDICI_CASES,
+  CLIENT_ROWS,
+  CLIENTS_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Лимит с двух сторон" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Ограничитель на сервере решает только одно — пропустить запрос или отказать. Всё
+    остальное — разговор: каким кодом отказать, как сказать «приходите через две секунды»,
+    кого считать одним клиентом. А на другой стороне — клиент, который решает, повторять ли
+    запрос и когда. **Плохой клиент превращает короткий сбой в долгий**: он возвращается
+    слишком рано и вместе со всеми.
+
+  </Callout>
+
+  Лимит частоты защищает сервер от того, кто шлёт слишком много: от сбойного скрипта, от
+  перебора паролей, от одной интеграции, которая съедает ресурсы всех остальных. Но тот же
+  лимит срабатывает и на честных клиентах — после сбоя, когда все разом повторяют запросы.
+  Поэтому половина темы — про клиента: что повторять, через сколько и как не прийти толпой.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RATELIMIT} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="429 или 503"
+  lead="Оба кода значат «не сейчас», но говорят о разном. 429 — вы лично прислали слишком много. 503 — сервер не справляется ни с кем. От этого зависит, что клиенту делать дальше."
+  leadWidth={72}
+>
+  <Table
+    head={['код', 'что значит', 'что делать клиенту']}
+    rows={STATUS_ROWS.map((r) => [r.k, r.what, r.client])}
+    tones={STATUS_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(260px,1.5fr) minmax(220px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Md text={STATUS_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Ответ 429 из черновика IETF" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RESPONSE_429} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что видит fetch" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FETCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={FETCH_NOTE} />
+
+  ### Заголовки, которых не видно
+
+  Страница на одном источнике запрашивает API на другом. Сервер отвечает 429 с `Retry-After: 2`
+  и заголовком квоты — один раз без `Access-Control-Expose-Headers`, второй раз с ним.
+
+  <Table
+    head={['что читает страница', 'без expose', 'с expose']}
+    rows={CORS_ROWS.map((r) => [r.k, r.plain, r.exposed])}
+    tones={CORS_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(240px,1.3fr) minmax(110px,.6fr) minmax(200px,1fr)"
+    minWidth={560}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CORS_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Retry-After: когда вернуться"
+  lead="Заголовок говорит, сколько подождать перед следующим запросом. Форм у него две: целое число секунд или дата. Разбирать нужно обе — и не принимать за дату то, что ею не является."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RETRY_AFTER} />
+
+  <Card title="Разбор Retry-After" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RETRY_AFTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['значение', 'ждать, мс', 'почему']}
+    rows={RA_ROWS.map((r) => [r.value === null ? 'нет заголовка' : `\`${r.value}\``, r.ms === null ? '`null` — своя формула' : String(r.ms), r.d])}
+    tones={RA_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(220px,1.1fr) minmax(130px,.6fr) minmax(260px,1.5fr)"
+    minWidth={640}
+  />
+
+  <Md text={RA_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Заголовки квоты"
+  lead="`Retry-After` приходит, когда отказ уже случился. Заголовки квоты нужны, чтобы до отказа не дойти: сколько всего можно, сколько осталось и когда счёт обновится."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Черновик IETF, редакция 11" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DRAFT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="GitHub без токена" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={GH_HEADERS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['что', '`RateLimit` (черновик)', 'GitHub `X-RateLimit-*`']}
+    rows={QUOTA_ROWS.map((r) => [r.k, r.draft, r.github])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(220px,1.1fr) minmax(240px,1.2fr)"
+    minWidth={620}
+  />
+
+  <Md text={QUOTA_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {QUOTA_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="По какому ключу считать"
+  lead="Ограничитель считает запросы не вообще, а по ключу: «не больше ста в минуту — для кого?». Выбор ключа решает, кого лимит заденет зря и кто его обойдёт."
+  leadWidth={72}
+>
+  <Table
+    head={['ключ', 'хорошо', 'плохо']}
+    rows={KEY_ROWS.map((r) => [r.k, r.good, r.bad])}
+    tones={KEY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.6fr) minmax(220px,1.1fr) minmax(260px,1.3fr)"
+    minWidth={640}
+  />
+
+  ### Адрес за прокси
+
+  Приложение за nginx или балансировщиком видит соединение от прокси, а адрес клиента
+  получает из `X-Forwarded-For`. Как прокси его заполняет — в
+  [«Nginx как обратный прокси», раздел «Заголовки к бэкенду»](/delivery/nginx-proxy/#s4).
+  Для лимита важно другое: какому адресу в этом заголовке можно верить.
+
+  <Card title="Адрес клиента для ключа лимита" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLIENT_IP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['`X-Forwarded-For`', '`clientIp` и nginx `recursive on`', 'nginx `off`', 'первый адрес']}
+    rows={REALIP_ROWS.map((r) => [r.xff === null ? 'нет заголовка' : `\`${r.xff}\``, `\`${r.on}\``, `\`${r.off}\``, `\`${r.first}\``])}
+    tones={REALIP_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(240px,1.4fr) minmax(170px,.9fr) minmax(110px,.6fr) minmax(110px,.6fr)"
+    minWidth={700}
+  />
+
+  <Md text={REALIP_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Один лимит на много серверов"
+  lead="Пока сервер один, счётчик может жить в его памяти. Как только экземпляров несколько, каждый видит только свою часть запросов — и лимит перестаёт быть лимитом."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHARED} />
+
+  <Card title="Счётчик в памяти и в Redis" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LIMIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {CLUSTER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={CLUSTER_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Что можно повторять"
+  lead="Повтор безопасен, когда второй запрос не сделает хуже первого, и полезен, когда причина отказа может пройти сама. Оба условия нужны сразу."
+  leadWidth={72}
+>
+  <Table
+    head={['ответ', 'повторять?', 'почему']}
+    rows={DECIDE_ROWS.map((r) => [r.k, r.retry, r.why])}
+    tones={DECIDE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.1fr) minmax(150px,.7fr) minmax(260px,1.4fr)"
+    minWidth={660}
+  />
+
+  <Card title="Политика повторов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={POLICY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={DECIDE_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Пауза и джиттер"
+  lead="Повторять сразу — значит долбить сервер, который только что отказал. Пауза растёт вдвое с каждой неудачей, а случайная её часть не даёт клиентам вернуться строем."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_JITTER} />
+
+  <Card title="Четыре формулы паузы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BACKOFF_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['джиттер', 'формула', 'первые шесть пауз, мс', 'что это даёт']}
+    rows={STRATEGY_ROWS.map((r) => [r.label, r.formula, BACKOFF_SAMPLES[r.k].join(', '), r.d])}
+    kinds={['prose', 'prose', 'mono', 'prose']}
+    cols="minmax(140px,.6fr) minmax(220px,1.1fr) minmax(200px,1fr) minmax(220px,1.1fr)"
+    minWidth={800}
+  />
+
+  <Md text={SAMPLES_NOTE} />
+
+  ### Как сравнивали в AWS
+
+  <Table
+    head={['клиентов', 'стратегия', 'время, мс', 'вызовов']}
+    rows={AWS_ROWS.map((r) => [String(r.clients), r.strategy === 'noop' ? 'без пауз' : STRATEGY_ROWS.find((s) => s.k === r.strategy).label, r.time.toLocaleString('ru-RU'), String(r.calls)])}
+    tones={AWS_ROWS.map((r) => (r.strategy === 'none' ? 'err' : r.strategy === 'full' ? 'ok' : undefined))}
+    toneColumn={1}
+    kinds={['mono', 'prose', 'mono', 'mono']}
+    cols="minmax(90px,.4fr) minmax(170px,.9fr) minmax(110px,.6fr) minmax(90px,.5fr)"
+    minWidth={480}
+  />
+
+  <Md text={AWS_NOTE} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Стадо после сбоя"
+  lead="Сервер упал на две секунды, и все клиенты, получившие отказ, повторяют. Когда он поднимается, его ждёт не обычный поток, а все отложенные запросы сразу — и лимит, который в обычный день никто не замечает."
+  leadWidth={72}
+>
+  Как тысяча сокетов переподключается к упавшему серверу с полным джиттером, разобрано в
+  [«Долгих соединениях», раздел «Переподключение и heartbeat»](/platform/realtime/#s6). Здесь
+  запросы обычные, HTTP, и у сервера есть лимит, который отвечает 429 с `Retry-After`.
+
+  <Card title="Симуляция на виртуальных часах" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SIM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={HERD_SETUP} />
+
+  <Table
+    head={['джиттер', 'вызовов', '429', 'последний успех', '429 с разбросом Retry-After', 'последний успех']}
+    rows={HERD_ROWS.map((r) => [r.k, r.calls, r.s429, r.lastOk, r.s429j, r.lastOkj])}
+    tones={HERD_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(150px,.8fr) minmax(80px,.4fr) minmax(60px,.3fr) minmax(120px,.6fr) minmax(150px,.7fr) minmax(120px,.6fr)"
+    minWidth={720}
+  />
+
+  <Md text={HERD_NOTE} />
+
+  <Md text={RA_EFFECT_NOTE} />
+
+  ### Пятьдесят клиентов
+
+  <RetryLab
+    client:visible
+    code={RETRY_CODE}
+    preset={HERD_PRESET}
+    strategies={STRATEGY_ROWS.map((s) => ({ k: s.k, label: s.label }))}
+    modes={RA_MODES.map((m) => ({ k: m.k, label: m.label }))}
+    notes={HERD_NOTES}
+    caption={HERD_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Когда повторы вредят"
+  lead="Повтор спасает запрос, когда сбой редкий. Когда сервер лежит целиком, каждый повтор — ещё один запрос к тому, кто не может ответить. Бюджет и предохранитель решают, когда повторять перестать."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUDGET} />
+
+  <Md text={STREAM_SETUP} />
+
+  <Table
+    head={['вариант', 'запросов в лежащий сервер', 'всего', 'успешно', 'ошибок', 'что произошло']}
+    rows={STREAM_ROWS.map((r) => [r.k, String(r.during), String(r.calls), String(r.ok), String(r.lost), r.d])}
+    tones={STREAM_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(150px,.8fr) minmax(110px,.5fr) minmax(70px,.3fr) minmax(80px,.35fr) minmax(80px,.35fr) minmax(240px,1.4fr)"
+    minWidth={820}
+  />
+
+  <Md text={BUDGET_NOTE} />
+
+  <Card title="Предохранитель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BREAKER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={BREAKER_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Готовые клиенты"
+  lead="Писать политику повторов самому не обязательно — но нужно знать, что делает та, что уже стоит в проекте. Умолчания у библиотек разные, и почти у каждой есть место, где они расходятся с тем, что разобрано выше."
+  leadWidth={72}
+>
+  <Table
+    head={['клиент', 'что повторяет', '`Retry-After`', 'джиттер', 'как известно']}
+    rows={CLIENT_ROWS.map((r) => [r.k, r.retries, r.ra, r.jitter, r.how])}
+    tones={CLIENT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose', 'muted']}
+    cols="minmax(150px,.8fr) minmax(200px,1.1fr) minmax(190px,1fr) minmax(160px,.8fr) minmax(120px,.6fr)"
+    minWidth={860}
+  />
+
+  ### undici RetryAgent
+
+  <Card title="Повторы в Node" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={UNDICI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={UNDICI_NOTE} />
+    </CardNote>
+  </Card>
+
+  Те же ответы сервера — undici с умолчаниями и политика темы, настроенная как undici: без
+  джиттера, 500 мс × 2ⁿ, пять повторов, `Retry-After` ровно.
+
+  <Table
+    head={['ответ сервера', 'обращений', 'паузы undici, мс', 'политика темы', 'в чём разница']}
+    rows={UNDICI_CASES.map((c) => [
+      c.label,
+      String(c.hits),
+      c.id === 'get-429-date' ? '2000–3000' : c.delays.length ? c.delays.join(', ') : '—',
+      c.ours.retry ? (c.id === 'get-429-date' ? 'повтор через 2000–3000' : `повтор через ${c.ours.delay}`) : 'не повторяет',
+      c.differs ?? '—',
+    ])}
+    tones={UNDICI_CASES.map((c) => (c.differs ? 'warn' : undefined))}
+    kinds={['prose', 'mono', 'mono', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(90px,.4fr) minmax(130px,.7fr) minmax(150px,.7fr) minmax(220px,1.3fr)"
+    minWidth={840}
+  />
+
+  <Md text={CLIENTS_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Повтор — это тоже нагрузка, и платит за него сервер.** Повторяйте только то, что можно
+      повторить; ждите не меньше, чем просит `Retry-After`, и добавляйте случайную часть, чтобы
+      не прийти вместе со всеми; ограничьте долю повторов, чтобы массовый сбой не умножался на
+      число попыток. А на сервере считайте по честному ключу и одним счётчиком на все экземпляры.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s11" eyebrow="Раздел 11" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s12" eyebrow="Раздел 12" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

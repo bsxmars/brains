@@ -1,0 +1,666 @@
+---
+title: "Инфраструктура как код: Terraform и OpenTofu"
+heading: "Инфраструктура как код: Terraform и OpenTofu изнутри"
+headingWidth: 24
+order: 19
+kicker: доставка
+lead: "Вы пишете не «создай сервер», а «сервер должен быть». Terraform сравнивает написанное с тем, что записано в файле состояния, и сам решает: создать, поправить на месте, заменить или удалить. Как устроен этот файл, почему в нём лежат пароли, откуда берётся порядок действий и почему удаление одного элемента из списка пересоздаёт половину инфраструктуры."
+leadWidth: 66
+summary: "Декларативность и цикл init/plan/apply; terraform.tfstate изнутри — serial, lineage, dependencies; пароль в состоянии открытым текстом, sensitive, шифрование OpenTofu и ephemeral; удалённое состояние и замок на своём http-бэкенде; граф зависимостей и граф apply; символы плана, forces replacement, known after apply и create_before_destroy; дрейф, refresh-only, import, -target; count против for_each и moved; модули; мини-планировщик, сверенный с tofu plan."
+verifiedOn: "OpenTofu 1.12.7 (образ ghcr.io/opentofu/opentofu, linux/arm64), hashicorp/local 2.9.1, hashicorp/random 3.9.1, Docker Desktop на macOS, октябрь 2026: 51 план (действия, причины, переносы, дрейф, граф apply), состояние, шифрование, замок на http-бэкенде, import, -target, ephemeral и модуль пересобираются tests/unit/infrastructure-as-code.test.ts при наличии Docker; мини-планировщик сверен со всеми 51 планом. Terraform на стенде не запускался: его отличия, бэкенды S3/GCS/azurerm/pg, Pulumi, AWS CDK и Crossplane — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Желаемое состояние }
+  - { id: s2, label: Файл состояния }
+  - { id: s3, label: Секреты в состоянии }
+  - { id: s4, label: Общее состояние }
+  - { id: s5, label: Граф зависимостей }
+  - { id: s6, label: Как читать план }
+  - { id: s7, label: 'Дрейф и импорт' }
+  - { id: s8, label: count и for_each }
+  - { id: s9, label: Планировщик }
+  - { id: s10, label: Модули и соседи }
+  - { id: s11, label: Тонкие места }
+  - { id: s12, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import IacLab from '@/widgets/iac-lab/ui/IacLab.vue';
+import { STATE_COUNT, STATE_FOREACH } from './stand';
+import {
+  GLOSSARY,
+  PLAIN_IAC,
+  PREREQ,
+  PREREQ_NOTE,
+  BASE_CONFIG,
+  MAIN_TF,
+  EXAMPLE_PARTS,
+  STAND_NOTE,
+  CYCLE_CHIPS,
+  CYCLE_ROWS,
+  SECOND_RUN,
+  TOFU_NOTE,
+  PLAIN_STATE,
+  STATE_JSON_CODE,
+  STATE_FIELDS,
+  STATE_JOBS,
+  LINEAGE_CODE,
+  LINEAGE_NOTE,
+  SENSITIVE_HCL,
+  SENSITIVE_RUN,
+  SENSITIVE_FACTS,
+  SECRETS_LINK,
+  ENCRYPTION_HCL,
+  ENCRYPTED_STATE,
+  ENCRYPTION_NOTE,
+  EPHEMERAL_HCL,
+  EPHEMERAL_ERROR,
+  EPHEMERAL_NOTE,
+  SECRET_WAYS,
+  PLAIN_LOCK,
+  BACKEND_HCL,
+  HTTP_LOG,
+  LOCK_CONFLICT,
+  LOCK_FACTS,
+  BACKEND_ROWS,
+  BACKEND_NOTE,
+  PLAIN_GRAPH,
+  GRAPH_DOT,
+  GRAPH_NOTE,
+  DEPENDS_HCL,
+  DEPENDS_NOTE,
+  APPLY_EDGES,
+  APPLY_GRAPH_NOTE,
+  PLAIN_REPLACE,
+  SYMBOL_ROWS,
+  PLAN_INPUT_TEXT,
+  UNKNOWN_STEPS,
+  CONTENT_SENSITIVE_NOTE,
+  CBD_HCL,
+  CBD_TEXT,
+  CBD_NOTE,
+  REPLACE_FLAG,
+  PLAIN_DRIFT,
+  DRIFT_RUN,
+  DRIFT_FACTS,
+  IMPORT_HCL,
+  IMPORT_RUN,
+  IMPORT_NOTE,
+  TARGET_RUN,
+  TARGET_NOTE,
+  PLAIN_COUNT,
+  COUNT_DROP_TEXT,
+  COUNT_DROP_NOTE,
+  FOREACH_HCL,
+  FOREACH_DROP_TEXT,
+  MIGRATE_TEXT,
+  MOVED_HCL,
+  MOVED_TEXT,
+  MOVED_NOTE,
+  COUNT_ROWS,
+  SCHEMA,
+  PLANNER_INTRO,
+  PLAN_CODE,
+  PLANNER_STEPS,
+  PLANNER_LIMITS,
+  DEMO_NOTES,
+  DEMO_CAPTION,
+  MODULE_SITE_HCL,
+  MODULE_ROOT_HCL,
+  MODULE_RUN,
+  MODULE_NOTE,
+  TOFU_ROWS,
+  NEIGHBOURS,
+  NEIGHBOURS_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Опись вместо инструкции" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Конфигурация Terraform описывает, **какой** должна быть инфраструктура, а не что с ней
+    сделать. Каждый запуск начинается со сравнения: что написано, что записано в файле
+    состояния после прошлого запуска и что есть на самом деле. План — это разница между ними.
+
+  </Callout>
+
+  Скрипт, который создаёт сервер, на втором запуске создаст второй сервер. Чтобы этого не
+  было, в него дописывают проверки: «если сервер уже есть — пропустить, если у него другой
+  размер — поменять». Terraform — это и есть такие проверки, написанные один раз для всех
+  ресурсов: вы описываете результат, а шаги к нему он выводит сам.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IAC} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Желаемое состояние вместо шагов"
+  lead="Пример на всю тему — пять ресурсов, которым не нужно облако: имя приложения, пароль, номер релиза и файлы на диске. Конфигурация говорит, что они должны быть и как связаны, но ни слова о том, в каком порядке их делать."
+  leadWidth={72}
+>
+  <Card title="main.tf" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MAIN_TF} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['ресурс', 'что это']}
+    rows={EXAMPLE_PARTS.map((r) => [r.k, r.d])}
+    kinds={['prose', 'prose']}
+    cols="minmax(190px,.8fr) minmax(300px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={STAND_NOTE} />
+
+  ### Три команды
+
+  <Card title="От файла до состояния" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={700} chips={CYCLE_CHIPS} />
+  </Card>
+
+  <Table
+    head={['команда', 'что делает']}
+    rows={CYCLE_ROWS.map((r) => [r.k, r.d])}
+    kinds={['prose', 'prose']}
+    cols="minmax(140px,.5fr) minmax(320px,2fr)"
+    minWidth={520}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Второй запуск" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SECOND_RUN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TOFU_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Файл состояния"
+  lead="После первого `apply` рядом с конфигурацией появляется `terraform.tfstate`. Это JSON, где у каждого адреса из конфигурации записан настоящий объект и все его поля. Без этого файла Terraform не узнает свои объекты в мире."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STATE} />
+
+  <Card title="terraform.tfstate — три записи из пяти" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STATE_JSON_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['поле', 'что в нём']}
+    rows={STATE_FIELDS.map((r) => [r.k, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(180px,.7fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+
+  ### Зачем он нужен
+
+  <CardGrid min={260} gap={14} align="start">
+    {STATE_JOBS.map((job) => (
+      <Card title={job.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={job.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Защита от чужой копии
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="tofu state push" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LINEAGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LINEAGE_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Секреты в состоянии"
+  lead="Всё, что вернул провайдер, лежит в состоянии как есть, и пароли тоже. Метка `sensitive` прячет значение с экрана, но не из файла."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Вывод с меткой sensitive" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SENSITIVE_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что видно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SENSITIVE_RUN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={260} gap={14} align="start">
+    {SENSITIVE_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={SECRETS_LINK} />
+
+  ### Шифрование состояния в OpenTofu
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="main.tf" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ENCRYPTION_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="terraform.tfstate после apply" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ENCRYPTED_STATE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={ENCRYPTION_NOTE} />
+
+  ### Значение, которое не сохраняется
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="ephemeral в обычном поле" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={EPHEMERAL_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="tofu plan" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={EPHEMERAL_ERROR} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={EPHEMERAL_NOTE} />
+
+  <Table
+    head={['способ', 'как', 'что остаётся']}
+    rows={SECRET_WAYS.map((r) => [r.k, r.how, r.left])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.6fr) minmax(240px,1.3fr) minmax(220px,1.2fr)"
+    minWidth={640}
+  />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Общее состояние и замок"
+  lead="Файл на ноутбуке годится одному человеку. Команде нужно одно состояние на всех и замок: два одновременных `apply` с одним состоянием разойдутся, и в файле останется то, что записали последним."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOCK} />
+
+  Где хранить состояние, задаёт блок `backend`. Самый простой для разбора — `http`: состояние
+  лежит на любом сервере, который умеет отдать и принять JSON. Такой сервер на Node занимает пару
+  десятков строк, и по его журналу видно, что делает каждая команда.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="backend http" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BACKEND_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Журнал сервера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HTTP_LOG} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" title="Второй процесс, пока первый держит замок" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOCK_CONFLICT} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {LOCK_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Где хранят состояние
+
+  <Table
+    head={['бэкенд', 'где лежит', 'чем запирается']}
+    rows={BACKEND_ROWS.map((r) => [r.k, r.where, r.lock])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(100px,.4fr) minmax(200px,1fr) minmax(280px,1.5fr)"
+    minWidth={620}
+  />
+
+  <Md text={BACKEND_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Граф зависимостей"
+  lead="Порядок действий Terraform выводит сам — из ссылок между ресурсами. `${random_pet.app.id}` в содержимом файла — это не только подстановка значения, но и ребро графа: файл нельзя создать раньше питомца."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GRAPH} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="tofu graph" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={GRAPH_DOT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={GRAPH_NOTE} />
+  </CardGrid>
+
+  ### depends_on
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Ребро без ссылки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DEPENDS_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DEPENDS_NOTE} />
+  </CardGrid>
+
+  ### Граф apply
+
+  <Md text={APPLY_GRAPH_NOTE} />
+
+  <Table
+    head={['шаг', 'ждёт', 'почему']}
+    rows={APPLY_EDGES.map((e) => [e.from, e.to, e.d])}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(170px,.8fr) minmax(200px,.9fr) minmax(260px,1.5fr)"
+    minWidth={680}
+  />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Как читать план"
+  lead="План — это не только список «что поменяется». По символу слева видно, переживёт ли объект правку: `~` значит, что объект и его номер останутся, `-/+` — что его удалят и создадут заново."
+  leadWidth={72}
+>
+  <Table
+    head={['символ', 'действие', 'что значит']}
+    rows={SYMBOL_ROWS.map((r) => [r.s, r.k, r.d])}
+    tones={SYMBOL_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(70px,.3fr) minmax(190px,.8fr) minmax(300px,2fr)"
+    minWidth={600}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REPLACE} />
+
+  ### Правка на месте, которая заменяет соседа
+
+  <Card title={'`input = "v2"` у `terraform_data.release`'} titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PLAN_INPUT_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CONTENT_SENSITIVE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {UNKNOWN_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  ### create_before_destroy
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="lifecycle у config" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CBD_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="План при length = 3 у питомца" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CBD_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={CBD_NOTE} />
+
+  <Md text={REPLACE_FLAG} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Дрейф, refresh и импорт"
+  lead="Каждый план начинается с refresh: провайдер перечитывает объекты из состояния и сообщает, что изменилось без Terraform. Правку руками план покажет — и предложит откатить."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DRIFT} />
+
+  <Card title="Ручная правка dev.txt" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DRIFT_RUN} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {DRIFT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### import: взять существующее
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Блок import" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={IMPORT_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="План и сгенерированный код" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={IMPORT_RUN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={IMPORT_NOTE} />
+
+  ### -target: план для одного адреса
+
+  <Card title="Узкий план" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TARGET_RUN} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={TARGET_NOTE} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="count против for_each"
+  lead="Оба размножают ресурс, но по-разному называют экземпляры: `count` — номерами, `for_each` — ключами. Имя экземпляра — часть адреса, а по адресу Terraform сопоставляет конфигурацию с состоянием. От выбора зависит, что случится, когда из списка уйдёт элемент."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COUNT} />
+
+  <Card tone="err" title="count: stage убран из середины" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={COUNT_DROP_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={COUNT_DROP_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="for_each" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FOREACH_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="for_each: stage убран" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FOREACH_DROP_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Переход с count на for_each
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Без moved" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MIGRATE_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="С moved" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MOVED_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Блоки moved" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MOVED_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={MOVED_NOTE} />
+  </CardGrid>
+
+  <Table
+    head={['', 'count', 'for_each']}
+    rows={COUNT_ROWS.map((r) => [r.k, r.count, r.each])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={620}
+  />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Планировщик своими руками"
+  lead={PLANNER_INTRO}
+  leadWidth={72}
+>
+  <Card title="plan(config, state, schema, world)" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PLAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {PLANNER_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={PLANNER_LIMITS} />
+
+  ### Переключите и посмотрите на план
+
+  <IacLab
+    client:visible
+    planCode={PLAN_CODE}
+    base={BASE_CONFIG}
+    stateCount={STATE_COUNT}
+    stateForEach={STATE_FOREACH}
+    schema={SCHEMA}
+    notes={DEMO_NOTES}
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Модули и соседи"
+  lead="Модуль — способ не копировать одинаковые блоки: каталог с конфигурацией, который вызывают с разными входами. А Terraform — не единственный инструмент, который сравнивает желаемое с записанным."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Модуль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MODULE_SITE_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Два вызова" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MODULE_ROOT_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CodeBlock code={MODULE_RUN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={MODULE_NOTE} />
+
+  ### Terraform и OpenTofu
+
+  <Table
+    head={['', 'Terraform', 'OpenTofu']}
+    rows={TOFU_ROWS.map((r) => [r.k, r.tf, r.tofu])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(200px,1fr) minmax(240px,1.2fr)"
+    minWidth={600}
+  />
+
+  ### Pulumi, CDK, Crossplane
+
+  <CardGrid min={260} gap={14} align="start">
+    {NEIGHBOURS.map((n) => (
+      <Card title={n.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={n.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={NEIGHBOURS_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Terraform сравнивает три вещи: конфигурацию, состояние и мир.** Конфигурация — что
+      хотим, состояние — что сделали в прошлый раз, мир — что есть сейчас. План надо читать
+      по символам: `~` переживёт объект, `-/+` его пересоздаст. Адрес экземпляра — часть его
+      личности, поэтому `for_each` и `moved` важнее, чем кажется. А состояние — это секрет:
+      хранить его надо вместе с замком, а не в репозитории.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s11" eyebrow="Раздел 11" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s12" eyebrow="Раздел 12" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

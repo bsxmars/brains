@@ -1,0 +1,267 @@
+---
+/**
+ * Карточка урока — она же тоновый блок.
+ *
+ * В оригиналах это один и тот же приём с разной заливкой: рамка в 1px, радиус 4 или 5,
+ * и текст либо цвета прозы, либо цвета тона. Поэтому не два компонента, а один с пропом
+ * `tone`: «нейтральная карточка» и «жёлтая врезка» отличаются ровно им.
+ *
+ * Тон задаёт четыре переменные — фон, линию, цвет заголовка и цвет тонового текста, — и их
+ * читают как сама карточка, так и `CardNote` внутри неё. Отсюда же берётся цвет линии
+ * у сноски: она обязана совпадать с рамкой, а знает её только карточка.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+type Tone = 'neutral' | 'info' | 'ok' | 'warn' | 'err' | 'dim';
+
+interface Props {
+  tone?: Tone;
+  /** Внутренние поля, px. В оригиналах 16, 18, 20 или 22. */
+  pad?: number | string;
+  /**
+   * Радиус: 4 у плоских врезок, 5 у карточек с заголовком.
+   * `0` — для вложенной карточки, которая делит рамку с родителем: своей скруглённой
+   * границы у неё быть не должно, иначе углы двоятся.
+   */
+  radius?: 0 | 3 | 4 | 5 | 6;
+  gap?: number;
+  /** Размер текста тела. Самые частые — 15, 15.5, 16.5. */
+  size?: number;
+  lh?: number;
+  /** Цвет тела: проза (по умолчанию) или цвет тона — как во врезках без заголовка. */
+  color?: 'prose' | 'tone';
+  /** Заголовок карточки: serif, 500. Разрешена строчная разметка. */
+  title?: string;
+  titleSize?: number;
+  /** Моно-метка вместо заголовка — термин в словаре, имя операции. */
+  label?: string;
+  labelSize?: number;
+  /** Цвет метки: акцент курса или цвет тона карточки («вариант 1 · отвергнут»). */
+  labelTone?: 'accent' | 'tone';
+  /** Номер карточки: моно, акцентом, по базовой линии заголовка. */
+  index?: string;
+  /** Рамка в 1.5px цветом тона — так в уроках помечают выбранный вариант из нескольких. */
+  emphasis?: boolean;
+  /**
+   * Тело карточки строкой — со строчной разметкой: `` `код` `` и `**жирный**`.
+   *
+   * Нужен, когда текст приходит из `data.ts`. Тот же текст, положенный в слот, приедет
+   * на страницу как есть — со звёздочками и кавычками в тексте: слот получает уже готовые
+   * узлы, и разметку в нём разбирать некому.
+   */
+  text?: string;
+  /** Предел ширины текста в `ch`. */
+  /** Устарел: текст идёт на всю ширину колонки (решение автора, 2026-09-28). Проп оставлен для совместимости. */
+  maxWidth?: number;
+}
+
+const {
+  tone = 'neutral',
+  pad = 18,
+  radius = 5,
+  gap = 11,
+  size = 15.5,
+  lh = 1.55,
+  color = 'prose',
+  title,
+  titleSize = 16.5,
+  label,
+  labelSize = 13,
+  labelTone = 'accent',
+  index,
+  emphasis = false,
+  text,
+} = Astro.props;
+
+const padding = typeof pad === 'number' ? `${pad}px` : pad;
+
+/**
+ * Радиус приходит числом — так его задавали в оригиналах, и так он стоит во всех уроках.
+ * Но само число ничего не решает: оно выбирает ступень из `theme.ts`, иначе скругление
+ * карточек перестало бы меняться вместе с остальной геометрией курса.
+ */
+const RADIUS: Record<number, string> = {
+  0: '0',
+  3: 'var(--r1)',
+  4: 'var(--r2)',
+  5: 'var(--r3)',
+  6: 'var(--r4)',
+};
+const cardRadius = RADIUS[radius] ?? 'var(--r3)';
+---
+
+<div
+  class="card"
+  data-tone={tone}
+  data-color={color}
+  data-label-tone={labelTone}
+  data-emphasis={emphasis ? 'yes' : 'no'}
+  data-flat={radius === 0 ? 'yes' : 'no'}
+  style={`--card-pad:${padding};--card-radius:${cardRadius};--card-gap:${gap}px;--card-fs:calc(${size}px * var(--fs-scale));--card-lh:${lh};--card-title-fs:calc(${titleSize}px * var(--fs-scale));--card-label-fs:calc(${labelSize}px * var(--fs-scale))`}
+>
+  {/* Через `inlineMd`, как и заголовок: метка — тоже строковый проп, и в ней почти всегда
+      стоит имя в обратных кавычках (`activeSub`, `[[Get]]`). Голый вывод доставил бы кавычки
+      на страницу вместе с именем. */}
+  {label && <div class="label" set:html={inlineMd(label)} />}
+  {
+    title &&
+      (index ? (
+        <div class="index-row">
+          <span class="index">{index}</span>
+          <span class="title" set:html={inlineMd(title)} />
+        </div>
+      ) : (
+        <div class="title" set:html={inlineMd(title)} />
+      ))
+  }
+  {text && <div class="card__text" set:html={inlineMd(text)} />}
+  <slot />
+</div>
+
+<style>
+  /* Карточку поднимает тень, а не рамка.
+     В оригиналах глубину давала сплошная линия в 1px — на тёплом сером фоне она читалась.
+     На белой канве такие рамки превратились в бледную сетку: границ много, а разницы между
+     карточкой и бумагой нет. Тон при этом держится сам, заливкой.
+     Переменная `--card-line` остаётся: её читает `CardNote`, чья линия обязана совпадать
+     с цветом тона карточки. */
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-gap);
+    padding: var(--card-pad);
+    border-radius: var(--card-radius);
+    background: var(--card-bg);
+    box-shadow: var(--shadow-card);
+    /* То же, что у сноски: длинное имя из прозы не имеет права утащить страницу вбок. */
+    overflow-wrap: break-word;
+    /* Текст карточки — той же ступенью, что проза страницы (решение автора курса 2026-09-30).
+       Пропы `size`/`lh` остались в интерфейсе ради совместимости — их передают десятки тем, —
+       но размер больше не меняют: одинаковые блоки на странице обязаны выглядеть одинаково. */
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--card-text);
+  }
+
+  /* Карточка, делящая край с родителем (`radius={0}`), высоты не имеет: тень под внутренним
+     блоком, у которого нет своей границы, выглядит грязью, а не слоем. */
+  .card[data-flat='yes'] {
+    box-shadow: none;
+  }
+
+  .card[data-tone='neutral'] {
+    --card-bg: var(--surface);
+    --card-line: var(--border);
+    --card-tone: var(--ink);
+  }
+  .card[data-tone='info'] {
+    --card-bg: var(--tone-info-bg);
+    --card-line: var(--tone-info-line);
+    --card-tone: var(--tone-info-text);
+  }
+  .card[data-tone='ok'] {
+    --card-bg: var(--tone-ok-bg);
+    --card-line: var(--tone-ok-line);
+    --card-tone: var(--tone-ok-text);
+  }
+  .card[data-tone='warn'] {
+    --card-bg: var(--tone-warn-bg);
+    --card-line: var(--tone-warn-line);
+    --card-tone: var(--tone-warn-text);
+  }
+  .card[data-tone='err'] {
+    --card-bg: var(--tone-err-bg);
+    --card-line: var(--tone-err-line);
+    --card-tone: var(--tone-err-text);
+  }
+  .card[data-tone='dim'] {
+    --card-bg: var(--sunk-dim);
+    --card-line: var(--divider);
+    --card-tone: var(--dim);
+  }
+  /* «Погашенная» карточка отличается подложкой, а не бледным текстом (решение автора
+     2026-09-30). `--dim` рассчитан на подписи осей: на `--sunk-dim` он даёт 4.27:1 — ниже
+     порога 4.5:1 для абзаца, и текст по существу выглядел неактивным. */
+  .card[data-tone='dim'][data-color='tone'] {
+    --card-text: var(--prose);
+  }
+  .card[data-tone='dim'] .title {
+    color: var(--text-muted);
+  }
+
+  .card[data-color='prose'] {
+    --card-text: var(--prose);
+  }
+  .card[data-color='tone'] {
+    --card-text: var(--card-tone);
+  }
+
+  .title {
+    font-size: var(--card-title-fs);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--card-tone);
+  }
+
+  /* Жирный зачин абзаца — чернилами. Во врезке, где весь текст цвета тона, он его и сохраняет. */
+  .card[data-color='prose'] :global(b),
+  .card[data-color='prose'] :global(strong) {
+    color: var(--ink);
+  }
+
+  .label {
+    font-family: var(--mono);
+    font-size: var(--card-label-fs);
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--accent);
+  }
+  /* Метка уже моно: код в ней не уменьшается (от базовых долей em выходило мельче). */
+  .label :global(code) {
+    font-size: 1em;
+  }
+  .card[data-label-tone='tone'] .label {
+    font-weight: 400;
+    color: var(--card-tone);
+  }
+
+  /* Выбранный вариант: та же карточка, но рамка толще и цветом тона. */
+  .card[data-emphasis='yes'] {
+    border: 1.5px solid var(--card-emphasis, var(--ink));
+  }
+  .card[data-tone='ok'][data-emphasis='yes'] {
+    --card-emphasis: var(--tone-ok-strong);
+  }
+  .card[data-tone='err'][data-emphasis='yes'] {
+    --card-emphasis: var(--tone-err-strong);
+  }
+  .card[data-tone='warn'][data-emphasis='yes'] {
+    --card-emphasis: var(--bar-amber);
+  }
+  .card[data-tone='info'][data-emphasis='yes'] {
+    --card-emphasis: var(--accent);
+  }
+
+  /* Номер и заголовок стоят на одной базовой линии — моно 11px рядом с serif 17px. */
+  .index-row {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+  }
+  .index {
+    font-family: var(--mono);
+    /*
+     * Две ступени вверх и полужирный. При `--fs-2` номер рядом с serif-заголовком в 17px
+     * превращался в крапинку: «№ вообще сливаются и не видны». Цвет здесь ни при чём —
+     * акцент контрастен, не хватало именно кегля и веса.
+     *
+     * Выключку это не ломает: номер и заголовок стоят на общей базовой линии.
+     */
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .index-row .title {
+    color: var(--ink);
+  }
+</style>

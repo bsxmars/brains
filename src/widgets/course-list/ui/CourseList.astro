@@ -1,0 +1,86 @@
+---
+/**
+ * Список ссылок с номером, названием и одной фразой.
+ *
+ * Один и тот же список нужен трижды: курсы на главной, уроки курса «Внутренности JS»,
+ * уроки курса «Рендеринг». Раньше он жил прямо в `pages/index.astro` — пока был один.
+ *
+ * Номер слева — не украшение: он держит колонку, по которой глаз спускается вниз, и в списке
+ * уроков совпадает с полем `order`, то есть с тем, как урок называет себя сам.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+export interface CourseListItem {
+  href: string;
+  /** Номер: «01», «02». Разрешена пустая строка — тогда колонка просто пустует. */
+  num: string;
+  title: string;
+  /** Одна фраза. Разрешена строчная разметка. */
+  summary: string;
+}
+
+interface Props {
+  items: CourseListItem[];
+}
+
+const { items } = Astro.props;
+---
+
+<ol class="list">
+  {
+    items.map((item) => (
+      <li class="item">
+        <a class="link" href={item.href}>
+          <span class="num">{item.num}</span>
+          <span class="text">
+            <span class="title">{item.title}</span>
+            <span class="summary" set:html={inlineMd(item.summary)} />
+          </span>
+        </a>
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  .list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--ink);
+  }
+  .item {
+    border-bottom: 1px solid var(--rule);
+  }
+  .link {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 18px 0;
+    text-decoration: none;
+    color: inherit;
+  }
+  .link:hover .title {
+    color: var(--accent);
+  }
+  .num {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--text-faint);
+  }
+  .text {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .title {
+    font-size: var(--fs-8);
+    line-height: 1.3;
+    transition: color 0.18s;
+  }
+  .summary {
+    font-size: var(--fs-6);
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+</style>

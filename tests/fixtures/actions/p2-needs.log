@@ -1,0 +1,177 @@
+time="2026-09-15T15:56:39+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+time="2026-09-15T15:56:39+03:00" level=info msg="Start server on http://192.168.0.130:34568"
+[p2-needs/install] ⭐ Run Set up job
+[p2-needs/install] 🚀  Start image=node:22-slim
+[p2-needs/install]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p2-needs/install]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/install]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/install]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p2-needs/install]   ✅  Success - Set up job
+[p2-needs/install]   ☁  git clone 'https://github.com/actions/upload-artifact' # ref=v4
+[p2-needs/install] ⭐ Run Main install
+[p2-needs/install]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/mk] user= workdir=
+[p2-needs/install]   ❓  ::mark::install|install|begin|1789477001189
+[p2-needs/install]   | installed 300 files, hash 155e7592ad19
+[p2-needs/install]   ❓  ::mark::install|install|end|1789477001238
+[p2-needs/install]   ✅  Success - Main install [151.9325ms]
+[p2-needs/install]   ⚙  ::set-env:: DEPS_HASH=155e7592ad19
+[p2-needs/install]   ⚙  ::set-output:: deps_hash=155e7592ad19
+[p2-needs/install]   ⚙  ::set-output:: count=300
+[p2-needs/install] ⭐ Run Main actions/upload-artifact@v4
+[p2-needs/install]   🐳  docker cp src=/Users/ivankrylov/.cache/act/actions-upload-artifact@v4/ dst=/var/run/act/actions/actions-upload-artifact@v4/
+[p2-needs/install]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/actions/actions-upload-artifact@v4/dist/upload/index.js] user= workdir=
+[p2-needs/install]   | (node:59) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[p2-needs/install]   | (Use `node --trace-deprecation ...` to show where the warning was created)
+[p2-needs/install]   | With the provided path, there will be 300 files uploaded
+[p2-needs/install]   | Artifact name is valid!
+[p2-needs/install]   | Root directory input is valid!
+[p2-needs/install]   | Beginning upload of artifact content to blob storage
+[p2-needs/install]   | Uploaded bytes 46082
+[p2-needs/install]   | Finished uploading artifact content to blob storage!
+[p2-needs/install]   | SHA256 digest of uploaded artifact zip is b632d0e10e584034f64b9645d6d28af1e272ef7653bf9bfbea901aa63a59309e
+[p2-needs/install]   | Finalizing artifact upload
+[p2-needs/install]   | Artifact work.zip successfully finalized. Artifact ID 1536741984
+[p2-needs/install]   | Artifact work has been successfully uploaded! Final size is 46082 bytes. Artifact ID is 1536741984
+[p2-needs/install]   | Artifact download URL: https://github.com/nektos/act/actions/runs/1/artifacts/1536741984
+[p2-needs/install]   ✅  Success - Main actions/upload-artifact@v4 [1.460026166s]
+[p2-needs/install]   ⚙  ::set-output:: artifact-id=1536741984
+[p2-needs/install]   ⚙  ::set-output:: artifact-digest=b632d0e10e584034f64b9645d6d28af1e272ef7653bf9bfbea901aa63a59309e
+[p2-needs/install]   ⚙  ::set-output:: artifact-url=https://github.com/nektos/act/actions/runs/1/artifacts/1536741984
+[p2-needs/install] ⭐ Run Complete job
+[p2-needs/install] Cleaning up container for job install
+[p2-needs/install]   ✅  Success - Complete job
+[p2-needs/install] 🏁  Job succeeded
+[p2-needs/lint   ] ⭐ Run Set up job
+[p2-needs/lint   ] 🚀  Start image=node:22-slim
+[p2-needs/test   ] ⭐ Run Set up job
+[p2-needs/test   ] 🚀  Start image=node:22-slim
+[p2-needs/test   ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p2-needs/lint   ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p2-needs/test   ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/lint   ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/test   ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/lint   ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/test   ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p2-needs/lint   ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p2-needs/lint   ]   ✅  Success - Set up job
+[p2-needs/test   ]   ✅  Success - Set up job
+[p2-needs/test   ]   ☁  git clone 'https://github.com/actions/download-artifact' # ref=v4
+[p2-needs/lint   ]   ☁  git clone 'https://github.com/actions/download-artifact' # ref=v4
+[p2-needs/test   ] ⭐ Run Main actions/download-artifact@v4
+[p2-needs/test   ]   🐳  docker cp src=/Users/ivankrylov/.cache/act/actions-download-artifact@v4/ dst=/var/run/act/actions/actions-download-artifact@v4/
+[p2-needs/test   ]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/actions/actions-download-artifact@v4/dist/index.js] user= workdir=
+[p2-needs/test   ]   | Downloading single artifact
+[p2-needs/test   ]   | (node:31) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[p2-needs/test   ]   | (Use `node --trace-deprecation ...` to show where the warning was created)
+[p2-needs/test   ]   | Preparing to download the following artifacts:
+[p2-needs/test   ]   | - work (ID: 1536741984, Size: 96, Expected Digest: undefined)
+[p2-needs/test   ]   | Redirecting to blob download url: http://192.168.0.130:34568/twirp/github.actions.results.api.v1.ArtifactService/DownloadArtifact
+[p2-needs/test   ]   | Starting download of artifact to: /private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p2-needs/test   ]   | (node:31) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+[p2-needs/test   ]   | SHA256 digest of downloaded artifact is b632d0e10e584034f64b9645d6d28af1e272ef7653bf9bfbea901aa63a59309e
+[p2-needs/test   ]   | Artifact download completed successfully.
+[p2-needs/test   ]   | Total of 1 artifact(s) downloaded
+[p2-needs/test   ]   | Download artifact has finished successfully
+[p2-needs/test   ]   ✅  Success - Main actions/download-artifact@v4 [761.954833ms]
+[p2-needs/test   ]   ⚙  ::set-output:: download-path=/private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p2-needs/test   ] ⭐ Run Main test
+[p2-needs/lint   ] ⭐ Run Main probe the border
+[p2-needs/test   ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[p2-needs/lint   ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[p2-needs/test   ]   ❓  ::mark::test|test|begin|1789477005475
+[p2-needs/lint   ]   ❓  ::mark::lint|probe|begin|1789477005477
+[p2-needs/lint   ]   | lint: env-file from install = [EMPTY]
+[p2-needs/lint   ]   | lint: needs output = [155e7592ad19]
+[p2-needs/lint   ]   | lint: workspace has work/? [no]
+[p2-needs/lint   ]   ❓  ::mark::lint|probe|end|1789477005481
+[p2-needs/lint   ]   ✅  Success - Main probe the border [90.59175ms]
+[p2-needs/test   ]   | test: 300 assertions passed
+[p2-needs/test   ]   ❓  ::mark::test|test|end|1789477005535
+[p2-needs/test   ]   ✅  Success - Main test [155.321375ms]
+[p2-needs/test   ] ⭐ Run Complete job
+[p2-needs/test   ] Cleaning up container for job test
+[p2-needs/lint   ] ⭐ Run Main actions/download-artifact@v4
+[p2-needs/lint   ]   🐳  docker cp src=/Users/ivankrylov/.cache/act/actions-download-artifact@v4/ dst=/var/run/act/actions/actions-download-artifact@v4/
+[p2-needs/test   ]   ✅  Success - Complete job
+[p2-needs/test   ] 🏁  Job succeeded
+[p2-needs/lint   ]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/actions/actions-download-artifact@v4/dist/index.js] user= workdir=
+[p2-needs/lint   ]   | Downloading single artifact
+[p2-needs/lint   ]   | (node:40) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[p2-needs/lint   ]   | (Use `node --trace-deprecation ...` to show where the warning was created)
+[p2-needs/lint   ]   | Preparing to download the following artifacts:
+[p2-needs/lint   ]   | - work (ID: 1536741984, Size: 96, Expected Digest: undefined)
+[p2-needs/lint   ]   | Redirecting to blob download url: http://192.168.0.130:34568/twirp/github.actions.results.api.v1.ArtifactService/DownloadArtifact
+[p2-needs/lint   ]   | Starting download of artifact to: /private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p2-needs/lint   ]   | (node:40) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+[p2-needs/lint   ]   | SHA256 digest of downloaded artifact is b632d0e10e584034f64b9645d6d28af1e272ef7653bf9bfbea901aa63a59309e
+[p2-needs/lint   ]   | Artifact download completed successfully.
+[p2-needs/lint   ]   | Total of 1 artifact(s) downloaded
+[p2-needs/lint   ]   | Download artifact has finished successfully
+[p2-needs/lint   ]   ✅  Success - Main actions/download-artifact@v4 [996.74025ms]
+[p2-needs/lint   ]   ⚙  ::set-output:: download-path=/private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p2-needs/lint   ] ⭐ Run Main lint
+[p2-needs/lint   ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/2] user= workdir=
+[p2-needs/lint   ]   ❓  ::mark::lint|lint|begin|1789477006762
+[p2-needs/lint   ]   | lint: scanned 300 files after restoring the artifact
+[p2-needs/lint   ]   ❓  ::mark::lint|lint|end|1789477006767
+[p2-needs/lint   ]   ✅  Success - Main lint [116.282291ms]
+[p2-needs/lint   ] ⭐ Run Complete job
+[p2-needs/lint   ] Cleaning up container for job lint
+[p2-needs/lint   ]   ✅  Success - Complete job
+[p2-needs/lint   ] 🏁  Job succeeded
+[p2-needs/build  ] ⭐ Run Set up job
+[p2-needs/build  ] 🚀  Start image=node:22-slim
+[p2-needs/build  ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p2-needs/build  ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/build  ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/build  ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p2-needs/build  ]   ✅  Success - Set up job
+[p2-needs/build  ]   ☁  git clone 'https://github.com/actions/download-artifact' # ref=v4
+[p2-needs/build  ] ⭐ Run Main actions/download-artifact@v4
+[p2-needs/build  ]   🐳  docker cp src=/Users/ivankrylov/.cache/act/actions-download-artifact@v4/ dst=/var/run/act/actions/actions-download-artifact@v4/
+[p2-needs/build  ]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/actions/actions-download-artifact@v4/dist/index.js] user= workdir=
+[p2-needs/build  ]   | Downloading single artifact
+[p2-needs/build  ]   | (node:30) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[p2-needs/build  ]   | (Use `node --trace-deprecation ...` to show where the warning was created)
+[p2-needs/build  ]   | Preparing to download the following artifacts:
+[p2-needs/build  ]   | - work (ID: 1536741984, Size: 96, Expected Digest: undefined)
+[p2-needs/build  ]   | Redirecting to blob download url: http://192.168.0.130:34568/twirp/github.actions.results.api.v1.ArtifactService/DownloadArtifact
+[p2-needs/build  ]   | Starting download of artifact to: /private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p2-needs/build  ]   | (node:30) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+[p2-needs/build  ]   | SHA256 digest of downloaded artifact is b632d0e10e584034f64b9645d6d28af1e272ef7653bf9bfbea901aa63a59309e
+[p2-needs/build  ]   | Artifact download completed successfully.
+[p2-needs/build  ]   | Total of 1 artifact(s) downloaded
+[p2-needs/build  ]   | Download artifact has finished successfully
+[p2-needs/build  ]   ✅  Success - Main actions/download-artifact@v4 [649.062042ms]
+[p2-needs/build  ]   ⚙  ::set-output:: download-path=/private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/work
+[p2-needs/build  ] ⭐ Run Main build
+[p2-needs/build  ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[p2-needs/build  ]   ❓  ::mark::build|build|begin|1789477008955
+[p2-needs/build  ]   | build: bundle 12080 bytes
+[p2-needs/build  ]   | build: count came from install as [] (not a direct need)
+[p2-needs/build  ]   ❓  ::mark::build|build|end|1789477008960
+[p2-needs/build  ]   ✅  Success - Main build [79.99325ms]
+[p2-needs/build  ] ⭐ Run Complete job
+[p2-needs/build  ] Cleaning up container for job build
+[p2-needs/build  ]   ✅  Success - Complete job
+[p2-needs/build  ] 🏁  Job succeeded
+[p2-needs/deploy ] ⭐ Run Set up job
+[p2-needs/deploy ] 🚀  Start image=node:22-slim
+[p2-needs/deploy ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p2-needs/deploy ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/deploy ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p2-needs/deploy ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p2-needs/deploy ]   ✅  Success - Set up job
+[p2-needs/deploy ] ⭐ Run Main deploy
+[p2-needs/deploy ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[p2-needs/deploy ]   ❓  ::mark::deploy|deploy|begin|1789477009621
+[p2-needs/deploy ]   | deploy: workspace has dist? [no]
+[p2-needs/deploy ]   | deploy: needs.build.result=[success]
+[p2-needs/deploy ]   ❓  ::mark::deploy|deploy|end|1789477009622
+[p2-needs/deploy ]   ✅  Success - Main deploy [87.23025ms]
+[p2-needs/deploy ] ⭐ Run Complete job
+[p2-needs/deploy ] Cleaning up container for job deploy
+[p2-needs/deploy ]   ✅  Success - Complete job
+[p2-needs/deploy ] 🏁  Job succeeded

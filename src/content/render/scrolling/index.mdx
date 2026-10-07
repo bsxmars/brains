@@ -1,0 +1,473 @@
+---
+title: Прокрутка изнутри
+heading: "Прокрутка изнутри: липкие шапки, якорь и возврат на место"
+headingWidth: 24
+order: 21
+kicker: браузер и рендеринг
+lead: "Липкая шапка вдруг перестаёт липнуть, лента чата прыгает при подгрузке истории, а «назад» открывает каталог с самого верха. У всех трёх одна природа: прокрутку ведёт браузер по своим правилам, и у каждого правила есть точная граница. Где она проходит — и как браузер выбирает, за какую строку держаться, когда сверху меняется содержимое."
+leadWidth: 66
+summary: "Кто прокручивает и что заставляет ждать JS, `touch-action`; `position: sticky` — сдвиг, ближайший контейнер прокрутки, почему `overflow: hidden` и растянутый элемент не липнут; якорь прокрутки — выбор узла, исключения, подавление поправки, `overflow-anchor`; `overscroll-behavior` и цепочка; scroll snap, `scrollsnapchange`, `scrollend`; `scroll-padding` и `scroll-margin` под липкой шапкой; `scrollbar-gutter`; `history.scrollRestoration`."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: позиции, сдвиги прокрутки, события и возврат на место сняты стендом и снимаются заново в tests/unit/scrolling.test.ts; функция темы stickyOffset сверена с getBoundingClientRect на 150 случайных раскладках, selectAnchor — со сдвигом прокрутки после вставки перед каждым узлом на случайных деревьях"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Кто крутит }
+  - { id: s2, label: Липкая шапка }
+  - { id: s3, label: Якорь }
+  - { id: s4, label: Цепочка }
+  - { id: s5, label: Snap и scrollend }
+  - { id: s6, label: Цель под шапкой }
+  - { id: s7, label: Полоса }
+  - { id: s8, label: Назад на место }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ScrollLab from '@/widgets/scroll-lab/ui/ScrollLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_SCROLL,
+  PLAIN_STICKY,
+  PREREQ,
+  PREREQ_NOTE,
+  WHO_NOTE,
+  TOUCH_ROWS,
+  TOUCH_NOTE,
+  WHO_FACTS,
+  STICKY_HTML,
+  STICKY_ROWS,
+  STICKY_CODE,
+  STICKY_CODE_NOTE,
+  SCROLLER_ROWS,
+  HIDDEN_SCROLL_NOTE,
+  FIND_SCROLLER_CODE,
+  STACK_NOTE,
+  PLAIN_ANCHOR,
+  ANCHOR_CODE,
+  ANCHOR_CODE_NOTE,
+  ANCHOR_ROWS,
+  ANCHOR_ROWS_NOTE,
+  ZERO_NOTE,
+  DEMO_CAPTION,
+  DEMO_FEED,
+  DEMO_OLDER,
+  SUPPRESS_ROWS,
+  SUPPRESS_NOTE,
+  VLIST_NOTE,
+  PLAIN_CHAIN,
+  CHAIN_ROWS,
+  LATCH_NOTE,
+  CHAIN_FACTS,
+  PLAIN_SNAP,
+  SNAP_HTML,
+  SNAP_ROWS,
+  SNAP_NOTE,
+  SNAP_EVENTS_CODE,
+  SCROLLEND_ROWS,
+  SCROLLEND_NOTE,
+  INTO_VIEW_HTML,
+  INTO_VIEW_ROWS,
+  INTO_VIEW_NOTE,
+  ANCHOR_PAD_NOTE,
+  PLAIN_GUTTER,
+  GUTTER_ROWS,
+  GUTTER_NOTE,
+  GUTTER_FACTS,
+  RESTORE_ROWS,
+  RESTORE_NOTE,
+  RESTORE_CODE,
+  RESTORE_FACTS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Прокрутка" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Прокрутку двигает не ваш JS, а отдельный поток браузера, и всё, что «само» происходит
+    при прокрутке, — тоже его решения: к какому краю прилипнет шапка, за какую строку
+    держаться, когда сверху выросло содержимое, кому отдать жест у края и куда вернуться
+    по «назад». Каждое решение подчиняется короткому правилу, и ошибки в вёрстке почти
+    всегда — это граница одного из них.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCROLL} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Кто прокручивает страницу"
+  lead="Прокрутка — сдвиг уже нарисованного слоя, и делает его поток композитора, поэтому страница едет, даже когда главный поток занят (подробно — [«Кадр браузера», раздел «Что дешевле двигать»](/render/render-pipeline/#s4)). Отнять прокрутку у композитора может только тот, кто вправе отменить жест."
+  leadWidth={72}
+>
+  <Md text={WHO_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {WHO_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### `touch-action`: решение до начала жеста
+
+  Касание на 200px вниз и на 200px вправо по одному и тому же контейнеру, который можно
+  прокрутить в обе стороны:
+
+  <Table
+    head={['`touch-action`', 'палец вниз', 'палец вправо']}
+    rows={TOUCH_ROWS.map((r) => [`\`${r.css}\``, r.down ? 'прокрутился' : 'стоит', r.right ? 'прокрутился' : 'стоит'])}
+    tones={TOUCH_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(120px,.8fr) minmax(120px,1fr) minmax(120px,1fr)"
+    minWidth={420}
+  />
+
+  <Md text={TOUCH_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Липкая шапка: где она остановится"
+  lead="`position: sticky` — элемент, который стоит в потоке как обычный, а при прокрутке получает сдвиг. Сдвиг считается от ближайшего контейнера прокрутки и ограничен родителем. Этих двух правил достаточно, чтобы объяснить и то, как шапка липнет, и почему она иногда не липнет вовсе."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STICKY} />
+
+  <Card title="Пример на раздел: два дня ленты" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STICKY_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['`scrollTop`', '«Вчера»', '«Сегодня»', 'что происходит']}
+    rows={STICKY_ROWS.map((r) => [String(r.st), String(r.first), String(r.second), r.what])}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(90px,.4fr) minmax(80px,.4fr) minmax(90px,.4fr) minmax(260px,2fr)"
+    minWidth={560}
+  />
+
+  Числа — верх шапки относительно верха рамки. Шапка высотой 40px в секции высотой 400px
+  может сдвинуться не дальше чем на 360: дальше её нижний край вышел бы из секции.
+
+  ### Сдвиг как функция
+
+  <Card title="stickyOffset" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STICKY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={STICKY_CODE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Почему шапка не липнет
+
+  Липкость привязана к **ближайшему** контейнеру прокрутки — первому предку, у которого
+  `overflow` не `visible` и не `clip`. Если такой предок стоит между шапкой и тем, что
+  прокручивает пользователь, шапка честно липнет к нему — и вместе с ним уезжает.
+
+  <Table
+    head={['что в разметке', 'что получилось']}
+    rows={SCROLLER_ROWS.map((r) => [r.k, r.got])}
+    tones={SCROLLER_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(300px,1.6fr)"
+    minWidth={560}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Найти, к кому прилип элемент" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FIND_SCROLLER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={HIDDEN_SCROLL_NOTE} />
+  </CardGrid>
+
+  <Md text={STACK_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Якорь: почему лента не прыгает"
+  lead="Над тем, что вы читаете, выросло содержимое — догрузилась история, раскрылся блок, приехала картинка. Без поправки всё видимое уехало бы вниз. Браузер выбирает узел-якорь, смотрит, на сколько тот сдвинулся, и сдвигает прокрутку на столько же. Важно, какой узел он выберет."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ANCHOR} />
+
+  <Card title="selectAnchor" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ANCHOR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ANCHOR_CODE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что выбирает Chromium
+
+  Лента из двадцати строк `r0`…`r19` по 50px в рамке высотой 300px. Над первой строкой
+  вставлен блок высотой 100px:
+
+  <Table
+    head={['состояние', 'якорь', 'сдвиг `scrollTop`']}
+    rows={ANCHOR_ROWS.map((r) => [r.k, r.anchor, `+${r.shift}`])}
+    tones={ANCHOR_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(220px,1.2fr) minmax(240px,1.4fr) minmax(100px,.4fr)"
+    minWidth={620}
+  />
+
+  <Md text={ANCHOR_ROWS_NOTE} />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={ZERO_NOTE} />
+
+  ### Догрузить сверху
+
+  <ScrollLab client:visible stickyCode={STICKY_CODE} anchorCode={ANCHOR_CODE} feed={DEMO_FEED} older={DEMO_OLDER} caption={DEMO_CAPTION} />
+
+  ### Когда поправки не будет
+
+  Якорь — `j10`, над ним блок вырос на 100px. В том же кадре изменилось ещё что-то:
+
+  <Table
+    head={['что ещё изменилось', 'сдвиг `scrollTop`']}
+    rows={SUPPRESS_ROWS.map((r) => [r.k, `+${r.shift}`])}
+    tones={SUPPRESS_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono']}
+    cols="minmax(300px,2fr) minmax(110px,.5fr)"
+    minWidth={460}
+  />
+
+  <Md text={SUPPRESS_NOTE} />
+
+  <Md text={VLIST_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Цепочка прокрутки и упор"
+  lead="Вложенный контейнер дошёл до края — и следующий жест прокручивает страницу под ним. Так задумано: иначе из прокрученного до конца блока нельзя было бы уйти. Но для модального окна, карты или чата это лишнее, и решение — одно свойство CSS."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHAIN} />
+
+  Вложенный блок прокручен до конца, жест вниз на 200px — колесом и пальцем:
+
+  <Table
+    head={['`overscroll-behavior`', 'колесо: сдвиг страницы', 'палец: страница']}
+    rows={CHAIN_ROWS.map((r) => [`\`${r.css}\``, `${r.wheel}px`, r.touch])}
+    tones={CHAIN_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(160px,.8fr) minmax(160px,1fr) minmax(140px,.8fr)"
+    minWidth={480}
+  />
+
+  <Md text={LATCH_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {CHAIN_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Точки привязки и конец прокрутки"
+  lead="Scroll snap — правило, по которому браузер сам доводит прокрутку до ближайшей точки: начала слайда, карточки, страницы. Доводка — тоже прокрутка, и о её конце сообщает `scrollend`, а о смене слайда — `scrollsnapchange`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAP} />
+
+  <Card title="Карусель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SNAP_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['`scroll-snap-type`', 'колесо на 100px', '`scrollTo({ top: 760 })`', '`snapTargetBlock`']}
+    rows={SNAP_ROWS.map((r) => [r.type, r.wheel, r.to760, r.change])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(130px,.7fr) minmax(150px,1fr) minmax(170px,1fr) minmax(120px,.7fr)"
+    minWidth={620}
+  />
+
+  <Md text={SNAP_NOTE} />
+
+  ### `scrollend`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Два события вместо таймера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SNAP_EVENTS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SCROLLEND_NOTE} />
+  </CardGrid>
+
+  <Table
+    head={['что сделали', '`scroll`', '`scrollend`']}
+    rows={SCROLLEND_ROWS.map((r) => [r.k, r.scroll, String(r.scrollend)])}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(280px,1.6fr) minmax(170px,1fr) minmax(90px,.4fr)"
+    minWidth={560}
+  />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Цель под липкой шапкой"
+  lead="`scrollIntoView()` и переход по ссылке `#раздел` ставят цель к верху окна. Если там липкая шапка, цель оказывается под ней. Браузеру нужно сказать, что верхняя полоса окна занята, — и для этого есть два свойства с разными хозяевами."
+  leadWidth={72}
+>
+  <Card title="Шапка и цель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INTO_VIEW_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['что задано', 'верх цели после `scrollIntoView()`', 'что видно']}
+    rows={INTO_VIEW_ROWS.map((r) => [r.k, `${r.top}px`, r.hit])}
+    tones={INTO_VIEW_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(130px,.6fr) minmax(240px,1.3fr)"
+    minWidth={620}
+  />
+
+  <Md text={INTO_VIEW_NOTE} />
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={ANCHOR_PAD_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Полоса прокрутки и сдвиг вёрстки"
+  lead="Классическая полоса прокрутки занимает место внутри контейнера. Пока содержимое помещается, полосы нет; стоит ему вырасти — она появляется и отнимает ширину у содержимого. `scrollbar-gutter` резервирует это место заранее."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GUTTER} />
+
+  <Table
+    head={['контейнер', '`clientWidth`: короткое', '`clientWidth`: длинное']}
+    rows={GUTTER_ROWS.map((r) => [r.k, String(r.short), String(r.long)])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(280px,1.8fr) minmax(130px,.6fr) minmax(130px,.6fr)"
+    minWidth={560}
+  />
+
+  <Md text={GUTTER_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {GUTTER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Возврат на место"
+  lead="Перешли по ссылке, нажали «назад» — и страница открылась там, где вы были. Это `history.scrollRestoration` в режиме `auto`: браузер запомнил позицию в записи истории и ставит её, пока страница грузится заново. Ключевое слово — «пока»."
+  leadWidth={72}
+>
+  <Table
+    head={['страница A', 'прокрутка после «назад»']}
+    rows={RESTORE_ROWS.map((r) => [r.k, String(r.y)])}
+    tones={RESTORE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono']}
+    cols="minmax(320px,2fr) minmax(150px,.6fr)"
+    minWidth={500}
+  />
+
+  <Md text={RESTORE_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Своя прокрутка, когда данные готовы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RESTORE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <CardGrid min={240} gap={12} align="start">
+      {RESTORE_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={16} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+      ))}
+
+    </CardGrid>
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Прокрутку не нужно делать — её нужно не сломать.** Браузер уже липнет, держит якорь,
+      доводит до точки и возвращает на место, причём в потоке, который не ждёт ваш JS.
+      Работа страницы — сообщить ему правила заранее: `touch-action`, `overscroll-behavior`,
+      `scroll-padding`, `scrollbar-gutter` — и не ставить у него на пути `overflow: hidden`,
+      слушатель без `passive` и данные, которые приходят после `load`.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,290 @@
+---
+title: "Сигналы: третья модель реактивности"
+order: 8
+kicker: фреймворки изнутри
+lead: "Сигнал — значение, которое помнит своих читателей. Запись толкает вниз только пометку «грязно», а пересчёт тянут читатели — поэтому ромб в графе не даёт глитча, а непрочитанное не считается вовсе. Мини-реализация исполняется на странице, а тест сверяет её с `@vue/reactivity` 3.5 и alien-signals."
+leadWidth: 66
+summary: "`signal`, `computed`, `effect` и `batch` на push-pull, глитч наивного push на ромбе и рендер без виртуального DOM — мини-реализация в демо, сверенная тестом с Vue 3.5 и alien-signals; что предлагает TC39."
+verifiedOn: Vue 3.5.42 · alien-signals 3.2.1 · Node 26.8.2
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Сигнал }
+  - { id: s2, label: Push и pull }
+  - { id: s3, label: Ромб и глитч }
+  - { id: s4, label: Эффект и пакет }
+  - { id: s5, label: DOM без VDOM }
+  - { id: s6, label: Vue и React }
+  - { id: s7, label: TC39 }
+  - { id: s8, label: Мини против настоящих }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import SignalGraph from '@/widgets/mini-signals/ui/SignalGraph.vue';
+import MiniSolid from '@/widgets/mini-signals/ui/MiniSolid.vue';
+import {
+  USAGE_CODE, MODELS_PRACTICE_NOTE,
+  MINI_SIGNALS_CODE, NAIVE_SIGNALS_CODE, STEP_SIGNAL, STEP_PUSH, STEP_PULL, STEP_EFFECT, STEP_DOM,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
+  READ_IS_SUBSCRIBE_NOTE, SET_NOTE,
+  PLAIN_PUSHPULL, PUSH_NOTE, PULL_NOTE, VERSIONS_LINK_NOTE,
+  PLAIN_GLITCH, NAIVE_NOTE, TOPO_NOTE, DEMO_GRAPH_NOTE, GRAPH_SCENARIOS,
+  EFFECT_NOTE, BATCH_NOTE, BATCH_VUE_NOTE,
+  PLAIN_DOM, DOM_NOTE, SOLID_NOTE, DOM_DEMO_NOTE, DOM_SCENARIO,
+  MODELS_HEAD, MODELS_ROWS, VUE_MODEL_NOTE, REACT_MODEL_NOTE,
+  TC39_NOTE, TC39_HEAD, TC39_ROWS, TC39_EFFECT_NOTE,
+  REAL_HEAD, REAL_ROWS, REAL_NOTE,
+  PITFALLS, SOURCES, RELATED,
+  DIAMOND_PULL_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Идея"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Сигнал: значение, версия, подписчики"
+  lead="У сигнала три поля: значение, номер версии и множество тех, кто его читал. Из `get` и `set` над ними собирается всё остальное."
+  leadWidth={72}
+>
+  ### Снаружи: четыре вызова
+
+  <CodeBlock code={USAGE_CODE} />
+
+  ### Внутри: `get` подписывает, `set` помечает
+
+  <CodeBlock code={STEP_SIGNAL} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Чтение и есть подписка" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={READ_IS_SUBSCRIBE_NOTE} />
+
+    <Card title="`set` не считает" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={SET_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Push вниз, pull вверх"
+  lead="Запись распространяется в два хода. Вниз по графу идёт пометка — дёшево и ничего не вычисляя. Вверх идёт пересчёт — только от тех, кому значение действительно понадобилось, и только там, где версии источников разошлись."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUSHPULL} />
+
+  ### Push: пометка
+
+  <CodeBlock code={STEP_PUSH} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={PUSH_NOTE} />
+
+  ### Pull: досчёт по версиям
+
+  <CodeBlock code={STEP_PULL} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={PULL_NOTE} />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55} text={VERSIONS_LINK_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Ромб и глитч"
+  lead="`b` и `c` оба зависят от `a`, эффект `E` читает оба. Для любого согласованного состояния `b === 2 * (c - 1)`. Наивная реактивность умудряется показать эффекту пару, для которой это неверно. В интерфейсе это мелькнувшая на миг нелепая сумма или лишний запрос с несогласованными параметрами."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GLITCH} />
+
+  ### Наивный push
+
+  <CodeBlock code={NAIVE_SIGNALS_CODE} />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={NAIVE_NOTE} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={TOPO_NOTE} />
+
+  ### Тот же ромб на push-pull, строка за строкой
+
+  <CardGrid min={280} gap={14} align="start">
+    {DIAMOND_PULL_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={st.what} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Вживую: две реализации на одном графе
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEMO_GRAPH_NOTE} />
+
+  <SignalGraph client:visible code={MINI_SIGNALS_CODE} naiveCode={NAIVE_SIGNALS_CODE} scenarios={GRAPH_SCENARIOS} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Эффект, очередь и пакет"
+  lead="Цена и количество меняются одним действием пользователя — эффект, который шлёт запрос, должен выполниться один раз, а не два. Эффект — последний узел графа: значения у него нет, читателей тоже. Помеченный эффект встаёт в очередь, и очередь сливается, когда пометка закончилась, — после каждой записи или после целого пакета."
+  leadWidth={72}
+>
+  <CodeBlock code={STEP_EFFECT} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Эффект — `computed` без читателей" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={EFFECT_NOTE} />
+
+    <Card title="`batch` — счётчик глубины" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={BATCH_NOTE} />
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={BATCH_VUE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="DOM без виртуального DOM"
+  lead="Если эффект умеет перезапускаться от одного сигнала, его можно привязать к одному узлу. Тогда компоненту не нужно выполняться заново, а рендеру — сравнивать деревья."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DOM} />
+
+  <CodeBlock code={STEP_DOM} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={DOM_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SOLID_NOTE} />
+
+  ### Вживую: какие операции понадобились
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DOM_DEMO_NOTE} />
+
+  <MiniSolid client:visible code={MINI_SIGNALS_CODE} scenario={DOM_SCENARIO} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Где здесь Vue и React"
+  lead="Три модели различаются не тем, как узнают об изменении, а тем, что перезапускают, когда узнали."
+  leadWidth={72}
+>
+  <Table
+    head={MODELS_HEAD}
+    rows={MODELS_ROWS}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(150px,.7fr) minmax(220px,1.3fr) minmax(200px,1fr)"
+    minWidth={620}
+  />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={VUE_MODEL_NOTE} />
+
+    <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={REACT_MODEL_NOTE} />
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={MODELS_PRACTICE_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Предложение TC39: граф в языке, эффекты — нет"
+  lead="`Signal.State`, `Signal.Computed` и `Signal.subtle.Watcher` — те же сигнал, производный сигнал и пометка, только встроенные в язык."
+  leadWidth={72}
+>
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={TC39_NOTE} />
+
+  <Table
+    head={TC39_HEAD}
+    rows={TC39_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(200px,1fr) minmax(260px,1.5fr) minmax(180px,.9fr)"
+    minWidth={700}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={TC39_EFFECT_NOTE} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Мини-версия против Vue 3.5 и alien-signals"
+  lead="Двести строк ведут себя как настоящие библиотеки на всех сценариях демо и тонких мест. Расходятся они в нескольких намеренных местах — и именно эти места бьют при переносе кода."
+  leadWidth={72}
+>
+  <Table
+    head={REAL_HEAD}
+    rows={REAL_ROWS}
+    kinds={['prose', 'muted', 'muted', 'muted']}
+    cols="minmax(160px,.9fr) minmax(170px,1fr) minmax(190px,1.1fr) minmax(160px,.9fr)"
+    minWidth={760}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={REAL_NOTE} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Тонкие места"
+  lead="Ошибки, которые сигналы делают возможными: застывшее чтение, мутация мимо сравнения, эффекты без владельца."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Источники"
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

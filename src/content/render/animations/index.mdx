@@ -1,0 +1,361 @@
+---
+title: Анимации и композитор
+heading: "Анимации и композитор: почему transform дешёвый"
+headingWidth: 24
+order: 16
+kicker: браузер и рендеринг
+lead: "Анимация `transform` едет, даже когда JavaScript завис на секунду, а анимация `left` встаёт. Разница не в «скорости свойства», а в том, кто считает кадр: композитор, которому отдали траекторию целиком, или главный поток, который должен пройти style, layout и paint заново на каждом кадре."
+leadWidth: 66
+summary: "Какие свойства Chromium анимирует на композиторе и почему `blur()` нет, как одно свойство в `@keyframes` держит на главном потоке всю анимацию, CSS против `element.animate` против `requestAnimationFrame`, когда элемент получает слой и сколько стоит «взрыв слоёв», `prefers-reduced-motion` для CSS и JS."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: счётчики Performance.getMetrics, трассировка, LayerTree, Animation-домен и скринкаст при занятом главном потоке сняты стендом; функции темы сверяются с литералами tests/unit/animations.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Цена свойства }
+  - { id: s2, label: Одна анимация }
+  - { id: s3, label: Занятый поток }
+  - { id: s4, label: CSS, WAAPI, rAF }
+  - { id: s5, label: Слои и их цена }
+  - { id: s6, label: Меньше движения }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import AnimLab from '@/widgets/anim-lab/ui/AnimLab.vue';
+import LayerLab from '@/widgets/anim-lab/ui/LayerLab.vue';
+import {
+  STAND,
+  GLOSSARY,
+  PLAIN_COMPOSITED,
+  PREREQ,
+  PREREQ_NOTE,
+  PROP_ROWS,
+  PROP_TONES,
+  PROP_NOTE,
+  PROP_FACTS,
+  FAIL_ROWS,
+  FAIL_NOTE,
+  MIX_ROWS,
+  FRAME_PLAN_CODE,
+  FRAME_PLAN_NOTE,
+  DEMO_CASES,
+  DEMO_CAPTION,
+  DEMO_REDUCED,
+  BLOCK_ROWS,
+  BLOCK_NOTE,
+  BLOCK_STYLE_FACT,
+  DRIVER_ROWS,
+  DRIVER_NOTE,
+  WAAPI_CODE,
+  WAAPI_NOTE,
+  RAF_CODE,
+  RAF_NOTE,
+  PLAIN_SQUASH,
+  LAYER_ROWS,
+  LAYER_FACTS,
+  EXPLOSION_ROWS,
+  EXPLOSION_NOTE,
+  LAYER_CODE,
+  LAYER_CODE_NOTE,
+  LAYER_SCENES,
+  LAYER_DEMO_CAPTION,
+  REDUCED_CSS,
+  REDUCED_CODE,
+  REDUCED_ROWS,
+  REDUCED_NOTE,
+  REDUCED_FACT,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Кто считает кадр" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Дешёвой анимацию делает не свойство само по себе, а то, **куда браузер её отдал**.
+    Композитной анимации главный поток не нужен вовсе: ни стиль, ни раскладка, ни отрисовка
+    на кадр. Остальные каждый кадр проходят ранние шаги заново — и стоят, пока главный поток
+    занят.
+
+  </Callout>
+
+  Когда вы пишете `animation: move 1s`, браузер решает, может ли он посчитать всю анимацию
+  без вашего потока. Для этого должны сойтись три вещи: траектория известна заранее,
+  все анимируемые свойства из короткого списка, у элемента есть слой, который можно двигать.
+  Сошлись — анимация уходит на композитор. Нет — каждый кадр её считает главный поток,
+  тот же, где выполняется ваш JavaScript.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPOSITED} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Цена свойства: что происходит на каждом кадре"
+  lead="Одна и та же анимация длиной в секунду, девятнадцать свойств по очереди. Протокол отладчика Chromium считает, сколько раз за эту секунду браузер пересчитал стили и раскладку, а трассировка — сколько раз рисовал и почему отказался отдать анимацию композитору."
+  leadWidth={72}
+>
+  <Table
+    head={['свойство', 'на композиторе', 'стиль за 1 с', 'раскладка за 1 с', 'отрисовка (Paint)']}
+    rows={PROP_ROWS}
+    tones={PROP_TONES}
+    toneColumn={1}
+    kinds={['mono', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,1fr) minmax(110px,.6fr) minmax(110px,.6fr) minmax(120px,.6fr) minmax(130px,.7fr)"
+    minWidth={680}
+  />
+
+  <Md text={PROP_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PROP_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Почему композитор отказал
+
+  <Table
+    head={['бит', 'имя в Chromium', 'что значит']}
+    rows={FAIL_ROWS}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(70px,.3fr) minmax(240px,1fr) minmax(280px,1.6fr)"
+    minWidth={640}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={FAIL_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Одна анимация — одно решение"
+  lead="Композитор принимает анимацию целиком или не принимает вовсе. Поэтому важно не только какие свойства вы анимируете, но и как они разложены по анимациям."
+  leadWidth={72}
+>
+  <Table
+    head={['что написано', 'при занятом потоке', 'почему']}
+    rows={MIX_ROWS}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(150px,.6fr) minmax(280px,1.5fr)"
+    minWidth={680}
+  />
+
+  ### Шаги кадра — функцией
+
+  <Card title="`framePlan`: по анимациям элемента — шаги на каждый кадр" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FRAME_PLAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={FRAME_PLAN_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Кадр анимации
+
+  <AnimLab client:visible planCode={FRAME_PLAN_CODE} cases={DEMO_CASES} caption={DEMO_CAPTION} reducedNote={DEMO_REDUCED} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Занятый поток: что едет, а что встаёт"
+  lead="Проверка из «Кадра браузера» — заблокировать главный поток и посмотреть, что продолжит двигаться, — здесь проведена на пятнадцати анимациях сразу. Кадры для неё дал композитор: он присылает их и тогда, когда главный поток стоит."
+  leadWidth={72}
+>
+  <Table
+    head={['анимация', 'что сравнивалось', 'поток занят 1 с']}
+    rows={BLOCK_ROWS.map((r) => [r.k, r.how, STAND.block.moved[r.id] ? '**двигалась**' : 'стояла'])}
+    tones={BLOCK_ROWS.map((r) => (STAND.block.moved[r.id] ? 'ok' : 'err'))}
+    toneColumn={2}
+    kinds={['prose', 'muted', 'prose']}
+    cols="minmax(260px,1.4fr) minmax(130px,.6fr) minmax(130px,.6fr)"
+    minWidth={560}
+  />
+
+  <Md text={BLOCK_NOTE} />
+
+  <Card tone="warn" title="Композитная — не значит «главный поток свободен»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={BLOCK_STYLE_FACT} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="CSS, `element.animate`, `requestAnimationFrame`"
+  lead="Четыре способа получить одно движение. Первые три — один механизм анимаций браузера: он знает траекторию заранее и может отдать её композитору. Четвёртый — ваш код, который каждый кадр пишет новое значение в стиль."
+  leadWidth={72}
+>
+  <Table
+    head={['способ', 'кто считает значение', 'объект анимации', 'композитор']}
+    rows={DRIVER_ROWS}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(190px,1fr) minmax(200px,1fr) minmax(150px,.7fr)"
+    minWidth={720}
+  />
+
+  <Md text={DRIVER_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`element.animate`: траектория заранее" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={WAAPI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <Md text={WAAPI_NOTE} />
+    </Card>
+
+    <Card title="`requestAnimationFrame`: цель меняется каждый кадр" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={RAF_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <Md text={RAF_NOTE} />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="Слои и их цена"
+  lead="Когда элемент получает свой слой, видно в протоколе отладчика: `LayerTree` отдаёт список слоёв, их размеры и причины. Базовые причины разобраны в «Кадре браузера»; здесь — то, что из них следует для анимаций."
+  leadWidth={72}
+>
+  <Table
+    head={['на странице', 'свой слой', 'причина']}
+    rows={LAYER_ROWS}
+    kinds={['mono', 'prose', 'mono']}
+    cols="minmax(260px,1.3fr) minmax(90px,.4fr) minmax(220px,1fr)"
+    minWidth={600}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {LAYER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Взрыв слоёв
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SQUASH} />
+
+  <Table
+    head={['страница', 'слоёв', 'память']}
+    rows={EXPLOSION_ROWS}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(250px,1.2fr) minmax(70px,.3fr) minmax(260px,1.3fr)"
+    minWidth={600}
+  />
+
+  <Md text={EXPLOSION_NOTE} />
+
+  <Card title="`ownLayer` и `countLayers`: получит ли элемент слой" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LAYER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={LAYER_CODE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Слои на странице
+
+  <LayerLab client:visible planCode={FRAME_PLAN_CODE} layerCode={LAYER_CODE} scenes={LAYER_SCENES} caption={LAYER_DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="`prefers-reduced-motion`: гасить приходится самим"
+  lead="Настройка «уменьшить движение» в системе — просьба пользователя, а не приказ браузеру. Ни одну анимацию браузер из-за неё не останавливает: это делает страница."
+  leadWidth={72}
+>
+  <Table
+    head={['способ', 'настройка включена', '+ глобальное правило `.001ms`']}
+    rows={REDUCED_ROWS}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(180px,.8fr) minmax(220px,1fr)"
+    minWidth={640}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={REDUCED_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="CSS: своя ветка в `@media`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REDUCED_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="JS: спросить `matchMedia`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REDUCED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={REDUCED_FACT} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Дешёвая анимация — та, что объявлена заранее и трогает только то, что композитор умеет
+      менять сам.** Объявляйте её через CSS или `element.animate`, держите неподходящие свойства
+      в отдельной анимации, не раздавайте `will-change` пачкой — и не забудьте ветку для тех,
+      кто попросил движения поменьше.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

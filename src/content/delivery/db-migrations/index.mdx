@@ -1,0 +1,414 @@
+---
+title: Миграции базы без простоя
+heading: "Миграции базы без простоя: две версии кода и одна схема"
+headingWidth: 24
+order: 12
+kicker: доставка
+lead: "Код выкатывается по частям, а база у всех подов одна. Несколько минут старая и новая версии приложения работают с одной схемой, и переименованный столбец роняет старую на каждом запросе. А `ALTER TABLE`, который выполняется за миллисекунды, может остановить таблицу на полминуты — пока ждёт свою блокировку."
+leadWidth: 66
+summary: "Почему миграция и выкат — разные шаги; какие изменения схемы старый код переживает, а какие нет; переименование столбца приёмом «расширить и сузить» на SQL; блокировки Postgres и очередь за `ACCESS EXCLUSIVE`, `lock_timeout`; что переписывает таблицу и что читает её целиком; `NOT VALID` и `VALIDATE`, `CREATE INDEX CONCURRENTLY`; перенос данных пачками; откат кода и обратная миграция."
+verifiedOn: "@electric-sql/pglite 0.5.8 (PostgreSQL 18.3 в WebAssembly), Node 24.11.0, октябрь 2026: блокировки, перезапись, проходы по таблице, ответы трёх версий кода, размеры и планы сняты стендом и пересобираются tests/unit/db-migrations.test.ts; учебная функция сверена с настоящими ошибками Postgres на каждом шаге обоих планов. В PGlite одна сессия, поэтому конфликты режимов, очередь блокировок, lock_timeout в деле и блокировка CREATE INDEX CONCURRENTLY — по документации Postgres"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Две версии на одной базе }
+  - { id: s2, label: Расширить и сузить }
+  - { id: s3, label: Блокировки }
+  - { id: s4, label: Перезапись и проходы }
+  - { id: s5, label: Перенос пачками }
+  - { id: s6, label: Откат }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MigrationLab from '@/widgets/migration-lab/ui/MigrationLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_MIGRATION,
+  PREREQ,
+  PREREQ_NOTE,
+  TABLE_SQL,
+  TABLE_NAME,
+  VERSIONS,
+  versionCode,
+  TWO_VERSIONS_TEXT,
+  SAFETY_LEAD,
+  SAFETY_TABLE,
+  SAFETY_NOTE,
+  EXPAND_LEAD,
+  COMPAT_CODE,
+  COMPAT_NOTE,
+  PLANS,
+  LOCK_NAMES,
+  DEMO_CAPTION,
+  BACKFILL_RACE,
+  PLAIN_LOCK,
+  LOCK_PROBE_SQL,
+  LOCK_PROBE_NOTE,
+  LOCK_TABLE,
+  LOCK_MODES_NOTE,
+  QUEUE_TABLE,
+  LOCK_QUEUE_NOTE,
+  LOCK_TIMEOUT_SQL,
+  LOCK_TIMEOUT_NOTE,
+  PLAIN_REWRITE,
+  REWRITE_PROBE_SQL,
+  REWRITE_TABLE,
+  REWRITE_NOTE,
+  NOT_NULL_SQL,
+  NOT_NULL_NOTE,
+  INDEX_SQL,
+  INDEX_FACTS,
+  PLAIN_MVCC,
+  MVCC_TEXT,
+  BACKFILL_CODE,
+  BACKFILL_NOTE,
+  PLAN_SUBQUERY_SQL,
+  PLAN_SUBQUERY,
+  PLAN_RANGE_SQL,
+  PLAN_RANGE,
+  PLAN_NOTE,
+  BATCH_TABLE,
+  BATCH_NOTE,
+  TX_DDL_SQL,
+  TX_DDL_NOTE,
+  ROLLBACK_TEXT,
+  ROLLBACK_TABLE,
+  WHERE_TO_RUN,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Код и схема" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Выкат кода и смена схемы — **два разных шага**, и между ними база живёт с двумя версиями
+    приложения сразу. Каждая миграция обязана подходить и старому коду, и новому. А каждый
+    `ALTER TABLE` — брать блокировку так, чтобы таблица не стояла дольше миллисекунд.
+
+  </Callout>
+
+  Приложение без состояния откатить легко: вернули прошлый образ — и всё как было. С базой так
+  не выйдет. Схема одна на все поды, миграция меняет её для всех сразу, а удалённый столбец
+  не возвращается кнопкой «откатить». Поэтому опасную правку схемы раскладывают на несколько
+  безопасных, а каждую безопасную — делают так, чтобы она не останавливала запросы.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MIGRATION} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Две версии на одной базе"
+  lead="Пример на всю тему — таблица пользователей и приложение, которое хочет переименовать столбец `name` в `full_name`. Сначала — что вообще может сделать с таблицей миграция, не уронив код, который о ней не знает."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Таблица" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TABLE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Старый код: v1" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={versionCode('v1')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={TWO_VERSIONS_TEXT} />
+
+  ### Что старый код переживает
+
+  <Md text={SAFETY_LEAD} />
+
+  <Table
+    head={SAFETY_TABLE.head}
+    rows={SAFETY_TABLE.rows}
+    tones={SAFETY_TABLE.tones}
+    kinds={SAFETY_TABLE.kinds}
+    cols={SAFETY_TABLE.cols}
+    minWidth={SAFETY_TABLE.minWidth}
+  />
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SAFETY_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Расширить и сузить: переименование в шесть шагов"
+  lead={EXPAND_LEAD}
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Переходный код: v2" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={versionCode('v2')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Новый код: v3" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={versionCode('v3')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Проверка: что ответит Postgres
+
+  <Card title="Запрос против схемы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={COMPAT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={COMPAT_NOTE} />
+
+  ### План по шагам
+
+  <MigrationLab
+    client:visible
+    compatCode={COMPAT_CODE}
+    plans={PLANS}
+    versions={VERSIONS}
+    table={TABLE_NAME}
+    lockNames={LOCK_NAMES}
+    caption={DEMO_CAPTION}
+  />
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={BACKFILL_RACE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Блокировки: кто кого ждёт"
+  lead="Каждый запрос к таблице берёт на неё блокировку — даже обычный `SELECT`. Режимов восемь, и про каждый миграции важно знать две вещи: мешает ли он чтению и мешает ли записи."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOCK} />
+
+  <Card title="Какую блокировку держит моя транзакция" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOCK_PROBE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={LOCK_PROBE_NOTE} />
+  </Card>
+
+  <Table
+    head={LOCK_TABLE.head}
+    rows={LOCK_TABLE.rows}
+    tones={LOCK_TABLE.tones}
+    kinds={LOCK_TABLE.kinds}
+    cols={LOCK_TABLE.cols}
+    minWidth={LOCK_TABLE.minWidth}
+  />
+
+  <Md text={LOCK_MODES_NOTE} />
+
+  ### Очередь за миграцией
+
+  <Table
+    head={QUEUE_TABLE.head}
+    rows={QUEUE_TABLE.rows}
+    tones={QUEUE_TABLE.tones}
+    kinds={QUEUE_TABLE.kinds}
+    cols={QUEUE_TABLE.cols}
+    minWidth={QUEUE_TABLE.minWidth}
+  />
+
+  <Md text={LOCK_QUEUE_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Не ждать дольше трёх секунд" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LOCK_TIMEOUT_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LOCK_TIMEOUT_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Перезапись и проходы: сколько держится блокировка"
+  lead="Блокировка `ACCESS EXCLUSIVE` на миллисекунды — нормальная цена миграции. Беда начинается, когда под ней Postgres переписывает таблицу или читает её целиком: тогда таблица закрыта столько, сколько длится работа, а работа растёт вместе с таблицей."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REWRITE} />
+
+  <Card title="Как это увидеть" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REWRITE_PROBE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={REWRITE_TABLE.head}
+    rows={REWRITE_TABLE.rows}
+    tones={REWRITE_TABLE.tones}
+    kinds={REWRITE_TABLE.kinds}
+    cols={REWRITE_TABLE.cols}
+    minWidth={REWRITE_TABLE.minWidth}
+  />
+
+  <Md text={REWRITE_NOTE} />
+
+  ### Обязательный столбец без прохода под замком
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Четыре команды вместо одной" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NOT_NULL_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NOT_NULL_NOTE} />
+  </CardGrid>
+
+  ### Индекс, который не останавливает запись
+
+  <Card title="CONCURRENTLY" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INDEX_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {INDEX_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Перенос данных пачками"
+  lead="Шаг «перенести данные» — единственный, который трогает каждую строку. Одним `UPDATE` на всю таблицу он превращается в одну долгую транзакцию; пачками — в сотни коротких, между которыми живут обычные запросы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MVCC} />
+
+  <Md text={MVCC_TEXT} />
+
+  <Card title="Перенос" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BACKFILL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={BACKFILL_NOTE} />
+  </Card>
+
+  ### Какую тысячу брать
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Следующая тысяча пустых" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PLAN_SUBQUERY_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={PLAN_SUBQUERY} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Тысяча по диапазону ключа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PLAN_RANGE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={PLAN_RANGE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={PLAN_NOTE} />
+
+  ### Сколько места съедает перенос
+
+  <Table
+    head={BATCH_TABLE.head}
+    rows={BATCH_TABLE.rows}
+    tones={BATCH_TABLE.tones}
+    kinds={BATCH_TABLE.kinds}
+    cols={BATCH_TABLE.cols}
+    minWidth={BATCH_TABLE.minWidth}
+  />
+
+  <Md text={BATCH_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Откат: кода и схемы"
+  lead="«Откатить» после миграции значит два разных действия. Вернуть прошлую версию кода — быстро и всегда возможно, если схема ей подходит. Вернуть прошлую схему — отдельная миграция, и не каждую можно отменить."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Миграция падает целиком" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TX_DDL_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TX_DDL_NOTE} />
+  </CardGrid>
+
+  <Md text={ROLLBACK_TEXT} />
+
+  <Table
+    head={ROLLBACK_TABLE.head}
+    rows={ROLLBACK_TABLE.rows}
+    tones={ROLLBACK_TABLE.tones}
+    kinds={ROLLBACK_TABLE.kinds}
+    cols={ROLLBACK_TABLE.cols}
+    minWidth={ROLLBACK_TABLE.minWidth}
+  />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={WHERE_TO_RUN} />
+  </Card>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Миграция без простоя — это две проверки на каждом шаге.** Работают ли на новой схеме все
+      версии кода, которые сейчас отвечают, и та, на которую придётся откатиться. И сколько
+      таблица простоит закрытой: какую блокировку берёт команда, сколько её ждёт и что делает
+      под ней. Первое решает порядок шагов, второе — форму каждой команды.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

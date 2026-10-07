@@ -1,0 +1,358 @@
+---
+title: "Vue 3 изнутри: своя реактивность"
+order: 11
+kicker: фреймворки изнутри
+lead: "Реактивность Vue помещается в три сотни строк: `Proxy` замечает чтение, таблица `WeakMap → Map → Dep` помнит, кто что читал, номер версии не даёт будить зря, а очередь в микрозадаче превращает три записи в одну перерисовку. Мини-версия ниже исполняется на странице, а тест сверяет её с настоящим Vue 3.5."
+leadWidth: 66
+summary: "Мини-Vue за шесть шагов — `reactive`, `track`/`trigger`, `effect`, `ref`, `computed`, планировщик — исполняется в демо и сверяется тестом с `@vue/runtime-core` 3.5 в обеих сборках."
+verifiedOn: Vue 3.5.42 · Node 26.8.2
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: reactive }
+  - { id: s2, label: track и trigger }
+  - { id: s3, label: effect }
+  - { id: s4, label: ref }
+  - { id: s5, label: computed }
+  - { id: s6, label: Планировщик }
+  - { id: s7, label: Вживую }
+  - { id: s8, label: Vue 3.5 иначе }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MiniReactivity from '@/widgets/mini-reactivity/ui/MiniReactivity.vue';
+import {
+  MINI_VUE_CODE, STEP_REACTIVE, STEP_TRACK, STEP_EFFECT, STEP_REF, STEP_COMPUTED, STEP_SCHEDULER,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ, PREREQ_NOTE,
+  PLAIN_PROXY, RECEIVER_CODE, RECEIVER_NOTE, CACHE_NOTE, SET_NOTE,
+  TABLE_SHAPE, PLAIN_TABLE, ACTIVE_NOTE, BACKREF_NOTE, ITERATE_NOTE, NOTIFY_NOTE,
+  PLAIN_CLEANUP, BRANCH_CODE, CLEANUP_NOTE, NESTED_NOTE, RECURSE_NOTE,
+  PLAIN_REF, REF_NOTE, SHALLOW_NOTE,
+  PLAIN_COMPUTED, LAZY_NOTE, VERSION_NOTE, GLITCH_NOTE,
+  PLAIN_QUEUE, QUEUE_FACTS, SORT_WARN, WATCH_NOTE,
+  DEMO_NOTE, MINI_SCENARIOS,
+  REAL_HEAD, REAL_ROWS, REAL_NOTE, ALIEN_NOTE,
+  COLLECTIONS_CODE, COLLECTIONS_LOG, COLLECTIONS_NOTE, COLLECTIONS_ARRAY_NOTE, PLAIN_COLLECTIONS,
+  PITFALLS, SOURCES, RELATED,
+  NOTIFY_SCENE_CODE, NOTIFY_SCENE_NOTE, NOTIFY_STEPS, PLAIN_NOTIFY,
+  GLITCH_SCENE_CODE, GLITCH_SCENE_NOTE, GLITCH_STEPS, PLAIN_GLITCH,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Идея"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="`reactive`: прокси, который замечает операции"
+  lead="`reactive(obj)` не копирует объект и не расставляет геттеры по ключам — он возвращает `Proxy` с пятью ловушками. Три из них (`get`, `has`, `ownKeys`) записывают чтение, две (`set`, `deleteProperty`) сообщают об изменении. Что каждая делает снаружи — в [«Реактивности Vue», раздел «Модель»](/frameworks/vue-reactivity/#s1)."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+
+  <CodeBlock code={STEP_REACTIVE} />
+
+  ### Почему `Reflect` и `receiver`
+
+  <Card title="Геттер внутри реактивного объекта" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RECEIVER_CODE} />
+
+    <Md text={RECEIVER_NOTE} />
+  </Card>
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Кеш прокси и ленивая вложенность" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={CACHE_NOTE} />
+
+    <Card title="`set` различает «добавил» и «изменил»" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={SET_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="`track` и `trigger`: таблица «кто что читал»"
+  lead="Зависимости хранятся не в эффектах и не в объектах, а в отдельной таблице из трёх уровней: `WeakMap` от объекта к `Map` от ключа к `Dep` — набору подписчиков с номером версии. `track` дописывает в неё текущий эффект, `trigger` достаёт из неё тех, кого надо разбудить."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TABLE} />
+
+  <CodeBlock code={TABLE_SHAPE} />
+
+  <CodeBlock code={STEP_TRACK} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="`activeEffect`: кого записывать" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={ACTIVE_NOTE} />
+
+    <Card title="Обратная ссылка `deps`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={BACKREF_NOTE} />
+
+    <Card title="`ITERATE_KEY`: зависимость от набора ключей" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={ITERATE_NOTE} />
+
+    <Card tone="warn" title="Копия перед обходом" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={NOTIFY_NOTE} />
+  </CardGrid>
+
+  ### Копия и версия: две страховки от бесконечного обхода
+
+  <CodeBlock code={NOTIFY_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={NOTIFY_SCENE_NOTE} />
+
+  Две страховки на той же записи — по отдельности и вместе.
+
+  <CardGrid min={290} gap={14} align="start">
+    {NOTIFY_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NOTIFY} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="`effect`: запуск, сбор, очистка"
+  lead="Эффект — функция плюс память о том, что она прочитала. Запуск устроен в четыре хода: стереть старые связи, объявить себя `activeEffect`, выполнить функцию — все чтения запишутся на него, — вернуть `activeEffect` прежнему владельцу."
+  leadWidth={72}
+>
+  <CodeBlock code={STEP_EFFECT} />
+
+  ### Зачем стирать связи перед каждым запуском
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLEANUP} />
+
+  <Card title="Ветка `if` решает, от чего зависит эффект" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BRANCH_CODE} />
+
+    <Md text={CLEANUP_NOTE} />
+  </Card>
+
+  ### Вложенные эффекты и защита от рекурсии
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="`prev` — стек в стеке вызовов" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={NESTED_NOTE} />
+
+    <Card tone="warn" title="`running`: эффект сам себя не будит" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={RECURSE_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="`ref` и `shallowRef`: свой `Dep` без таблицы"
+  lead="У `ref` нет ключей и нет прокси: это объект с геттером и сеттером `value` и одним собственным `Dep`. Поэтому `targetMap` ему не нужна — подписчик записывается прямо в `ref.dep`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REF} />
+
+  <CodeBlock code={STEP_REF} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Почему коробка, а не прокси" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={REF_NOTE} />
+
+    <Card title="`shallowRef` — одна развилка" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={SHALLOW_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="`computed`: ленивый, кеширующий, и подписчик, и источник"
+  lead="`computed` — два объекта в одном. Для своих источников он подписчик: внутри сидит эффект с геттером. Для тех, кто читает `.value`, он источник: у него свой `Dep`. Между ними — флаг `dirty` и номер версии, и на этих двух полях держится вся экономия."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPUTED} />
+
+  <CodeBlock code={STEP_COMPUTED} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Ленивость и кеш" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={LAZY_NOTE} />
+
+    <Card tone="ok" title="Версии: «ничего не поменялось — не будить»" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={VERSION_NOTE} />
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={GLITCH_NOTE} />
+  </Card>
+
+  ### Глитч по шагам
+
+  <CodeBlock code={GLITCH_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={GLITCH_SCENE_NOTE} />
+
+  Та же запись — с двумя проходами, как в мини-версии.
+
+  <CardGrid min={290} gap={14} align="start">
+    {GLITCH_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GLITCH} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Планировщик: очередь, микрозадача, `nextTick`"
+  lead="Реактивность будит эффекты сразу, в той же строке, где была запись. Откладывает их планировщик: эффекту дают `scheduler`, который не выполняет работу, а ставит задание в очередь. Очередь разбирается одной микрозадачей."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE} />
+
+  <CodeBlock code={STEP_SCHEDULER} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {QUEUE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SORT_WARN} />
+  </Card>
+
+  ### `watch` и три режима `flush`
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={WATCH_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7 · демо"
+  eyebrowTone="demo"
+  title="Мини-Vue вживую: таблица, очередь, журнал"
+  lead="Демо исполняет ровно ту строку, что напечатана выше по частям. Граф не нарисован заранее: это содержимое `targetMap.get(toRaw(state))`, прочитанное после каждого шага, с версиями `Dep` и флагом `dirty` у `computed`."
+  leadWidth={72}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEMO_NOTE} />
+  </Card>
+
+  <MiniReactivity client:visible code={MINI_VUE_CODE} scenarios={MINI_SCENARIOS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Что в Vue 3.5 иначе"
+  lead="Мини-версия повторяет форму 3.5 — версии у `Dep`, `isDirty`, досчёт `computed` по цепочке, — но не её экономию. На сценариях теста поведение совпадает; отличаются цена и то, что ещё умеет настоящая реализация."
+  leadWidth={72}
+>
+  <Table
+    head={REAL_HEAD}
+    rows={REAL_ROWS}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(170px,.8fr) minmax(190px,.9fr) minmax(300px,1.7fr)"
+    minWidth={720}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={REAL_NOTE} />
+  </Card>
+
+  ### Массивы и коллекции
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COLLECTIONS} />
+
+  <Card title="Кого будит запись в `Map` и в `length`" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={COLLECTIONS_CODE} />
+
+    <CodeBlock code={COLLECTIONS_LOG.join('\n')} tone="ok" />
+
+    <Md text={COLLECTIONS_NOTE} />
+
+    <Md text={COLLECTIONS_ARRAY_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ALIEN_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Тонкие места"
+  lead="Места, где своя реактивность ломается тише всего: код работает на простых данных и перестаёт — на геттере, на `NaN`, на втором прогоне."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Источники"
+  lead="Каждая строка мини-версии имеет оригинал в исходниках Vue — и там же видно, во что он вырос."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

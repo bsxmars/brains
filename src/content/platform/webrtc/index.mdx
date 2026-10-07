@@ -1,0 +1,459 @@
+---
+title: WebRTC
+heading: "WebRTC: как два браузера находят друг друга"
+headingWidth: 24
+order: 13
+kicker: сеть и безопасность
+lead: "WebRTC соединяет два браузера напрямую — но найти друг друга сами они не могут. Описания сеанса передаёт ваш сервер, адреса подбирает ICE, а за двумя строгими NAT пакеты пойдут только через TURN. Что лежит в offer и answer, как считается приоритет кандидата, почему звонок молча не соединяется и что показывает `getStats`."
+leadWidth: 66
+summary: "Сигнальный сервер и почему он ваш; offer, answer и SDP по строкам — секции, кодеки, `ice-ufrag`, `fingerprint`, `setup`; кандидаты host, srflx, prflx и relay, имена mDNS вместо локальных IP; приоритет кандидата и пары по RFC 8445; проверки связности и симметричный NAT; trickle ICE; DTLS 1.3 и SRTP; каналы данных на SCTP — `ordered` и `maxRetransmits`; `getStats`. Всё снято стендом: два Chromium, свой сервер сигнализации на WebSocket и свои STUN и TURN."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63.0), Node 24.11.0, ws 8.22.0, октябрь 2026: два браузера и сервер сигнализации на node:http + ws, свои STUN и TURN на node:dgram, семь сценариев — от одной сети до изображённого симметричного NAT и подменённого отпечатка; разбор кандидатов и приоритеты пар сверены tests/unit/webrtc.test.ts с RTCIceCandidate и getStats Chromium. Настоящий NAT, TURN по TCP/TLS и серверы в интернете не проверялись — это помечено в тексте"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Сигнализация }
+  - { id: s2, label: Offer, answer и SDP }
+  - { id: s3, label: Кандидаты ICE }
+  - { id: s4, label: Проверки и NAT }
+  - { id: s5, label: DTLS и SRTP }
+  - { id: s6, label: Каналы данных и медиа }
+  - { id: s7, label: getStats }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import IceLab from '@/widgets/ice-lab/ui/IceLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_WEBRTC,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_SIGNALING,
+  SIGNAL_CHIPS,
+  SIGNAL_NOTE,
+  SIGNALING_CODE,
+  SIGNAL_ROWS,
+  SIGNALING_FACTS,
+  DATA_OFFER,
+  SDP_ROWS,
+  PLAIN_SDP,
+  MEDIA_NOTE,
+  OFFER_ANSWER_STEPS,
+  OFFER_ANSWER_NOTE,
+  PLAIN_NAT,
+  CANDIDATE_TYPES,
+  SAMPLE_CANDIDATE,
+  CANDIDATE_FIELDS,
+  PRIORITY_NOTE,
+  SDP_CODE,
+  PRIORITY_ROWS,
+  PRIORITY_AFTER,
+  PLAIN_MDNS,
+  MDNS_ROWS,
+  MDNS_NOTE,
+  TURN_ROWS,
+  TURN_NOTE,
+  CHECKS_NOTE,
+  PAIR_NOTE,
+  PLAIN_SYMMETRIC,
+  NAT_ROWS,
+  NAT_STAND_NOTE,
+  SYMMETRIC_RESULT,
+  DEMO_SCENARIOS,
+  DEMO_CAPTION,
+  TRICKLE_NOTE,
+  PLAIN_FINGERPRINT,
+  DTLS_ROWS,
+  ENCRYPTION_NOTE,
+  BADFP_NOTE,
+  CHANNEL_STACK,
+  MEDIA_STACK,
+  CHANNELS_CODE,
+  CHANNEL_ROWS,
+  CHANNEL_NOTE,
+  MEDIA_FACTS,
+  VS_WEBSOCKET,
+  STATS_INTRO,
+  STATS_CODE,
+  STATS_ROWS,
+  STATS_FACTS,
+  TAKEAWAY,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Звонок без посредника" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    WebRTC соединяет браузеры **напрямую**, но познакомить их не умеет. Описания сеанса и адреса
+    передаёт ваш сервер, пару адресов, по которой пакеты реально доходят, подбирает ICE, а когда
+    напрямую не выходит — пакеты пересылает TURN. Шифрование при этом обязательно: выключить его нельзя.
+
+  </Callout>
+
+  Обычный сайт — это клиент и сервер: у сервера публичный адрес, клиент знает его по имени.
+  У двух браузеров публичных адресов нет. Оба сидят за роутерами, на частных адресах, и снаружи
+  к ним не постучаться. Чтобы соединиться, им нужно узнать, как каждый виден снаружи, обменяться
+  этим через третью сторону и одновременно «пробить» свои роутеры навстречу друг другу.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WEBRTC} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Сигнализация: почему сервер всё-таки нужен"
+  lead="`RTCPeerConnection` умеет создать описание сеанса и принять чужое. Доставить его собеседнику он не умеет: адреса собеседника у него нет — ради этого всё и затевается. Обмен описаниями и кандидатами называется сигнализацией, и это ваш код и ваш сервер."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SIGNALING} />
+
+  <Card title="Кто что передаёт" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={760} chips={SIGNAL_CHIPS} />
+
+    <Md text={SIGNAL_NOTE} />
+  </Card>
+
+  Сквозной пример на всю тему — страница с сигнализацией по WebSocket. Её открыли два отдельных
+  браузера, а сервер на `node:http` и `ws` пересылал сообщения из комнаты `/room/42` второму участнику.
+  Звонящий вызывает `call()`, отвечающий только слушает.
+
+  <Card title="Страница: сигнализация и канал данных" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SIGNALING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      `setLocalDescription()` без аргумента сам решает, что создать: offer, если разговор начинаем
+      мы, или answer, если уже пришёл чужой offer. Звонящий увидел «и тебе привет».
+
+    </CardNote>
+  </Card>
+
+  ### Что прошло через сервер
+
+  <Table
+    head={['от кого', 'что', 'байт']}
+    rows={SIGNAL_ROWS.map((r) => [r.from, r.what, r.bytes])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(140px,1fr) minmax(120px,1fr) minmax(80px,.5fr)"
+    minWidth={360}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SIGNALING_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Offer, answer и SDP"
+  lead="Offer и answer — два текста в формате SDP. Звонящий пишет, что он хочет и умеет, отвечающий — что из этого принимает. После обмена у обеих сторон одинаковое понимание: какие потоки, какие кодеки, как проверять адреса и чей сертификат ждать."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SDP} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Offer звонящего — как он ушёл на сервер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DATA_OFFER} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Table
+      head={['строка', 'что значит']}
+      rows={SDP_ROWS.map((r) => [r.k, r.d])}
+      kinds={['mono', 'prose']}
+      cols="minmax(150px,.8fr) minmax(240px,1.6fr)"
+      minWidth={460}
+    />
+  </CardGrid>
+
+  <Md text={MEDIA_NOTE} />
+
+  ### Порядок обмена
+
+  <Table
+    head={['вызов', 'кто', '`signalingState` после']}
+    rows={OFFER_ANSWER_STEPS.map((r) => [r.k, r.who, r.state])}
+    kinds={['mono', 'prose', 'mono']}
+    cols="minmax(220px,1.2fr) minmax(120px,.7fr) minmax(160px,.9fr)"
+    minWidth={520}
+  />
+
+  <Md text={OFFER_ANSWER_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Кандидаты ICE"
+  lead="Кандидат — один возможный адрес, по которому до вас можно достучаться. Браузер собирает их сам: адреса своих сетевых карт, внешний адрес от STUN, адрес на TURN-сервере. Каждый уходит собеседнику строкой `candidate:…`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NAT} />
+
+  <Table
+    head={['тип', 'что это', 'на стенде']}
+    rows={CANDIDATE_TYPES.map((r) => [r.k, r.d, r.stand])}
+    tones={CANDIDATE_TYPES.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(80px,.4fr) minmax(280px,1.8fr) minmax(200px,1fr)"
+    minWidth={640}
+  />
+
+  ### Строка кандидата по полям
+
+  <Card title="srflx со стенда" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={SAMPLE_CANDIDATE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['поле', 'значение', 'что значит']}
+    rows={CANDIDATE_FIELDS.map((r) => [r.k, r.v, r.d])}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(130px,.7fr) minmax(130px,.7fr) minmax(260px,1.8fr)"
+    minWidth={600}
+  />
+
+  ### Приоритет
+
+  <Md text={PRIORITY_NOTE} />
+
+  <Card title="Разбор SDP и формулы RFC 8445" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SDP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['тип', 'RFC советует', 'Chromium', 'локальное', 'приоритет на стенде']}
+    rows={PRIORITY_ROWS.map((r) => [r.k, r.rfc, r.stand, r.local, r.sample])}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(80px,.6fr) minmax(90px,.6fr) minmax(90px,.6fr) minmax(90px,.6fr) minmax(130px,1fr)"
+    minWidth={520}
+  />
+
+  <Md text={PRIORITY_AFTER} />
+
+  ### `.local` вместо адреса
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MDNS} />
+
+  <Table
+    head={['Chromium', 'кандидаты host и srflx']}
+    rows={MDNS_ROWS.map((r) => [r.k, r.v])}
+    kinds={['prose', 'mono']}
+    cols="minmax(200px,1fr) minmax(280px,1.6fr)"
+    minWidth={520}
+  />
+
+  <Md text={MDNS_NOTE} />
+
+  ### Что делает TURN-сервер
+
+  <Table
+    head={['запрос', 'ответ', 'подробности']}
+    rows={TURN_ROWS.map((r) => [r.method, r.result, r.extra])}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(140px,.8fr) minmax(160px,1fr) minmax(200px,1.2fr)"
+    minWidth={520}
+  />
+
+  <Md text={TURN_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Проверки связности и NAT"
+  lead="Кандидат — только предположение. Сработает ли он, зависит от роутеров на обоих концах, и узнать это можно лишь одним способом: отправить пакет и дождаться ответа. Этим ICE и занят."
+  leadWidth={72}
+>
+  <Md text={CHECKS_NOTE} />
+
+  <Md text={PAIR_NOTE} />
+
+  ### Почему не соединяется
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYMMETRIC} />
+
+  <Table
+    head={['NAT', 'что происходит', 'что сработает']}
+    rows={NAT_ROWS.map((r) => [r.k, r.d, r.works])}
+    tones={NAT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(180px,1fr) minmax(280px,1.8fr) minmax(130px,.7fr)"
+    minWidth={640}
+  />
+
+  <Md text={NAT_STAND_NOTE} />
+
+  <Md text={SYMMETRIC_RESULT} />
+
+  ### Кандидаты и проверки
+
+  <IceLab client:visible sdpCode={SDP_CODE} statsCode={STATS_CODE} scenarios={DEMO_SCENARIOS} caption={DEMO_CAPTION} />
+
+  ### Trickle ICE
+
+  <Md text={TRICKLE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="DTLS и SRTP: шифрование обязательно"
+  lead="Когда ICE нашёл пару, по ней проходит рукопожатие DTLS — TLS для UDP. Ни у кого из участников нет сертификата от удостоверяющего центра, и доверие держится на другом: отпечатке сертификата, который уже пришёл в SDP."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FINGERPRINT} />
+
+  <Table
+    head={['что', 'на стенде', 'зачем']}
+    rows={DTLS_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(110px,.6fr) minmax(200px,1fr) minmax(280px,1.8fr)"
+    minWidth={640}
+  />
+
+  <Md text={ENCRYPTION_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={BADFP_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Каналы данных и медиа"
+  lead="По одной паре адресов едут два разных груза. Каналы данных — сообщения вашего кода, медиа — звук и видео. Устроены они по-разному, потому что терять им можно разное."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Канал данных" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <FlowChips minWidth={300} chips={CHANNEL_STACK} />
+    </Card>
+
+    <Card title="Звук и видео" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <FlowChips minWidth={300} chips={MEDIA_STACK} />
+    </Card>
+  </CardGrid>
+
+  ### Надёжный канал и быстрый
+
+  <Card title="Два канала в одном соединении" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CHANNELS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['', '`chat`', '`pos`']}
+    rows={CHANNEL_ROWS.map((r) => [r.k, r.chat, r.pos])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(160px,.8fr) minmax(200px,1fr) minmax(240px,1.3fr)"
+    minWidth={600}
+  />
+
+  <Md text={CHANNEL_NOTE} />
+
+  ### Медиа
+
+  <CardGrid min={280} gap={14} align="start">
+    {MEDIA_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={VS_WEBSOCKET} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="`getStats`: что соединилось на самом деле"
+  lead={STATS_INTRO}
+  leadWidth={72}
+>
+  <Card title="Сводка по отчёту" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STATS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['сценарий', 'ICE', 'DTLS', 'пара', 'через TURN']}
+    rows={STATS_ROWS.map((r) => [r.k, r.ice, r.dtls, r.path, r.turn])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(150px,1fr) minmax(90px,.6fr) minmax(90px,.6fr) minmax(120px,.8fr) minmax(90px,.5fr)"
+    minWidth={600}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {STATS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={TAKEAWAY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

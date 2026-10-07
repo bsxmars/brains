@@ -1,0 +1,362 @@
+---
+title: HMR изнутри
+heading: "HMR изнутри: как правка доезжает до страницы без перезагрузки"
+headingWidth: 24
+order: 4
+kicker: сборка и инструменты
+lead: "Сохранили файл — и через долю секунды страница показывает новый код, не теряя введённого в форму. Это не свойство фреймворка, а договор: dev-сервер идёт от изменённого модуля вверх по тем, кто его импортирует, пока не найдёт модуль, пообещавший принять обновление. Не нашёл — перезагружает страницу целиком."
+leadWidth: 66
+summary: "Граф модулей на dev-сервере Vite, поиск границы вверх по импортёрам, сообщения по WebSocket и метка `?t=` в адресе; `accept`, `dispose`, `data` и `invalidate`; что происходит с обычным CSS, CSS-модулями и Vue SFC; React Fast Refresh и почему в продакшен-сборке от всего этого не остаётся ни строки."
+verifiedOn: "Vite 8.3.0 (createServer, без Astro), @vitejs/plugin-vue 6.0.8 и Vue 3.5.42, Chromium 153.0.8010.12 (Playwright 1.63), Node 26.8.2, сентябрь 2026: сообщения по WebSocket, перезапрошенные адреса и состояние страницы сняты стендом на девятнадцати сценариях и закреплены tests/unit/hmr.test.ts; продакшен-сборка — vite build той же фикстуры. React Fast Refresh замером не проверялся: поведение хуков — по документации, обёртка модуля — по исходнику @vitejs/plugin-react 5.2.0"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Граф и метка в адресе }
+  - { id: s2, label: Поиск границы }
+  - { id: s3, label: accept, dispose, invalidate }
+  - { id: s4, label: CSS и Vue }
+  - { id: s5, label: React и сборка }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import HmrBoundary from '@/widgets/hmr-boundary/ui/HmrBoundary.vue';
+import {
+  GLOSSARY,
+  PLAIN_HMR,
+  PREREQ,
+  PREREQ_NOTE,
+  PIPELINE_CHIPS,
+  SERVER_FACTS,
+  T_PARAM_NOTE,
+  OLD_COPY_NOTE,
+  PLAIN_BOUNDARY,
+  PLAIN_DISPOSE,
+  PLAIN_RERENDER,
+  FIND_BOUNDARY_CODE,
+  FIND_BOUNDARY_NOTE,
+  DEMO_VARIANTS,
+  DEMO_POS,
+  DEMO_CAPTION,
+  JOURNALS,
+  PAYLOAD_UPDATE_CODE,
+  PAYLOAD_RELOAD_CODE,
+  PAYLOAD_FACTS,
+  ACCEPT_FORMS_CODE,
+  ACCEPT_ROWS,
+  DATA_CODE,
+  DATA_NOTE,
+  INVALIDATE_CODE,
+  INVALIDATE_FACTS,
+  ALIAS_CODE,
+  ALIAS_NOTE,
+  CSS_ROWS,
+  VUE_GENERATED_CODE,
+  VUE_ROWS,
+  VUE_NOTE,
+  REACT_FACTS,
+  THIS_SITE_NOTE,
+  PROD_SOURCE_CODE,
+  PROD_BUNDLE_CODE,
+  PROD_BARE_CODE,
+  PROD_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  ACCEPT_SCENE_CODE,
+  ACCEPT_SCENE_NOTE,
+  ACCEPT_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Замена на ходу" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    HMR — Hot Module Replacement — заменяет в работающей странице **один модуль**, а не всю
+    страницу. Но заменить модуль можно, только если кто-то знает, что делать с новым
+    экземпляром: перерисовать кнопку, переподписаться, перенести счётчик. Этот «кто-то» —
+    граница, и весь механизм сводится к её поиску.
+
+  </Callout>
+
+  Браузер модуль заменить не может: модуль, однажды загруженный по адресу, остаётся в памяти
+  страницы до её конца. Поэтому HMR — это соглашение трёх сторон. Dev-сервер знает граф
+  модулей и следит за файлами. Клиент Vite, который сервер сам вставляет в страницу, держит
+  WebSocket и умеет импортировать модуль заново под другим адресом. А код модулей обещает
+  через `import.meta.hot`, что сумеет пережить собственную замену.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HMR} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Граф на сервере и метка в адресе"
+  lead="От сохранения файла до новой кнопки на экране — семь шагов, и шесть из них происходят на сервере. Браузер в этой цепочке делает только последнее: импортирует модуль по адресу, который ему назвали, и зовёт колбэк."
+  leadWidth={72}
+>
+  <Card title="Путь правки" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={760} chips={PIPELINE_CHIPS} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {SERVER_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" title="Зачем `?t=` в адресе" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={T_PARAM_NOTE} />
+
+  <Card tone="warn" title="Старый экземпляр остаётся" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={OLD_COPY_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Поиск границы"
+  lead="Сервер поднимается от изменённого модуля по импортёрам. Граница останавливает подъём на своей ветке. Ветка, дошедшая до модуля без импортёров, — тупик, и одного тупика на любой ветке достаточно, чтобы перезагрузить всю страницу."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BOUNDARY} />
+
+  <Card title="Поиск границы — полсотни строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FIND_BOUNDARY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={FIND_BOUNDARY_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Граф фикстуры: где остановится правка
+
+  <HmrBoundary client:visible code={FIND_BOUNDARY_CODE} variants={DEMO_VARIANTS} pos={DEMO_POS} journals={JOURNALS} caption={DEMO_CAPTION} />
+
+  ### Что уходит по WebSocket
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Обновление" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PAYLOAD_UPDATE_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Перезагрузка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PAYLOAD_RELOAD_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {PAYLOAD_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="`accept`, `dispose`, `invalidate`"
+  lead="Модуль может принять себя или свою зависимость, передать состояние следующему экземпляру и, получив обновление, отказаться от него в пользу импортёров. Всё это — методы `import.meta.hot`, и каждый из них сервер видит в тексте модуля, а не в его поведении."
+  leadWidth={72}
+>
+  <Card title="Три формы `accept`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ACCEPT_FORMS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Одна правка под тремя обещаниями
+
+  <CodeBlock code={ACCEPT_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={ACCEPT_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {ACCEPT_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Все прогоны стенда, включая правку самого `App.js`, — в одной таблице:
+
+  <Table
+    head={['где `accept`', 'правка', 'перезапрошено', 'кнопка «метка:счётчик»']}
+    rows={ACCEPT_ROWS.map((r) => [r.k, r.edit, r.refetch, r.state])}
+    kinds={['mono', 'mono', 'prose', 'prose']}
+    cols="minmax(190px,1fr) minmax(90px,.5fr) minmax(170px,.9fr) minmax(220px,1.3fr)"
+    minWidth={760}
+  />
+
+  ### Перенести состояние: `dispose` и `data`
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISPOSE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Старый экземпляр пишет, новый читает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DATA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DATA_NOTE} />
+  </CardGrid>
+
+  ### Отказаться от обновления: `invalidate`
+
+  <Card title="Модуль передаёт обновление наверх" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INVALIDATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {INVALIDATE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Сервер читает текст, а не исполняет
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Что считается границей" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ALIAS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ALIAS_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="CSS и Vue-компоненты"
+  lead="Стилям и компонентам `accept` пишет не автор, а инструмент: Vite — обычному CSS, плагин Vue — каждому `.vue`. Поэтому правка стиля или шаблона почти никогда не перезагружает страницу. Исключения — CSS-модули, которые себя не принимают, и `<script setup>`, чья правка пересоздаёт компонент."
+  leadWidth={72}
+>
+  <Table
+    head={['как подключён стиль', 'сообщение', 'что происходит']}
+    rows={CSS_ROWS.map((r) => [r.k, r.msg, r.how])}
+    tones={CSS_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(190px,.9fr) minmax(280px,1.6fr)"
+    minWidth={760}
+  />
+
+  ### Vue SFC: `rerender` против `reload`
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RERENDER} />
+
+  <Card title="Что плагин дописывает в компонент" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VUE_GENERATED_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['правка в `Counter.vue`', 'сообщения', 'состояние после правки']}
+    rows={VUE_ROWS.map((r) => [r.k, r.msg, r.state])}
+    tones={VUE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(220px,1.1fr) minmax(260px,1.4fr)"
+    minWidth={680}
+  />
+
+  <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={VUE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="React Fast Refresh и продакшен-сборка"
+  lead="Fast Refresh — тот же `accept` на себя в каждом модуле с компонентами плюс проверка, что экспорты остались компонентами. А в продакшен-сборке нет ни клиента, ни WebSocket, ни `import.meta.hot`: код внутри `if (import.meta.hot)` исчезает ещё до минификации."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {REACT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={THIS_SITE_NOTE} />
+
+  ### Что остаётся в сборке
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Исходник" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PROD_SOURCE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Бандл" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PROD_BUNDLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CodeBlock code={PROD_BARE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PROD_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **HMR обещает ровно то, что пообещал ваш код.** Сервер найдёт границу, клиент импортирует
+      новый модуль, но перерисовать, отписаться и перенести состояние может только сам модуль —
+      или плагин, который написал это за вас.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

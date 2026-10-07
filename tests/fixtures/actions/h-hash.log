@@ -1,0 +1,40 @@
+time="2026-09-15T15:54:56+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[h-hash/keys] ⭐ Run Set up job
+[h-hash/keys] 🚀  Start image=node:22-slim
+[h-hash/keys]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[h-hash/keys]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[h-hash/keys]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[h-hash/keys]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[h-hash/keys]   ✅  Success - Set up job
+[h-hash/keys] ⭐ Run Main what a cache key is made of
+[h-hash/keys]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/workflow/hashfiles/index.js] user= workdir=
+[h-hash/keys]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/workflow/hashfiles/index.js] user= workdir=
+[h-hash/keys]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/workflow/hashfiles/index.js] user= workdir=
+[h-hash/keys]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/workflow/hashfiles/index.js] user= workdir=
+[h-hash/keys]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/workflow/hashfiles/index.js] user= workdir=
+[h-hash/keys]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[h-hash/keys]   | runner_os=Linux
+[h-hash/keys]   | hash_lock=[]
+[h-hash/keys]   | hash_glob=[]
+[h-hash/keys]   | hash_two=[]
+[h-hash/keys]   | hash_missing=[]
+[h-hash/keys]   | full_key=[Linux-node-]
+[h-hash/keys]   ✅  Success - Main what a cache key is made of [659.514458ms]
+[h-hash/keys] ⭐ Run Main change the file, watch the key move
+[h-hash/keys]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[h-hash/keys]   ✅  Success - Main change the file, watch the key move [101.613958ms]
+[h-hash/keys] ⭐ Run Main key after the edit
+[h-hash/keys]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/workflow/hashfiles/index.js] user= workdir=
+[h-hash/keys]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/2] user= workdir=
+[h-hash/keys]   | hash_lock_after=[68569576b0eada2493f2f8a23bf881b29b584861bc4b692298d5f2aac4c68a25]
+[h-hash/keys]   ✅  Success - Main key after the edit [196.966ms]
+[h-hash/keys] ⭐ Run Main sha256 of the same file for comparison
+[h-hash/keys]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/3] user= workdir=
+[h-hash/keys]   | 465aed6096c9e56209462528fd9f6c7409dad20ac90ef9312ddde553353b284c  package-lock.json
+[h-hash/keys]   ✅  Success - Main sha256 of the same file for comparison [106.96275ms]
+[h-hash/keys] ⭐ Run Complete job
+[h-hash/keys] Cleaning up container for job keys
+[h-hash/keys]   ✅  Success - Complete job
+[h-hash/keys] 🏁  Job succeeded

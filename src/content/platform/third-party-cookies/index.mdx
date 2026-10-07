@@ -1,0 +1,414 @@
+---
+title: Встроенный контент без сторонних кук
+heading: "Встроенный контент без сторонних кук: CHIPS, Storage Access API и разделённое хранилище"
+headingWidth: 26
+order: 9
+kicker: сеть и безопасность
+lead: "Виджет чата, платёжная форма и кнопка входа живут во фрейме чужого сайта — и там их кука сторонняя. Firefox и WebKit такую куку не отдают, Chromium отдаёт, пока пользователь не запретил. Что работает везде: разделённая кука `Partitioned`, хранилище, разделённое по сайту верхнего уровня, доступ по кнопке через Storage Access API и сессия, переданная сайтом-хозяином."
+leadWidth: 66
+summary: "Что такое сторонняя кука и что с ней делают Chromium, Firefox и WebKit; разделённые куки CHIPS и ключ раздела; разделение localStorage, IndexedDB, Cache Storage и BroadcastChannel; Storage Access API и что он отвечает без жеста; Related Website Sets и FedCM; как строить встраиваемый виджет — с таблицей из 27 случаев, снятой в трёх движках, и калькулятором, который её повторяет."
+verifiedOn: "Chromium 153.0.8010.12 (с разрешёнными и с ограниченными сторонними куками; разделение хранилища возвращено — Playwright его выключает), Firefox 155.0 с cookieBehavior=5 и CHIPS, WebKit 26.6 (сборка Playwright под macOS, не Safari); Playwright 1.63 против своего https-сервера на Node 26.8.2, сайты top.test, top2.test, shop.top.test, blog.top.test, embed.test, api.embed.test и www.embed.test, сентябрь 2026. Без таймерных замеров. Related Website Sets, FedCM, поведение Safari и инкогнито Chrome — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Сторонняя кука }
+  - { id: s2, label: CHIPS }
+  - { id: s3, label: Уйдёт ли кука }
+  - { id: s4, label: Разделённое хранилище }
+  - { id: s5, label: Storage Access API }
+  - { id: s6, label: Виджет без сторонних кук }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import TpcCookieVerdict from '@/widgets/tpc-cookie-verdict/ui/TpcCookieVerdict.vue';
+import {
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_THIRD_PARTY,
+  PLAIN_PARTITION,
+  PLAIN_SAA,
+  SETUP_CHIPS,
+  SAME_SITE_NOTE,
+  STATE_NOTE,
+  VERDICT_MEASURED,
+  OUTCOME_LABEL,
+  MEASURED_HEAD,
+  MEASURED_COLS,
+  measuredRows,
+  MEASURED_NOTE,
+  CHIPS_CODE,
+  CHIPS_READBACK,
+  CHIPS_PARTITION_KEYS,
+  CHIPS_FACTS,
+  VERDICT_NOTE,
+  STORAGE_ROWS,
+  STORAGE_NOTE,
+  PLAYWRIGHT_NOTE,
+  STORAGE_FACTS,
+  SAA_CODE,
+  SAA_CODE_RUN,
+  SAA_ROWS,
+  SAA_NOTE,
+  SAA_RULES,
+  RWS_NOTE,
+  PLAIN_HANDOFF,
+  WIDGET_CASES,
+  POSTMESSAGE_CODE,
+  POSTMESSAGE_NOTES,
+  FEDCM_NOTE,
+  TAKEAWAY,
+  PITFALLS,
+  SOURCES,
+  TWO_FILTERS_SCENE_CODE,
+  TWO_FILTERS_SCENE_NOTE,
+  TWO_FILTERS_STEPS,
+  PLAIN_TWO_FILTERS,
+  SAA_TIMELINE,
+  PLAIN_SAA_TIMELINE,
+} from './data';
+
+<Section variant="intro" eyebrow="Чужая стена, свой пропуск" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Кука сама по себе не бывает сторонней. Сторонней её делает **место запроса**: кука
+    `embed.test` во фрейме на странице `top.test` — сторонняя, та же кука на самом
+    `embed.test` — своя. Браузеры ограничивают именно это место, потому что одна кука,
+    видимая во фреймах тысячи сайтов, — это готовый идентификатор человека в интернете.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THIRD_PARTY} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Сторонняя кука и что с ней делают браузеры"
+  lead="Решение принимается дважды: сначала `SameSite` — пустить ли куку в запрос с чужого сайта, потом политика сторонних кук — пустить ли её во встроенный контекст вообще. Второй фильтр у движков разный, и отсекает он и `SameSite=None`."
+  leadWidth={72}
+>
+  <Card title="Кто здесь сторонний" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={560} chips={SETUP_CHIPS} />
+
+    <CardNote tone="warn">
+      <Md text={SAME_SITE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Одна кука, два фильтра, четыре браузера
+
+  <CodeBlock code={TWO_FILTERS_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Md text={TWO_FILTERS_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {TWO_FILTERS_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Как решает:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_FILTERS} />
+
+  ### Что делают движки
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15} lh={1.6} text={MEASURED_NOTE} />
+
+  <Table
+    head={MEASURED_HEAD}
+    rows={measuredRows('state')}
+    kinds={['prose', 'prose', 'mono', 'mono', 'mono', 'mono']}
+    cols={MEASURED_COLS}
+    minWidth={900}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={STATE_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="CHIPS: кука со своим разделом"
+  lead="Атрибут `Partitioned` делает ровно то, чего хотят браузеры: кука встраиваемого сайта остаётся, но под каждым сайтом верхнего уровня — своя. Слежки через неё нет, а чат на сайте магазина помнит открытый разговор."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PARTITION} />
+
+  <Card title="Как поставить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={CHIPS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Одна кука `embed.test` под двумя сайтами
+
+  <Table
+    head={['режим', 'фрейм под `top.test`', 'фрейм под `top2.test`', 'сам `embed.test`']}
+    rows={CHIPS_READBACK.map((r) => [r.k, r.top, r.top2, r.first])}
+    kinds={['prose', 'mono', 'mono', 'muted']}
+    cols="minmax(170px,1.1fr) minmax(170px,1fr) minmax(170px,1fr) minmax(120px,.7fr)"
+    minWidth={700}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CHIPS_PARTITION_KEYS} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {CHIPS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={MEASURED_HEAD}
+    rows={measuredRows('chips')}
+    kinds={['prose', 'prose', 'mono', 'mono', 'mono', 'mono']}
+    cols={MEASURED_COLS}
+    minWidth={900}
+  />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  title="Уйдёт ли кука"
+  lead="Решение складывается из пяти признаков куки и трёх признаков запроса. Движки расходятся ровно в трёх местах: что значит отсутствие `SameSite`, принимается ли `None` без `Secure` и что происходит с неразделённой кукой во фрейме чужого сайта."
+  leadWidth={72}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={VERDICT_NOTE} />
+
+  <TpcCookieVerdict client:visible measured={VERDICT_MEASURED} outcomeLabel={OUTCOME_LABEL} />
+
+  ### Атрибуты, которые решают раньше раздела
+
+  <Table
+    head={MEASURED_HEAD}
+    rows={measuredRows('attrs')}
+    kinds={['prose', 'prose', 'mono', 'mono', 'mono', 'mono']}
+    cols={MEASURED_COLS}
+    minWidth={900}
+  />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Разделённое хранилище"
+  lead="Если закрыть только куки, та же метка переедет в `localStorage` фрейма. Поэтому хранилище встроенного контекста тоже разделено по сайту верхнего уровня — и без всяких атрибутов: сайт не выбирает, браузер делает это сам."
+  leadWidth={72}
+>
+  <Table
+    head={['что', 'Chromium 153', 'Firefox 155 (TCP)', 'WebKit 26.6', 'контроль: снова под `top.test`']}
+    rows={STORAGE_ROWS.map((r) => [r.k, r.chromium, r.firefox, r.webkit, r.control])}
+    tones={STORAGE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose', 'prose', 'muted']}
+    cols="minmax(130px,.7fr) minmax(100px,.6fr) minmax(110px,.6fr) minmax(220px,1.4fr) minmax(170px,1fr)"
+    minWidth={760}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={STORAGE_NOTE} />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={PLAYWRIGHT_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {STORAGE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Storage Access API"
+  lead="Когда встроенному коду нужна именно общая кука — пользователь уже вошёл на `embed.test` и хочет того же входа во фрейме, — фрейм может попросить доступ. Просьба проходит только в ответ на клик, а решает её браузер."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SAA} />
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Фрейм чата просит доступ" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SAA_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Этот код во фрейме под `top.test`, клик — настоящий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['режим', 'что показал `status`']}
+        rows={SAA_CODE_RUN.map((r) => [r.k, r.status])}
+        tones={SAA_CODE_RUN.map((r) => r.tone)}
+        kinds={['prose', 'prose']}
+        cols="minmax(180px,1.3fr) minmax(140px,1fr)"
+        minWidth={360}
+      />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['что', 'Chromium 153', 'Firefox 155 (TCP)', 'WebKit 26.6']}
+    rows={SAA_ROWS.map((r) => [r.k, r.chromium, r.firefox, r.webkit])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,1fr) minmax(210px,1.3fr) minmax(190px,1.2fr) minmax(110px,.6fr)"
+    minWidth={780}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={SAA_NOTE} />
+
+  ### Жизнь фрейма от загрузки до куки
+
+  <Card title="Фрейм чата под `top.test`, по шагам" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={SAA_TIMELINE} size={15.5} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SAA_TIMELINE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SAA_RULES.map((rule) => (
+      <Card tone={rule.tone ?? 'neutral'} title={rule.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={rule.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={MEASURED_HEAD}
+    rows={measuredRows('saa')}
+    kinds={['prose', 'prose', 'mono', 'mono', 'mono', 'mono']}
+    cols={MEASURED_COLS}
+    minWidth={900}
+  />
+
+  ### Related Website Sets и `requestStorageAccessFor`
+
+  <Card pad="16px 18px" radius={4} size={15.5} lh={1.6} text={RWS_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Встраиваемый виджет без сторонних кук"
+  lead="Почти всё, для чего виджету была нужна общая кука, решается без неё: состояние на одном сайте — разделённой кукой, вход — сессией, которую передаёт сайт-хозяин. Общая кука остаётся нужна только там, где связь между сайтами — сама суть функции."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HANDOFF} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {WIDGET_CASES.map((item) => (
+      <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Сессия от сайта-хозяина через `postMessage`" titleSize={17} pad={20} gap={13}>
+    <CodeBlock code={POSTMESSAGE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <NumberedList items={POSTMESSAGE_NOTES} size={15.5} />
+  </Card>
+
+  <Card title="FedCM" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={FEDCM_NOTE} />
+
+  <Card tone="info" pad="16px 18px" radius={4} size={15.5} lh={1.6}>
+
+    Если API можно перенести на поддомен своего сайта, сторонний контекст пропадает целиком:
+    почему это работает и что остаётся от CORS — в
+    [«Безопасности фронтенда», раздел «Куки и JWT для фронта»](/platform/security/#s6).
+
+  </Card>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={TAKEAWAY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+  <CardGrid min={320} gap={16} align="start">
+    {SOURCES.map((group) => (
+      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
+        {group.items.map((item) => (
+          <Md text={item} />
+        ))}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [Безопасность фронтенда](/platform/security/#s5) — `SameSite`, CSRF
+    и умолчание `Lax`. [XS-Leaks](/platform/xs-leaks/#s2) — разделение HTTP-кеша как защита
+    от межсайтовых утечек. [Мгновенная навигация](/platform/instant-navigation/#s4) — почему
+    prefetch на чужой сайт не уходит, когда у пользователя есть его куки. [Устройство
+    браузера](/js/browser-architecture/#s1) — сайт как граница процессов и кук.
+    [Хранилища браузера](/platform/browser-storage/) — localStorage, IndexedDB, Cache API, OPFS
+    и квота, которую делят по сайту.
+
+  </Card>
+</Section>

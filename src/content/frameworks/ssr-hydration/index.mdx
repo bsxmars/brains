@@ -1,0 +1,422 @@
+---
+title: "SSR и гидратация: React и Vue"
+order: 7
+kicker: фреймворки изнутри
+lead: "Сервер присылает готовую разметку, браузер её оживляет — не пересоздавая, а забирая узлы. Разница между React и Vue видна там, где сервер и браузер разошлись: один выбрасывает поддерево, другой латает узел, а атрибут не чинит никто."
+leadWidth: 66
+summary: "Что приходит в HTML, какие узлы гидратация забирает и какие выбрасывает, чем React 19 и Vue 3.5 отвечают на несовпадение, стриминг, выборочная и ленивая гидратация."
+verifiedOn: React 19.3 · Vue 3.5.42 · Node 26.8 · Chromium (Playwright 1.63)
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Что отдаёт сервер }
+  - { id: s2, label: Гидратация }
+  - { id: s3, label: Несовпадения }
+  - { id: s4, label: Стриминг }
+  - { id: s5, label: Ленивая гидратация }
+  - { id: s6, label: Цена }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import SsrLab from '@/widgets/ssr-hydration/ui/SsrLab.vue';
+import {
+  CAUSES,
+  COST,
+  DEMO_FOOT,
+  DEMO_NOTE,
+  DEV_MESSAGES,
+  DEV_NOTE,
+  GLOSSARY,
+  HYDRATE_ORDER_LOG,
+  HYDRATE_ORDER_NOTE,
+  HYDRATE_ORDER_REACT,
+  HYDRATE_ORDER_VUE,
+  INTRO_NOTE,
+  ISLANDS_NOTE,
+  KEPT_NOTE,
+  LAZY_TABLE,
+  LAZY_VUE_CODE,
+  LAZY_VUE_LOG,
+  LAZY_VUE_NOTE,
+  MARKERS,
+  MISMATCH_NOTE,
+  MISMATCH_TABLE,
+  ORDER_NOTE,
+  PITFALLS,
+  PLAIN_HYDRATION,
+  PLAIN_LAZY,
+  PLAIN_MISMATCH,
+  PLAIN_SSR,
+  PLAIN_STREAM,
+  PREREQ,
+  REACT_ORDER_CODE,
+  RELATED,
+  RSC,
+  SELECTIVE,
+  SELECTIVE_CODE,
+  SELECTIVE_NOTE,
+  SERVER_CALLS,
+  SERVER_HTML,
+  SERVER_SKIP_NOTE,
+  SILENCE,
+  SILENCE_CODE,
+  SILENCE_NOTE,
+  SOURCES,
+  STREAM_REACT_CODE,
+  STREAM_REACT_SHELL,
+  STREAM_STEPS,
+  STREAM_TO_STRING_NOTE,
+  STREAM_VUE_CHUNKS,
+  STREAM_VUE_CODE,
+  STREAM_VUE_NOTE,
+  VUE_ORDER_CODE,
+  TIME_SCENE_CODE, TIME_SCENE_NOTE, TIME_STEPS, EXT_SCENE_CODE, EXT_STEPS, PLAIN_EXT,
+} from './data';
+
+<Section variant="intro" eyebrow="Идея" lead={INTRO_NOTE} leadWidth={72}>
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  leadWidth={72}
+>
+  <CardGrid min={260} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Что отдаёт сервер"
+  lead="Серверный рендер — это тот же код компонентов, выполненный в Node, и результат у него один: **строка HTML**. Никаких обработчиков, состояния или ссылок на узлы в ней нет — только разметка и несколько служебных комментариев."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SSR} />
+
+  ### Сквозной пример
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="React" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REACT_ORDER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card title="Vue" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_ORDER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ORDER_NOTE} />
+
+  ### Что пришло в HTML
+
+  <CodeBlock code={SERVER_CALLS} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card label="React · renderToString" labelSize={12.5} pad={16} radius={4} gap={9}>
+      <CodeBlock code={SERVER_HTML.react} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
+    </Card>
+
+    <Card label="React · с boundary: true" labelSize={12.5} pad={16} radius={4} gap={9}>
+      <CodeBlock code={SERVER_HTML.reactBoundary} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
+    </Card>
+
+    <Card label="Vue · renderToString" labelSize={12.5} pad={16} radius={4} gap={9}>
+      <CodeBlock code={SERVER_HTML.vue} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={MARKERS.head}
+    rows={MARKERS.rows}
+    cols={MARKERS.cols}
+    kinds={MARKERS.kinds}
+    minWidth={MARKERS.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SERVER_SKIP_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Гидратация: забрать, а не создать"
+  lead="Гидратация — это первый рендер, у которого узлы уже есть. Фреймворк проходит своё дерево, на каждом шаге берёт **следующий узел документа** и проверяет, тот ли это узел. Совпал — забирает его и вешает обработчики."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HYDRATION} />
+
+  ### В каком порядке всё вызывается
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="React" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HYDRATE_ORDER_REACT} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock code={HYDRATE_ORDER_LOG.react.join('\n')} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
+    </Card>
+
+    <Card title="Vue" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HYDRATE_ORDER_VUE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock code={HYDRATE_ORDER_LOG.vue.join('\n')} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
+    </Card>
+  </CardGrid>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={HYDRATE_ORDER_NOTE} />
+  </Callout>
+
+  ### Демо: сервер отдал — гидратация
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEMO_NOTE} />
+
+  <SsrLab client:visible reactCode={REACT_ORDER_CODE} vueCode={VUE_ORDER_CODE} serverHtml={SERVER_HTML} foot={DEMO_FOOT} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={KEPT_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Несовпадения: выбросить или залатать"
+  lead="Сервер отрисовал время `12:00:00`, а браузер через три секунды считает `12:00:03` — один и тот же код дал два ответа. Так же расходится всё, что зависит от момента или от окружения. Что тогда происходит с документом, решает библиотека, и решают они противоположно."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MISMATCH} />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={MISMATCH_NOTE} />
+  </Callout>
+
+  ### Одно время — три исхода
+
+  <CodeBlock code={TIME_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={TIME_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {TIME_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Лишний узел: почему у Vue сдвигается хвост
+
+  <CodeBlock code={EXT_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={290} gap={14} align="start">
+    {EXT_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EXT} />
+
+  ### Что показало демо на трёх расхождениях
+
+  <Table
+    head={MISMATCH_TABLE.head}
+    rows={MISMATCH_TABLE.rows}
+    cols={MISMATCH_TABLE.cols}
+    kinds={MISMATCH_TABLE.kinds}
+    minWidth={MISMATCH_TABLE.minWidth}
+  />
+
+  ### Что пишут отладочные сборки
+
+  <Table
+    head={DEV_MESSAGES.head}
+    rows={DEV_MESSAGES.rows}
+    cols={DEV_MESSAGES.cols}
+    kinds={DEV_MESSAGES.kinds}
+    minWidth={DEV_MESSAGES.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEV_NOTE} />
+
+  ### Откуда берутся несовпадения
+
+  <Table
+    head={CAUSES.head}
+    rows={CAUSES.rows}
+    cols={CAUSES.cols}
+    kinds={CAUSES.kinds}
+    minWidth={CAUSES.minWidth}
+  />
+
+  ### Как заглушить — и что останется в документе
+
+  <CodeBlock code={SILENCE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={SILENCE.head}
+    rows={SILENCE.rows}
+    cols={SILENCE.cols}
+    kinds={SILENCE.kinds}
+    minWidth={SILENCE.minWidth}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SILENCE_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Стриминг: каркас сейчас, остальное потом"
+  lead="Серверу не обязательно ждать самые медленные данные, чтобы начать ответ. React досылает недостающие куски в тот же ответ и вставляет их на место скриптом; Vue отправляет по порядку и ждёт медленное на месте."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STREAM} />
+
+  ### React: `renderToPipeableStream`
+
+  <CodeBlock code={STREAM_REACT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Card label="первый кусок ответа — дословно" labelSize={12.5} pad={16} radius={4} gap={9}>
+    <CodeBlock code={STREAM_REACT_SHELL} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
+  </Card>
+
+  <Card title="Что происходит дальше" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={STREAM_STEPS} size={15.5} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={STREAM_TO_STRING_NOTE} />
+
+  ### Vue: поток по порядку
+
+  <CodeBlock code={STREAM_VUE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Card label="что получил res, по кускам" labelSize={12.5} pad={16} radius={4} gap={9}>
+    <CodeBlock code={STREAM_VUE_CHUNKS.join('\n')} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={STREAM_VUE_NOTE} />
+
+  ### Выборочная гидратация React
+
+  <CodeBlock code={SELECTIVE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={SELECTIVE.head}
+    rows={SELECTIVE.rows}
+    cols={SELECTIVE.cols}
+    kinds={SELECTIVE.kinds}
+    minWidth={SELECTIVE.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SELECTIVE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Ленивая гидратация и острова"
+  lead="Не всё на странице нужно оживлять сразу. Vue 3.5 умеет откладывать гидратацию отдельного компонента до условия, а острова откладывают ещё и загрузку его кода — и эта разница важнее, чем кажется."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAZY} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Vue 3.5 · hydrateOnInteraction" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LAZY_VUE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card label="журнал: монтирование, пауза, клик по кнопке отзывов" labelSize={12.5} pad={16} radius={4} gap={9}>
+      <CodeBlock code={LAZY_VUE_LOG.join('\n')} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={LAZY_VUE_NOTE} />
+
+  <Table
+    head={LAZY_TABLE.head}
+    rows={LAZY_TABLE.rows}
+    cols={LAZY_TABLE.cols}
+    kinds={LAZY_TABLE.kinds}
+    minWidth={LAZY_TABLE.minWidth}
+  />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={ISLANDS_NOTE} />
+  </Callout>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Цена и Server Components"
+  lead="SSR не ускоряет страницу целиком — он перекладывает цену между метриками. Что-то наступает раньше, что-то позже, и одна метрика появляется там, где при клиентском рендере её не было: промежуток «видно, но не работает»."
+  leadWidth={72}
+>
+  <CardGrid min={260} gap={14} align="start">
+    {COST.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Server Components — не другой SSR
+
+  <Card pad="18px 20px" radius={5} size={15.5} lh={1.6} text={RSC} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+  lead="Документация обеих библиотек и исходники там, где тема опирается на чтение кода, а не на прогон."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

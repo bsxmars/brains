@@ -1,0 +1,483 @@
+---
+title: Хранилища браузера
+heading: "Хранилища браузера: от localStorage до OPFS"
+headingWidth: 24
+order: 15
+kicker: сеть и безопасность
+lead: "Куки, `localStorage`, `sessionStorage`, IndexedDB, Cache API и OPFS отличаются не столько объёмом, сколько правилами: кто видит запись, ждёт ли страница ответа, когда данные пропадут. Что где хранить, сколько влезает, почему `await fetch` внутри транзакции IndexedDB ломает запись и что браузер удаляет первым, когда кончается место."
+leadWidth: 66
+summary: "Шесть хранилищ браузера и что где хранить; `localStorage` и `sessionStorage`: только строки, предел в символах UTF-16, событие `storage` в соседних вкладках; IndexedDB: версии, `onupgradeneeded` и `blocked`, индексы и курсоры; жизнь транзакции — активность, автокоммит и `TransactionInactiveError` после `await fetch`, с моделью, сверенной с Chromium и fake-indexeddb; Cache API; OPFS и синхронный доступ из воркера; `estimate()`, `persist()`, вытеснение и инкогнито."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63.0) на своём сервере node:http, Node 24.11.0, fake-indexeddb 6.2.5, октябрь 2026: предел localStorage, события storage между вкладками, sessionStorage при открытии окон, девять сценариев транзакции, versionchange и blocked, индексы и курсоры, Cache API, OPFS в воркере, estimate() и persist() в профиле на диске и без профиля сняты стендом; модель транзакции сверена tests/unit/browser-storage.test.ts с fake-indexeddb и журналами Chromium. Порядок вытеснения, выдача persist() и поведение Firefox и Safari — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Что где хранить }
+  - { id: s2, label: localStorage и sessionStorage }
+  - { id: s3, label: IndexedDB }
+  - { id: s4, label: Жизнь транзакции }
+  - { id: s5, label: Cache API и OPFS }
+  - { id: s6, label: Квота и вытеснение }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import TxLab from '@/widgets/tx-lab/ui/TxLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_STORAGE,
+  PREREQ,
+  PREREQ_NOTE,
+  MAP_ROWS,
+  CHOICE,
+  LS_TYPES_CODE,
+  STAND,
+  LS_TYPES_NOTE,
+  PLAIN_SYNC,
+  LS_LIMIT_ROWS,
+  QUOTA_ERROR_NOTE,
+  SESSION_ROWS,
+  LISTENER_CODE,
+  WRITER_CODE,
+  EVENTS_ROWS,
+  EVENTS_NOTE,
+  PLAIN_IDB,
+  OLD_TAB_CODE,
+  NEW_TAB_CODE,
+  VERSION_ROWS,
+  VERSION_NOTE,
+  INDEX_CODE,
+  INDEX_NOTE,
+  PLAIN_TX,
+  TX_RULES,
+  TX_HARNESS_CODE,
+  TX_HARNESS_NOTE,
+  TX_MODEL_CODE,
+  DEMO_SCENARIOS,
+  DEMO_CAPTION,
+  TX_FIX_NOTE,
+  CACHE_CODE,
+  CACHE_FACTS,
+  PLAIN_OPFS,
+  OPFS_WORKER_CODE,
+  OPFS_MAIN_CODE,
+  OPFS_FACTS,
+  ESTIMATE_CODE,
+  QUOTA_ROWS,
+  QUOTA_NOTE,
+  COMPRESSION_NOTE,
+  PERSIST_CODE,
+  PERSIST_FACTS,
+  INCOGNITO_NOTE,
+  PARTITION_NOTE,
+  TAKEAWAY,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Данные в браузере" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    У браузера шесть мест для данных, и выбирают между ними по правилам, а не по объёму.
+    `localStorage` синхронный и хранит только строки. IndexedDB асинхронная и хранит объекты,
+    но её транзакция живёт, только пока у неё есть работа: **`await fetch` посреди транзакции
+    её закрывает**, и половина записи пропадает.
+
+  </Callout>
+
+  Любое из этих хранилищ принадлежит origin — сочетанию протокола, домена и порта. Внутри
+  origin его видят все вкладки (кроме `sessionStorage`), снаружи — никто. А ещё любое из них
+  может однажды оказаться пустым: пользователь почистил данные, браузеру не хватило места,
+  окно было приватным.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STORAGE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Что где хранить"
+  lead="Шесть хранилищ различаются по четырём вопросам: что в них можно положить, ждёт ли страница ответа, кто ещё видит запись и есть ли хранилище в воркере. Объёмы в таблице сняты в Chromium."
+  leadWidth={72}
+>
+  <Table
+    head={['', 'что хранит', 'как читать', 'объём', 'кто видит', 'в воркере']}
+    rows={MAP_ROWS.map((r) => [r.k, r.what, r.api, r.size, r.who, r.worker])}
+    kinds={['mono', 'prose', 'prose', 'prose', 'prose', 'muted']}
+    cols="minmax(120px,.6fr) minmax(150px,1fr) minmax(170px,1.1fr) minmax(170px,1.1fr) minmax(150px,1fr) minmax(110px,.7fr)"
+    minWidth={900}
+  />
+
+  Куки стоят в таблице особняком: их читает сервер, потому что браузер сам прикладывает их
+  к каждому запросу на свой сайт. Поэтому в куку кладут то, что нужно серверу (сессию), а не то,
+  что нужно странице. Остальные пять хранилищ сервер не видит вовсе.
+
+  ### Как выбрать
+
+  <CardGrid min={280} gap={14} align="start">
+    {CHOICE.map((c) => (
+      <Card tone={c.tone ?? 'neutral'} title={c.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={c.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="`localStorage` и `sessionStorage`"
+  lead="Два самых простых хранилища: пары «строка-ключ → строка-значение» и пять методов. Оба синхронные — вызов возвращает ответ сразу, и страница на это время стоит."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYNC} />
+
+  ### Только строки
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Что кладём" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LS_TYPES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что прочли" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={STAND.lsTypes.map((v) => String(v)).join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <Md text={LS_TYPES_NOTE} />
+    </Card>
+  </CardGrid>
+
+  ### Сколько влезает
+
+  Предел одинаков для ключей и значений и общий на весь origin. Его искали подбором: сколько
+  символов можно записать, прежде чем `setItem` бросит ошибку.
+
+  <Table
+    head={['что писали', 'влезло символов', 'вывод']}
+    rows={LS_LIMIT_ROWS.map((r) => [r.k, r.got, r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(170px,.8fr) minmax(130px,.6fr) minmax(260px,1.6fr)"
+    minWidth={620}
+  />
+
+  <Card tone="warn" title="QuotaExceededError" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={QUOTA_ERROR_NOTE} />
+
+  ### `sessionStorage` живёт во вкладке
+
+  Ключи и методы у него те же, отличается только, кто видит данные. Во вкладке A записали
+  `draft = 'abc'`; что увидели остальные:
+
+  <Table
+    head={['где читали', 'draft', 'почему']}
+    rows={SESSION_ROWS.map((r) => [r.k, r.got, r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(130px,.6fr) minmax(240px,1.4fr)"
+    minWidth={620}
+  />
+
+  ### Событие `storage`: соседние вкладки узнают о записи
+
+  Когда одна вкладка меняет `localStorage`, остальные вкладки того же origin получают событие
+  `storage` с ключом, старым и новым значением. Так синхронизируют тему или выход из аккаунта
+  между вкладками. Четыре вкладки слушали событие, одна писала:
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Слушатель во всех вкладках" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LISTENER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вкладка A пишет" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={WRITER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['вкладка', 'что пришло']}
+    rows={EVENTS_ROWS.map((r) => [r.k, r.got])}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,.8fr) minmax(300px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={EVENTS_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="IndexedDB: версии, индексы, курсоры"
+  lead="IndexedDB — база данных внутри браузера: объектные хранилища с ключами, индексы, транзакции. Всё асинхронно: каждый вызов возвращает запрос, а результат приходит потом событием `success` или `error`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IDB} />
+
+  ### Версия базы и две вкладки
+
+  Схему базы — какие хранилища и индексы в ней есть — меняют только при открытии с новым номером
+  версии, в обработчике `onupgradeneeded`. Сквозной пример — интернет-магазин: во вкладке A
+  открыта версия 1 с хранилищем `orders`, а во вкладке B уже загрузилась новая версия сайта
+  и открывает базу версии 2, чтобы добавить индекс по статусу заказа.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Вкладка A: старая версия сайта" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OLD_TAB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вкладка B: новая версия сайта" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NEW_TAB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['вариант', 'журнал двух вкладок', 'итог']}
+    rows={VERSION_ROWS.map((r) => [r.k, r.log, r.d])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(300px,1.8fr) minmax(180px,1fr)"
+    minWidth={680}
+  />
+
+  <Md text={VERSION_NOTE} />
+
+  ### Индексы и курсор
+
+  Когда вкладка B обновила базу, в `orders` появился индекс `byStatus`. Теперь заказы можно
+  искать по статусу, не перебирая все:
+
+  <Card title="Запросы к orders" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INDEX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <CodeBlock code={STAND.index.join('\n')} size={11.5} lh={1.65} pad="12px 14px" />
+
+      <Md text={INDEX_NOTE} />
+    </CardNote>
+  </Card>
+
+  `req` — маленькая обёртка, которая превращает запрос IndexedDB в промис: подписывается
+  на `success` и `error`. Она определена в обвязке из раздела «Жизнь транзакции», и от того,
+  как она устроена, зависит, можно ли писать `await` внутри транзакции.
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Жизнь транзакции"
+  lead="Транзакцию IndexedDB не закрывают вручную: она фиксируется сама, когда у неё кончилась работа. «Кончилась» значит две вещи сразу: в очереди нет запросов, и добавить новый уже нельзя. Где проходит эта граница — вопрос задач и микрозадач."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TX} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {TX_RULES.map((rule) => (
+      <Card tone={rule.tone ?? 'neutral'} title={rule.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={rule.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Как снят журнал
+
+  Сценарии — короткие куски кода с транзакцией. Журнал каждого собирает одна и та же
+  обвязка: она открывает свежую базу, исполняет сценарий и записывает, чем всё кончилось.
+
+  <Card title="Обвязка runTx" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TX_HARNESS_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TX_HARNESS_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Модель
+
+  Модель проигрывает сценарий по строкам. У неё три очереди: задачи, микрозадачи и ответы сети.
+  Транзакция создаётся активной; после контрольной точки микрозадач своей задачи становится
+  неактивной; на время события запроса снова активна. Когда она неактивна и запросов нет,
+  модель её фиксирует. Значений модель не хранит — только ключи, чтобы показать, что осталось
+  в базе.
+
+  <Card title="simulateTransaction" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TX_MODEL_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Девять сценариев по шагам
+
+  <TxLab
+    client:visible
+    modelCode={TX_MODEL_CODE}
+    harnessCode={TX_HARNESS_CODE}
+    scenarios={DEMO_SCENARIOS}
+    chromium={STAND.chromium}
+    caption={DEMO_CAPTION}
+  />
+
+  <Card tone="ok" title="Сеть и запись в базу — в разных транзакциях" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TX_FIX_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Cache API и OPFS"
+  lead="Два хранилища для того, что не похоже на записи в базе. Cache API хранит ответы сервера целиком — со статусом и заголовками. OPFS хранит файлы и позволяет переписывать их кусками."
+  leadWidth={72}
+>
+  ### Cache API: ответ по запросу
+
+  `caches.open(имя)` открывает именованный кеш; в нём ключ — запрос, значение — ответ. Обычно
+  с ним работает Service Worker, но доступен он и со страницы.
+
+  <Card title="Кеш api-v1" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CACHE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <CodeBlock code={STAND.cache.join('\n')} size={11.5} lh={1.65} pad="12px 14px" />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {CACHE_FACTS.map((f) => (
+      <Card tone={f.tone ?? 'neutral'} title={f.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={f.d} />
+    ))}
+
+  </CardGrid>
+
+  ### OPFS: файлы сайта
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OPFS} />
+
+  Корень OPFS выдаёт `navigator.storage.getDirectory()`. Дальше — обычная работа с файлами:
+  папки, файлы, запись и чтение. Самое быстрое — синхронный дескриптор
+  `createSyncAccessHandle`, и он есть только в воркере.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Воркер пишет и читает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OPFS_WORKER_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <CodeBlock code={STAND.opfsWorker.join('\n')} size={11} lh={1.65} pad="12px 14px" />
+      </CardNote>
+    </Card>
+
+    <Card title="Страница смотрит на результат" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OPFS_MAIN_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <CodeBlock code={STAND.opfsMain.join('\n')} size={11} lh={1.65} pad="12px 14px" />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {OPFS_FACTS.map((f) => (
+      <Card tone={f.tone ?? 'neutral'} title={f.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={f.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Квота, вытеснение, инкогнито"
+  lead="IndexedDB, Cache API и OPFS делят одну квоту сайта. Сколько её осталось, говорит `navigator.storage.estimate()`; попросить браузер не удалять данные — `navigator.storage.persist()`. Оба вызова сняты в двух профилях Chromium: на диске и «вне записи», как у окна инкогнито."
+  leadWidth={72}
+>
+  <Card title="Мегабайт в каждое хранилище" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ESTIMATE_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['шаг', '`usage` без профиля', '`usage` в профиле', '`usageDetails` в профиле']}
+    rows={QUOTA_ROWS.map((r) => [r.k, r.otr, r.profile, r.parts])}
+    kinds={['prose', 'mono', 'mono', 'muted']}
+    cols="minmax(170px,.9fr) minmax(130px,.6fr) minmax(130px,.6fr) minmax(260px,1.6fr)"
+    minWidth={700}
+  />
+
+  <Md text={QUOTA_NOTE} />
+
+  <Card tone="info" title="Почему мегабайт не равен мегабайту" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={COMPRESSION_NOTE} />
+
+  ### Best-effort и persistent
+
+  <Card title="Попросить не вытеснять" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PERSIST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <CodeBlock code={STAND.persistProfile.join('\n')} size={11.5} lh={1.65} pad="12px 14px" />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {PERSIST_FACTS.map((f) => (
+      <Card tone={f.tone ?? 'neutral'} title={f.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={f.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Инкогнито и чужие фреймы
+
+  <Md text={INCOGNITO_NOTE} />
+
+  <Md text={PARTITION_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={TAKEAWAY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

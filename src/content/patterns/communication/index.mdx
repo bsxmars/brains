@@ -1,0 +1,255 @@
+---
+title: "Связь объектов: наблюдатель, посредник, цепочка обязанностей"
+order: 5
+kicker: паттерны
+lead: "Три поведенческих паттерна про то, кто кого зовёт: рассылка подписчикам, посредник со сценарием и цепочка, где каждый решает, звать ли следующего. Наблюдатель встроен в платформу дважды — `EventTarget` и `EventEmitter`, — и книжный `notify` проигрывает обоим на отписке во время рассылки. Цепочка из книги теряет своё начало, а middleware ломаются на `next()`."
+leadWidth: 66
+summary: "Наблюдатель из книги и пропущенный сосед при отписке во время рассылки; как массив, `Set`, `EventTarget` и `EventEmitter` ведут себя при отписке, подписке и исключении в слушателе; карта событий вместо голого `CustomEvent`; рассылка не ждёт `async`-слушателей. Посредник со сценарием, тишина от `?.` и опечатка в имени события; шина против стора. Цепочка обязанностей, у которой `a.next(b).next(c)` — это `c`; `compose` и «луковица», `next()` дважды и без `await`."
+verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, таблица рассылки вычислена в Node — `tests/unit/patterns-communication.test.ts`"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Зачем }
+  - { id: s2, label: Наблюдатель }
+  - { id: s3, label: Посредник }
+  - { id: s4, label: Цепочка обязанностей }
+  - { id: s5, label: Тонкие места }
+  - { id: s6, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_COUPLING,
+  PROBLEM_CODE,
+  PATTERN_ROWS,
+  PLAIN_OBSERVER,
+  OBSERVER_CLASSIC_CODE,
+  SELF_DETACH_CODE,
+  OBSERVER_CLASSIC_NOTES,
+  DISPATCH_HEAD,
+  DISPATCH_ROWS,
+  DISPATCH_NOTES,
+  TYPED_CODE,
+  TYPED_NOTES,
+  ASYNC_CODE,
+  ASYNC_NOTE,
+  OBSERVER_PLATFORM_NOTE,
+  PLAIN_MEDIATOR,
+  MEDIATOR_CODE,
+  MEDIATOR_NOTES,
+  BUS_CODE,
+  BUS_NOTES,
+  PLAIN_CHAIN,
+  CHAIN_CODE,
+  CHAIN_HEAD_CODE,
+  CHAIN_NOTES,
+  COMPOSE_CODE,
+  NEXT_BUGS_CODE,
+  COMPOSE_NOTES,
+  INTERCEPTOR_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Паттерны и язык" gap={24}>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COUPLING} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Зачем: кто кого зовёт"
+  lead="С сайта пришла заявка — лид. CRM должна его записать, чтобы менеджер позвонил, а сервис уведомлений — отправить клиенту СМС «свяжемся за 15 минут». Самый прямой код зовёт всех из обработчика формы, и с каждым новым потребителем обработчик знает больше."
+  leadWidth={72}
+>
+  <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  Есть и обратный путь — каждый сервис раз в минуту спрашивает, нет ли новых заявок. Тогда
+  обработчик не знает никого, зато сервисы опаздывают на минуту и шлют запросы впустую. Три
+  паттерна этой темы снимают связи иначе, и у каждого в JavaScript уже есть встроенная форма:
+
+  <Table
+    head={['паттерн', 'что решает', 'что уже есть в JS', 'когда нужна своя версия']}
+    rows={PATTERN_ROWS.map((r) => [r.k, r.task, r.js, r.book])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(120px,.5fr) minmax(170px,.9fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={760}
+  />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Наблюдатель"
+  lead="Издатель держит список подписчиков и, когда что-то случилось, вызывает каждого. Сам он не знает, кто подписан и что подписчик сделает. Пример: новый лид — издатель, сервис СМС и CRM — подписчики."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OBSERVER} />
+
+  ### Книжная версия
+
+  <CodeBlock code={OBSERVER_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <CodeBlock code={SELF_DETACH_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Где книжный `notify` подводит" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={OBSERVER_CLASSIC_NOTES} size={14.5} />
+  </Card>
+
+  ### Список меняется во время рассылки
+
+  Подписчики `a`, `b` и `c` подписаны по порядку, и `a` во время рассылки меняет список.
+  В ячейке — кого рассылка вызвала. `EventTarget` здесь — реализация Node 26; браузерная
+  расходится с ней в одной строке.
+
+  <Table
+    head={DISPATCH_HEAD}
+    rows={DISPATCH_ROWS.map((r) => [r.k, r.got.array, r.got.set, r.got.target, r.got.emitter])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(180px,1fr) minmax(150px,.9fr) minmax(150px,.9fr) minmax(150px,.9fr) minmax(150px,.9fr)"
+    minWidth={800}
+  />
+
+  <Card title="Почему ответы разные" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={DISPATCH_NOTES} size={14.5} />
+  </Card>
+
+  ### Типы событий
+
+  <CodeBlock code={TYPED_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что даёт карта событий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={TYPED_NOTES} size={14.5} />
+  </Card>
+
+  ### Рассылка не ждёт
+
+  <CodeBlock code={ASYNC_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={ASYNC_NOTE} />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={OBSERVER_PLATFORM_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Посредник"
+  lead="Посредник стоит между участниками, которые иначе звали бы друг друга напрямую. Участник сообщает ему «у меня случилось вот это», а посредник решает, кого и в каком порядке позвать. Пример: обработчик события просит отправить уведомление, а посредник отправляет его, пишет в журнал и сбрасывает кеш."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MEDIATOR} />
+
+  ### Книжная версия
+
+  <CodeBlock code={MEDIATOR_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что здесь стоит заметить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={MEDIATOR_NOTES} size={14.5} />
+  </Card>
+
+  ### Шина и стор
+
+  На фронтенде посредником чаще всего служит компонент-родитель: он держит поля формы и кнопку
+  «Отправить», и кнопке не нужно знать о полях. Когда участники живут в разных частях
+  приложения, посредником становится общий объект — шина событий или стор.
+
+  <CodeBlock code={BUS_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Чем шина отличается от стора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={BUS_NOTES} size={14.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Цепочка обязанностей"
+  lead="Запрос проходит через ряд обработчиков. Каждый делает своё и решает, передать ли запрос следующему. Пример — HTTP-запрос: проверка доступа, проверка тела, контроллер. Иногда паттерн называют Chain of Command; в книге и в литературе — Chain of Responsibility."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHAIN} />
+
+  ### Книжная версия: звенья-объекты
+
+  <CodeBlock code={CHAIN_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <CodeBlock code={CHAIN_HEAD_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что показывает цепочка из объектов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={CHAIN_NOTES} size={14.5} />
+  </Card>
+
+  ### Middleware: массив функций и `next`
+
+  <CodeBlock code={COMPOSE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <CodeBlock code={NEXT_BUGS_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Как устроена цепочка из функций и где она ломается" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={COMPOSE_NOTES} size={14.5} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={INTERCEPTOR_NOTE} />
+</Section>
+
+<Section id="s5" eyebrow="Раздел 5" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Источники"
+  lead="Книга «банды четырёх» описывает эти паттерны для C++ и Smalltalk; спецификация DOM и документация Node — для того, что из них встроено в платформу."
+  leadWidth={72}
+>
+  <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

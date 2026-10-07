@@ -1,0 +1,460 @@
+---
+title: "React изнутри: свой рендерер и хуки"
+order: 3
+kicker: фреймворки изнутри
+lead: "Файбер, `alternate`, очередь хука, коммит — слова из исходников React, за которыми стоит около трёхсот строк кода. Здесь эти строки написаны по шагам: они рендерят настоящее дерево, хранят состояние в хуках и объединяют обновления — и тест сверяет их с React 19.3 там, где они ведут себя одинаково, и там, где нет."
+leadWidth: 66
+summary: "Мини-React своими руками: элемент, файбер и прерываемый цикл, две фазы и двойная буферизация, сверка по ключам, хуки как массив ячеек, батчинг и порядок эффектов."
+verifiedOn: React 19.3 · Node 26.8
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Элемент }
+  - { id: s2, label: Файбер и цикл }
+  - { id: s3, label: Две фазы }
+  - { id: s4, label: Сверка }
+  - { id: s5, label: Хуки }
+  - { id: s6, label: Батчинг }
+  - { id: s7, label: Эффекты }
+  - { id: s8, label: Всё вместе }
+  - { id: s9, label: Против React }
+  - { id: s10, label: Тонкие места }
+  - { id: s11, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MiniFiber from '@/widgets/mini-fiber/ui/MiniFiber.vue';
+import {
+  BATCH_NOTE,
+  DEMO_NOTE,
+  DEMO_SCENARIOS,
+  DEVTOOLS_CODE,
+  DEVTOOLS_LOG,
+  DEVTOOLS_NOTE,
+  DIFF,
+  DIFF_NOTE,
+  EFFECTS_MOUNT_LOG,
+  EFFECTS_NOTE,
+  EFFECTS_UPDATE_LOG,
+  ELEMENT_DIFF,
+  GLOSSARY,
+  HOOK_ORDER_NOTE,
+  HOST_SHAPE,
+  KEYS_LINK,
+  MINI_REACT_CODE,
+  NO_BAILOUT_CODE,
+  NO_BAILOUT_LOG,
+  PITFALLS,
+  PLAIN_BUFFERS,
+  PLAIN_EFFECTS,
+  PLAIN_ELEMENT,
+  PLAIN_HOOK_ORDER,
+  PLAIN_LAST_PLACED,
+  PLAIN_LINKED,
+  PLAIN_SCHEDULED,
+  PREREQ,
+  PREREQ_NOTE,
+  QUEUE_LINK,
+  RECONCILER_NOTE,
+  RELATED,
+  RESTART_NOTE,
+  S1_LEAD,
+  SOURCES,
+  STEP_EFFECTS,
+  STEP_ELEMENT,
+  STEP_FIBER,
+  STEP_HOOKS,
+  STEP_PHASES,
+  STEP_RECONCILE,
+  STEP_SCHEDULE,
+  UNMOUNT_LOG,
+  UNMOUNT_NOTE,
+  LAST_PLACED_SCENE_CODE,
+  LAST_PLACED_SCENE_NOTE,
+  LAST_PLACED_SCENE_STEPS,
+  HOOK_SCENE_CODE,
+  HOOK_SCENE_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Правила React как следствия кода"
+  lead="Поведение React обычно пересказывают правилами: хуки только на верхнем уровне, ключи стабильные, эффекты после коммита, `setState` не меняет значение сразу. Каждое из этих правил — следствие одной-двух строк кода. Когда видна строка, правило перестаёт быть заклинанием: понятно, что именно сломается, если его нарушить, и почему сломается молча."
+  leadWidth={70}
+>
+  <CardGrid min={240} gap={14}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
+  <CardGrid min={260} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Элемент: JSX — это вызов функции"
+  lead={S1_LEAD}
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ELEMENT} />
+
+  <Card title="Шаг 1 · `createElement`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_ELEMENT} />
+
+
+    `key` вынимается из пропсов и живёт рядом с ними: он нужен рендереру, а не компоненту, —
+    поэтому внутри компонента `props.key` всегда `undefined`. Дети сплющиваются в один массив:
+    `map()` внутри JSX даёт массив, и он встаёт в ряд с остальными детьми. `null`, `false`
+    и `true` выбрасываются — поэтому условие через `&&` прямо в JSX ничего не рисует, когда оно ложно.
+
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ELEMENT_DIFF} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Файбер: дерево, которое можно обходить по кусочку"
+  lead="Функции компонентов надо вызывать сверху вниз, а обход нужно уметь прервать между любыми двумя узлами. Рекурсия второго не умеет: её состояние — стек вызовов, и отложить его на потом нельзя. Файбер хранит обход в самих узлах: три указателя — `child`, `sibling`, `return` — и одна переменная, `nextUnitOfWork`."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LINKED} />
+
+  <Card title="Шаг 2 · файбер и рабочий цикл" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_FIBER} />
+
+
+    `performUnitOfWork` обрабатывает один файбер и возвращает следующий. Порядок всегда один:
+    **вниз** к первому ребёнку, если он есть; иначе **вбок** к брату; иначе **вверх** к родителю —
+    и оттуда снова вбок. Подъём — это момент, когда поддерево готово целиком: здесь вызывается
+    `completeUnitOfWork`, и поэтому всё, что собирается на подъёме, собирается **снизу вверх**.
+
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card tone="ok" color="tone" pad={16} radius={4} size={15.5} lh={1.6}>
+
+      **Прерываемость — это `shouldYield`.** Между двумя файберами цикл спрашивает, не пора ли
+      отдать поток. Ответ «пора» — и `workLoop` возвращается, оставив в `nextUnitOfWork` закладку.
+      Следующий вызов продолжит ровно с неё.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5} lh={1.6}>
+
+      **Кто отвечает на вопрос — хост.** У React это планировщик: «истёк ли квант около 5 мс».
+      Что он режет и как возвращается — в [«Ре-рендеринге в React», раздел «Батчинг и нарезка»](/frameworks/react-rerender/#s4).
+      В демо ниже квант сжат до одного файбера, чтобы прерывание было видно на пяти узлах.
+
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Render и commit: считать сколько угодно, показывать один раз"
+  lead="Render-фаза строит второе дерево — work-in-progress — и не трогает то, что видит пользователь. Коммит одним заходом применяет результат и меняет деревья ролями: дерево в работе становится текущим, а бывшее текущее — черновиком для следующего рендера."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUFFERS} />
+
+  <Card title="Рендерер не знает, во что рисует" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+
+    Всё, что меняет «экран», рендерер делает через объект `host` — host config. В демо ниже
+    это дерево обычных объектов с журналом, в `react-dom` — настоящий DOM.
+    Сверка, хуки и планирование от выбора хоста не зависят.
+
+    <CodeBlock code={HOST_SHAPE} />
+  </Card>
+
+  <Card tone="dim" title="Настоящий host config: `react-reconciler`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={RECONCILER_NOTE} />
+
+  <Card title="Шаг 3 · два буфера и коммит" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_PHASES} />
+
+
+    `createWorkInProgress` не создаёт файбер, если у текущего уже есть пара: он берёт её
+    и перезаписывает. Первое обновление заводит пары, второе пишет в объекты первого рендера,
+    третье — в объекты второго. Объектов два на каждый узел, сколько бы рендеров ни было.
+
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5} lh={1.6}>
+
+      **Узлы создаются в render-фазе.** `createInstance` вызывается, когда цикл дошёл до файбера,
+      а на подъёме `completeUnitOfWork` складывает детей внутрь нового узла. Новое поддерево
+      собирается целиком **вне документа**, и коммиту остаётся вставить одну его вершину.
+
+    </Card>
+    <Card tone="ok" color="tone" pad={16} radius={4} size={15.5} lh={1.6}>
+
+      **Коммит не спрашивает `shouldYield`.** В нём нет ни одной точки, где можно остановиться:
+      удаления, вставки, правки, смена буферов и layout-эффекты идут одним вызовом. Чем фазы
+      отличаются по гарантиям — таблица в [«Ре-рендеринге в React», раздел «Модель»](/frameworks/react-rerender/#s1).
+
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Сверка: тип решает, ключ сопоставляет"
+  lead="Для каждого ребёнка сверка ищет в прошлом дереве файбер с тем же ключом, а если ключа нет — на той же позиции. Нашёлся и тип тот же — файбер обновляется и сохраняет всё, что в нём было: узел, хуки, состояние. Не нашёлся или тип другой — появляется новый файбер, а старый уходит в список на удаление."
+  leadWidth={70}
+>
+  <Card title="Шаг 4 · `reconcileChildren` и флаги" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_RECONCILE} />
+  </Card>
+
+  ### Отметка на одной перестановке
+
+  <CodeBlock code={LAST_PLACED_SCENE_CODE} />
+
+  <Md text={LAST_PLACED_SCENE_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {LAST_PLACED_SCENE_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={st.what} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAST_PLACED} />
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card pad={16} radius={4} size={15.5} lh={1.6}>
+
+      **`lastPlacedIndex` — один проход без поиска «лучшей» перестановки.** Файбер, чей старый
+      индекс меньше отметки, получает `Placement` — едет. Остальные остаются, и отметка
+      сдвигается. Проход линейный, но не минимальный: из `[a, b, c]` в `[c, a, b]` едут два узла.
+      React двигает те же два.
+      Vue ту же перестановку делает одним переносом: он ищет наибольшую возрастающую
+      подпоследовательность — [«Vue 3 изнутри: рендерер и patch», раздел «С ключами»](/frameworks/vue-patch-internals/#s4).
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5} lh={1.6}>
+
+      **`Placement` в новом поддереве ставится один раз — на вершине.** Файберы внутри нового
+      поддерева флагов не получают: их узлы уже собраны в вершину на подъёме. Поэтому на первом
+      монтировании в контейнер уходит **одна** вставка — у мини-версии и у React.
+
+    </Card>
+    <Card tone="err" color="tone" pad={16} radius={4} size={15.5} lh={1.6}>
+
+      **Тип не совпал — поддерево заново.** Сверка не заглядывает внутрь: другой тип значит
+      новый файбер, а всё старое поддерево уходит в `deletions` вместе с состоянием. Как это
+      выглядит в живом коде — в [«Ре-рендеринге в React», раздел «Дерево»](/frameworks/react-rerender/#s2),
+      карточка про компонент, объявленный внутри компонента.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={KEYS_LINK} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Хуки: массив ячеек на файбере"
+  lead="У функции компонента нет своего места для памяти: она вызывается заново и теряет всё локальное. Память живёт на файбере, в массиве `hooks`. Хук не знает своего имени — он находит ячейку по номеру вызова: первый `useState` берёт нулевую ячейку прошлого рендера, второй — первую."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOOK_ORDER} />
+
+  <Card title="Шаг 5 · `useState`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_HOOKS} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card tone="err" title="Отсюда правило хуков" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+      Весь адрес ячейки — `hookIndex`, счётчик вызовов с начала функции. Хук под условием или
+      в цикле сдвигает счётчик для всех, кто идёт после него.
+
+      <Md text={HOOK_ORDER_NOTE} />
+    </Card>
+
+    <Card title="Обновление — запись в очередь" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+      `setState` не меняет значение: он дописывает действие в `queue` и просит о рендере.
+      Значение появляется в **следующем** вызове функции, когда `useState` пройдёт по очереди.
+      Сама функция `setState` создаётся один раз, при монтировании, и дальше берётся из
+      ячейки: у мини-версии и у React это один и тот же объект во всех рендерах. Поэтому её
+      не нужно указывать в зависимостях эффекта.
+
+    </Card>
+  </CardGrid>
+
+  ### Хук под условием: что происходит с ячейками
+
+  <CodeBlock code={HOOK_SCENE_CODE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {HOOK_SCENE_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={st.what} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={QUEUE_LINK} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Батчинг: одна микрозадача на все `setState`"
+  lead="Рендер начинается не в `setState`, а в микрозадаче, которую ставит первый вызов. Флаг `scheduled` не даёт поставить вторую, пока первая не выполнилась, — и все `setState` одного обработчика попадают в один рендер."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCHEDULED} />
+
+  <Card title="Шаг 6 · `render`, `scheduleUpdate`, `performWork`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_SCHEDULE} />
+
+    <Md text={BATCH_NOTE} />
+  </Card>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={RESTART_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Эффекты: layout — внутри коммита, `useEffect` — после"
+  lead="Эффект в render-фазе только запоминает функцию и решает, пора ли её вызвать: изменились ли зависимости. Вызывает её коммит — layout-эффекты в той же задаче, что и правка хоста, `useEffect` отдельной задачей позже, сначала все очистки, потом все эффекты."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EFFECTS} />
+
+  <Card title="Шаг 7 · `useEffect` и `useLayoutEffect`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_EFFECTS} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card title="Первое монтирование" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={EFFECTS_MOUNT_LOG.join('\n')} tone="ok" />
+
+      Рендер сверху вниз, эффекты снизу вверх: список эффектов собирается на подъёме, и ребёнок
+      попадает в него раньше родителя.
+
+    </Card>
+
+    <Card title="Обновление `Counter`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={EFFECTS_UPDATE_LOG.join('\n')} tone="ok" />
+
+      Очистка прошлого layout-эффекта — в коммите, до нового. Очистка прошлого `useEffect` —
+      в отдельной задаче, но тоже до нового: новый эффект не увидит несобранный старый.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={EFFECTS_NOTE} />
+
+  <Card tone="warn" title="Удаление: порядок обратный" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={UNMOUNT_LOG.join('\n')} tone="ok" />
+
+    <Md text={UNMOUNT_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8 · демо"
+  eyebrowTone="demo"
+  title="Весь рендерер по шагам"
+  lead="Четыре сценария проходят через один и тот же код. Разница между ними видна не в рендерере, а в журнале хоста: первое монтирование собирает дерево вне документа и вставляет его одной операцией, обновление правит один текстовый узел, перестановка двигает два узла, а три `setState` дают один рендер."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEMO_NOTE} />
+
+  <MiniFiber client:visible code={MINI_REACT_CODE} scenarios={DEMO_SCENARIOS} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Чего в мини-версии нет"
+  lead="На сценариях этой темы мини-версия выдаёт то же, что React: ту же разметку и тот же порядок рендеров и эффектов. Но делает она это проще, и главное упрощение одно — рендер всегда идёт от корня."
+  leadWidth={70}
+>
+  <Table
+    head={DIFF.head}
+    rows={DIFF.rows}
+    cols="minmax(160px,.9fr) minmax(180px,1fr) minmax(260px,1.6fr)"
+    kinds={['prose', 'muted', 'muted']}
+    minWidth={640}
+  />
+
+  <Card title="Где мини-версия расходится с React" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={NO_BAILOUT_CODE} />
+
+    <CodeBlock code={`мини-версия:  ${NO_BAILOUT_LOG.mini.join(' → ')}\nReact 19.3:   ${NO_BAILOUT_LOG.react.join(' → ')}`} tone="ok" />
+
+    <Md text={DIFF_NOTE} />
+  </Card>
+
+  ### Как это дерево видят инструменты разработчика
+
+  <Card title="Хук, через который React DevTools читает файберы" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={DEVTOOLS_CODE} />
+
+    <CodeBlock code={DEVTOOLS_LOG.join('\n')} tone="ok" />
+
+    <Md text={DEVTOOLS_NOTE} />
+  </Card>
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s11"
+  eyebrow="Раздел 11"
+  title="Источники"
+  lead="Спецификации у React нет — есть исходники. Поэтому ссылки ведут в файлы, где лежат настоящие версии функций с теми же именами, что и здесь."
+  leadWidth={70}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

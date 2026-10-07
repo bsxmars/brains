@@ -1,0 +1,159 @@
+---
+/**
+ * Дерево переходов форм: почему `{x, y}` и `{y, x}` — разные формы.
+ *
+ * Дерево, а не таблица, — это и есть ответ на вопрос «почему порядок присваивания важен».
+ * Две ветки от пустого объекта расходятся на первом же поле и больше не сходятся, сколько
+ * бы одинаковых полей в них ни добавили.
+ */
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+
+const CHECK = `const a = {x:1, y:2}, b = {y:2, x:1}, c = {x:9, y:9};
+%HaveSameMap(a, b);   // false — порядок другой
+%HaveSameMap(a, c);   // true  — порядок тот же, значения не важны`;
+---
+
+<div class="frame">
+  <div class="t-eyebrow t-eyebrow--panel">Порядок присваивания задаёт путь по дереву</div>
+
+  <div class="scroll">
+    <div class="tree">
+      <div class="root">Map0 · пустой объект &#123; &#125;</div>
+
+      <div class="branches">
+        <div class="edge" data-branch="left"><span class="edge__key">+ "x"</span><span class="edge__line"></span><span class="edge__tip">▼</span></div>
+        <div class="edge" data-branch="right"><span class="edge__key">+ "y"</span><span class="edge__line"></span><span class="edge__tip">▼</span></div>
+      </div>
+
+      <div class="node" data-branch="left">Map1</div>
+      <div class="node" data-branch="right">Map1'</div>
+
+      <div class="edge" data-branch="left"><span class="edge__key">+ "y"</span><span class="edge__line"></span><span class="edge__tip">▼</span></div>
+      <div class="edge" data-branch="right"><span class="edge__key">+ "x"</span><span class="edge__line"></span><span class="edge__tip">▼</span></div>
+
+      <div class="node node--leaf" data-branch="left">Map2 · &#123;x, y&#125;</div>
+      <div class="node node--leaf" data-branch="right">Map2' · &#123;y, x&#125;</div>
+    </div>
+  </div>
+
+  <CodeBlock code={CHECK} />
+
+  <div class="why">
+    <b>Почему именно дерево, а не таблица.</b> Дерево даёт дешёвое переиспользование: когда
+    движок в тысячный раз выполняет <code>this.x = ...</code> в конструкторе, он не создаёт новую
+    форму, а идёт по готовому ребру. Создание объекта «известного» типа не стоит почти ничего.
+  </div>
+</div>
+
+<style>
+  .frame {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .scroll {
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .tree {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    justify-items: center;
+    min-width: 440px;
+  }
+
+  .root {
+    grid-column: 1 / span 2;
+    padding: 11px 18px;
+    border: 1px solid var(--ink);
+    border-radius: var(--r3);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+  }
+
+  .branches {
+    grid-column: 1 / span 2;
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+  }
+
+  /* Ребро дерева: подпись «какое поле добавили», вертикаль и остриё. */
+  .edge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 0;
+  }
+  /* Ступень та же, что у узлов: подпись ребра — главное на схеме («в каком порядке добавили»),
+     на `--fs-1` она не читалась. */
+  .edge__key {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+  }
+  .edge__line {
+    width: 0;
+    height: 18px;
+    border-left: 2px solid currentcolor;
+  }
+  .edge__tip {
+    font-size: var(--fs-1);
+    line-height: 1;
+  }
+  .edge[data-branch='left'] {
+    color: var(--accent);
+  }
+  .edge[data-branch='right'] {
+    color: var(--bar-amber);
+  }
+  .edge[data-branch='left'] .edge__key {
+    color: var(--tone-info-strong);
+  }
+  .edge[data-branch='right'] .edge__key {
+    color: var(--tone-warn-strong);
+  }
+
+  .node {
+    padding: 11px 16px;
+    border-radius: var(--r3);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+  }
+  .node[data-branch='left'] {
+    border: 1px solid var(--tone-info-line);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-strong);
+  }
+  .node[data-branch='right'] {
+    border: 1px solid var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .node--leaf {
+    font-weight: 600;
+  }
+  .node--leaf[data-branch='left'] {
+    border-width: 1.5px;
+    border-color: var(--accent);
+  }
+  .node--leaf[data-branch='right'] {
+    border-width: 1.5px;
+    border-color: var(--bar-amber);
+  }
+
+  .why {
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-7);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+</style>

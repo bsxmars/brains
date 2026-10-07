@@ -1,0 +1,377 @@
+---
+title: "Планировщики: очередь с приоритетом и нарезка времени"
+heading: "Планировщики: очередь с приоритетом и нарезка времени"
+headingWidth: 24
+order: 5
+kicker: алгоритмы во фронтенде
+lead: "Клик, рендер списка, предзагрузка и аналитика хотят один и тот же поток. Планировщик решает, что делать следующим и когда остановиться. Внутри у него двоичная куча, где самый срочный всегда сверху, и квант в 5 мс, после которого поток возвращается браузеру. Здесь куча и планировщик в духе React написаны по шагам и сверены с настоящим пакетом `scheduler`."
+leadWidth: 66
+summary: "Очередь с приоритетом и почему не отсортированный массив, двоичная куча на массиве и просеивание по шагам, устойчивость через счётчик, пакет `scheduler` из React: две кучи, приоритеты как сроки, квант, продолжения, `MessageChannel`, голодание и старение по сроку — и чем от него отличается `scheduler.postTask`."
+verifiedOn: "scheduler 0.28.0 (из react-dom 19.3.0), Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: мини-планировщик темы и настоящий пакет прогнаны на одних виртуальных часах в tests/unit/schedulers.test.ts, журналы совпадают дословно; куча сверена с сортировкой и с кучей из исходника scheduler"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Очередь }
+  - { id: s2, label: Куча }
+  - { id: s3, label: Равные сроки }
+  - { id: s4, label: Две кучи }
+  - { id: s5, label: Нарезка }
+  - { id: s6, label: Голодание }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import HeapLab from '@/widgets/sched-lab/ui/HeapLab.vue';
+import SchedLab from '@/widgets/sched-lab/ui/SchedLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_PQ,
+  PREREQ,
+  PREREQ_NOTE,
+  TASK_ROWS,
+  QUEUE_NOTE,
+  SORTED_CODE,
+  SORTED_NOTE,
+  COST_ROWS,
+  COST_NOTE,
+  PLAIN_HEAP,
+  PLAIN_ARRAY_TREE,
+  HEAP_CODE,
+  HEAP_NOTE,
+  PUSH_STEPS,
+  STEPS_NOTE,
+  HEAP_SCENARIOS,
+  HEAP_CAPTION,
+  LESS_NO_ID_CODE,
+  NO_ID_ORDERS,
+  STABLE_NOTE,
+  STABLE_POSTTASK,
+  PLAIN_TWO_HEAPS,
+  PRIORITY_ROWS,
+  PRIORITY_NOTE,
+  HOST_CODE,
+  HOST_NOTE,
+  SCHED_CODE,
+  SCHED_FACTS,
+  HOST_FACTS,
+  PLAIN_SLICE,
+  JOB_CODE,
+  SCENARIO_CODE,
+  JOB_NOTE,
+  CONTINUATION_NOTE,
+  ALWAYS_YIELD_NOTE,
+  SLICE_NOTE,
+  SCHED_SCENARIOS,
+  SCHED_CAPTION,
+  STARVE_NOTE,
+  PLAIN_AGING,
+  EXPIRED_NOTE,
+  POSTTASK_NOTE,
+  LANES_LINK,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Что следующим" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Планировщик не делает работу быстрее. Он отвечает на два вопроса: **что взять следующим**
+    и **когда остановиться**. На первый отвечает куча — самый срочный всегда наверху, вставка
+    и изъятие за `O(log n)`. На второй — квант: поработал 5 мс, вернул поток браузеру.
+
+  </Callout>
+
+  Поток у страницы один. Пока выполняется рендер длинного списка, клик ждёт, и пользователь
+  видит зависание. Если бы все задачи были одинаково важны, хватило бы обычной очереди:
+  первым пришёл — первым сделали. Но клик важнее аналитики, а рендер важнее предзагрузки.
+  Нужна очередь, которая выдаёт не самое старое, а самое срочное, и цикл, который вовремя
+  отдаёт поток.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PQ} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Много работы, один поток"
+  lead="Работа приходит всё время и разной срочности. Планировщику нужна структура, которая быстро принимает новую задачу и быстро отдаёт самую срочную. Первое, что приходит в голову, — держать массив отсортированным. Это работает, пока задач мало."
+  leadWidth={72}
+>
+  <Table
+    head={['работа', 'кто ждёт', 'подходящий приоритет']}
+    rows={TASK_ROWS.map((r) => [r.k, r.who, r.prio])}
+    tones={TASK_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(200px,1fr) minmax(240px,1.3fr) minmax(190px,.9fr)"
+    minWidth={640}
+  />
+
+  <Md text={QUEUE_NOTE} />
+
+  <Card title="Отсортированный массив" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SORTED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SORTED_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Сколько стоит вставка
+
+  <Table
+    head={['ключи', 'n', 'куча: n × push', 'куча: n × pop', 'массив: n × вставка']}
+    rows={COST_ROWS.map((r) => [r.keys, r.n.toLocaleString('ru-RU'), r.heapPush.toLocaleString('ru-RU'), r.heapPop.toLocaleString('ru-RU'), r.sorted.toLocaleString('ru-RU')])}
+    tones={COST_ROWS.map((r) => (r.keys === 'растущие' ? 'warn' : 'info'))}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(110px,.8fr) minmax(80px,.6fr) minmax(130px,1fr) minmax(130px,1fr) minmax(160px,1.1fr)"
+    minWidth={640}
+  />
+
+  <Md text={COST_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Двоичная куча на массиве"
+  lead="Куча не сортирует всё. Она держит одно правило: родитель срочнее своих детей. Отсюда сразу следует, что самый срочный — в корне, а чтобы восстановить правило после вставки или изъятия, достаточно пройти одну ветку дерева."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HEAP} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ARRAY_TREE} />
+
+  <Card title="Куча целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HEAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={HEAP_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Пять задач по шагам
+
+  <Table
+    head={['операция', 'массив после', 'что произошло']}
+    rows={PUSH_STEPS.map((r) => [r.op, r.arr, r.how])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(130px,.6fr) minmax(250px,1.2fr) minmax(280px,1.6fr)"
+    minWidth={700}
+  />
+
+  <Md text={STEPS_NOTE} />
+
+  ### Куча и массив рядом
+
+  <HeapLab
+    client:visible
+    heapCode={HEAP_CODE}
+    sortedCode={SORTED_CODE}
+    lessNoIdCode={LESS_NO_ID_CODE}
+    scenarios={HEAP_SCENARIOS}
+    caption={HEAP_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Равные сроки и счётчик"
+  lead="Две задачи одного приоритета, поставленные в одну миллисекунду, получают одинаковый срок. Куча сама по себе не помнит, какая пришла первой."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Сравнение без второго ключа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LESS_NO_ID_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="В каком порядке выходят задачи 1…n" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['n', 'порядок выхода']}
+        rows={NO_ID_ORDERS.map((r) => [String(r.n), r.order])}
+        kinds={['mono', 'mono']}
+        cols="minmax(50px,.3fr) minmax(180px,1fr)"
+        minWidth={240}
+      />
+    </Card>
+  </CardGrid>
+
+  <Md text={STABLE_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={STABLE_POSTTASK} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Планировщик React: две кучи"
+  lead="Пакет `scheduler` стоит в каждом проекте на React: его тянет `react-dom`. О компонентах он ничего не знает — принимает функции с приоритетом и решает, когда их звать. Внутри две кучи: готовые задачи по сроку и отложенные по времени старта."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_HEAPS} />
+
+  ### Приоритет — это срок
+
+  <Table
+    head={['приоритет', 'число', 'таймаут, мс', 'что значит']}
+    rows={PRIORITY_ROWS.map((r) => [r.name, String(r.n), r.timeout.toLocaleString('ru-RU'), r.meaning])}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(190px,1fr) minmax(60px,.3fr) minmax(130px,.6fr) minmax(260px,1.6fr)"
+    minWidth={700}
+  />
+
+  <Md text={PRIORITY_NOTE} />
+
+  ### Хост и планировщик
+
+  <Card title="Хост: часы и цикл событий" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HOST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={HOST_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Планировщик в духе scheduler 0.28" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCHED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {SCHED_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={HOST_FACTS} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Нарезка и продолжения"
+  lead="Одна макрозадача — один квант. Внутри планировщик берёт задачи из кучи, пока не прошло 5 мс. Длинная задача сама спрашивает `shouldYield()` и, если пора, возвращает продолжение — остаток работы. Тогда поток уходит браузеру, а остаток выполнится в следующем кванте."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SLICE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Работа, которую можно резать" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={JOB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Сценарий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCENARIO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={JOB_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    <Card pad={18} radius={5} size={15.5} lh={1.6} text={CONTINUATION_NOTE} />
+    <Card tone="warn" color="tone" pad={18} radius={5} size={15.5} lh={1.6} text={ALWAYS_YIELD_NOTE} />
+  </CardGrid>
+
+  ### Клик посреди рендера
+
+  <Md text={SLICE_NOTE} />
+
+  <SchedLab
+    client:visible
+    heapCode={HEAP_CODE}
+    schedCode={SCHED_CODE}
+    hostCode={HOST_CODE}
+    jobCode={JOB_CODE}
+    scenarioCode={SCENARIO_CODE}
+    scenarios={SCHED_SCENARIOS}
+    caption={SCHED_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Голодание и старение по сроку"
+  lead="Если срочная работа приходит без перерыва, несрочная может не начаться никогда. Планировщику React отдельный механизм против этого не нужен: срок задачи не меняется, а сроки новых задач растут вместе со временем. Рано или поздно старая задача оказывается срочнее любой свежей."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AGING} />
+
+  <Md text={STARVE_NOTE} />
+
+  <Card tone="warn" color="tone" pad={18} radius={5} size={15.5} lh={1.6} text={EXPIRED_NOTE} />
+
+  ### А в браузере
+
+  <Md text={POSTTASK_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={LANES_LINK} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Приоритет, превращённый в срок, решает две задачи сразу.** Куча по сроку выдаёт срочное
+      первым, а растущее «сейчас» само старит то, что ждёт. Квант и продолжения не дают одной
+      работе занять поток, а просрочка — не даёт уступкам тянуться вечно.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,127 @@
+---
+/**
+ * Раздел урока: линия сверху, надзаголовок, H2 и лид.
+ *
+ * Два вида, и различаются они не украшением, а смыслом линии сверху:
+ *   intro   — вводный раздел «зачем тема отдельно»: волосяная линия и серый надзаголовок;
+ *   section — нумерованный раздел: линия чернилами, отбивка 72px.
+ *
+ * Первый нумерованный раздел идёт сразу за вводным и отбивки сверху не имеет — за это
+ * отвечает правило с соседним селектором, а не проп: порядок разделов виден только в вёрстке.
+ *
+ * Размеры текста компонент не задаёт: заголовок и лид берут роли из шкалы (`t-h2`, `t-lead`),
+ * поэтому общий масштаб курса меняется одним числом в `theme.ts`. В scoped-стилях остаётся
+ * только то, что принадлежит именно разделу, — линии, отбивки и одно исключение по высоте строки.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+type Variant = 'intro' | 'section';
+type EyebrowTone = 'accent' | 'demo' | 'muted';
+
+interface Props {
+  id?: string;
+  variant?: Variant;
+  eyebrow?: string;
+  /** Тон надзаголовка: раздел (фиолетовый), демо (янтарный), вводный (серый). */
+  eyebrowTone?: EyebrowTone;
+  title?: string;
+  lead?: string;
+  /** Ширина лида в `ch` — в оригиналах 68 или 70. */
+  /** Устарел. Решение автора курса (2026-09-28): текстовые блоки — на всю ширину колонки; проп оставлен для совместимости и ширину не ограничивает. */
+  leadWidth?: number;
+  /** Расстояние между блоками раздела; по умолчанию 30px, у вводного 22px. */
+  gap?: number;
+}
+
+const {
+  id,
+  variant = 'section',
+  eyebrow,
+  eyebrowTone = variant === 'intro' ? 'muted' : 'accent',
+  title,
+  lead,
+  gap,
+} = Astro.props;
+
+const TONE_CLASS: Record<EyebrowTone, string> = {
+  accent: '',
+  demo: 't-eyebrow--demo',
+  muted: 't-eyebrow--muted',
+};
+
+const hasHeader = Boolean(eyebrow || title || lead);
+---
+
+<section
+  id={id}
+  class:list={['section', `section--${variant}`]}
+  style={gap ? `--section-gap:${gap}px` : undefined}
+>
+  {
+    hasHeader && (
+      <div class="header">
+        {eyebrow && <div class:list={['t-eyebrow', TONE_CLASS[eyebrowTone]]}>{eyebrow}</div>}
+        {title && <h2 class="t-h2" set:html={inlineMd(title)} />}
+        {lead && (
+          <p class="lead t-lead" set:html={inlineMd(lead)} />
+        )}
+      </div>
+    )
+  }
+  <slot />
+</section>
+
+<style>
+  /*
+   * Якорь останавливается ниже липкой стопки, а не под ней.
+   *
+   * Переход по пункту полосы разделов ставит верх раздела в самый верх окна — а там стоят две
+   * липкие полосы: разделы (60px) и стрелка «назад» (её верх 60px, низ 115.6px, измерено
+   * на 1280px). Без запаса заголовок раздела оказывался **на 42.6px под ними** — обрезанным,
+   * ровно как это и выглядело у читателя.
+   *
+   * 124px = 116 липкой стопки + 8 воздуха, чтобы линия раздела не липла к полосе вплотную.
+   *
+   * ⚠️ Число связано с двумя чужими файлами: высотой полосы в `widgets/lesson-nav` и пропом
+   * `stickyTop` у стрелки в `pages/[direction]/[slug].astro`. Поэтому оно не «подобрано
+   * на глаз», а закрыто проверкой `tests/e2e/anchors.spec.ts`: та кликает по пункту полосы
+   * и требует, чтобы заголовок раздела оказался ниже обеих полос.
+   */
+  .section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--section-gap, 30px);
+    scroll-margin-top: 124px;
+  }
+
+  .section--intro {
+    border-top: 1px solid var(--hairline);
+    padding: 32px 0 48px;
+    gap: var(--section-gap, 22px);
+  }
+
+  .section--section {
+    border-top: 1px solid var(--ink);
+    margin-top: 72px;
+    padding: 72px 0 0;
+  }
+
+  /* Вводный раздел уже отбит своим padding — второй отступ дал бы двойную дыру. */
+  .section--intro + .section--section {
+    margin-top: 0;
+  }
+
+  .header {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .section--intro .header {
+    gap: 10px;
+  }
+
+  /* Единственное отличие от роли `t-lead`: во вводном разделе строки чуть плотнее. */
+  .section--intro .lead {
+    line-height: 1.6;
+  }
+</style>

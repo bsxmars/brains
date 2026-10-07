@@ -1,0 +1,444 @@
+---
+title: "Наблюдатели: Intersection, Resize, Mutation"
+heading: "Наблюдатели: Intersection, Resize, Mutation — когда они срабатывают"
+headingWidth: 24
+order: 23
+kicker: браузер и рендеринг
+lead: "Три API с одинаковым словом в имени живут в трёх разных местах цикла событий. `MutationObserver` — микрозадача ещё до кадра, `ResizeObserver` — внутри кадра после раскладки, `IntersectionObserver` — отдельная задача уже после кадра. Отсюда — какие размеры видит колбэк, почему первая запись приходит сразу, откуда берётся `ResizeObserver loop completed` и почему видимая цель бывает «не пересекается»."
+leadWidth: 66
+summary: "Порядок наблюдателей относительно задач, микрозадач и `rAF`, снятый в Chromium; IntersectionObserver: `root`, `rootMargin`, пороги, `intersectionRatio`, первый вызов и `isIntersecting` ниже первого порога, v2 кратко; ResizeObserver: три коробки, `transform`, цикл по глубине и ошибка; MutationObserver: виды записей, `subtree`, `oldValue`, `takeRecords`, почему стили не видны; ленивая загрузка, лента со сторожем, `@container` против ResizeObserver."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026; порог и isIntersecting — ещё Firefox 155.0 и WebKit 26.6. Порядок вызовов, записи MutationObserver и примеры кода снимаются заново в tests/unit/observers.test.ts; модель IntersectionObserver сверена с Chromium на сетке случайных геометрий, модель кругов ResizeObserver — на случайных деревьях"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Место в кадре }
+  - { id: s2, label: Пересечения }
+  - { id: s3, label: Размеры }
+  - { id: s4, label: Изменения DOM }
+  - { id: s5, label: Применения }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ObserverLab from '@/widgets/observer-lab/ui/ObserverLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_OBSERVER,
+  PREREQ,
+  PREREQ_NOTE,
+  ORDER_HTML,
+  ORDER_CODE,
+  ORDER_LOG,
+  ORDER_NOTE,
+  ORDER_ROWS,
+  PLAIN_TASK_AFTER,
+  FRAME_NOTE,
+  IO_USAGE_CODE,
+  IO_OPTION_ROWS,
+  PLAIN_ROOT_MARGIN,
+  IO_CODE,
+  PLAIN_RATIO,
+  IO_ROOT,
+  IO_CASES,
+  IO_FACTS,
+  PLAIN_VISIBILITY,
+  IO_V2_NOTE,
+  IO_THRESHOLD_OPTIONS,
+  IO_DEMO_CAPTION,
+  RO_USAGE_CODE,
+  RO_BOX_ROWS,
+  RO_BOX_NOTE,
+  RO_FACTS,
+  RO_LOOP_MESSAGE,
+  PLAIN_DEPTH,
+  RO_CODE,
+  RO_LOOP_STEPS,
+  RO_LOOP_BAD_CODE,
+  RO_LOOP_FIX_CODE,
+  RO_LOOP_NOTE,
+  RO_SCENES,
+  RO_DEMO_CAPTION,
+  MO_HTML,
+  MO_CODE,
+  MO_LOG,
+  MO_NOTE,
+  MO_OPTION_ROWS,
+  MO_KIND_ERROR,
+  PLAIN_STYLE,
+  MO_STYLE_ROWS,
+  MO_STYLE_NOTE,
+  LAZY_NOTE,
+  LAZY_CODE,
+  SENTINEL_CODE,
+  SENTINEL_FIX_CODE,
+  SENTINEL_NOTE,
+  VIRTUAL_NOTE,
+  APPLY_ROWS,
+  CQ_VS_RO_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Три датчика" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Наблюдатель не делает работу быстрее — он переносит её **в правильное место кадра**.
+    Какое это место, решает не имя API, а спецификация: микрозадача, шаг кадра после
+    раскладки или задача после кадра. От этого зависит, какие данные колбэк видит
+    и когда то, что он поменял, попадёт на экран.
+
+  </Callout>
+
+  До наблюдателей размер и видимость узнавали сами: в обработчиках `scroll` и `resize`
+  читали `getBoundingClientRect()`, а за изменениями DOM следили устаревшими событиями
+  мутаций, которые срабатывали на каждую вставку по отдельности. Наблюдатели сводят
+  всё это к одному вызову с пачкой записей в момент, когда браузер ответ уже знает.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OBSERVER} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Место в кадре"
+  lead="Проще всего увидеть порядок, поставив всех в одну задачу: поменять размер блока, сдвинуть цель в окно и параллельно поставить микрозадачу, таймер и `requestAnimationFrame`. Каждый колбэк пишет в журнал номер кадра."
+  leadWidth={72}
+>
+  <Card title="Разметка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={ORDER_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Эксперимент" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Журнал в Chromium 153" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ORDER_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ORDER_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['наблюдатель', 'когда зовётся', 'что видит колбэк']}
+    rows={ORDER_ROWS.map((r) => [r.k, r.when, r.sees])}
+    tones={ORDER_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(200px,1fr) minmax(280px,1.8fr)"
+    minWidth={720}
+  />
+
+  ### Колбэк после кадра
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TASK_AFTER} />
+
+  <Md text={FRAME_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Пересечения: корень и пороги"
+  lead="IntersectionObserver отвечает на вопрос «какая доля цели попала в прямоугольник корня». Корень — окно или прокручиваемый блок, раздвинутый на `rootMargin`; доля — площадь общей части, делённая на площадь цели."
+  leadWidth={72}
+>
+  <Card title="Как его заводят" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={IO_USAGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['опция', 'значение', 'что важно']}
+    rows={IO_OPTION_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(150px,.7fr) minmax(320px,2fr)"
+    minWidth={640}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROOT_MARGIN} />
+
+  ### Как считается запись
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RATIO} />
+
+  <Card title="Запись IntersectionObserver" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={IO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  Ниже — шесть геометрий, на которых интуиция чаще всего промахивается. Корень везде один:
+  прямоугольник {IO_ROOT.width}×{IO_ROOT.height} в левом верхнем углу.
+
+  <Table
+    head={['случай', 'цель x, y, w, h', 'rootMargin · пороги', 'ratio', 'isIntersecting', 'почему']}
+    rows={IO_CASES.map((c) => [
+      c.k,
+      `\`${c.target.x}, ${c.target.y}, ${c.target.width}, ${c.target.height}\``,
+      `\`${c.rootMargin}\` · \`[${c.thresholds.join(', ')}]\``,
+      String(c.ratio),
+      `\`${c.isIntersecting}\``,
+      c.why,
+    ])}
+    tones={IO_CASES.map((c) => (c.isIntersecting ? 'ok' : 'warn'))}
+    kinds={['prose', 'prose', 'prose', 'mono', 'prose', 'prose']}
+    cols="minmax(140px,.8fr) minmax(120px,.6fr) minmax(150px,.8fr) minmax(50px,.3fr) minmax(90px,.4fr) minmax(260px,1.8fr)"
+    minWidth={900}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {IO_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Порог, кадр и задача
+
+  <ObserverLab
+    client:visible
+    mode="io"
+    ioCode={IO_CODE}
+    thresholdOptions={IO_THRESHOLD_OPTIONS}
+    caption={IO_DEMO_CAPTION}
+  />
+
+  ### Версия 2: видно ли цель человеку
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VISIBILITY} />
+
+  <Md text={IO_V2_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Размеры и глубина"
+  lead="ResizeObserver сообщает размер коробки после раскладки. Размер в записи уже посчитан — читать его бесплатно. Платить приходится, если в ответ на размер поменять другой размер: тогда раскладка считается ещё раз, и браузер решает, успеет ли новый круг в этот кадр."
+  leadWidth={72}
+>
+  <Card title="Как его заводят" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={RO_USAGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['коробка', 'что это', 'на стенде']}
+    rows={RO_BOX_ROWS.map((r) => [r.k, r.what, r.stand])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.7fr) minmax(260px,1.4fr) minmax(260px,1.4fr)"
+    minWidth={720}
+  />
+
+  <Md text={RO_BOX_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {RO_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Цикл и правило глубины
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEPTH} />
+
+  Глубина узла — насколько он вложен в дерево: у ребёнка она на единицу больше, чем у родителя,
+  у соседей одинаковая. Внутри одного кадра ResizeObserver ходит кругами, и каждый круг берёт только тех, кто
+  **глубже** самого мелкого из прошлого круга.
+
+  <Card pad={22} radius={5} gap={16}>
+    <NumberedList items={RO_LOOP_STEPS.map((s) => `**${s.k}.** ${s.d}`)} />
+  </Card>
+
+  <Card title="Один кадр ResizeObserver" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <ObserverLab
+    client:visible
+    mode="ro"
+    roCode={RO_CODE}
+    scenes={RO_SCENES}
+    caption={RO_DEMO_CAPTION}
+  />
+
+  ### Ошибка от одной строки
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Колбэк меняет свою же цель" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RO_LOOP_BAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="То же средствами CSS" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RO_LOOP_FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <Md text={`В консоли: \`${RO_LOOP_MESSAGE}\``} />
+    <Md text={RO_LOOP_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Изменения DOM"
+  lead="MutationObserver сообщает о правках дерева: узлы, атрибуты, текст. Колбэк — микрозадача: он выполнится, когда закончится текущий код, ещё до любого таймера и до кадра, и получит все записи разом."
+  leadWidth={72}
+>
+  <Card title="Разметка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={MO_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Шесть правок и одно отключение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Журнал в Chromium 153" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MO_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={MO_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['опция', 'что даёт']}
+    rows={MO_OPTION_ROWS.map((r) => [r.k, r.d])}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,.8fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={MO_KIND_ERROR} />
+
+  ### Почему не видно стилей
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STYLE} />
+
+  <Table
+    head={['что поменяли', 'что пришло']}
+    rows={MO_STYLE_ROWS.map((r) => [r.k, r.v])}
+    tones={MO_STYLE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(240px,1fr) minmax(240px,1fr)"
+    minWidth={520}
+  />
+
+  <Md text={MO_STYLE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Где что применять"
+  lead="У каждой из типичных задач есть инструмент проще наблюдателя — или наблюдатель с одной поправкой, без которой он ломается на краю."
+  leadWidth={72}
+>
+  ### Ленивая загрузка
+
+  <Md text={LAZY_NOTE} />
+
+  <Card title="Фоны по мере прокрутки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Бесконечная лента
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Сторож — встаёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SENTINEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Поправка после загрузки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SENTINEL_FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={SENTINEL_NOTE} />
+
+  <Md text={VIRTUAL_NOTE} />
+
+  ### `@container` или ResizeObserver
+
+  <Md text={CQ_VS_RO_NOTE} />
+
+  <Table
+    head={['задача', 'инструмент', 'почему']}
+    rows={APPLY_ROWS.map((r) => [r.task, r.tool, r.why])}
+    tones={APPLY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(200px,1fr) minmax(260px,1.4fr)"
+    minWidth={720}
+  />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Выбирая наблюдатель, выбираешь момент.** MutationObserver — сразу после правки,
+      до кадра и без размеров. ResizeObserver — внутри кадра, с готовыми размерами и правом
+      ещё раз поменять раскладку, но только вглубь. IntersectionObserver — после кадра,
+      ступеньками порогов. Если ответ на событие можно выразить в CSS, наблюдатель не нужен
+      вовсе.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

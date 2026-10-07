@@ -1,0 +1,49 @@
+---
+/**
+ * Шапка урока: имя курса, название темы и короткое описание.
+ *
+ * В оригиналах на месте H1 стоял длинный тезис вроде «`.then` не планирует микрозадачу — её
+ * планирует резолв», а над ним висел надзаголовок, наполовину повторявший этот же тезис.
+ * Теперь заголовок называет тему, а тезис ушёл в описание под ним — с него урок и начинается.
+ *
+ * Ширина в `ch`, а не в пикселях: мера у текста — строка, а не экран.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  kicker: string;
+  heading: string;
+  headingWidth?: number;
+  lead: string;
+  /** Устарел: текст идёт на всю ширину колонки (решение автора, 2026-09-28). Проп оставлен для совместимости. */
+  leadWidth?: number;
+}
+
+const { kicker, heading, headingWidth = 16, lead } = Astro.props;
+---
+
+<header class="hero">
+  <div class="t-eyebrow">{kicker}</div>
+  <h1 class="t-h1" style={`max-width:${headingWidth}ch`} set:html={inlineMd(heading)} />
+  <p class="lead hero-lead" set:html={inlineMd(lead)} />
+</header>
+
+<style>
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    /* Отбивку сверху задаёт полоса с выходом к списку уроков — см. `lesson-back`. */
+    /* Низ был 56px и вместе с верхним полем вводного раздела давал дыру ~120px между лидом
+       и первым блоком темы (замечание автора курса 2026-09-30). */
+    padding: 28px 0 32px;
+  }
+
+  /* Описание под заголовком — единственное место, где абзац крупнее лида раздела:
+     это первая фраза урока, и она задаёт ему тон. */
+  .lead {
+    font-size: var(--fs-8);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+</style>

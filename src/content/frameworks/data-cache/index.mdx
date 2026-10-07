@@ -1,0 +1,489 @@
+---
+title: "Кеш данных на клиенте: TanStack Query и SWR"
+heading: "Кеш данных на клиенте: TanStack Query и SWR"
+headingWidth: 24
+order: 16
+kicker: фреймворки изнутри
+lead: "Данные с сервера в браузере — всегда копия, и стареть она начинает в момент получения. TanStack Query и SWR держат такие копии в одной таблице по ключу запроса и решают за компоненты три вопроса: когда показать копию без запроса, когда сходить за новой и кого разбудить, когда она пришла."
+leadWidth: 66
+summary: "Серверное состояние против клиентского, запись кеша по ключу, `status` и `fetchStatus`, дедупликация, `staleTime` против `gcTime`, обновление при фокусе и возврате сети, повторы с паузами, инвалидация, оптимистичное обновление и откат, структурное разделение. Мини-кеш в демо сверен тестом с `@tanstack/query-core` 5 и SWR 2 на одних сценариях."
+verifiedOn: "@tanstack/query-core 5.104.0, swr 2.5.1, React 19.3.0, happy-dom 20.14.5, Node 24.11.0, vitest 5.0.0, октябрь 2026: моменты запросов и состояния наблюдателей сняты на фейковых таймерах и повторяются tests/unit/data-cache.test.ts; мини-кеш темы сверен с query-core на семи сценариях при трёх staleTime; хук useQuery (@tanstack/react-query) не устанавливался — его отслеживание полей описано по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Серверное состояние }
+  - { id: s2, label: Кеш по ключу }
+  - { id: s3, label: Свежесть и сборка мусора }
+  - { id: s4, label: Фокус и повторы }
+  - { id: s5, label: Мутации }
+  - { id: s6, label: Структурное разделение }
+  - { id: s7, label: Кеш в работе }
+  - { id: s8, label: SWR }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import QueryCacheLab from '@/widgets/query-cache-lab/ui/QueryCacheLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_SERVER_STATE,
+  PREREQ,
+  PREREQ_NOTE,
+  STATE_ROWS,
+  NAIVE_CODE,
+  NAIVE_NOTE,
+  PLAIN_CACHE,
+  KEY_CODE,
+  HASHES,
+  KEY_NOTE,
+  CACHE_CODE,
+  STATUS_ROWS,
+  STATUS_NOTE,
+  DEDUPE_ROWS,
+  DEDUPE_CALLS,
+  DEDUPE_NOTE,
+  PLAIN_STALE,
+  OBSERVE_CODE,
+  TIMES_ROWS,
+  FRESH_ROWS,
+  STALE_NOTE,
+  HTTP_SWR_NOTE,
+  HYDRATE_CODE,
+  HYDRATE_CALLS,
+  HYDRATE_NOTE,
+  FOCUS_ROWS,
+  FOCUS_NOTE,
+  OFFLINE_SEEN,
+  OFFLINE_NOTE,
+  RETRY_ROWS,
+  RETRY_NOTE,
+  SERVER_DEFAULTS,
+  SERVER_NOTE,
+  PLAIN_OPTIMISTIC,
+  INVALIDATE_CODE,
+  INVALIDATE_NOTE,
+  OPTIMISTIC_CODE,
+  TQ_MUTATION_CODE,
+  TQ_MUTATION_NOTE,
+  MUTATION_ROWS,
+  RACE_NOTE,
+  SHARE_CODE,
+  SHARE_SAMPLE,
+  SHARE_REFS,
+  SHARE_NOTE,
+  NOTIFY_COUNTS,
+  TRACKED_NOTE,
+  SCENARIOS,
+  STALE_OPTIONS,
+  SERVER_LATENCY,
+  SERVER_TODOS,
+  DEMO_CAPTION,
+  SWR_NOTE,
+  SWR_ROWS,
+  SWR_FACTS,
+  SWR_MUTATE_CODE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Копия чужих данных" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Кеш данных — это стор, который **сам ходит в сеть**. Компонент не загружает данные,
+    а подписывается на ключ: «мне нужно `['todos']`». Кеш решает, хватит ли того, что
+    уже лежит, или пора на сервер, и будит всех подписчиков этого ключа, когда ответ пришёл.
+
+  </Callout>
+
+  Счётчик в форме и список заказов выглядят в коде одинаково: переменная, которую
+  показывает компонент. Но у счётчика один хозяин — интерфейс, а список заказов принадлежит
+  серверу, и в браузере лежит только его снимок. Снимок стареет, его просят сразу несколько
+  компонентов, его надо загрузить, переждать ошибку и обновить после изменения. Эти заботы
+  одинаковы в любом приложении, поэтому их забирают в библиотеку.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SERVER_STATE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Серверное состояние — не ваше"
+  lead="Клиентское состояние приложение создаёт само и знает о нём всё. Серверное — только копия: её меняют другие люди, она устаревает без вашего участия, и нужна она обычно сразу нескольким компонентам."
+  leadWidth={72}
+>
+  <Table
+    head={['', 'клиентское', 'серверное']}
+    rows={STATE_ROWS.map((r) => [r.k, r.client, r.server])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(160px,.7fr) minmax(220px,1fr) minmax(260px,1.3fr)"
+    minWidth={660}
+  />
+
+  ### Каждый компонент грузит сам
+
+  <Card title="Загрузка без кеша" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NAIVE_CODE} />
+
+    <Md text={NAIVE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Кеш по ключу"
+  lead="Внутри TanStack Query — `Map` из строки-ключа в запись. Запись хранит данные, ошибку, время получения, список наблюдателей и промис запроса, если он в пути. Ниже — учебная версия этой таблицы: те же поля записи, тот же общий промис, те же два статуса."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE} />
+
+  <Card title="Ключ → строка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={KEY_CODE} />
+  </Card>
+
+  <Table
+    head={['ключ', '`hashKey(ключ)`']}
+    rows={HASHES.map((r) => [`\`${r.key}\``, `\`${r.hash}\``])}
+    kinds={['prose', 'prose']}
+    cols="minmax(260px,1fr) minmax(260px,1fr)"
+    minWidth={560}
+  />
+
+  <Md text={KEY_NOTE} />
+
+  ### Запись и две оси состояния
+
+  <Card title="Запись, запрос, повторы, отмена" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CACHE_CODE} />
+  </Card>
+
+  <Table
+    head={['`status`', '`fetchStatus`', 'что происходит', 'что показать']}
+    rows={STATUS_ROWS.map((r) => [r.status, r.fetch, r.when, r.show])}
+    tones={STATUS_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(100px,.5fr) minmax(110px,.5fr) minmax(220px,1.3fr) minmax(200px,1.1fr)"
+    minWidth={700}
+  />
+
+  <Md text={STATUS_NOTE} />
+
+  ### Один запрос на двоих
+
+  Шапка и список монтируются одновременно и просят `['todos']`. Запросов к серверу — {DEDUPE_CALLS}.
+
+  <Table
+    head={['наблюдатель', 'что получил по порядку']}
+    rows={DEDUPE_ROWS.map((r) => [r.who, r.seen])}
+    kinds={['prose', 'prose']}
+    cols="minmax(130px,.5fr) minmax(360px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={DEDUPE_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Свежесть и сборка мусора: `staleTime` и `gcTime`"
+  lead="У записи два срока, и их постоянно путают. `staleTime` отвечает, когда идти за новыми данными. `gcTime` — когда выбросить запись, на которую никто не смотрит. Устаревшие данные никуда не деваются: их показывают, пока идёт обновление."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STALE} />
+
+  <Card title="Наблюдатель, свежесть, сборка мусора, фокус" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={OBSERVE_CODE} />
+  </Card>
+
+  <Table
+    head={['', '`staleTime`', '`gcTime`']}
+    rows={TIMES_ROWS.map((r) => [r.k, r.stale, r.gc])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(130px,.6fr) minmax(250px,1.2fr) minmax(250px,1.2fr)"
+    minWidth={660}
+  />
+
+  ### Что видит вернувшийся компонент
+
+  <Table
+    head={['сценарий', 'запросы', 'что получил наблюдатель']}
+    rows={FRESH_ROWS.map((r) => [r.k, r.calls, r.seen])}
+    tones={FRESH_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(190px,.8fr) minmax(130px,.5fr) minmax(380px,2fr)"
+    minWidth={760}
+  />
+
+  <Md text={STALE_NOTE} />
+
+  <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={HTTP_SWR_NOTE} />
+
+  ### Кеш, приехавший с сервера
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="dehydrate и hydrate" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HYDRATE_CODE} />
+    </Card>
+
+    <Card title="Повторных запросов в браузере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <Table
+        head={['`staleTime`', 'вызовов `getTodos`']}
+        rows={HYDRATE_CALLS.map((r) => [`\`${r.staleTime}\``, String(r.calls)])}
+        kinds={['prose', 'prose']}
+        cols="minmax(120px,1fr) minmax(120px,1fr)"
+        minWidth={260}
+      />
+
+      <Md text={HYDRATE_NOTE} />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Фокус окна, возврат сети и повторы"
+  lead="Пользователь ушёл в другую вкладку и вернулся через час. Компоненты всё это время были смонтированы и ничего не перезапрашивали — монтирования не было. Поэтому кеш слушает ещё два события: окно снова видно и сеть вернулась."
+  leadWidth={72}
+>
+  <Table
+    head={['фокус в 10; 10,1 и 11,1 с', 'запросы', 'что получил наблюдатель']}
+    rows={FOCUS_ROWS.map((r) => [r.k, r.calls, r.seen])}
+    tones={FOCUS_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.7fr) minmax(150px,.6fr) minmax(380px,2fr)"
+    minWidth={740}
+  />
+
+  <Md text={FOCUS_NOTE} />
+
+  ### Сети нет
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Наблюдатель без сети" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OFFLINE_SEEN.join('\n')} tone="ok" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={OFFLINE_NOTE} />
+  </CardGrid>
+
+  ### Повторы с паузами
+
+  <Table
+    head={['сервер', 'запросы', 'что получил наблюдатель']}
+    rows={RETRY_ROWS.map((r) => [r.k, r.calls, r.seen])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(160px,.6fr) minmax(170px,.7fr) minmax(380px,2fr)"
+    minWidth={740}
+  />
+
+  <Md text={RETRY_NOTE} />
+
+  <Table
+    head={['где работает ядро', 'попыток за минуту при упавшем сервере', '`gcTime`']}
+    rows={SERVER_DEFAULTS.map((r) => [r.where, String(r.calls), `\`${r.gcTime}\``])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(160px,1fr) minmax(220px,1.3fr) minmax(120px,.7fr)"
+    minWidth={520}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SERVER_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Мутации: инвалидация, оптимизм и откат"
+  lead="Запрос читает, мутация меняет. После изменения на сервере копии в кеше врут, и только приложение знает, какие именно. Есть два способа это исправить: перезапросить затронутое или сразу записать в кеш ожидаемый результат, а при ошибке вернуть как было."
+  leadWidth={72}
+>
+  <Card title="Инвалидация и запись в кеш" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INVALIDATE_CODE} />
+
+    <Md text={INVALIDATE_NOTE} />
+  </Card>
+
+  ### Оптимистичное добавление
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OPTIMISTIC} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Мини-кеш" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OPTIMISTIC_CODE} />
+    </Card>
+
+    <Card title="TanStack Query" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TQ_MUTATION_CODE} />
+    </Card>
+  </CardGrid>
+
+  <Md text={TQ_MUTATION_NOTE} />
+
+  <Table
+    head={['сценарий', 'GET-запросы', 'что получил наблюдатель']}
+    rows={MUTATION_ROWS.map((r) => [r.k, r.calls, r.seen])}
+    tones={MUTATION_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.7fr) minmax(160px,.6fr) minmax(400px,2fr)"
+    minWidth={760}
+  />
+
+  <Md text={RACE_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Структурное разделение: старые ссылки в новом ответе"
+  lead="Повторный запрос почти всегда возвращает почти то же самое. Если отдать компонентам новый ответ как есть, каждый объект в нём будет новым, и перерисуется всё, что его получает. Кеш поступает иначе: сливает новый ответ со старым и сохраняет ссылки там, где ничего не изменилось."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="replaceEqualDeep" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SHARE_CODE} />
+    </Card>
+
+    <Card title="Ответ до и после" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={SHARE_SAMPLE} />
+
+      <Table
+        head={['часть результата', 'TanStack Query', 'SWR']}
+        rows={SHARE_REFS.map((r) => [r.part, r.tq ? 'та же ссылка' : 'новый объект', r.swr ? 'та же ссылка' : 'новый объект'])}
+        kinds={['prose', 'prose', 'prose']}
+        cols="minmax(150px,1.2fr) minmax(100px,.8fr) minmax(100px,.8fr)"
+        minWidth={360}
+      />
+    </Card>
+  </CardGrid>
+
+  <Md text={SHARE_NOTE} />
+
+  ### Повторный ответ совпал целиком
+
+  <Table
+    head={['наблюдатель', 'новых состояний']}
+    rows={NOTIFY_COUNTS.map((r) => [r.k, String(r.n)])}
+    kinds={['prose', 'prose']}
+    cols="minmax(320px,2fr) minmax(120px,.6fr)"
+    minWidth={460}
+  />
+
+  <Md text={TRACKED_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Кеш в работе"
+  lead="Одна запись `['todos']`, два компонента и сервер, который отвечает за 0,3 с. Сценарии повторяют шаги, по которым сняты таблицы темы."
+  leadWidth={72}
+>
+  <QueryCacheLab
+    client:visible
+    codes={{ key: KEY_CODE, cache: CACHE_CODE, observe: OBSERVE_CODE, invalidate: INVALIDATE_CODE, optimistic: OPTIMISTIC_CODE, share: SHARE_CODE }}
+    scenarios={SCENARIOS}
+    staleOptions={STALE_OPTIONS}
+    latency={SERVER_LATENCY}
+    todos={SERVER_TODOS}
+    caption={DEMO_CAPTION}
+  />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Кеш данных показывает то, что есть, и сразу идёт за тем, что должно быть.** Устаревшая
+      копия — не ошибка, а нормальное состояние: её видно, пока едет новая. Ваша часть работы —
+      назвать данные ключом, сказать, сколько им можно верить (`staleTime`), и после изменения
+      указать, что устарело. Всё остальное — дедупликацию, повторы, фокус и ссылки — кеш
+      делает сам.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="SWR: то же самое проще"
+  lead={SWR_NOTE}
+  leadWidth={72}
+>
+  <Table
+    head={['сценарий', 'TanStack Query', 'SWR']}
+    rows={SWR_ROWS.map((r) => [r.k, r.tq, r.swr])}
+    tones={SWR_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(160px,.6fr) minmax(260px,1.2fr) minmax(260px,1.2fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={260} gap={14} align="start">
+    {SWR_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Оптимистичная мутация в SWR" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SWR_MUTATE_CODE} />
+  </Card>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

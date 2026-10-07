@@ -1,0 +1,48 @@
+time="2026-09-15T15:52:46+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[a-steps/steps] ⭐ Run Set up job
+[a-steps/steps] 🚀  Start image=node:22-slim
+[a-steps/steps]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[a-steps/steps]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[a-steps/steps]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[a-steps/steps]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[a-steps/steps]   ✅  Success - Set up job
+[a-steps/steps] ⭐ Run Main 1 set everything
+[a-steps/steps]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/one] user= workdir=
+[a-steps/steps]   | levels: wf=workflow job=job step=step
+[a-steps/steps]   | same-step-shell=[]
+[a-steps/steps]   | same-step-expr=[]
+[a-steps/steps]   | cwd-at-end-of-step=/tmp
+[a-steps/steps]   | wrote /tmp/step-one-file.txt
+[a-steps/steps]   ✅  Success - Main 1 set everything [85.536709ms]
+[a-steps/steps]   ⚙  ::set-env:: FROM_ENV_FILE=survives
+[a-steps/steps]   ⚙  ::set-env:: SAME_STEP=written-now
+[a-steps/steps]   ⚙  ::set-output:: out_key=out_value
+[a-steps/steps] ⭐ Run Main 2 what survived
+[a-steps/steps]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[a-steps/steps]   | FROM_ENV_FILE=[survives]
+[a-steps/steps]   | SAME_STEP=[written-now]
+[a-steps/steps]   | PLAIN_EXPORT=[]
+[a-steps/steps]   | PLAIN_SHELL=[]
+[a-steps/steps]   | STEP_LEVEL=[]
+[a-steps/steps]   | JOB_LEVEL=[job]
+[a-steps/steps]   | output-via-context=[out_value]
+[a-steps/steps]   | cwd=/private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha
+[a-steps/steps]   | /tmp/step-one-file.txt
+[a-steps/steps]   | file in /tmp: still there
+[a-steps/steps]   | pid1=37 ppid=0
+[a-steps/steps]   ✅  Success - Main 2 what survived [95.274417ms]
+[a-steps/steps] ⭐ Run Main 3 env file is append-only and re-read each step
+[a-steps/steps]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/2] user= workdir=
+[a-steps/steps]   | FROM_ENV_FILE now=[survives]
+[a-steps/steps]   ✅  Success - Main 3 env file is append-only and re-read each step [87.485916ms]
+[a-steps/steps]   ⚙  ::set-env:: FROM_ENV_FILE=overwritten
+[a-steps/steps] ⭐ Run Main 4 last write wins
+[a-steps/steps]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/3] user= workdir=
+[a-steps/steps]   | FROM_ENV_FILE=[overwritten]
+[a-steps/steps]   ✅  Success - Main 4 last write wins [87.480875ms]
+[a-steps/steps] ⭐ Run Complete job
+[a-steps/steps] Cleaning up container for job steps
+[a-steps/steps]   ✅  Success - Complete job
+[a-steps/steps] 🏁  Job succeeded

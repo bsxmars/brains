@@ -1,0 +1,384 @@
+---
+title: Angular без zone.js
+heading: "Angular без zone.js: от монки-патчей к сигналам"
+headingWidth: 24
+order: 21
+kicker: фреймворки изнутри
+lead: "Шаблон Angular читает обычные поля класса, и записать в них можно откуда угодно. Десять лет Angular узнавал о записи косвенно: zone.js подменял `setTimeout`, `Promise` и `addEventListener` и после каждой задачи звал проверку всего дерева. Теперь проверку заказывает сигнал. Что это меняет — по счётчикам настоящего Angular 21 на одном и том же приложении."
+leadWidth: 66
+summary: "Что подменяет zone.js и как прячет подмену, мини-зона и `onMicrotaskEmpty`, цена проверки всего дерева и `OnPush`, `NG0100`, почему родной `await` теряет зону и CLI переписывает `async`, планировщик без зоны: кто заказывает тик и почему три записи — один тик, сигналы Angular среди других."
+verifiedOn: "@angular/core 21.2.25, zone.js 0.16.3, esbuild 0.28.2, Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: приложение темы собрано и запущено в Chromium с зоной и без, на десяти сценариях; мини-версия сверена с этими счётчиками в tests/unit/angular-zoneless.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Обычные поля }
+  - { id: s2, label: zone.js }
+  - { id: s3, label: Цена }
+  - { id: s4, label: async/await }
+  - { id: s5, label: Без зоны }
+  - { id: s6, label: Сигналы Angular }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ZoneLab from '@/widgets/zone-lab/ui/ZoneLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_TICK,
+  PREREQ,
+  ANGULAR_APP_CODE,
+  BOOT_ZONE_CODE,
+  BOOT_ZONELESS_CODE,
+  APP_NOTE,
+  FIELD_PROBLEM,
+  BOOT_NOTE,
+  PLAIN_ZONE,
+  PATCH_ROWS,
+  PATCH_NOTE,
+  PATCH_FACTS,
+  TOSTRING_NOTE,
+  ZONE_CODE,
+  ZONE_STEPS,
+  COST_NOTE,
+  COST_ROWS,
+  ONPUSH_NOTE,
+  DEV_FACTS,
+  CONTEXT_CODE,
+  CONTEXT_ROWS,
+  AWAIT_NOTE,
+  AWAIT_ANGULAR_NOTE,
+  ASYNC_SOURCE_CODE,
+  ASYNC_LOWERED_CODE,
+  LOWERED_NOTE,
+  CLI_CODE,
+  CLI_NOTE,
+  SCHEDULER_CODE,
+  TREE_CODE,
+  PLAIN_SCHEDULER,
+  NOTIFY_ROWS,
+  RAF_NOTE,
+  HYBRID_NOTE,
+  TARGETED_NOTE,
+  DEMO_NOTE,
+  DEMO_CAPTION,
+  SCENARIOS,
+  STAND,
+  SIGNAL_CODE,
+  SIGNAL_COMPARE_HEAD,
+  SIGNAL_COMPARE_ROWS,
+  SIGNAL_NOTE,
+  EFFECT_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Кто зовёт проверку" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Angular не знает, что изменилось, — он сверяет. Вопрос только в том, **когда** сверять.
+    С zone.js ответ «после любого асинхронного события в приложении», без зоны — «когда
+    кто-то сказал, что данные поменялись». Первое почти ничего не пропускает, но работает впустую;
+    второе работает точно, но пропускает запись, о которой никто не сказал.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TICK} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section id="s0" eyebrow="Перед началом" title="Что тема считает известным">
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Шаблон читает обычные поля"
+  lead="Пример на всю тему — четыре компонента. Counter и List держат данные в сигналах, Clock — в обычном поле и в сигнале, App их собирает. Одно и то же приложение запускается с зоной и без, с `Default` и с `OnPush`."
+  leadWidth={72}
+>
+  <Card title="Приложение: app.ts" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ANGULAR_APP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={APP_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Md text={FIELD_PROBLEM} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="С зоной" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BOOT_ZONE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Без зоны" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BOOT_ZONELESS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={BOOT_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="zone.js: подменить всё асинхронное"
+  lead="Если не знаешь, когда поменялись данные, остаётся следить за всем, что может их поменять. Данные меняет только код, а код после старта страницы запускают задачи: таймеры, события, ответы сети, промисы. zone.js оборачивает каждую функцию, через которую задачу можно поставить, и узнаёт о каждой."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ZONE} />
+
+  ### Что подменено
+
+  <Table
+    head={['API', 'подменено', 'как']}
+    rows={PATCH_ROWS.map((r) => [r.what, r.patched ? 'да' : 'нет', r.how])}
+    tones={PATCH_ROWS.map((r) => (r.patched ? undefined : 'warn'))}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(80px,.4fr) minmax(260px,1.6fr)"
+    minWidth={640}
+  />
+
+  <Md text={PATCH_NOTE} />
+
+  ### Подмена, которая прячется
+
+  <Table
+    head={['выражение после zone.js', 'результат']}
+    rows={PATCH_FACTS.map((r) => [r.expr, r.result])}
+    kinds={['mono', 'prose']}
+    cols="minmax(260px,1fr) minmax(300px,1.4fr)"
+    minWidth={620}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={TOSTRING_NOTE} />
+
+  ### Своя зона
+
+  <Card title="Мини-зона" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ZONE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {ZONE_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Цена: всё дерево после любой задачи"
+  lead="Зона сообщает «что-то выполнилось», а не «что-то изменилось». Поэтому проверка запускается и после таймера, который ничего не менял, и после каждого движения мыши, — и каждый раз от корня."
+  leadWidth={72}
+>
+  <Table
+    head={['сценарий', 'зона, Default: тиков · шаблонов', 'зона, OnPush', 'без зоны, Default']}
+    rows={COST_ROWS}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(220px,1.4fr) minmax(130px,.8fr) minmax(110px,.6fr) minmax(130px,.8fr)"
+    minWidth={640}
+  />
+
+  <Md text={COST_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={ONPUSH_NOTE} />
+
+  ### Второй проход в режиме разработки
+
+  <CardGrid min={290} gap={16} align="start">
+    {DEV_FACTS.map((f) => (
+      <Card tone={f.tone} title={f.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={f.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="async/await: где зона теряет след"
+  lead="Зона живёт, пока каждый колбэк проходит через подменённую функцию. Родной `await` через неё не проходит."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Где мы после каждого шага" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CONTEXT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Zone.current.name" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['ключ', 'родной async', 'async → генератор']}
+        rows={CONTEXT_ROWS.map((r) => [r.k, r.native, r.lowered])}
+        tones={CONTEXT_ROWS.map((r) => (r.native === r.lowered ? undefined : 'err'))}
+        kinds={['prose', 'prose', 'prose']}
+        cols="minmax(110px,.8fr) minmax(130px,1fr) minmax(130px,1fr)"
+        minWidth={380}
+      />
+    </Card>
+  </CardGrid>
+
+  <Md text={AWAIT_NOTE} />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={AWAIT_ANGULAR_NOTE} />
+
+  ### Лечение: переписать `async`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Было" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ASYNC_SOURCE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="esbuild с `'async-await': false`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ASYNC_LOWERED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={LOWERED_NOTE} />
+
+  <Card title="Angular CLI: @angular/build 21.2" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CLI_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Без зоны: проверку заказывают"
+  lead="Без зоны никто не следит за таймерами и событиями. Проверку запускает планировщик, а будят его только те, кто точно знает, что данные изменились: сигнал, обработчик из шаблона, `markForCheck`. Будить можно сколько угодно раз — тик всё равно один."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCHEDULER} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Планировщик" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCHEDULER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={RAF_NOTE} />
+  </CardGrid>
+
+  ### Кто будит планировщик
+
+  <Table
+    head={['кто', 'какой флаг ставит', 'что из этого следует']}
+    rows={NOTIFY_ROWS.map((r) => [r.who, r.flag, r.note])}
+    tones={NOTIFY_ROWS.map((r) => (r.flag === 'никакого' ? 'err' : undefined))}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(180px,.9fr) minmax(260px,1.4fr)"
+    minWidth={680}
+  />
+
+  ### Что проверяется: флаги вида
+
+  <Card title="Дерево и проверка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={TARGETED_NOTE} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={HYBRID_NOTE} />
+
+  ### Один сценарий — два мира
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEMO_NOTE} />
+
+  <ZoneLab
+    client:visible
+    zoneCode={ZONE_CODE}
+    schedulerCode={SCHEDULER_CODE}
+    treeCode={TREE_CODE}
+    scenarios={SCENARIOS}
+    stand={STAND}
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Сигналы Angular среди других"
+  lead="Граф у сигналов Angular тот же, что у Vue и Solid. Отличаются они тем, кто их читает в шаблоне и когда выполняются эффекты."
+  leadWidth={72}
+>
+  <Card title="Ленивость, кеш и мутация мимо сигнала" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SIGNAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={SIGNAL_COMPARE_HEAD}
+    rows={SIGNAL_COMPARE_ROWS}
+    kinds={['prose', 'prose', 'muted', 'muted']}
+    cols="minmax(150px,.8fr) minmax(220px,1.3fr) minmax(170px,1fr) minmax(170px,1fr)"
+    minWidth={760}
+  />
+
+  <Md text={SIGNAL_NOTE} />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={EFFECT_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Без зоны правило одно: экран обновится, только если о записи кто-то сказал.** Сигнал
+      говорит сам, обработчик из шаблона — сам, всё остальное — через `markForCheck`. Запись
+      в обычное поле из таймера или после `await` больше не «подхватывается»: раньше её
+      подхватывала проверка всего дерева, которая шла после каждой задачи и стоила дорого.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

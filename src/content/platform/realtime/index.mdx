@@ -1,0 +1,569 @@
+---
+title: Долгие соединения
+heading: "Долгие соединения: WebSocket, SSE и WebTransport"
+headingWidth: 22
+order: 4
+kicker: сеть и безопасность
+lead: "HTTP отвечает только на вопросы: сервер не может заговорить первым. Долгое соединение снимает это ограничение — и приносит заботы, которых у запроса-ответа не было. Кто заметит, что связь пропала, как вернуться, не обрушив сервер, куда девается то, что сеть не успевает унести, и почему чужая страница может читать ваш сокет."
+leadWidth: 66
+summary: "Когда нужен WebSocket, а когда хватит SSE; рукопожатие и кадры по байтам; коды закрытия и кто их видит; обратное давление, которого у WebSocket нет; переподключение с джиттером и heartbeat; WebSocket поверх HTTP/2 и WebTransport; угон сокета с чужого сайта."
+verifiedOn: "Свой сервер WebSocket на node:http (Node 26.8.2) — тот самый код темы; клиенты — глобальный WebSocket Node 26 и Chromium 153.0.8010.12 через Playwright 1.63, наличие API и коды при уходе со страницы — ещё Firefox 155 и WebKit 26.6; сентябрь 2026. Два сайта — через --host-resolver-rules, TLS — самоподписанный сертификат. Закреплено tests/unit/realtime.test.ts. Таймауты прокси, WebSocket поверх HTTP/3 и WebTransport на живом сервере не проверялись — это помечено в тексте"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Когда нужно долгое соединение }
+  - { id: s2, label: Рукопожатие }
+  - { id: s3, label: Кадры и маска }
+  - { id: s4, label: Закрытие }
+  - { id: s5, label: Обратное давление }
+  - { id: s6, label: Переподключение и heartbeat }
+  - { id: s7, label: HTTP/2, HTTP/3 и WebTransport }
+  - { id: s8, label: Угон сокета }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import RtFrame from '@/widgets/rt-frame/ui/RtFrame.vue';
+import FrameDiagram from '@/widgets/realtime-frame-diagram/ui/FrameDiagram.astro';
+import RtHerd from '@/widgets/rt-herd/ui/RtHerd.vue';
+import {
+  GLOSSARY,
+  PLAIN_SOCKET,
+  PREREQ,
+  PREREQ_NOTE,
+  WAYS_ROWS,
+  SSE_NOTE,
+  SSE_LIMIT_NOTE,
+  CHOICE,
+  HANDSHAKE_CODE,
+  PLAIN_ACCEPT,
+  ACCEPT_STEPS,
+  SERVER_CODE,
+  SERVER_NOTE,
+  HANDSHAKE_FACTS,
+  FRAME_CODE,
+  PLAIN_MASK,
+  FRAME_PARTS,
+  FRAME_DEMO_NOTE,
+  FRAME_DIAGRAM,
+  MASK_FACTS,
+  CLOSE_ROWS,
+  CLOSE_ROWS_NOTE,
+  CLOSE_CODES,
+  CLOSE_CODES_NOTE,
+  ERROR_NOTE,
+  CLOSE_WAIT_NOTE,
+  BUFFER_ROWS,
+  BUFFER_NOTE,
+  SEND_ALL_CODE,
+  SEND_ALL_NOTE,
+  STREAM_CODE,
+  STREAM_NOTE,
+  READ_SIDE_NOTE,
+  CLIENT_CODE,
+  CLIENT_FACTS,
+  HERD_NOTE,
+  HEARTBEAT_ROWS,
+  IDLE_NOTE,
+  PROXY_CODE,
+  IDLE_FACTS,
+  H2_CODE,
+  H2_FACTS,
+  WT_CODE,
+  WT_ROWS,
+  WT_NOTE,
+  PLAIN_CSWSH,
+  CSWSH_ROWS,
+  CSWSH_NOTE,
+  ORIGIN_CODE,
+  SECURITY_FACTS,
+  SECURITY_NOTE,
+  PITFALLS,
+  SOURCES,
+  PRESSURE_SCENE_NOTE,
+  PRESSURE_STEPS,
+  PLAIN_PRESSURE,
+  SILENT_SCENE_NOTE,
+  SILENT_STEPS,
+  PLAIN_SILENT,
+  HERD_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Сервер, который говорит первым" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Открыть WebSocket — одна строка. Всё трудное начинается потом: соединение, которое
+    живёт часами, рвётся молча, копит в памяти то, что сеть не успела унести, и открывается
+    с любой страницы в интернете. В проверках темы Chromium ни разу не сообщил странице, что
+    сервер **замолчал**, и без возражений держал в памяти 64 МиБ, которые некуда было отправить.
+
+  </Callout>
+
+  Всё, что обычно делают в вебе, — запрос и ответ. Клиент спросил, сервер ответил, соединение
+  свободно. Чат, биржевой график, совместный документ и уведомления устроены иначе: новость
+  появляется у сервера, и ждать, пока клиент о ней спросит, — значит опоздать. Нужен канал,
+  по которому сервер пишет сам.
+
+  В браузере таких каналов три. **SSE** — HTTP-ответ, который не кончается. **WebSocket** —
+  HTTP-запрос, после которого соединение переходит на свой протокол кадров и становится
+  двусторонним. **WebTransport** — сессия поверх HTTP/3 с независимыми потоками
+  и датаграммами. Главный герой здесь WebSocket: он есть везде, и все его трудности
+  приходится решать руками.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SOCKET} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Когда нужно долгое соединение"
+  lead="Способов доставить новость от сервера пять. Отличаются они не скоростью, а тем, чем за неё платят: пустыми запросами, одним направлением или работой, которую приходится делать руками."
+  leadWidth={72}
+>
+  <Table
+    head={['способ', 'как устроен', 'задержка новости', 'чем платят']}
+    rows={WAYS_ROWS.map((r) => [r.k, r.how, r.latency, r.cost])}
+    kinds={['mono', 'prose', 'muted', 'prose']}
+    cols="minmax(130px,.6fr) minmax(200px,1.1fr) minmax(130px,.7fr) minmax(240px,1.3fr)"
+    minWidth={760}
+  />
+
+  <Card title="SSE или WebSocket" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={SSE_NOTE} />
+
+    <CardNote tone="warn">
+      <Md text={SSE_LIMIT_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Как выбрать" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={CHOICE} size={15.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Рукопожатие: HTTP, который перестаёт быть HTTP"
+  lead="WebSocket открывается обычным HTTP-запросом. Клиент просит сменить протокол, сервер соглашается ответом `101` — и с этого байта по тому же TCP идут уже кадры WebSocket. Всё, что браузер знает о безопасности соединения, решается в этом единственном обмене."
+  leadWidth={72}
+>
+  <CodeBlock code={HANDSHAKE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACCEPT} />
+
+  <Card title="`Sec-WebSocket-Accept` по шагам" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={ACCEPT_STEPS} size={15.5} />
+  </Card>
+
+  ### Сервер на голом `node:http`
+
+  <Card title="server.js — рукопожатие, кадры, ping и закрытие" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SERVER_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SERVER_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {HANDSHAKE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Кадры и маска"
+  lead="После рукопожатия по соединению идут кадры: два байта заголовка, при необходимости длина и маска, дальше данные. Короткое сообщение от сервера обходится в два служебных байта, от клиента — в шесть: клиент обязан замаскировать каждый кадр."
+  leadWidth={72}
+>
+  <Card title="frame.js — кадр в обе стороны" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FRAME_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <FrameDiagram diagram={FRAME_DIAGRAM} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {FRAME_PARTS.map((part) => (
+      <Card tone={part.tone ?? 'neutral'} title={part.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={part.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MASK} />
+
+  ### Соберите кадр сами
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={FRAME_DEMO_NOTE} />
+
+  <RtFrame client:visible code={FRAME_CODE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {MASK_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Закрытие: коды и кто их видит"
+  lead="Закрытие — тоже обмен: одна сторона шлёт кадр `close` с кодом, другая отвечает своим, и только потом закрывается TCP. Если обмена не было, код придумывает тот, кто остался, — и по этим придуманным кодам видно, что именно случилось."
+  leadWidth={72}
+>
+  <Table
+    head={['что случилось', 'что увидела страница', 'что получил сервер']}
+    rows={CLOSE_ROWS.map((r) => [r.k, r.page, r.server])}
+    tones={CLOSE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(200px,1fr) minmax(170px,.9fr)"
+    minWidth={680}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CLOSE_ROWS_NOTE} />
+
+  ### Что значат коды
+
+  <Table
+    head={['код', 'смысл', 'где встречается']}
+    rows={CLOSE_CODES.map((r) => [r.k, r.v, r.where])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(100px,.5fr) minmax(260px,1.6fr) minmax(130px,.6fr)"
+    minWidth={560}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CLOSE_CODES_NOTE} />
+
+  <CardGrid min={300} gap={14} align="start">
+    <Card tone="warn" title="`error` — не сигнал" titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+      <Md text={ERROR_NOTE} />
+    </Card>
+
+    <Card tone="err" title="Закрыть немое соединение" titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+      <Md text={CLOSE_WAIT_NOTE} />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Обратное давление: `bufferedAmount` и `WebSocketStream`"
+  lead="`send` у WebSocket ничего не возвращает и никогда не ждёт. Если источник производит данные быстрее, чем сеть их уносит, разница копится в памяти вкладки, и узнать о ней можно только одним числом — `bufferedAmount`."
+  leadWidth={72}
+>
+  ### Один файл, три способа отправки
+
+  <Md text={PRESSURE_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {PRESSURE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Как устроено:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PRESSURE} />
+
+  ### Стенд и код обоих способов
+
+  <Table
+    head={['64 × 1 МиБ серверу, который не читает', 'что показал `bufferedAmount`']}
+    rows={BUFFER_ROWS.map((r) => [r.k, r.v])}
+    tones={BUFFER_ROWS.map((r) => r.tone ?? 'info')}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(260px,1.3fr)"
+    minWidth={540}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={BUFFER_NOTE} />
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Руками: опрос `bufferedAmount`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SEND_ALL_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <Md text={SEND_ALL_NOTE} />
+      </CardNote>
+    </Card>
+
+    <Card title="Встроенное: `WebSocketStream`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STREAM_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <Md text={STREAM_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={READ_SIDE_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6 · демо"
+  eyebrowTone="demo"
+  title="Переподключение и heartbeat"
+  lead="Соединение оборвётся — вопрос только когда. Клиенту нужны три вещи: заметить обрыв, даже если о нём никто не сообщил; вернуться, не дожидаясь, пока браузер закончит прощаться; и вернуться не одновременно с тысячей соседей."
+  leadWidth={72}
+>
+  <Card title="client.js — экспонента, полный джиттер и heartbeat" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLIENT_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {CLIENT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Тысяча клиентов и один сервер
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={HERD_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {HERD_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Как считает задержку:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <RtHerd client:visible code={CLIENT_CODE} />
+
+  ### Кто замечает, что связь пропала
+
+  <Md text={SILENT_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {SILENT_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Как устроено:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SILENT} />
+
+  <Table
+    head={['способ', 'кто инициирует', 'что даёт']}
+    rows={HEARTBEAT_ROWS.map((r) => [r.k, r.who, r.gives])}
+    kinds={['mono', 'muted', 'prose']}
+    cols="minmax(200px,1fr) minmax(100px,.5fr) minmax(280px,1.6fr)"
+    minWidth={640}
+  />
+
+  <Card title="Таймаут простоя на пути" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={IDLE_NOTE} />
+
+    <CodeBlock code={PROXY_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {IDLE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="HTTP/2, HTTP/3 и WebTransport"
+  lead="Рукопожатие через `Upgrade` существует только в HTTP/1.1: в HTTP/2 и HTTP/3 нет запроса, который превращался бы в другое соединение. Поэтому для них придуман другой вход — расширенный `CONNECT`, — а WebTransport вырос из той же идеи в отдельный API."
+  leadWidth={72}
+>
+  <CodeBlock code={H2_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <CardGrid min={280} gap={14} align="start">
+    {H2_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### WebTransport
+
+  <Card title="Потоки и датаграммы в одной сессии" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={WT_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="warn">
+      <Md text={WT_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['', 'WebSocket', 'WebTransport']}
+    rows={WT_ROWS.map((r) => [r.k, r.ws, r.wt])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(200px,1fr) minmax(240px,1.2fr)"
+    minWidth={600}
+  />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Угон сокета с чужого сайта"
+  lead="Рукопожатие несёт куки пользователя, а правило одного источника к нему не применяется. Значит, чужая страница может открыть сокет к вашему серверу от имени вошедшего пользователя и читать всё, что сервер ему пришлёт. Остановить это может только сервер."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CSWSH} />
+
+  <Table
+    head={['страница, открывшая сокет к `a.test`', 'куки в рукопожатии', 'сервер без проверки', 'сервер с проверкой `Origin`']}
+    rows={CSWSH_ROWS.map((r) => [r.k, r.cookies, r.open, r.guarded])}
+    tones={CSWSH_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(190px,1fr) minmax(160px,.9fr) minmax(170px,.9fr) minmax(150px,.8fr)"
+    minWidth={720}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CSWSH_NOTE} />
+
+  <Card title="Проверка `Origin`: точным совпадением" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ORIGIN_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {SECURITY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SECURITY_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Сокет — это сессия пользователя, открытая для любой страницы.** Браузер приложит куки
+      и покажет ответ кому угодно; единственный, кто может спросить «а кто звонит?», — сервер,
+      и спрашивает он заголовком `Origin`.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Источники"
+  lead="Протокол WebSocket и его коды живут в RFC 6455, браузерный API — в WHATWG, и расходятся они ровно там, где тема находит сюрпризы: протокол знает ping, а API — нет; протокол определяет коды 1001 и 1011, а скрипту API разрешает только 1000 и 3000–4999."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    {SOURCES.map((group) => (
+      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
+        {group.items.map((item) => (
+          <Md text={item} />
+        ))}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [Стримы и обратное давление](/platform/streams/#s4) — формат SSE,
+    `EventSource` и переподключение с `Last-Event-ID`. [Сеть и кеширование](/platform/network/#s1) —
+    TCP, TLS, HTTP/2 и QUIC, на которых стоят все три канала. [Безопасность
+    фронтенда](/platform/security/#s5) — источник, сайт, `SameSite` и CSRF. [Навигации без
+    ожидания](/platform/instant-navigation/#s2) — открытый сокет и кнопка «назад».
+    [Планирование задач](/js/task-scheduling/#s4) — таймеры heartbeat в фоновой вкладке.
+    [Воркеры и параллелизм](/js/workers/#s1) — что доступно внутри воркера, в том числе
+    `WebSocket`. [WebRTC](/platform/webrtc/) — соединение браузер–браузер: сигнализация
+    через ваш сервер, ICE-кандидаты, DTLS и каналы данных.
+    [Web Push](/platform/web-push/) — сообщение, которое доходит даже до закрытой вкладки: подписка, VAPID и шифрование тела.
+    [Ограничение частоты в API](/platform/rate-limits/) — три вида джиттера, 429 и `Retry-After`, бюджет повторов.
+
+  </Card>
+</Section>

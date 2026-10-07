@@ -1,0 +1,479 @@
+---
+title: CSP и Trusted Types
+heading: "CSP и Trusted Types: как внедрить и не сломать сайт"
+headingWidth: 24
+order: 17
+kicker: сеть и безопасность
+lead: "Строгая CSP пишется в одну строку: `script-src 'nonce-…' 'strict-dynamic'`. Дальше начинается работа: какие ваши скрипты она заблокирует, почему `'unsafe-inline'` рядом с nonce ничего не разрешает, где кнопки перестанут нажиматься, как узнать об этом из отчётов раньше пользователей — и что Trusted Types делают с `innerHTML`, `v-html` и `dangerouslySetInnerHTML`."
+leadWidth: 66
+summary: "Как браузер решает, выполнить ли скрипт: цепочка директив, nonce, хеш, `'strict-dynamic'`, обработчики и `javascript:`, `'unsafe-hashes'`. Отчёты `report-uri` и `report-to`, режим report-only и поэтапное внедрение, заголовок против `<meta>`. Trusted Types: места вставки, политики, `default`, и как с ними живут Vue и React."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, Vue 3.5.42, React 19.3.0, esbuild 0.28.2, октябрь 2026: журнал «31 политика × 15 проб», тексты консоли, тела отчётов, <meta>, Trusted Types и поведение Vue и React снимаются заново tests/unit/csp.test.ts, функция темы сверена с журналом на всех 465 парах. Доставка report-to на сервер на стенде не наблюдалась — её вид по спецификации Reporting API; другие движки не проверялись"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Как браузер решает }
+  - { id: s2, label: "Nonce, хеш, strict-dynamic" }
+  - { id: s3, label: "Обработчики и javascript:" }
+  - { id: s4, label: Отчёты и внедрение }
+  - { id: s5, label: Заголовок или meta }
+  - { id: s6, label: Trusted Types }
+  - { id: s7, label: Vue и React }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import CspLab from '@/widgets/csp-lab/ui/CspLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_CSP,
+  PREREQ,
+  PREREQ_NOTE,
+  SITE,
+  PAGE_HTML,
+  AFTER_LOAD_CODE,
+  PROBES,
+  MATRIX,
+  PRESETS,
+  DEMO_CAPTION,
+  PLAIN_FALLBACK,
+  FALLBACK_ROWS,
+  CSP_CHECK_CODE,
+  CHECK_NOTE,
+  ALLOWLIST_NOTE,
+  HASH_CODE,
+  HASH_FACTS,
+  CONSOLE_UNSAFE_INLINE,
+  CONSOLE_STRICT_DYNAMIC,
+  UNSAFE_INLINE_NOTE,
+  STRICT_DYNAMIC_ROWS,
+  STRICT_DYNAMIC_NOTE,
+  NONCE_SERVER_CODE,
+  NONCE_TEMPLATE,
+  NONCE_SERVER_NOTE,
+  HANDLER_ROWS,
+  HANDLER_NOTE,
+  UNSAFE_HASHES_NOTE,
+  REFACTOR_BEFORE,
+  REFACTOR_AFTER,
+  REPORT_HEADERS_CODE,
+  REPORT_URI_BODY,
+  REPORT_TO_BODY,
+  REPORT_FACTS,
+  VIOLATION_LISTENER_CODE,
+  TWO_HEADERS_CODE,
+  TWO_HEADERS_NOTE,
+  ROLLOUT_STEPS,
+  META_PAGE_HTML,
+  META_ROWS,
+  META_NOTE,
+  FRAME_NOTE,
+  PLAIN_TT,
+  TT_HEADER_CODE,
+  SINK_ROWS,
+  SINK_NOTE,
+  TT_POLICY_CODE,
+  TT_NAMES_ROWS,
+  TT_NAMES_NOTE,
+  DEFAULT_POLICY_CODE,
+  DEFAULT_POLICY_LOG,
+  DEFAULT_POLICY_NOTE,
+  VUE_SOURCE,
+  VUE_SOURCE_LINE,
+  FW_HEADERS,
+  FW_ROWS,
+  VUE_NOTE,
+  VUE_CHOICE,
+  REACT_TT_CODE,
+  REACT_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="От заголовка к рабочему сайту" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    CSP не знает, какой скрипт ваш, а какой чужой. Она сверяет каждый скрипт с правилами
+    заголовка: откуда он, есть ли у него nonce, совпадает ли хеш, кто его вставил. Правила
+    точные и местами неочевидные — поэтому политику сначала включают **только на отчёты**
+    и смотрят, что она сломала бы.
+
+  </Callout>
+
+  Почти каждая сломанная при внедрении CSP страница ломается на одном и том же: инлайн-скрипт
+  без nonce, `onclick` в разметке, `'self'` рядом со `'strict-dynamic'`, `<meta>` вместо
+  заголовка. Всё это видно заранее — в консоли и в отчётах браузера, если знать, где смотреть.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CSP} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Как браузер решает, выполнить ли скрипт"
+  lead="Пример на всю тему — одна страница с пятнадцатью способами запустить код: внешние и инлайн-скрипты, с nonce и без, обработчики, `javascript:`-ссылка, `eval`. Каждая проба, выполнившись, вызывает `mark('её-id')`. Меняется только заголовок CSP."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Страница: двенадцать проб в разметке" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PAGE_HTML} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="И пять — из кода после загрузки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={AFTER_LOAD_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Какая директива отвечает
+
+  Скрипты разного рода проверяют разные директивы. Если нужной в заголовке нет, браузер
+  берёт следующую по цепочке; если нет ни одной — этот род скриптов CSP не ограничивает вовсе.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FALLBACK} />
+
+  <Table
+    head={['что выполняется', 'своя директива', 'если её нет']}
+    rows={FALLBACK_ROWS.map((r) => [r.k, r.own, r.chain])}
+    tones={FALLBACK_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(140px,.6fr) minmax(240px,1.3fr)"
+    minWidth={640}
+  />
+
+  ### Проверка целиком
+
+  <Card title="checkScript: заголовок → решение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CSP_CHECK_CODE} size={11} lh={1.6} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CHECK_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Пятнадцать проб под любой политикой
+
+  <CspLab client:visible checkCode={CSP_CHECK_CODE} probes={PROBES} matrix={MATRIX} presets={PRESETS} pageUrl={`${SITE}/`} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Nonce, хеш и 'strict-dynamic'"
+  lead="Строгая политика держится на двух входах доверия — nonce и хеше — и на правиле, что доверенный скрипт может звать других. Всё остальное в ней либо вычеркнуто браузером, либо оставлено для старых браузеров."
+  leadWidth={72}
+>
+  <Md text={ALLOWLIST_NOTE} />
+
+  ### Хеш: отпечаток текста
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Как считается хеш инлайн-скрипта" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HASH_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <CardGrid min={260} gap={12} align="start">
+      {HASH_FACTS.map((f) => (
+        <Card tone={f.tone ?? 'neutral'} title={f.t} titleSize={15.5} pad={16} radius={4} gap={8} size={15} lh={1.55} text={f.d} />
+      ))}
+
+    </CardGrid>
+  </CardGrid>
+
+  ### `'unsafe-inline'` рядом с nonce
+
+  <CodeBlock code={CONSOLE_UNSAFE_INLINE} size={11} lh={1.6} pad="14px 16px" />
+
+  <Md text={UNSAFE_INLINE_NOTE} />
+
+  ### Что `'strict-dynamic'` оставляет и что вычёркивает
+
+  <Table
+    head={['в той же директиве', 'что с ним происходит']}
+    rows={STRICT_DYNAMIC_ROWS.map((r) => [r.k, r.what])}
+    tones={STRICT_DYNAMIC_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(300px,1.6fr)"
+    minWidth={560}
+  />
+
+  <CodeBlock code={CONSOLE_STRICT_DYNAMIC} size={11} lh={1.6} pad="14px 16px" />
+
+  <Md text={STRICT_DYNAMIC_NOTE} />
+
+  ### Nonce на сервере
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Новый nonce на каждый ответ" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NONCE_SERVER_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Шаблон с меткой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NONCE_TEMPLATE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NONCE_SERVER_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Обработчики в атрибутах и javascript:-ссылки"
+  lead="Самая частая поломка при переходе на nonce — не скрипты, а `onclick` в разметке. Nonce у атрибута поставить некуда, хеш к атрибутам по умолчанию не применяется, а `javascript:`-ссылку проверяет вообще другая директива."
+  leadWidth={72}
+>
+  <Table
+    head={['политика', 'onclick', 'javascript:-ссылка']}
+    rows={HANDLER_ROWS.map((r) => [r.k, r.onclick, r.jsurl])}
+    tones={HANDLER_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(260px,1.3fr) minmax(200px,1fr) minmax(180px,.9fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={HANDLER_NOTE} />
+
+  <Md text={UNSAFE_HASHES_NOTE} />
+
+  ### Как переписать
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="До" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REFACTOR_BEFORE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="После" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REFACTOR_AFTER} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  Один слушатель на документе вместо обработчика на каждой кнопке: разметка остаётся без кода,
+  а код живёт в скрипте с nonce. Тот же приём делают фреймворки — `@click` во Vue и `onClick`
+  в React вешают слушатель из JavaScript, а не пишут атрибут `onclick`, поэтому CSP им не мешает.
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Отчёты и поэтапное внедрение"
+  lead="Report-only — способ узнать, что сломает политика, не ломая ничего. Браузер выполняет всё как раньше и присылает отчёт о каждом скрипте, который заблокировал бы."
+  leadWidth={72}
+>
+  <CodeBlock code={REPORT_HEADERS_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Тело отчёта report-uri" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REPORT_URI_BODY} size={11} lh={1.6} pad="14px 16px" />
+    </Card>
+
+    <Card title="Тот же отчёт в формате report-to" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REPORT_TO_BODY} size={11} lh={1.6} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {REPORT_FACTS.map((f) => (
+      <Card tone={f.tone ?? 'neutral'} title={f.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={f.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Событие securitypolicyviolation" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={VIOLATION_LISTENER_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Две политики сразу
+
+  <CodeBlock code={TWO_HEADERS_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+  <Md text={TWO_HEADERS_NOTE} />
+
+  ### Порядок внедрения
+
+  <Card title="Пять шагов от отчётов к включённой политике" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={ROLLOUT_STEPS} size={15} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Заголовок или <meta>"
+  lead='Политику можно положить и в разметку: `<meta http-equiv="Content-Security-Policy">`. Скрипты она ограничивает так же, но часть директив в ней не работает, а действует она только с того места, где браузер её прочитал.'
+  leadWidth={72}
+>
+  <CodeBlock code={META_PAGE_HTML} size={11} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['что', 'что сделал Chromium', 'консоль']}
+    rows={META_ROWS.map((r) => [r.k, r.what, r.console])}
+    tones={META_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(180px,.8fr) minmax(220px,1fr) minmax(300px,1.6fr)"
+    minWidth={760}
+  />
+
+  <Md text={FRAME_NOTE} />
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={META_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Trusted Types"
+  lead="CSP решает, какие скрипты выполнить. Trusted Types — какие строки пустить туда, где строка становится разметкой или кодом. С `require-trusted-types-for 'script'` голая строка в `innerHTML` — исключение: принимается только объект, который выдала ваша политика."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TT} />
+
+  <CodeBlock code={TT_HEADER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  ### Места вставки
+
+  <Table
+    head={['место', 'что требует', 'образец в отчёте']}
+    rows={SINK_ROWS.map((r) => [r.k, r.type, r.sample])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(220px,1.1fr) minmax(130px,.6fr) minmax(240px,1.2fr)"
+    minWidth={640}
+  />
+
+  <Md text={SINK_NOTE} />
+
+  ### Политика и имена
+
+  <Card title="Своя политика" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={TT_POLICY_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['директива trusted-types', 'что можно создать']}
+    rows={TT_NAMES_ROWS.map((r) => [r.k, r.what])}
+    tones={TT_NAMES_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,.9fr) minmax(320px,1.8fr)"
+    minWidth={580}
+  />
+
+  <Md text={TT_NAMES_NOTE} />
+
+  ### Политика default
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Код" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DEFAULT_POLICY_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Консоль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DEFAULT_POLICY_LOG} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DEFAULT_POLICY_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Vue и React под Trusted Types"
+  lead="Фреймворк пишет в DOM сам, и под Trusted Types важно, как именно. React 19 отдаёт `__html` в `innerHTML` как есть. Vue 3 заводит собственную политику — и от этого зависит, увидят ли Trusted Types ваш `v-html`."
+  leadWidth={72}
+>
+  <Table
+    head={['', 'без TT', `\`${FW_HEADERS.any}\``, '`… trusted-types app`', '`… trusted-types app vue`']}
+    rows={FW_ROWS.map((r) => [r.k, r.none, r.any, r.app, r.vue])}
+    kinds={['prose', 'muted', 'muted', 'muted', 'muted']}
+    cols="minmax(220px,1.3fr) minmax(90px,.5fr) minmax(130px,.7fr) minmax(130px,.7fr) minmax(130px,.7fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="@vue/runtime-dom 3.5.42: политика vue" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_SOURCE} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={VUE_SOURCE_LINE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={VUE_NOTE} />
+  </CardGrid>
+
+  <Card tone="ok" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={VUE_CHOICE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="React 19: TrustedHTML в dangerouslySetInnerHTML" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REACT_TT_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={REACT_NOTE} />
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **CSP и Trusted Types включают не правкой заголовка, а описью.** Сначала report-only
+      показывает каждый инлайн-скрипт, обработчик и место, где строка становится разметкой.
+      Потом их переносят под nonce, в `addEventListener` и в одну-две политики с известными
+      именами — и только тогда заголовок начинает блокировать.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

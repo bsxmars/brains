@@ -1,0 +1,335 @@
+---
+title: "Компиляторы фреймворков"
+order: 9
+kicker: фреймворки изнутри
+lead: "Компилятор фреймворка переносит работу из браузера в сборку: заранее выясняет, что в компоненте может измениться и от чего, и оставляет рантайму готовый список обновлений. React Compiler расставляет мемоизацию, Svelte 5 и Solid превращают шаблон в клонирование HTML и эффекты на узлах. Вывод всех трёх здесь настоящий, а не пересказ, — и исполнен."
+leadWidth: 66
+summary: "Учебный компилятор шаблонов в «клонируй и обнови точечно»; настоящий вывод React Compiler (`_c(n)`, `$[i] !== x`, отказы с диагностиками), Svelte 5 (руны → `$.state`, `template_effect`) и Solid (`template`, `insert`) — и сколько вызовов и записей в DOM стоит одно изменение у каждого."
+verifiedOn: "babel-plugin-react-compiler 1.0.0 · @babel/core 7.29.7 · React 19.3.0 · svelte 5.57.1 · babel-preset-solid 1.9.15 · solid-js 1.9.15 · happy-dom 20.14.5 · Node 26.8.2"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Где делается работа }
+  - { id: s2, label: Учебный компилятор }
+  - { id: s3, label: React Compiler }
+  - { id: s4, label: Отказы }
+  - { id: s5, label: Svelte 5 }
+  - { id: s6, label: Solid }
+  - { id: s7, label: Одно изменение }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MiniCompiler from '@/widgets/fc-mini-compiler/ui/MiniCompiler.vue';
+import {
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
+  SPECTRUM_HEAD, SPECTRUM_ROWS, SPECTRUM_NOTE,
+  PLAIN_TEMPLATE, STEP_PARSE, STEP_ANALYZE, STEP_GENERATE, STEP_RUNTIME, STEP_INTERPRET,
+  PARSE_NOTE, ANALYZE_NOTE, GENERATE_NOTE, RUNTIME_NOTE,
+  MINI_COMPILER_CODE, MINI_COUNTER_OUT, MINI_OUT_NOTE, MINI_PRESETS, DEMO_NOTE,
+  PLAIN_MEMO_CACHE, REACT_COUNTER_SRC, REACT_COUNTER_OUT, TRACK_NOTE, REACT_OUT_NOTES, REACT_WHAT_NOTE,
+  REACT_SUM_SRC, REACT_SUM_OUT,
+  BAILOUT_HEAD, BAILOUT_ROWS, BAILOUT_SILENT_NOTE, BAILOUT_SORT_NOTE, USE_NO_MEMO_NOTE,
+  PLAIN_RUNES, SVELTE_COUNTER_SRC, SVELTE_HINT_SRC, SVELTE_COUNTER_OUT, SVELTE_OUT_NOTES,
+  SVELTE_PROXY_SRC, SVELTE_PROXY_OUT, SVELTE_PROXY_NOTE,
+  PLAIN_ONCE, SOLID_COUNTER_SRC, SOLID_COUNTER_OUT, SOLID_OUT_NOTES, SOLID_ONCE_NOTE,
+  UPDATE_HEAD, UPDATE_ROWS, UPDATE_NOTE, UPDATE_TAKEAWAYS,
+  PITFALLS, SOURCES, RELATED,
+  REACT_CACHE_SCENE_NOTE,
+  REACT_CACHE_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Идея"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Где делается работа: в браузере или при сборке"
+  lead="Каждый фреймворк отвечает на один вопрос — что сделать, когда изменилось одно значение. Различаются они тем, сколько ответа известно заранее."
+  leadWidth={72}
+>
+  <Table
+    head={SPECTRUM_HEAD}
+    rows={SPECTRUM_ROWS}
+    kinds={['prose', 'muted', 'muted', 'muted']}
+    cols="minmax(140px,.7fr) minmax(190px,1fr) minmax(230px,1.3fr) minmax(150px,.8fr)"
+    minWidth={780}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SPECTRUM_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Учебный компилятор примерно на сто строк"
+  lead="Крошечный язык шаблонов — теги, атрибуты и выражения в фигурных скобках — и компилятор, который превращает шаблон в «один раз разобрать HTML, потом обновлять только нужные узлы»."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEMPLATE} />
+
+  ### Разбор
+
+  <CodeBlock code={STEP_PARSE} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={PARSE_NOTE} />
+
+  ### Анализ зависимостей
+
+  <CodeBlock code={STEP_ANALYZE} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={ANALYZE_NOTE} />
+
+  ### Генерация
+
+  <CodeBlock code={STEP_GENERATE} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={GENERATE_NOTE} />
+
+  ### Рантайм и интерпретатор для сравнения
+
+  <CodeBlock code={STEP_RUNTIME} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={RUNTIME_NOTE} />
+
+  <CodeBlock code={STEP_INTERPRET} />
+
+  ### Что получилось
+
+  <CodeBlock code={MINI_COUNTER_OUT} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={MINI_OUT_NOTE} />
+
+  ### Вживую: свой шаблон
+
+  <MiniCompiler client:visible code={MINI_COMPILER_CODE} presets={MINI_PRESETS} note={DEMO_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="React Compiler: кеш вместо ручной мемоизации"
+  lead="React Compiler не меняет модель React: функция компонента по-прежнему вызывается на каждое изменение. Он переписывает её тело так, чтобы внутри вызова всё, у чего входы не изменились, бралось из кеша."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MEMO_CACHE} />
+
+  ### Исходник
+
+  <CodeBlock code={REACT_COUNTER_SRC} />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55} text={TRACK_NOTE} />
+
+  ### Вывод `babel-plugin-react-compiler` 1.0.0
+
+  <CodeBlock code={REACT_COUNTER_OUT} />
+
+  <CardGrid min={290} gap={16} align="start">
+    {REACT_OUT_NOTES.map((note) => (
+      <Card title={note.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={note.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Тот же вывод на двух вызовах: монтирование и «+1»
+
+  <Md text={REACT_CACHE_SCENE_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {REACT_CACHE_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Монтирование:** ${st.mount}`} />
+        <Md text={`**Клик «+1»:** ${st.click}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={REACT_WHAT_NOTE} />
+
+  ### Число из дорогого расчёта
+
+  <CodeBlock code={REACT_SUM_SRC} />
+
+  <CodeBlock code={REACT_SUM_OUT} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Когда React Compiler отказывается"
+  lead="Компилятор оптимизирует только то, за что может поручиться: код, который соблюдает правила React. Какие нарушения он замечает, а какие пропускает, видно на восьми маленьких функциях."
+  leadWidth={72}
+>
+  <Table
+    head={BAILOUT_HEAD}
+    rows={BAILOUT_ROWS}
+    kinds={['prose', 'muted', 'mono', 'muted']}
+    cols="minmax(160px,.8fr) minmax(150px,.8fr) minmax(120px,.6fr) minmax(260px,1.6fr)"
+    minWidth={820}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={BAILOUT_SILENT_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={BAILOUT_SORT_NOTE} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={USE_NO_MEMO_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Svelte 5: руны и шаблон без виртуального DOM"
+  lead="Svelte — язык, а не библиотека: файл `.svelte` без компилятора не исполнить вовсе. Компилятор превращает руны в вызовы сигналов, а разметку — в строку HTML и эффекты на узлах."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RUNES} />
+
+  ### Исходник: `Counter.svelte` и `Hint.svelte`
+
+  <CodeBlock code={SVELTE_COUNTER_SRC} />
+
+  <CodeBlock code={SVELTE_HINT_SRC} />
+
+  ### Вывод `svelte/compiler` 5.57.1 для `Counter`
+
+  <CodeBlock code={SVELTE_COUNTER_OUT} />
+
+  <CardGrid min={290} gap={16} align="start">
+    {SVELTE_OUT_NOTES.map((note) => (
+      <Card title={note.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={note.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Объект в `$state` и `$effect`
+
+  <CodeBlock code={SVELTE_PROXY_SRC} />
+
+  <CodeBlock code={SVELTE_PROXY_OUT} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={SVELTE_PROXY_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Solid: JSX, который не становится деревом"
+  lead="Solid берёт синтаксис JSX, но компилирует его иначе, чем React: в клонирование шаблона и `insert` вокруг каждого выражения. Реактивность — сигналы, функция компонента — конструктор, который выполняется один раз."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ONCE} />
+
+  ### Исходник
+
+  <CodeBlock code={SOLID_COUNTER_SRC} />
+
+  ### Вывод `babel-preset-solid` 1.9.15
+
+  <CodeBlock code={SOLID_COUNTER_OUT} />
+
+  <CardGrid min={290} gap={16} align="start">
+    {SOLID_OUT_NOTES.map((note) => (
+      <Card title={note.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={note.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SOLID_ONCE_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Одно изменение — пять ответов"
+  lead="Один и тот же компонент — кнопка, абзац с `count` и `double` и статичный `Hint` — у каждого фреймворка. Один клик «+1». Записей в DOM у всех почти поровну; различается работа, которую браузер делает до них."
+  leadWidth={72}
+>
+  <Table
+    head={UPDATE_HEAD}
+    rows={UPDATE_ROWS}
+    kinds={['prose', 'mono', 'mono', 'mono', 'muted']}
+    cols="minmax(180px,1fr) minmax(110px,.6fr) minmax(100px,.6fr) minmax(110px,.6fr) minmax(180px,1fr)"
+    minWidth={760}
+  />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55} text={UPDATE_NOTE} />
+
+  <CardGrid min={260} gap={16} align="start">
+    {UPDATE_TAKEAWAYS.map((item) => (
+      <Card tone={item.tone} color="tone" title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Тонкие места"
+  lead="Компилятор делает ровно то, что смог доказать. Где доказательство опирается на правило, которое код нарушает, оптимизация превращается в ошибку."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Источники"
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

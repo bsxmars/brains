@@ -1,0 +1,453 @@
+---
+title: "Время и даты: UTC, часовые пояса и Temporal"
+headingWidth: 24
+order: 21
+lead: "`Date` — не дата, а одно число: миллисекунды от полуночи 1 января 1970 года по UTC. Всё остальное — год, час, день недели — вычисляется из него через пояс машины. Отсюда «минус день» у пользователей в Америке, «завтра в 12:00», которое приходит в 13:00, и 02:30, которого не было. Temporal разводит эти вопросы по разным типам и заставляет ответить на них явно."
+leadWidth: 66
+summary: "`Date` как число и его пределы; месяцы с нуля; почему `'2026-03-29'` — UTC, а `'2026-03-29T00:00'` — местное время; переход на летнее время: несуществующий и повторённый час, сутки по 23 и 25 часов; сравнение, `toISOString`, JSON и `Intl.DateTimeFormat`; база поясов IANA, которая разная в Node 24 и 26; типы Temporal и `disambiguation`; перевод «время на часах → UTC» по таблице переходов своими руками."
+verifiedOn: "Node 24.11.0 (ICU 77.1, tzdata 2025b) и 26.8.2 (ICU 78.3, tzdata 2026a), temporal-polyfill 1.0.5, Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: выражения и примеры исполняет tests/unit/time-dates.test.ts в процессах Node с нужным TZ; учебная функция сверена с Temporal.ZonedDateTime и Date на моментах через каждые 5 минут вокруг переходов семи зон; колонки браузеров и Node 26 — стенд"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Date — это число }
+  - { id: s2, label: Строка без зоны }
+  - { id: s3, label: Летнее время }
+  - { id: s4, label: Сравнение и вывод }
+  - { id: s5, label: База поясов }
+  - { id: s6, label: Temporal }
+  - { id: s7, label: Часы → UTC }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import TzLab from '@/widgets/tz-lab/ui/TzLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_DATE,
+  PREREQ,
+  PREREQ_NOTE,
+  NUMBER_ROWS,
+  NUMBER_NOTE,
+  PARSE_ROWS,
+  parseCell,
+  PARSE_NOTE,
+  DATE_INPUT_CODE,
+  DATE_INPUT_NOTE,
+  PLAIN_GAP,
+  DST_ROWS,
+  DST_NOTE,
+  TOMORROW_CODE,
+  TOMORROW_NOTE,
+  COMPARE_ROWS,
+  PLAIN_INTL,
+  INTL_CODE,
+  INTL_OUT,
+  INTL_NOTE,
+  PLAIN_TZDB,
+  ZONE_ROWS,
+  RUNTIME_ROWS,
+  VERSIONS_CODE,
+  CHISINAU_CODE,
+  CHISINAU_OUT,
+  CHISINAU_NOTE,
+  TZ_FACTS,
+  PLAIN_TEMPORAL,
+  TYPE_ROWS,
+  TEMPORAL_CODE,
+  TEMPORAL_OUT,
+  TEMPORAL_NOTE,
+  PLAIN_DISAMBIGUATION,
+  DISAMBIGUATION_ROWS,
+  DISAMBIGUATION_CODE,
+  OFFSET_ROWS,
+  OFFSET_NOTE,
+  TEMPORAL_FACTS,
+  SUPPORT_NOTE,
+  PLAIN_CANDIDATES,
+  LOCAL_TO_UTC_CODE,
+  LOCAL_TO_UTC_NOTE,
+  CALL_CODE,
+  CALL_OUT,
+  DEMO_SCENARIOS,
+  DEMO_CAPTION,
+  code,
+  exprRows,
+  exprRowsTz,
+  exprTones,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Одно число" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    `Date` хранит момент, а не дату. Дата, час и день недели появляются, только когда
+    момент читают через часовой пояс, — и `Date` всегда читает через пояс той машины,
+    где запущен код. Почти все ошибки со временем — это момент, прочитанный не в той зоне,
+    или время на часах, принятое за момент.
+
+  </Callout>
+
+  Два человека в Москве и Нью-Йорке смотрят на одно и то же значение `Date`. Один видит
+  29 марта, другой — вечер 28-го, и оба правы. А «29 марта, 02:30 в Берлине» не указывает
+  ни на какой момент: в ту ночь часы перескочили с 01:59 на 03:00. Чтобы такие места
+  не ломали код, нужно различать три вещи — момент, время на часах и зону, — и знать,
+  какая из них где лежит.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DATE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="`Date` — это число"
+  lead="Внутри `Date` одно поле — миллисекунды от эпохи. Конструктор переводит в это число то, что вы передали, а геттеры переводят число обратно в год, месяц и час. Оба перевода идут через календарь с особенностями, которые тянутся из первых версий языка."
+  leadWidth={72}
+>
+  <Table
+    head={['выражение', 'результат', 'почему']}
+    rows={exprRows(NUMBER_ROWS)}
+    tones={exprTones(NUMBER_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(250px,1.3fr) minmax(170px,.9fr) minmax(260px,1.5fr)"
+    minWidth={760}
+  />
+
+  <Md text={NUMBER_NOTE} />
+
+  Предел `8.64e15` выбран не случайно: это 10⁸ суток, около 273 тысяч лет в обе стороны
+  от 1970 года, и он заведомо меньше `2⁵³`. Поэтому любой момент `Date` — точное целое
+  число в double, без потерь, о которых рассказано в [«Числах в JS»](/js/numbers/#s3).
+  Дробные миллисекунды конструктор отбрасывает, и точнее миллисекунды `Date` ничего
+  не хранит.
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Строка без зоны"
+  lead="Стандарт обязывает движки одинаково понимать один формат строк — ISO 8601. И в нём строка только с датой читается как полночь UTC, а строка с датой и временем без пояса — как местное время машины. Одна и та же «дата 29 марта» даёт разные моменты, а в части мира — и другое число месяца."
+  leadWidth={72}
+>
+  <Table
+    head={['строка', 'как читается', 'Москва', 'Нью-Йорк', 'Калькутта']}
+    rows={PARSE_ROWS.map((r) => [code(r.s), r.how, ...r.cells.map(parseCell)])}
+    tones={PARSE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,.9fr) minmax(190px,1.1fr) minmax(140px,.8fr) minmax(140px,.8fr) minmax(140px,.8fr)"
+    minWidth={860}
+  />
+
+  <Md text={PARSE_NOTE} />
+
+  Две нижние строки — уже не ISO: месяц без ведущего нуля и пробел вместо `T`. Такие строки
+  стандарт оставил на усмотрение движка. Сегодня все три движка читают их как местное время,
+  но обещания нет, и строки вроде `01.10.2026` движки уже понимают по-разному — это разобрано
+  в [«Трёх движках»](/render/browser-engines/#s2). Отдельная ловушка: `'2026-02-30'` Chromium
+  и Firefox превращают во 2 марта, а WebKit — в `NaN`.
+
+  ### Поле `<input type="date">`
+
+  <Card title="Дата из календаря" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DATE_INPUT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={DATE_INPUT_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Летнее время: час, которого не было, и час, который был дважды"
+  lead="Там, где переводят часы, время на часах дважды в год перестаёт однозначно указывать на момент. Весной в Берлине после 01:59:59 сразу идёт 03:00 — времени с 02:00 до 02:59 в этот день нет. Осенью после 02:59:59 летнего времени снова наступает 02:00 — и этот час проходит дважды."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GAP} />
+
+  <Table
+    head={['выражение', 'пояс', 'результат', 'почему']}
+    rows={exprRowsTz(DST_ROWS)}
+    tones={exprTones(DST_ROWS)}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(260px,1.3fr) minmax(150px,.7fr) minmax(170px,.8fr) minmax(260px,1.4fr)"
+    minWidth={900}
+  />
+
+  <Md text={DST_NOTE} />
+
+  ### Завтра в то же время
+
+  <Card title="Два способа прибавить день" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TOMORROW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TOMORROW_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Сравнение и вывод"
+  lead="Сравнивать `Date` нужно по числу, а не по объекту. А выводить — помня, что каждый метод сам выбирает, в каком поясе читать момент: `toISOString` и `JSON.stringify` — всегда UTC, `toString` и геттеры — пояс машины, `Intl.DateTimeFormat` — тот, что передан опцией."
+  leadWidth={72}
+>
+  <Table
+    head={['выражение (пояс — Москва)', 'результат', 'почему']}
+    rows={exprRows(COMPARE_ROWS)}
+    tones={exprTones(COMPARE_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(280px,1.4fr) minmax(220px,1.1fr) minmax(240px,1.2fr)"
+    minWidth={860}
+  />
+
+  ### Один момент — разные подписи
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTL} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Intl.DateTimeFormat и timeZone" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={INTL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Результат" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={INTL_OUT.map((s) => `'${s}'`).join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={INTL_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="База поясов: зона — это история"
+  lead="`+03:00` — смещение на сегодня. `Europe/Moscow` — запись обо всех переводах часов в Москве, какие известны, и о правилах на будущее. Такие записи для всех мест мира ведёт проект IANA в базе tzdata, выпуская её несколько раз в год, и каждая программа носит свою копию."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TZDB} />
+
+  <Table
+    head={['зона', 'смещения', 'что в ней особенного']}
+    rows={ZONE_ROWS.map((r) => [r.zone, r.offsets, r.what])}
+    tones={ZONE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(150px,.7fr) minmax(320px,2fr)"
+    minWidth={720}
+  />
+
+  ### Чья база
+
+  В JS базу поясов приносит библиотека ICU, встроенная в движок. Node собирают с конкретной
+  версией ICU и tzdata, браузер — со своей, и обновляются они по своему графику.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Спросить среду" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VERSIONS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Table
+      head={['среда', 'ICU', 'tzdata', 'Temporal']}
+      rows={RUNTIME_ROWS.map((r) => [r.env, r.icu, r.tz, r.temporal])}
+      kinds={['prose', 'mono', 'prose', 'prose']}
+      cols="minmax(120px,.8fr) minmax(70px,.4fr) minmax(120px,.8fr) minmax(200px,1.4fr)"
+      minWidth={560}
+    />
+  </CardGrid>
+
+  ### Один вызов — два ответа
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Кишинёв, 29 марта 2026" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CHISINAU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Table
+      head={['среда', 'результат', 'почему']}
+      rows={CHISINAU_OUT.map((r) => [`${r.env} (${r.tz})`, code(r.out), r.why])}
+      kinds={['prose', 'mono', 'prose']}
+      cols="minmax(130px,.8fr) minmax(190px,1fr) minmax(180px,1.1fr)"
+      minWidth={540}
+    />
+  </CardGrid>
+
+  <Md text={CHISINAU_NOTE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {TZ_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Temporal: свой тип на каждый вопрос"
+  lead="Temporal — встроенный объект, который приходит в язык на смену `Date`. Вместо одного типа на всё — несколько: момент, время на часах в зоне, дата без времени, длительность. Объекты неизменяемы, месяцы считаются с единицы, а выбор в разрыве и повторе — явная опция."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEMPORAL} />
+
+  <Table
+    head={['тип', 'что хранит', 'пример', 'когда брать']}
+    rows={TYPE_ROWS.map((r) => [code(r.type), r.what, code(r.example), r.when])}
+    kinds={['mono', 'prose', 'mono', 'prose']}
+    cols="minmax(190px,.9fr) minmax(200px,1.1fr) minmax(220px,1.1fr) minmax(220px,1.2fr)"
+    minWidth={900}
+  />
+
+  <Card title="Завтра в полдень — на Temporal" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TEMPORAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={TEMPORAL_OUT.map((v) => (typeof v === 'string' ? `'${v}'` : String(v))).join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TEMPORAL_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### `disambiguation`: что делать с 02:30
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISAMBIGUATION} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Время на часах → зона" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DISAMBIGUATION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Table
+      head={['опция', '29.03, 02:30', '25.10, 02:30', 'что значит']}
+      rows={DISAMBIGUATION_ROWS.map((r) => [code(r.mode), code(r.gap), code(r.overlap), r.what])}
+      kinds={['mono', 'mono', 'mono', 'prose']}
+      cols="minmax(110px,.6fr) minmax(110px,.6fr) minmax(110px,.6fr) minmax(200px,1.4fr)"
+      minWidth={600}
+    />
+  </CardGrid>
+
+  ### Опция `offset`: строка, которая спорит с зоной
+
+  <Table
+    head={["`ZonedDateTime.from('2026-07-01T12:00+01:00[Europe/Berlin]', { offset })`", 'результат', 'что значит']}
+    rows={OFFSET_ROWS.map((r) => [code(r.mode), code(r.out), r.what])}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(150px,.6fr) minmax(300px,1.4fr) minmax(240px,1.2fr)"
+    minWidth={760}
+  />
+
+  <Md text={OFFSET_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {TEMPORAL_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SUPPORT_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7 · демо"
+  eyebrowTone="demo"
+  title="Время на часах → UTC своими руками"
+  lead="Всё, что `Date` и `toZonedDateTime` делают с временем на часах, помещается в сорок строк: таблица переходов зоны, перебор смещений и правило выбора. Ни лета, ни зимы, ни названий стран функция не знает — только моменты, когда менялось смещение."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANDIDATES} />
+
+  <Card title="Перевод по таблице переходов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOCAL_TO_UTC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={LOCAL_TO_UTC_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Вызов: Берлин, 02:30" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CALL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Результат" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CALL_OUT.map((s) => `'${s}'`).join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Лента времени вокруг перехода
+
+  <TzLab client:visible code={LOCAL_TO_UTC_CODE} scenarios={DEMO_SCENARIOS} caption={DEMO_CAPTION} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Храните момент в UTC и имя зоны рядом, а время на часах переводите в момент
+      один раз — там, где его ввёл человек, и с явным решением про разрыв и повтор.**
+      Всё остальное — вывод: подпись к моменту в той зоне, в которой на него смотрят.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

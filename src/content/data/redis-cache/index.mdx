@@ -1,0 +1,475 @@
+---
+title: "Кеш перед базой: Redis, инвалидация и толпа"
+heading: "Кеш перед базой: Redis, инвалидация и толпа"
+headingWidth: 24
+order: 3
+kicker: данные и бэкенд
+lead: "Переименовали пользователя, удалили ключ в Redis — а сайт пять минут показывает старое имя. Ошибок нет, код «правильный». Как устроены схемы кеширования, почему удаление ключа проигрывает гонку медленному читателю и реплике, что делать, когда за одним ключом в базу идут пятьдесят запросов, и кого Redis выбросит, когда кончится память."
+leadWidth: 66
+summary: "Cache-aside, read-through, write-through и write-behind; TTL и сброс срока обычным `SET`; гонка инвалидации по шагам — медленный читатель, удаление до `COMMIT`, реплика; аренда через `SET NX`, версия и двойное удаление; толпа на истечении — замок `SET NX PX`, XFetch и мягкий срок; `maxmemory-policy`, приближённый LRU и `maxmemory-samples`, `OBJECT IDLETIME`; холодный кеш после рестарта."
+verifiedOn: "Redis 7.4.11 (redis:7-alpine в Docker), ioredis 5.11.1, Node 24.11.0, октябрь 2026: журналы семи гонок, 50 одновременных читателей с замком и без, сроки ключей, кража замка, вытеснение при восьми политиках и выборках 1/5/10, рестарт со снимком и без — сняты стендом (пересборка — tests/unit/redis-cache.test.ts при REDIS_CACHE_CONTAINER). Учебная модель сверена со стендом шаг в шаг, поток через истечение — с формулами. По документации: пул кандидатов на вытеснение, фоновое удаление истёкших ключей, аренды Facebook"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Cache-aside }
+  - { id: s2, label: Срок ключа }
+  - { id: s3, label: Гонка инвалидации }
+  - { id: s4, label: Чем лечить гонку }
+  - { id: s5, label: Толпа }
+  - { id: s6, label: Вытеснение }
+  - { id: s7, label: Холодный кеш }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import CacheRaceLab from '@/widgets/cache-race-lab/ui/CacheRaceLab.vue';
+import HerdLab from '@/widgets/cache-race-lab/ui/HerdLab.vue';
+import EvictLab from '@/widgets/cache-race-lab/ui/EvictLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_CACHE,
+  INTRO_CALLOUT,
+  PREREQ,
+  PREREQ_NOTE,
+  REDIS_CODE,
+  LUA_CODE,
+  DB_CODE,
+  SCHEDULE_CODE,
+  CLIENT_CODE,
+  FIX_CODE,
+  HERD_CODE,
+  SIM_CODE,
+  EVICT_CODE,
+  WORKLOAD_CODE,
+  PATTERN_ROWS,
+  ASIDE_NOTE,
+  CLIENT_SIDE_NOTE,
+  TTL_LOG,
+  TTL_NOTE,
+  TTL_FACTS,
+  PLAIN_RACE,
+  ROWS,
+  RACE_ONLY,
+  FIX_ONLY,
+  MODEL_PARTS,
+  RACE_CAPTION,
+  RACE_FIX_CAPTION,
+  SCHEDULE_NOTE,
+  PLAIN_LEASE,
+  FUNCTIONS_NOTE,
+  FIX_ROWS,
+  FIX_NOTE,
+  PLAIN_HERD,
+  HERD_PARAMS,
+  HERD_STRATEGIES,
+  HERD_CAPTION,
+  LOCK_NOTE,
+  LOCK_STEAL_LOG,
+  LOCK_STEAL_NOTE,
+  BURST_ROWS,
+  BURST_NOTE,
+  NGINX_NOTE,
+  STREAM_TABLE,
+  STREAM_NOTE,
+  XFETCH_NOTE,
+  XFETCH_MEANS,
+  XFETCH_TABLE_NOTE,
+  SWR_NOTE,
+  PLAIN_EVICT,
+  POLICY_ROWS,
+  EVICT_NOTE,
+  IDLE_LOG,
+  IDLE_NOTE,
+  EVICT_ROWS,
+  EVICT_STAND_NOTE,
+  EVICT_CAPACITY,
+  STAND_EVICT,
+  EVICT_CAPTION,
+  EVICT_MODEL_NOTE,
+  RESTART_ROWS,
+  COLD_TITLE_NOTE,
+  COLD_NOTE,
+  COLD_FACTS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Копия перед базой" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Кеш не знает, что в базе что-то поменялось. Он узнаёт об этом, только когда ваш код удалит
+    ключ или когда выйдет срок, — и между этими моментами отдаёт то, что лежит. Вся работа
+    с кешем — это управление тремя вещами: **как долго он может врать, сколько запросов
+    дойдёт до базы, когда он пуст, и что он выбросит, когда полон**.
+
+  </Callout>
+
+  <Md text={INTRO_CALLOUT} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Cache-aside: кто кладёт в кеш"
+  lead="Redis сам в базу не ходит. Значит, кто-то должен прочитать базу при промахе, положить ответ в кеш и убрать его оттуда, когда данные изменились. Чаще всего это делает само приложение — схема называется cache-aside, «кеш сбоку»."
+  leadWidth={72}
+>
+  <Card title="Читатель и писатель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLIENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ASIDE_NOTE} />
+    </CardNote>
+  </Card>
+
+  Код записан генераторами: каждый `yield` — один поход в кеш или в базу. В обычном приложении
+  на этом месте стоял бы `await redis.get(key)` или `await db.query(…)`. Генератор нужен, чтобы
+  ниже переставлять шаги двух клиентов в любом порядке и смотреть, что получится.
+
+  ### Четыре схемы
+
+  <Table
+    head={['схема', 'как устроена', 'когда брать']}
+    rows={PATTERN_ROWS.map((r) => [r.k, r.how, r.when])}
+    tones={PATTERN_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(130px,.6fr) minmax(240px,1.3fr) minmax(260px,1.4fr)"
+    minWidth={720}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CLIENT_SIDE_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Срок ключа: сколько может врать кеш"
+  lead="Ключ со сроком Redis удалит сам. Это не способ обновлять данные, а предохранитель: что бы ни пошло не так с удалением, ошибочная копия проживёт не дольше срока."
+  leadWidth={72}
+>
+  <Card title="Сроки на стенде" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TTL_LOG.join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TTL_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {TTL_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Гонка инвалидации по шагам"
+  lead="Писатель меняет базу и удаляет ключ. Читатель при промахе читает базу и кладёт ответ в кеш. Каждый прав по отдельности, но их шаги перемешиваются — и бывает, что последним в кеш пишет тот, кто нёс старое."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RACE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="База-заглушка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Планировщик шагов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCHEDULE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={SCHEDULE_NOTE} />
+
+  <Card title="Учебный Redis" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REDIS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Три гонки
+
+  <CacheRaceLab client:visible parts={MODEL_PARTS} scenarios={RACE_ONLY} rows={ROWS} caption={RACE_CAPTION} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Чем лечить гонку"
+  lead="Правильный порядок — сначала `COMMIT`, потом `DEL` — закрывает только одну гонку из трёх. Остальные требуют, чтобы кеш умел отказать опоздавшему: по аренде, которую писатель отменил, или по версии, которая старше той, что уже лежит."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LEASE} />
+
+  <Card title="Аренда, версия, двойное удаление" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Библиотека Lua для Redis" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LUA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FUNCTIONS_NOTE} />
+  </CardGrid>
+
+  ### Те же гонки с защитой
+
+  <CacheRaceLab client:visible parts={MODEL_PARTS} scenarios={FIX_ONLY} rows={ROWS} caption={RACE_FIX_CAPTION} />
+
+  ### Что от чего защищает
+
+  <Table
+    head={['приём', 'медленный читатель', 'реплика', 'цена']}
+    rows={FIX_ROWS.map((r) => [r.k, r.slow, r.replica, r.cost])}
+    tones={FIX_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'muted']}
+    cols="minmax(150px,.8fr) minmax(110px,.6fr) minmax(130px,.7fr) minmax(240px,1.4fr)"
+    minWidth={680}
+  />
+
+  <Md text={FIX_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="Толпа у пустого ключа"
+  lead="Популярный ключ истёк или вытеснен, а за ним одновременно пришли десятки запросов. Все видят промах, и все идут в базу за одним и тем же значением. Чем дольше отвечает база, тем больше запросов успевает прийти за это время — а под нагрузкой она отвечает дольше."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HERD} />
+
+  <Card title="Четыре читателя: без защиты, замок, XFetch, мягкий срок" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HERD_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={LOCK_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Пятьдесят разом на пустой ключ
+
+  <Table
+    head={['защита', 'походов в базу', 'ждали']}
+    rows={BURST_ROWS.map((r) => [r.k, String(r.db), String(r.waited)])}
+    tones={BURST_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(220px,1.4fr) minmax(120px,.6fr) minmax(100px,.5fr)"
+    minWidth={480}
+  />
+
+  <Md text={BURST_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={NGINX_NOTE} />
+
+  ### Замок, снятый простым DEL
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Чужой замок" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LOCK_STEAL_LOG.join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LOCK_STEAL_NOTE} />
+  </CardGrid>
+
+  ### Поток через истечение
+
+  <Card title="Виртуальное время" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SIM_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['защита', 'походов в базу', 'ждали', 'получили старое']}
+    rows={STREAM_TABLE.map((r) => [r.k, String(r.db), String(r.waited), String(r.stale)])}
+    tones={STREAM_TABLE.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(160px,1fr) minmax(120px,.6fr) minmax(90px,.5fr) minmax(130px,.6fr)"
+    minWidth={520}
+  />
+
+  <Md text={STREAM_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="XFetch в Redis" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={XFETCH_NOTE} />
+
+    <Card title="Мягкий срок" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SWR_NOTE} />
+  </CardGrid>
+
+  <Table
+    head={['β', 'пересчётов в среднем, 1000 прогонов', 'по формуле']}
+    rows={XFETCH_MEANS.map((r) => [String(r.beta).replace('.', ','), r.mean, r.expected])}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(80px,.4fr) minmax(220px,1.2fr) minmax(120px,.7fr)"
+    minWidth={440}
+  />
+
+  <Md text={XFETCH_TABLE_NOTE} />
+
+  ### Каждый читатель на виду
+
+  <HerdLab client:visible parts={MODEL_PARTS} params={HERD_PARAMS} strategies={HERD_STRATEGIES} caption={HERD_CAPTION} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6 · демо"
+  eyebrowTone="demo"
+  title="Память кончилась: кого вытеснит Redis"
+  lead="По умолчанию Redis растёт без предела, пока его не остановит лимит контейнера. С `maxmemory` он держит память под потолком, а что делать, когда места нет, решает `maxmemory-policy`. Ошибка в выборе политики не видна, пока память не кончится, — и тогда пропадает не то, что вы ждали."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EVICT} />
+
+  <Table
+    head={['политика', 'из кого выбирает', 'кого выбрасывает', 'когда брать']}
+    rows={POLICY_ROWS.map((r) => [r.k, r.from, r.how, r.when])}
+    tones={POLICY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,.9fr) minmax(110px,.6fr) minmax(200px,1.1fr) minmax(220px,1.2fr)"
+    minWidth={760}
+  />
+
+  ### Приближённый LRU
+
+  <Md text={EVICT_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Простой ключа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={IDLE_LOG.join('\n')} size={11} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={IDLE_NOTE} />
+  </CardGrid>
+
+  <Card title="Вытеснение с выборкой и пулом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={EVICT_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={EVICT_MODEL_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### 700 ключей в память на 298
+
+  <Card title="Нагрузка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={WORKLOAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['политика', 'без срока, из 50', 'горячие, из 50', 'холодные, из 600', 'вытеснено']}
+    rows={EVICT_ROWS.map((r) => [r.k, r.s, r.h, r.c, r.out])}
+    tones={EVICT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(200px,1.3fr) minmax(100px,.6fr) minmax(100px,.6fr) minmax(110px,.6fr) minmax(130px,.7fr)"
+    minWidth={720}
+  />
+
+  <Md text={EVICT_STAND_NOTE} />
+
+  <EvictLab client:visible parts={MODEL_PARTS} capacity={EVICT_CAPACITY} stand={STAND_EVICT} caption={EVICT_CAPTION} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Холодный кеш после рестарта"
+  lead="Redis держит данные в памяти. Переживут ли они рестарт, зависит от того, успел ли он записать снимок на диск, — и от того, как именно его остановили."
+  leadWidth={72}
+>
+  <Md text={COLD_TITLE_NOTE} />
+
+  <Table
+    head={['как остановили', 'что произошло', 'ключей до', 'после']}
+    rows={RESTART_ROWS.map((r) => [r.k, r.how, String(r.before), String(r.after)])}
+    tones={RESTART_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'mono', 'mono']}
+    cols="minmax(180px,1fr) minmax(280px,1.8fr) minmax(90px,.4fr) minmax(80px,.4fr)"
+    minWidth={680}
+  />
+
+  <Md text={COLD_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {COLD_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Кеш — это не «быстрая база», а копия с договором.** В договоре три пункта: сколько
+      копия может отставать (срок и способ инвалидации), сколько запросов пропустить в базу,
+      когда копии нет (замок или мягкий срок), и что выбросить, когда места не хватит (политика
+      вытеснения). Если пункт не записан в коде явно, его выберет порядок шагов, случайная
+      выборка или настройка по умолчанию — и выберет не в вашу пользу.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

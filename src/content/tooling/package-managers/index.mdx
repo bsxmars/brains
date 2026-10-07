@@ -1,0 +1,471 @@
+---
+title: Пакетные менеджеры
+heading: "Пакетные менеджеры: node_modules, lock-файлы и pnpm"
+headingWidth: 22
+order: 3
+kicker: сборка и инструменты
+lead: "`package.json` не описывает, что у вас установлено: он описывает, **что подошло бы**. Какие версии выбраны, где они лежат и какую из них получит `require`, решает менеджер пакетов — и у npm ответ зависит даже от алфавита и от порядка, в котором ставили пакеты. Lock-файл делает этот ответ воспроизводимым, pnpm — честным."
+leadWidth: 66
+summary: "Как читаются диапазоны semver и почему `^0.2.3` не пускает `0.3.0`; как npm поднимает пакеты в плоский `node_modules` и откуда берутся фантомы и одинаковые копии; что записано в lock-файле и чем `npm ci` отличается от `npm install`; peer-зависимости, `ERESOLVE` и `overrides`; хранилище и симлинки pnpm, Yarn PnP; скрипты установки и пороги возраста версий."
+verifiedOn: "Node 26.8.2, npm 11.19.1, pnpm 11.0.9 и Yarn 4.18.0 (оба из кеша corepack) — на учебном реестре из двадцати одного тарбола на 127.0.0.1, без сети, сентябрь 2026, macOS (APFS). Диапазоны сверены с пакетом semver 7.8.5 — 3219 сравнений; раскладки npm и pnpm и integrity тарбола закреплены `tests/unit/package-managers.test.ts`. База уязвимостей `npm audit` (ответ реестра подставлен), provenance и подпись пакетов, Yarn Classic и lockfileVersion 1–2 — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Semver и диапазоны }
+  - { id: s2, label: Разрешение и подъём }
+  - { id: s3, label: Lock-файл }
+  - { id: s4, label: Peer и overrides }
+  - { id: s5, label: pnpm и Yarn PnP }
+  - { id: s6, label: Скрипты и цепочка поставок }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import PmRange from '@/widgets/pm-lab/ui/PmRange.vue';
+import PmTree from '@/widgets/pm-lab/ui/PmTree.vue';
+import PnpmDiagram from '@/widgets/package-managers-pnpm-diagram/ui/PnpmDiagram.astro';
+import {
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_MANAGER,
+  PLAIN_RANGE,
+  PLAIN_HOIST,
+  PLAIN_LOCK,
+  PLAIN_PEER,
+  PLAIN_STORE,
+  SEMVER_CODE,
+  RANGE_ROWS,
+  ZERO_NOTE,
+  PRERELEASE_NOTE,
+  RANGE_PRESETS,
+  RANGE_VERSIONS,
+  REGISTRY,
+  SCENARIOS,
+  TREE_RUNS,
+  HOIST_STEPS,
+  HOIST_NOTE,
+  HISTORY_ROWS,
+  HISTORY_NOTE,
+  PROJECT_DUPES,
+  LOCK_CODE,
+  LOCK_FIELDS,
+  INTEGRITY_CODE,
+  INTEGRITY_NOTE,
+  CI_ROWS,
+  CI_NOTE,
+  PEER_ROWS,
+  PEER_DIR_NOTE,
+  OVERRIDE_CODE,
+  OVERRIDE_ROWS,
+  OVERRIDE_NOTE,
+  STORE_FACTS,
+  PNPM_LOCK_CODE,
+  PNPM_LOCK_NOTE,
+  WORKSPACE_ROWS,
+  PNP_CODE,
+  PNP_NOTE,
+  SCRIPT_ROWS,
+  SCRIPT_NOTE,
+  AGE_ROWS,
+  AGE_NOTE,
+  AUDIT_CODE,
+  AUDIT_NOTE,
+  PROVENANCE_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  PEER_SCENE_CODE,
+  PEER_SCENE_NOTE,
+  PEER_STEPS,
+  PLAIN_PEER_COPY,
+  SUPPLY_SCENE_CODE,
+  SUPPLY_SCENE_NOTE,
+  SUPPLY_STEPS,
+  PNPM_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Что стоит на диске" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    `"c": "^1.0.0"` — это не версия, а условие. Менеджер пакетов превращает набор условий
+    в конкретные архивы на диске, и делает это в два шага: **выбирает** версию под каждое
+    условие и **раскладывает** выбранное по папкам. От второго шага зависит, какую копию
+    получит `require` — а загрузчик Node, в отличие от менеджера, `package.json` не читает.
+
+  </Callout>
+
+  npm, pnpm и Yarn выбирают версии почти одинаково, а раскладывают по-разному. npm
+  поднимает всё, что может, в общий `node_modules` — экономно, но приложению становятся
+  видны пакеты, которых оно не объявляло. pnpm кладёт наверх только объявленное, а остальное
+  связывает симлинками из общего хранилища. Yarn PnP обходится без `node_modules` вовсе.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MANAGER} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Semver и диапазоны"
+  lead="Каждый диапазон — сокращение для пары сравнений «от» и «до». Развернув его, можно ответить на любой вопрос о нём без таблиц: пустит ли он бету, поднимется ли пакет в `0.x`, что выберет менеджер завтра."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RANGE} />
+
+  <Table
+    head={['диапазон', 'развёртка', 'пробные версии', 'что это значит']}
+    rows={RANGE_ROWS.map((r) => [`\`${r.range}\``, `\`${r.desugared}\``, r.verdicts, r.note])}
+    kinds={['mono', 'mono', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(190px,1fr) minmax(200px,1fr) minmax(240px,1.3fr)"
+    minWidth={820}
+  />
+
+  <CardGrid min={300} gap={14} align="start">
+    <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={ZERO_NOTE} />
+    <Card tone="info" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={PRERELEASE_NOTE} />
+  </CardGrid>
+
+  <Card title="Проверка диапазона целиком" titleSize={17} pad={20} gap={13}>
+    <CodeBlock code={SEMVER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      Главное здесь — `desugar`: любой диапазон разворачивается в сравнения «от» и «до»,
+      и дальше остаётся проверить версию по каждому. Таблица выше и калькулятор ниже считают
+      этим самым кодом, а ответы совпадают с пакетом `semver`, которым пользуется npm.
+      Диапазоны через дефис и неполные сравнения вроде `>1.2` учебная версия не разбирает
+      и бросает ошибку.
+
+    </CardNote>
+  </Card>
+
+  ### Калькулятор диапазонов
+
+  <PmRange client:visible code={SEMVER_CODE} versions={RANGE_VERSIONS} presets={RANGE_PRESETS} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Разрешение дерева и подъём"
+  lead="Выбрать версию — половина работы. Вторая половина — решить, в какую `node_modules` её положить, и здесь npm и pnpm расходятся: первый экономит копии ценой видимости, второй — наоборот."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOIST} />
+
+  <Card title="Как npm решает, куда положить пакет" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={HOIST_STEPS} size={15.5} />
+
+    <CardNote tone="prose">
+
+      Какую копию потом найдёт `require` — правило поиска Node, оно разобрано в
+      [«Модулях и сборке», подраздел «Поиск вверх по `node_modules` и фантомные
+      зависимости»](/tooling/modules/#s3). Здесь важно одно: менеджер кладёт файлы
+      так, чтобы этот поиск находил подходящую версию, — и ничего сверх этого не обещает.
+
+    </CardNote>
+  </Card>
+
+  ### Одно `package.json` — две раскладки
+
+  <PmTree client:visible code={SEMVER_CODE} registry={REGISTRY} scenarios={SCENARIOS} runs={TREE_RUNS} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={HOIST_NOTE} />
+
+  ### История установки меняет дерево
+
+  <Table
+    head={['что делали', 'раскладка `c`', '`require(\'c\')` из приложения']}
+    rows={HISTORY_ROWS.map((r) => [r.k, r.top, r.sees])}
+    tones={HISTORY_ROWS.map((r) => r.tone)}
+    toneColumn={2}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(220px,1.2fr) minmax(170px,.8fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={HISTORY_NOTE} />
+
+  <Card tone="neutral" title="Двойники в этом самом проекте" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={PROJECT_DUPES} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Lock-файл"
+  lead="Lock-файл записывает не только версии, но и раскладку, адрес каждого архива и хеш его байтов. Поэтому по нему можно восстановить ровно то дерево, что было у автора, — и отказаться ставить, если архив на реестре подменили."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOCK} />
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="`package-lock.json` сценария «две копии»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LOCK_CODE} size={10} lh={1.6} pad="14px 16px" />
+    </Card>
+
+    <CardGrid min={260} gap={12} align="start">
+      {LOCK_FIELDS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15} lh={1.6}>
+          <Md text={fact.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+  </CardGrid>
+
+  <Card title="integrity считается так" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={INTEGRITY_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={INTEGRITY_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### `npm install` против `npm ci`
+
+  <Table
+    head={['ситуация', '`npm install`', '`npm ci`']}
+    rows={CI_ROWS.map((r) => [r.k, r.install, r.ci])}
+    tones={CI_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(210px,1fr) minmax(220px,1.1fr) minmax(250px,1.3fr)"
+    minWidth={720}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CI_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Peer-зависимости и overrides"
+  lead="Обычная зависимость может лежать в нескольких копиях, peer — нет: плагин обязан видеть тот же экземпляр, что и его хозяин. Когда версии не сходятся, npm отказывается ставить, pnpm ставит и предупреждает, а `overrides` решает спор приказом."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PEER} />
+
+  ### Что было бы без peer — и три ответа на конфликт
+
+  <CodeBlock code={PEER_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={PEER_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {PEER_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PEER_COPY} />
+
+  Все случаи из прогона — в одной таблице:
+
+
+  <Table
+    head={['случай', 'npm 11.19.1', 'pnpm 11.0.9']}
+    rows={PEER_ROWS.map((r) => [r.k, r.npm, r.pnpm])}
+    tones={PEER_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(260px,1.4fr) minmax(220px,1.1fr)"
+    minWidth={720}
+  />
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={PEER_DIR_NOTE} />
+
+  ### `overrides`: версия по приказу
+
+  <CodeBlock code={OVERRIDE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={['правило', 'что встало', 'что сказал `npm ls`']}
+    rows={OVERRIDE_ROWS.map((r) => [r.k, r.got, r.ls])}
+    tones={OVERRIDE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(230px,1.2fr) minmax(210px,1fr) minmax(210px,1fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={OVERRIDE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="pnpm и Yarn PnP"
+  lead="pnpm хранит каждый файл каждого пакета один раз на машину и собирает `node_modules` проекта из ссылок. Поэтому установка быстрая, а приложение видит только то, что объявило. Yarn PnP идёт дальше и заменяет поиск по папкам таблицей."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STORE} />
+
+  Та же раскладка этажами: приложение видит только верхний, где лежат ссылки на объявленное, а файлы пакетов живут в хранилище машины.
+
+  <PnpmDiagram diagram={PNPM_DIAGRAM} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {STORE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="`pnpm-lock.yaml` сценария «peer ставится сам»" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={PNPM_LOCK_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={PNPM_LOCK_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Монорепозиторий: workspaces
+
+  <Table
+    head={['', 'npm workspaces', 'pnpm workspaces']}
+    rows={WORKSPACE_ROWS.map((r) => [r.k, r.npm, r.pnpm])}
+    tones={WORKSPACE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(250px,1.3fr) minmax(250px,1.3fr)"
+    minWidth={720}
+  />
+
+  ### Yarn Plug'n'Play
+
+  <CodeBlock code={PNP_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={PNP_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Скрипты установки и цепочка поставок"
+  lead="Установка пакета — это исполнение чужого кода: `postinstall` запускается с вашими правами до того, как вы импортировали хоть строку. Менеджеры 2026 года отвечают на это тремя механизмами: одобрением скриптов, порогом возраста версий и сверкой с базой уязвимостей."
+  leadWidth={72}
+>
+  ### Одна история захвата — четыре рубежа
+
+  <CodeBlock code={SUPPLY_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={SUPPLY_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {SUPPLY_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Скрипты установки
+
+  <Table
+    head={['менеджер и режим', 'что произошло с `postinstall`']}
+    rows={SCRIPT_ROWS.map((r) => [r.k, r.what])}
+    tones={SCRIPT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(210px,.7fr) minmax(360px,1.6fr)"
+    minWidth={620}
+  />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={SCRIPT_NOTE} />
+
+  ### Порог возраста версии
+
+  <Table
+    head={['менеджер', 'настройка', 'что выбрал для `c@^1.0.0`']}
+    rows={AGE_ROWS.map((r) => [r.k, r.setting, r.got])}
+    tones={AGE_ROWS.map((r) => r.tone)}
+    toneColumn={2}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(160px,.7fr) minmax(240px,1.2fr) minmax(220px,1fr)"
+    minWidth={640}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={AGE_NOTE} />
+
+  ### `npm audit` и происхождение пакета
+
+  <CodeBlock code={AUDIT_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+  <CardGrid min={300} gap={14} align="start">
+    <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={AUDIT_NOTE} />
+    <Card tone="info" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={PROVENANCE_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+  <CardGrid min={320} gap={16} align="start">
+    {SOURCES.map((group) => (
+      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
+        {group.items.map((item) => (
+          <Md text={item} />
+        ))}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

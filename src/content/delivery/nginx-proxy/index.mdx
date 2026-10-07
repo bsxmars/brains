@@ -1,0 +1,521 @@
+---
+title: "Nginx как обратный прокси"
+heading: "Nginx как обратный прокси: от location до кеша"
+headingWidth: 24
+order: 14
+kicker: доставка
+lead: "Один запрос к nginx проходит три развилки: какой `server` его примет, какая `location` его обслужит и каким путём он уйдёт к бэкенду. На каждой есть правило, которое расходится с интуицией: регулярка перебивает более длинный префикс, один слеш в `proxy_pass` превращает `/v2/users` в `//users`, а `try_files` отвечает 200 на файл, которого нет."
+leadWidth: 66
+summary: "Выбор server по порту и `server_name`, сервер по умолчанию; выбор location — `=`, самый длинный префикс, `^~`, регулярки по порядку; `proxy_pass` со слешем и без, нормализация пути и автоматический 301; `Host`, `X-Forwarded-*` и наследование `proxy_set_header`; буферизация и залипающий SSE, 502 против 504; SPA и `try_files`; `proxy_cache`, `X-Cache-Status`, `use_stale`, `proxy_cache_lock`; gzip."
+verifiedOn: "nginx 1.30.0 (nginx:1.30.0-alpine-slim) и для сравнения 1.27.5 в Docker, бэкенд на node:http (Node 24.11.0), Chromium 153.0.8010.12, октябрь 2026: ответы, заголовки и журнал бэкенда сняты стендом; модель выбора location, пути у бэкенда и выбора server сверяется tests/unit/nginx-proxy.test.ts с журналами стенда; смена умолчаний в 1.29.7, значения $upstream_cache_status, которых не было на стенде, и смысл proxy_read_timeout — по документации nginx"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Какой server ответит }
+  - { id: s2, label: Какая location ответит }
+  - { id: s3, label: 'proxy_pass: слеш и путь' }
+  - { id: s4, label: Заголовки к бэкенду }
+  - { id: s5, label: Буферизация и таймауты }
+  - { id: s6, label: SPA и try_files }
+  - { id: s7, label: Кеш и gzip }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import NginxLab from '@/widgets/nginx-lab/ui/NginxLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_PROXY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_SERVER,
+  SERVER_CONF,
+  SERVER_JOURNAL,
+  SERVER_STEPS,
+  SERVER_NOTE,
+  SERVER_CODE,
+  SERVER_INGRESS_NOTE,
+  PLAIN_LOCATION,
+  LOC_CONF,
+  LOC_STEPS,
+  LOC_JOURNAL,
+  NORM_JOURNAL,
+  PROBE_GROUPS,
+  LOCATION_CODE,
+  LOC_NOTE,
+  DEMO_CAPTION,
+  PLAIN_PROXY_PASS,
+  PROXY_RULES,
+  PROXY_CODE,
+  NORM_NOTE,
+  DOUBLE_SLASH_NOTE,
+  REDIRECT_NOTE,
+  REGEX_PASS_CONF,
+  REGEX_PASS_ERROR,
+  REGEX_PASS_NOTE,
+  PLAIN_FORWARDED,
+  HEADER_CONF,
+  HEADER_ROWS,
+  HEADER_FACTS,
+  INHERIT_NOTE,
+  HTTP_VERSION_ROWS,
+  HTTP_VERSION_NOTE,
+  REDIRECT_HOST_NOTE,
+  PLAIN_BUFFERING,
+  STREAM_CONF,
+  SSE_BACKEND_CODE,
+  STREAM_ROWS,
+  STREAM_NOTE,
+  TIMEOUT_ROWS,
+  TIMEOUT_NOTE,
+  PLAIN_TRY_FILES,
+  SPA_CONF,
+  SPA_FILES,
+  SPA_ROWS,
+  SPA_NOTE,
+  SPA_LINK_NOTE,
+  PLAIN_PROXY_CACHE,
+  CACHE_CONF,
+  CACHE_STATUSES,
+  CACHE_STATUS_NOTE,
+  CACHE_RUNS,
+  CROWD_ROWS,
+  CROWD_NOTE,
+  GZIP_CONF,
+  GZIP_ROWS,
+  GZIP_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Обратный прокси" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    nginx не «пропускает» запрос к приложению — он **решает** за него: какой сайт обслужит
+    запрос, какое правило к нему применить, какой путь и какие заголовки увидит бэкенд и
+    когда клиент получит ответ. Каждое из этих решений принимается по своему правилу, и
+    почти все ошибки конфигурации — это правило, которое работает не так, как читается.
+
+  </Callout>
+
+  Перед приложением на Node, Go или Python почти всегда стоит nginx. Он раздаёт статику,
+  держит TLS, делит адреса между сервисами и кеширует ответы. Конфиг у него короткий
+  и выглядит очевидным — пока запрос `/images/logo.png` не уходит не туда, а бэкенд не
+  получает `//users` вместо `/users`.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Какой server ответит"
+  lead="На одном nginx обычно живёт несколько сайтов. Какой из них обслужит запрос, решают две вещи: порт, на который пришло соединение, и имя сайта из заголовка `Host`. Если имя не подошло ни к одному сайту, запрос всё равно кто-то обслужит — и это самое неочевидное место."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SERVER} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Восемь server на двух портах" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SERVER_CONF} size={11} lh={1.6} pad="14px 16px" />
+    </Card>
+
+    <Card title="Кто ответил на какой Host" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['порт', '`Host`', 'ответ']}
+        rows={SERVER_JOURNAL.map((r) => [String(r.port), r.host === null ? 'нет (HTTP/1.0)' : '`' + r.host + '`', r.answer === 'закрыто без ответа' ? r.answer : '`' + r.answer + '`'])}
+        kinds={['muted', 'mono', 'prose']}
+        cols="minmax(50px,.4fr) minmax(150px,1.3fr) minmax(130px,1fr)"
+        minWidth={360}
+      />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={260} gap={14} align="start">
+    {SERVER_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SERVER_NOTE} />
+
+  <Card title="Выбор server — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SERVER_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={SERVER_INGRESS_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Какая location ответит"
+  lead="Внутри server запрос обслуживает ровно одна location. nginx выбирает её не сверху вниз, как читается конфиг, а в пять шагов, и порядок строк в файле важен только для регулярок."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOCATION} />
+
+  <Card title="Конфиг на всю тему" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOC_CONF} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {LOC_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Журнал стенда
+
+  <Table
+    head={['адрес', 'ответила location', 'бэкенд увидел']}
+    rows={LOC_JOURNAL.map((r) => ['`' + r.uri + '`', '`' + r.location + '`', r.status === 301 ? '301 → `' + r.redirect + '`' : '`' + r.backend + '`'])}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(170px,1fr) minmax(170px,1fr) minmax(200px,1.2fr)"
+    minWidth={600}
+  />
+
+  <Md text={LOC_NOTE} />
+
+  ### Модель и демо
+
+  <Card title="Выбор location — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOCATION_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <NginxLab
+    client:visible
+    locationCode={LOCATION_CODE}
+    proxyCode={PROXY_CODE}
+    conf={LOC_CONF}
+    journal={[...LOC_JOURNAL, ...NORM_JOURNAL]}
+    groups={PROBE_GROUPS}
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="proxy_pass: слеш и путь"
+  lead="Location выбрана — теперь запрос нужно переслать. Какой путь получит бэкенд, зависит от одной детали: есть ли в `proxy_pass` что-нибудь после адреса бэкенда. Даже одинокий `/` меняет правило целиком."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY_PASS} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PROXY_RULES.map((r) => (
+      <Card tone={r.tone} title={r.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${r.when}.`} />
+        <Md text={r.what} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Путь к бэкенду — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PROXY_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Нормализация: что nginx делает с путём
+
+  <Table
+    head={['клиент прислал', 'location', 'бэкенд увидел']}
+    rows={NORM_JOURNAL.filter((r) => r.status === 200).map((r) => ['`' + r.uri + '`', '`' + r.location + '`', '`' + r.backend + '`'])}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(170px,1fr) minmax(130px,.8fr) minmax(170px,1fr)"
+    minWidth={520}
+  />
+
+  <Md text={NORM_NOTE} />
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DOUBLE_SLASH_NOTE} />
+
+  ### Автоматический 301 и внутренний порт
+
+  <Md text={REDIRECT_NOTE} />
+
+  ### Регулярка и путь в proxy_pass
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Конфиг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REGEX_PASS_CONF} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="Проверка конфига" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REGEX_PASS_ERROR} size={11} lh={1.6} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={REGEX_PASS_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Заголовки к бэкенду"
+  lead="Для бэкенда клиент — это nginx. Без настройки он не знает ни имени сайта, ни адреса пользователя, ни того, что запрос пришёл по HTTPS. Всё это nginx может передать заголовками, но только теми, которые ему велели."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FORWARDED} />
+
+  <Card title="Три location — три набора заголовков" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HEADER_CONF} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['location', '`Host`', '`X-Forwarded-For`', '`X-Forwarded-Proto`', '`X-Real-IP`']}
+    rows={HEADER_ROWS.map((r) => [r.k, r.host, r.xff, r.xfp, r.xri])}
+    tones={HEADER_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(190px,1.3fr) minmax(90px,.7fr) minmax(150px,1fr) minmax(90px,.6fr) minmax(100px,.7fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {HEADER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={INHERIT_NOTE} />
+
+  <Md text={REDIRECT_HOST_NOTE} />
+
+  ### Версия HTTP к бэкенду
+
+  <Table
+    head={['версия', 'бэкенд увидел HTTP', '`Connection`']}
+    rows={HTTP_VERSION_ROWS.map((r) => [r.k, r.http, r.conn])}
+    tones={HTTP_VERSION_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(140px,1fr) minmax(140px,1fr) minmax(120px,1fr)"
+    minWidth={420}
+  />
+
+  <Md text={HTTP_VERSION_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Буферизация и таймауты"
+  lead="По умолчанию nginx читает ответ бэкенда в свои буферы и только потом отдаёт клиенту. Для обычных ответов это хорошо: бэкенд освобождается, пока медленный клиент тянет данные. Для потока событий — опасно: события могут прийти пачкой в конце."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUFFERING} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Бэкенд: пять событий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SSE_BACKEND_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Location для потока" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STREAM_CONF} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text="Каждое число в таблице — одно чтение клиента, а значение — сколько событий бэкенд успел отправить к этому моменту. `[1,2,3,4,5]` — события пришли по одному, `[5]` — одним куском после того, как ушли все пять." />
+
+  <Table
+    head={['location', 'nginx 1.30', 'nginx 1.27']}
+    rows={STREAM_ROWS.map((r) => [r.k, '`[' + r.v130.join(',') + ']`', '`[' + r.v127.join(',') + ']`'])}
+    tones={STREAM_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(260px,1.6fr) minmax(120px,.7fr) minmax(120px,.7fr)"
+    minWidth={560}
+  />
+
+  <Md text={STREAM_NOTE} />
+
+  ### 502 и 504
+
+  <Table
+    head={['что случилось', 'ответ клиенту', 'строка в error.log']}
+    rows={TIMEOUT_ROWS.map((r) => [r.k, r.status, r.log])}
+    tones={TIMEOUT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(200px,1fr) minmax(150px,.7fr) minmax(280px,1.6fr)"
+    minWidth={680}
+  />
+
+  <Md text={TIMEOUT_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="SPA и try_files"
+  lead="Одностраничному приложению нужен один `index.html` на любой адрес, который рисует роутер в браузере. У nginx для этого есть `try_files`. Опасность в том, что правило «нет файла — отдай страницу» срабатывает и там, где файла должно быть не найдено."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRY_FILES} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Два сервера одной статики" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SPA_CONF} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что лежит на диске" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SPA_FILES} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['адрес', 'только `try_files`', '+ `/assets/` и `/api/`']}
+    rows={SPA_ROWS.map((r) => [r.k, r.one, r.two])}
+    tones={SPA_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(200px,1fr) minmax(200px,1fr)"
+    minWidth={640}
+  />
+
+  <Md text={SPA_NOTE} />
+
+  <Md text={SPA_LINK_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Кеш и gzip"
+  lead="nginx умеет хранить ответы бэкенда и отдавать их, не беспокоя его. Срок хранения обычно задаёт сам бэкенд заголовком `Cache-Control`, а что nginx сделал с конкретным запросом — взял копию, сходил к бэкенду или отдал устаревшее, — видно в переменной `$upstream_cache_status`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY_CACHE} />
+
+  <Card title="Один кеш, три location" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CACHE_CONF} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['`X-Cache-Status`', 'что произошло']}
+    rows={CACHE_STATUSES.map((r) => [r.k, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(120px,.5fr) minmax(300px,2fr)"
+    minWidth={460}
+  />
+
+  <Md text={CACHE_STATUS_NOTE} />
+
+  ### Последовательности стенда
+
+  <CardGrid min={290} gap={14} align="start">
+    {CACHE_RUNS.map((run) => (
+      <Card title={run.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={run.steps.join(' → ')} />
+        <Md text={run.note} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Толпа и proxy_cache_lock
+
+  <Table
+    head={['10 запросов разом', 'походов к бэкенду', '`X-Cache-Status`']}
+    rows={CROWD_ROWS.map((r) => [r.k, String(r.origin), r.statuses])}
+    tones={CROWD_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(180px,1fr) minmax(120px,.6fr) minmax(180px,1fr)"
+    minWidth={500}
+  />
+
+  <Md text={CROWD_NOTE} />
+
+  ### gzip
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Конфиг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={GZIP_CONF} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="JSON из 60 записей" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['запрос', 'сжат', 'байт']}
+        rows={GZIP_ROWS.map((r) => [r.k, r.enc, String(r.bytes)])}
+        tones={GZIP_ROWS.map((r) => r.tone)}
+        kinds={['prose', 'mono', 'mono']}
+        cols="minmax(170px,1.6fr) minmax(60px,.5fr) minmax(60px,.5fr)"
+        minWidth={340}
+      />
+    </Card>
+  </CardGrid>
+
+  <Md text={GZIP_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Конфиг nginx проверяют запросами, а не чтением.** Выбор location, путь у бэкенда,
+      заголовки, буферизация и статус кеша видны в ответе и в журнале бэкенда — и почти
+      каждая ошибка этой темы выглядит в файле правильно. Пара `curl -i` к нужным адресам
+      и строка `X-Cache-Status` в ответе объясняют больше, чем час над конфигом.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

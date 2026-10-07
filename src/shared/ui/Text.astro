@@ -1,0 +1,98 @@
+---
+/**
+ * Текст с ролью вместо размера.
+ *
+ * `<Text variant="lead">` вместо очередного размера в пикселях в scoped-стиле: размер, высота
+ * строки и начертание берутся из ступеней шкалы (`shared/styles/type.css`), а общий масштаб
+ * курса остаётся одним числом — `--fs-scale` в `theme.ts`.
+ *
+ * Компонент намеренно тонкий: он только выбирает тег и навешивает классы. Ровно те же классы
+ * можно написать руками там, где компонент неудобен (в MDX, внутри острова), — результат
+ * совпадёт. Близнец для островов — `Text.vue` с тем же набором пропов.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+export type TextVariant =
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'lead'
+  | 'body'
+  | 'ui'
+  | 'note'
+  | 'display'
+  | 'eyebrow'
+  | 'label'
+  | 'chip'
+  | 'micro';
+
+type Tone = 'ink' | 'prose' | 'muted' | 'faint' | 'accent' | 'on-ink';
+
+/**
+ * Теги, которыми компонент умеет рисоваться. Список закрытый, и это не ограничение ради
+ * ограничения: текстовый блок в курсе бывает заголовком, абзацем, строкой или врезкой —
+ * всё остальное текстом уже не является и должно собираться своим компонентом.
+ */
+type Tag = 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'div' | 'span' | 'figcaption' | 'li' | 'dt' | 'dd';
+
+interface Props {
+  variant?: TextVariant;
+  /** Тег. По умолчанию — тот, что соответствует роли: заголовок заголовком, абзац абзацем. */
+  as?: Tag;
+  tone?: Tone;
+  /** Моноширинный вне зависимости от роли. */
+  mono?: boolean;
+  weight?: 400 | 500 | 600;
+  /** Предел длины строки в `ch` — как в оригиналах: 66 у лида, 74 у вывода. */
+  /** Устарел: текст идёт на всю ширину колонки (решение автора, 2026-09-28). Проп оставлен для совместимости. */
+  maxWidth?: number;
+  /** Разрешить строчную разметку в слоте нельзя — она приходит пропом. */
+  text?: string;
+  class?: string;
+}
+
+/** Тег по умолчанию для роли: разметка обязана оставаться осмысленной без правок автором. */
+const TAGS: Record<TextVariant, Tag> = {
+  h1: 'h1',
+  h2: 'h2',
+  h3: 'h3',
+  lead: 'p',
+  body: 'p',
+  ui: 'div',
+  note: 'div',
+  display: 'div',
+  eyebrow: 'div',
+  label: 'div',
+  chip: 'span',
+  micro: 'span',
+};
+
+// Тип указан явно: в этом файле есть `export`, и вывести пропы по имени `Props`,
+// как в остальных компонентах, Astro здесь уже не может — `variant` приезжал бы как `any`.
+const {
+  variant = 'body',
+  as,
+  tone,
+  mono = false,
+  weight,
+  text,
+  class: className,
+}: Props = Astro.props;
+
+// Имя отличается от типа `Tag` намеренно: в разметке это компонент, и он обязан начинаться
+// с заглавной буквы, иначе Astro примет его за обычный тег `<tag>`.
+const TagName = as ?? TAGS[variant];
+
+const style = [
+  weight ? `font-weight:${weight}` : '',
+]
+  .filter(Boolean)
+  .join(';');
+---
+
+<TagName
+  class:list={[`t-${variant}`, tone && `t-${tone}`, mono && 't-mono', className]}
+  style={style || undefined}
+>
+  {text ? <Fragment set:html={inlineMd(text)} /> : <slot />}
+</TagName>

@@ -1,0 +1,450 @@
+---
+title: Бандлер изнутри
+heading: "Бандлер изнутри: граф, отбор, склейка и хеши"
+headingWidth: 24
+order: 7
+kicker: сборка и инструменты
+lead: "Сборщик не «сжимает файлы». Он обходит импорты и строит граф модулей, отбирает операторы, которые что-то делают или кому-то нужны, укладывает уцелевшее в одну область видимости и раздаёт файлам имена с хешами. Каждый шаг помещается в несколько десятков строк — и по ним видно, почему ваш код в бандле остался, исчез или стал `label$1`."
+leadWidth: 66
+summary: "Обход графа и порядок модулей, отбор операторов от эффектов по ссылкам, механика `sideEffects: false` и `/*#__PURE__*/`, что rolldown и esbuild считают эффектом, переименование при склейке и обёртки для CommonJS, импорты и экспорты между чанками, заглушки вместо имён и каскад хешей."
+verifiedOn: "rolldown 1.2.8, esbuild 0.28.2, Node 24.11.0, октябрь 2026: бандлы, порядок модулей, таблица эффектов, обёртки и каскад хешей сняты стендом и пересобираются tests/unit/bundler-internals.test.ts; учебный сборщик темы совпадает с выводом rolldown посимвольно на шести проектах, учебный хеш — по набору переименованных файлов на пяти правках"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Граф модулей }
+  - { id: s2, label: Что выживает }
+  - { id: s3, label: Склейка }
+  - { id: s4, label: Чанки }
+  - { id: s5, label: Хеши в именах }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import BundlerLab from '@/widgets/bundler-lab/ui/BundlerLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_BUNDLER,
+  PREREQ,
+  PREREQ_NOTE,
+  APP_MAIN,
+  APP_FORMAT,
+  APP_CART,
+  APP_ANALYTICS,
+  APP_ORDER,
+  GRAPH_CODE,
+  GRAPH_NOTE,
+  GRAPH_FACTS,
+  PLAIN_MARK,
+  SHAKE_CODE,
+  SHAKE_STEPS,
+  SHAKE_NOTE,
+  PROMISES,
+  PURITY_SETUP,
+  PURITY_ROWS,
+  PURITY_NOTE,
+  PLAIN_HOIST,
+  HOIST_CODE,
+  BASE_ROLLDOWN,
+  BASE_ESBUILD,
+  HOIST_FACTS,
+  LIVE_SRC,
+  WRAP_MAIN,
+  WRAP_FORMAT_CJS,
+  WRAP_ICONS,
+  WRAP_ROLLDOWN,
+  WRAP_STEPS,
+  WRAP_NOTE,
+  SCENARIOS,
+  DEMO_CAPTION,
+  CHUNK_APP_CODE,
+  CHUNK_ROLLDOWN,
+  CHUNK_ESBUILD_SHARED,
+  CHUNK_FACTS,
+  PLAIN_HASH,
+  PLACEHOLDER_LINES,
+  HASH_CODE,
+  HASH_NOTE,
+  HASH_EDITS,
+  HASH_FACTS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Как собирается бандл" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Бандл — не склеенные подряд файлы. Сборщик собирает его заново, **по операторам**:
+    какие строки взять, в каком порядке их выложить и под какими именами. Поэтому функция
+    может пропасть из бандла, хотя её файл туда попал, а переменная — сменить имя, хотя
+    вы её не трогали.
+
+  </Callout>
+
+  Внутри rolldown, Rollup и esbuild — одна и та же работа в четыре шага. Обойти импорты и построить граф модулей. Отобрать из графа нужное.
+  Сложить уцелевший код в один файл и развести одинаковые имена. Разрезать на чанки
+  и подписать каждый хешем. Правила у каждого шага простые, и почти любое «почему
+  в бандле так» сводится к одному из них.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUNDLER} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Граф модулей"
+  lead="Сборщик начинает с точки входа: читает файл, находит импорты, превращает каждый путь в файл и идёт по ним вглубь. Ни одна строка кода при этом не выполняется. Из обхода получается не только список модулей, но и порядок, в котором их код встанет в бандл."
+  leadWidth={72}
+>
+  Пример на всю тему — маленький магазин из четырёх модулей. В нём есть всё, на чём
+  сборщик принимает решения: функция, которую никто не вызывает, две функции с одним
+  именем в разных файлах и модуль, который импортируют только ради того, что он делает
+  при загрузке.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="src/main.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_MAIN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="src/format.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_FORMAT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="src/cart.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_CART} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="src/analytics.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_ANALYTICS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Шаг 1: обход
+
+  Учебный сборщик темы понимает узкое подмножество JavaScript: каждый `import` — одна
+  строка, операторы верхнего уровня разделены пустой строкой. Этого хватает, чтобы
+  собрать магазин так же, как собирает его rolldown, — символ в символ.
+
+  <Card title="Граф: resolve, разбор, обход" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GRAPH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={GRAPH_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Порядок модулей магазина" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={560} chips={APP_ORDER.map((path) => ({ label: path, tone: path === 'src/main.js' ? 'ok' : 'ink' }))} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {GRAPH_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+        {fact.more && (
+          <CardNote tone="prose">
+            <Md text={fact.more} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Что выживает: отбор операторов"
+  lead="Tree shaking внутри сборщика — не удаление, а отбор. Сначала берутся операторы, которые что-то делают сами по себе: вызов, запись в глобальную переменную. Потом — всё, на что ссылается уже взятое. И так, пока список растёт. Что не взято, в бандл не попадает."
+  leadWidth={72}
+>
+  Что сборщик называет побочным эффектом, что обещают `"sideEffects": false`
+  и `/*#__PURE__*/` и сколько байт стоит каждый способ помешать отбору — в «Модулях
+  и сборке», раздел [«Tree shaking»](/tooling/modules/#s4).
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MARK} />
+
+  <Card title="Шаг 2: отбор" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SHAKE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Отбор на магазине" titleSize={16.5} pad={18} gap={11} size={15.5}>
+    <NumberedList items={SHAKE_STEPS} size={14.5} />
+  </Card>
+
+  <Md text={SHAKE_NOTE} />
+
+  ### Два обещания и где они срабатывают
+
+  <CardGrid min={300} gap={14} align="start">
+    {PROMISES.map((p) => (
+      <Card tone={p.tone ?? 'neutral'} title={p.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={p.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Что сборщики считают эффектом
+
+  Правило «вызов — эффект» в учебной версии грубое, и настоящие сборщики знают
+  больше. Насколько больше — видно, если собрать одну и ту же строку двумя сборщиками.
+  Заготовки для всех строк таблицы:
+
+  <CodeBlock code={PURITY_SETUP} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['строка, которую никто не читает', 'rolldown 1.2.8', 'esbuild 0.28.2', 'почему']}
+    rows={PURITY_ROWS.map((r) => [`\`${r.code}\``, r.rolldown, r.esbuild, r.why])}
+    tones={PURITY_ROWS.map((r) => (r.rolldown === r.esbuild ? (r.rolldown === 'выбросил' ? 'ok' : 'info') : 'warn'))}
+    kinds={['mono', 'prose', 'prose', 'muted']}
+    cols="minmax(260px,1.3fr) minmax(90px,.45fr) minmax(90px,.45fr) minmax(260px,1.5fr)"
+    minWidth={780}
+  />
+
+  <Md text={PURITY_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Склейка: одна область видимости на всех"
+  lead="Отобранные операторы ложатся в один файл подряд, модуль за модулем, в порядке графа. Импорты исчезают: в общей области видимости `formatPrice` из `format.js` — та же самая функция, и ссылка на неё — просто имя. Работы остаётся одна: развести одинаковые имена."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOIST} />
+
+  <Card title="Шаг 3: имена и вывод" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HOIST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Магазин после склейки — два сборщика
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="rolldown 1.2.8" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BASE_ROLLDOWN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="esbuild 0.28.2" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BASE_ESBUILD} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {HOIST_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+        {fact.more && (
+          <CardNote tone="prose">
+            <Md text={fact.more} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Живая привязка после склейки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={LIVE_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Когда склеить нельзя: обёртки
+
+  Склейка требует, чтобы экспорты модуля были известны из текста, а обращения
+  к ним — по именам. Где это не так, сборщик возвращается к старому приёму: заворачивает
+  модуль в функцию или собирает для него объект.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Исходники" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={`// src/main.js\n${WRAP_MAIN}\n// src/format.cjs\n${WRAP_FORMAT_CJS}\n// src/icons.js\n${WRAP_ICONS}`} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="rolldown 1.2.8" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={WRAP_ROLLDOWN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Что здесь появилось" titleSize={16.5} pad={18} gap={11} size={15.5}>
+    <NumberedList items={WRAP_STEPS} size={14.5} />
+  </Card>
+
+  <Md text={WRAP_NOTE} />
+
+  ### Сборка целиком
+
+  Пять вариантов магазина: исходный, с вызовом фабрики, с пометкой `/* @__PURE__ */`
+  и с аналитикой, вынесенной в пакет с `"sideEffects": false`, — один раз без
+  взятых экспортов, один раз со взятым `track`. У каждого оператора видно, взят он
+  как эффект, по ссылке или выброшен, и какое имя получил в бандле.
+
+  <BundlerLab
+    client:visible
+    graphCode={GRAPH_CODE}
+    shakeCode={SHAKE_CODE}
+    hoistCode={HOIST_CODE}
+    scenarios={SCENARIOS}
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Чанки: склейка в нескольких файлах"
+  lead="С `import()` выходных файлов становится несколько, и склейка идёт в каждом отдельно. То, что внутри одного файла было просто именем, между файлами снова становится импортом и экспортом — только написанными сборщиком."
+  leadWidth={72}
+>
+  Как сборщик решает, какой модуль в какой файл положить, — в «Модулях и сборке»,
+  раздел [«Чанки и кеш»](/tooling/modules/#s5). Граф тот же, что там: вход,
+  два ленивых маршрута и общий модуль `format.js`.
+
+  <CodeBlock code={CHUNK_APP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <CardGrid min={300} gap={16} align="start">
+    {CHUNK_ROLLDOWN.map((c) => (
+      <Card title={c.file} titleSize={16} pad={18} radius={5} gap={11} size={15.5}>
+        <CodeBlock code={c.code} size={11.5} lh={1.65} pad="14px 16px" />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Общий чанк у esbuild 0.28.2: chunk-BJMICGNS.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={CHUNK_ESBUILD_SHARED} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {CHUNK_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+        {fact.more && (
+          <CardNote tone="prose">
+            <Md text={fact.more} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+    esbuild режет на чанки только в формате `esm`. С `format: 'iife'` и `splitting: true`
+    сборка падает с ошибкой `Splitting currently only works with the "esm" format`.
+
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Хеши в именах файлов"
+  lead="Хеш в имени считают по готовому коду чанка. Но в коде чанка записаны имена других чанков, а их хеши ещё не посчитаны. Сборщик выходит из этого заглушками: сначала пишет код с метками вместо имён, потом считает хеши от листьев графа к входу и только в конце подставляет настоящие имена."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HASH} />
+
+  <Card title="Код чанков до подстановки имён (хук renderChunk)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={PLACEHOLDER_LINES} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Хеши с каскадом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HASH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={HASH_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Какие имена меняет одна правка
+
+  <Table
+    head={['что поменяли', 'rolldown: новые имена', 'esbuild: новые имена']}
+    rows={HASH_EDITS.map((e) => [e.k, e.rolldown.length ? e.rolldown.map((n) => `\`${n}\``).join(', ') : 'ни одного', e.esbuild.length ? e.esbuild.map((n) => `\`${n}\``).join(', ') : 'ни одного'])}
+    tones={HASH_EDITS.map((e) => (e.rolldown.length === 0 ? 'ok' : e.rolldown.length === 4 ? 'warn' : 'info'))}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(200px,1fr) minmax(200px,1fr)"
+    minWidth={660}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {HASH_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Имя файла в сборке — функция от его кода и от имён всего, на что он ссылается.**
+      Отсюда и вечный кеш для файлов с хешем, и каскад: правка в листе графа переписывает
+      имена по цепочке до входа. Какими заголовками такие файлы отдают — «Сеть
+      и кеширование», раздел [«Кеш и валидация»](/platform/network/#s2).
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

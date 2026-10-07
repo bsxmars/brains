@@ -1,0 +1,308 @@
+---
+/**
+ * Полная карта связей для `class B extends A {}` — обе горизонтальные стрелки, а не одна.
+ *
+ * Ради этого блок и существует. Между родителем и потомком связей **две**: верхняя несёт
+ * статические методы (`Object.getPrototypeOf(B) === A`), нижняя — методы экземпляра
+ * (`Object.getPrototypeOf(B.prototype) === A.prototype`). Старые ES5-паттерны наследования
+ * заводили только нижнюю, отсюда классическое «статический метод родителя не виден у наследника».
+ *
+ * Второе, что видно только на картинке: `.prototype` — обычное свойство функции (пунктир),
+ * а `[[Prototype]]` — слот (сплошная, его читает только поиск). ⚠️ Здесь стояло «свойство
+ * можно переприсвоить» — у класса нельзя: `prototype` там `writable: false`, присваивание
+ * молча не срабатывает (в строгом режиме — `TypeError`). У обычной функции — можно.
+ *
+ * ⚠️ До 2026-09-30 легенда обещала сплошные и пунктирные линии, а на карте стояли только
+ * глифы ◀ ▼ ▲ — связать легенду со стрелками было не по чему. Теперь линии настоящие, каждая
+ * связь подписана своим именем, и у обеих цепочек показан конец: без него карта не «полная».
+ * Каждое утверждение карты исполняется в `tests/unit/object-model.test.ts`, блок «карта связей».
+ * Виджет без пропов: диаграмма описывает одну фиксированную конструкцию языка, а не данные урока.
+ */
+---
+
+<div class="map">
+  <div class="legend">
+    <span class="legend__item"><span class="legend__line legend__line--solid"></span>слот [[Prototype]] — по нему идёт поиск</span>
+    <span class="legend__item"><span class="legend__line legend__line--dashed"></span>свойство .prototype — поиск по нему не ходит</span>
+  </div>
+
+  <div class="grid">
+    <div class="box" style="grid-area:a">
+      <span class="box__name">A</span>
+      <span class="box__kind">функция-конструктор</span>
+      <span class="box__body">static create()</span>
+      <span class="box__end">[[Prototype]] → Function.prototype</span>
+    </div>
+
+    <div class="link" style="grid-area:link1">
+      <span class="link__slot">[[Prototype]]</span>
+      <span class="link__line"><span class="link__head">◀</span><span class="link__rule"></span></span>
+      <span class="link__text">отсюда B.create</span>
+    </div>
+
+    <div class="box" style="grid-area:b">
+      <span class="box__name">B</span>
+      <span class="box__kind">функция-конструктор</span>
+      <span class="box__body box__body--ok">B.create() ✓ — new this создаёт B</span>
+    </div>
+
+    <div class="down" style="grid-area:adown">
+      <span class="down__stem"><span class="down__rule"></span>▼</span>
+      <span class="down__label">.prototype</span>
+    </div>
+    <div class="down" style="grid-area:bdown">
+      <span class="down__stem"><span class="down__rule"></span>▼</span>
+      <span class="down__label">.prototype · у класса только для чтения</span>
+    </div>
+
+    <div class="box" style="grid-area:ap">
+      <span class="box__name">A.prototype</span>
+      <span class="box__kind">обычный объект</span>
+      <span class="box__body">speak() · constructor → A</span>
+      <span class="box__end">[[Prototype]] → Object.prototype → null</span>
+    </div>
+
+    <div class="link" style="grid-area:link2">
+      <span class="link__slot">[[Prototype]]</span>
+      <span class="link__line"><span class="link__head">◀</span><span class="link__rule"></span></span>
+      <span class="link__text">отсюда b.speak()</span>
+    </div>
+
+    <div class="box" style="grid-area:bp">
+      <span class="box__name">B.prototype</span>
+      <span class="box__kind">обычный объект</span>
+      <span class="box__body">bark() · constructor → B</span>
+    </div>
+
+    <div class="up" style="grid-area:up">
+      <span class="up__stem">▲<span class="up__rule"></span></span>
+      <span class="up__label">[[Prototype]] · записан в момент new B()</span>
+    </div>
+
+    <div class="box box--instance" style="grid-area:inst">
+      <span class="box__name">b = new B()</span>
+      <span class="box__kind">экземпляр</span>
+      <span class="box__body">b.bark() — из B.prototype, b.speak() — из A.prototype</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .map {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 22px 20px;
+    border-radius: var(--r4);
+    background: var(--surface);
+    box-shadow: var(--shadow-2);
+    min-width: 0;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .legend__item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--text-faint);
+  }
+  .legend__line {
+    width: 22px;
+    height: 0;
+  }
+  .legend__line--solid {
+    border-top: 2px solid var(--accent);
+  }
+  .legend__line--dashed {
+    border-top: 2px dashed var(--ghost);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas:
+      'a     link1 b'
+      'adown .     bdown'
+      'ap    link2 bp'
+      '.     .     up'
+      '.     .     inst';
+    gap: 10px 14px;
+    align-items: center;
+  }
+  /* Узлы одного ряда — одной высоты: иначе короткий блок центруется и съезжает вниз
+     относительно соседа, и горизонтальная связь перестаёт выглядеть связью двух коробок. */
+  .grid > .box {
+    align-self: stretch;
+  }
+
+  /* Узел диаграммы — объект уровня чернил, рамка здесь значит его границу. */
+  .box {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 13px 15px;
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    min-width: 0;
+  }
+  .box--instance {
+    border-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+  }
+  .box__name {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .box__kind {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .box__body {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    line-height: 1.5;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+  }
+  .box__body--ok {
+    color: var(--tone-ok-strong);
+  }
+
+  .box__end {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--accent);
+    overflow-wrap: anywhere;
+  }
+
+  /* Горизонтальная связь — слот, поэтому сплошная и акцентом. */
+  .link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 150px;
+  }
+  .link__slot {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--accent);
+  }
+  .link__line {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    color: var(--accent);
+    font-size: var(--fs-2);
+    line-height: 1;
+  }
+  .link__rule {
+    flex: 1;
+    border-top: 2px solid var(--accent);
+    margin-left: -2px;
+  }
+  .link__text {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.3;
+    text-align: center;
+    color: var(--text-faint);
+  }
+
+  /* `.prototype` — обычное свойство функции, поэтому пунктир и без акцента. */
+  .down,
+  .up {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-left: 18px;
+    font-size: var(--fs-2);
+    line-height: 1;
+  }
+  .down__stem,
+  .up__stem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .down__stem {
+    color: var(--ghost);
+  }
+  .up__stem {
+    color: var(--accent);
+  }
+  .down__rule {
+    height: 14px;
+    border-left: 2px dashed var(--ghost);
+  }
+  .up__rule {
+    height: 14px;
+    border-left: 2px solid var(--accent);
+  }
+  .down__label,
+  .up__label {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--text-faint);
+  }
+
+  /*
+   * Узкий экран: связи идут по двум осям, и в одну колонку всю сетку не уложить — до
+   * 2026-09-30 стрелки там указывали в пустоту. Поэтому карта разбирается на две цепочки
+   * `[[Prototype]]`, каждая сверху вниз от родителя к потомку: у каждой стрелки сосед сверху —
+   * ровно тот, на кого она указывает. Пунктир `.prototype` здесь не нужен: имя узла
+   * (`A.prototype`) и есть эта связь.
+   */
+  @media (max-width: 720px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas:
+        'ap'
+        'link2'
+        'bp'
+        'up'
+        'inst'
+        'a'
+        'link1'
+        'b';
+    }
+    .down {
+      display: none;
+    }
+    .box[style*='grid-area:a'] {
+      margin-top: 18px;
+    }
+    .link__line {
+      flex-direction: column;
+      align-self: center;
+    }
+    .link__head {
+      transform: rotate(90deg);
+    }
+    .link__rule {
+      flex: none;
+      height: 14px;
+      margin-left: 0;
+      border-top: 0;
+      border-left: 2px solid var(--accent);
+    }
+    .up {
+      justify-content: center;
+      flex-direction: column;
+      gap: 4px;
+      padding-left: 0;
+    }
+  }
+</style>

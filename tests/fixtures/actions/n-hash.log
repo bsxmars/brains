@@ -1,0 +1,38 @@
+time="2026-09-15T15:58:09+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[n-hash/keys] ⭐ Run Set up job
+[n-hash/keys] 🚀  Start image=node:22-slim
+[n-hash/keys]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[n-hash/keys]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[n-hash/keys]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[n-hash/keys]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[n-hash/keys]   ✅  Success - Set up job
+[n-hash/keys] ⭐ Run Main what is actually in the workspace
+[n-hash/keys]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[n-hash/keys]   | --- ls of GITHUB_WORKSPACE at the very first step ---
+[n-hash/keys]   | .
+[n-hash/keys]   | ..
+[n-hash/keys]   | --- tracked files according to git, if git is here ---
+[n-hash/keys]   | (no git in this image)
+[n-hash/keys]   ✅  Success - Main what is actually in the workspace [159.932167ms]
+[n-hash/keys] ⭐ Run Main hashFiles of files created by the previous step
+[n-hash/keys]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/workflow/hashfiles/index.js] user= workdir=
+[n-hash/keys]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/workflow/hashfiles/index.js] user= workdir=
+[n-hash/keys]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/workflow/hashfiles/index.js] user= workdir=
+[n-hash/keys]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[n-hash/keys]   | hash_one=[4f8b42c22dd3729b519ba6f68d2da7cc5b2d606d05daed5ad5128cc03e6c6358]
+[n-hash/keys]   | hash_two=[9c04d30057b754af1b2d2d4f5675782dd61a5a659c34ee6c2af47526b66cafa6]
+[n-hash/keys]   | hash_glob=[9c04d30057b754af1b2d2d4f5675782dd61a5a659c34ee6c2af47526b66cafa6]
+[n-hash/keys]   ✅  Success - Main hashFiles of files created by the previous step [566.577208ms]
+[n-hash/keys] ⭐ Run Main compare with plain digests computed in the shell
+[n-hash/keys]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/2] user= workdir=
+[n-hash/keys]   | sha256(f1) hex      = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+[n-hash/keys]   | sha256(digest bytes)= 4f8b42c22dd3729b519ba6f68d2da7cc5b2d606d05daed5ad5128cc03e6c6358
+[n-hash/keys]   | sha256(digest hex)  = dfe7a23fefeea519e9bbfdd1a6be94c4b2e4529dd6b7cbea83f9959c2621b13c
+[n-hash/keys]   | two files, digest bytes concatenated = 9c04d30057b754af1b2d2d4f5675782dd61a5a659c34ee6c2af47526b66cafa6
+[n-hash/keys]   ✅  Success - Main compare with plain digests computed in the shell [171.093375ms]
+[n-hash/keys] ⭐ Run Complete job
+[n-hash/keys] Cleaning up container for job keys
+[n-hash/keys]   ✅  Success - Complete job
+[n-hash/keys] 🏁  Job succeeded

@@ -1,0 +1,218 @@
+---
+/**
+ * Сине-зелёный выкат: одно и то же хозяйство до и после переключения.
+ *
+ * В листинге `Rollout` видно два Service и одну стратегию, но не видно главного ограничения
+ * темы: **копий кода две, база — одна**. На схеме обе копии стоят над одной полосой базы
+ * в обоих состояниях, и переключение меняет только то, куда смотрит `web-active`.
+ *
+ * Состояния стоят рядом на широком экране и друг под другом на узком (`auto-fit`); внутри
+ * состояния копии — две колонки, их ширины хватает и на 320px.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+type Side = 'blue' | 'green';
+
+interface State {
+  name: string;
+  routes: { from: string; to: Side; users?: boolean }[];
+  copies: Record<Side, { name: string; pods: string; load: string }>;
+}
+
+interface Props {
+  data: {
+    title: string;
+    states: State[];
+    db: string;
+    caption: string;
+  };
+}
+
+const { data } = Astro.props;
+const SIDES: Side[] = ['blue', 'green'];
+---
+
+<figure class="pdbg-frame">
+  <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
+
+  <div class="pdbg-states">
+    {
+      data.states.map((state) => (
+        <section class="pdbg-state">
+          <div class="pdbg-state__name" set:html={inlineMd(state.name)} />
+          <div class="pdbg-grid">
+            {SIDES.map((side) => {
+              const route = state.routes.find((r) => r.to === side);
+              return (
+                <div class="pdbg-route">
+                  {route && (
+                    <>
+                      <span class="pdbg-route__chip" set:html={inlineMd(route.from)} />
+                      <span class="pdbg-route__arrow" aria-hidden="true">↓</span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            {SIDES.map((side) => {
+              const copy = state.copies[side];
+              const live = state.routes.some((r) => r.to === side && r.users);
+              return (
+                <div class="pdbg-copy" data-side={side} data-live={live ? 'yes' : 'no'}>
+                  <b set:html={inlineMd(copy.name)} />
+                  <span class="pdbg-copy__pods">{copy.pods}</span>
+                  <span class="pdbg-copy__load" set:html={inlineMd(copy.load)} />
+                </div>
+              );
+            })}
+            {SIDES.map(() => (
+              <span class="pdbg-wire" aria-hidden="true" />
+            ))}
+            <div class="pdbg-db" set:html={inlineMd(data.db)} />
+          </div>
+        </section>
+      ))
+    }
+  </div>
+
+  <figcaption class="pdbg-caption" set:html={inlineMd(data.caption)} />
+</figure>
+
+<style>
+  .pdbg-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 24px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+  }
+  .pdbg-frame :global(code) {
+    font-size: 1em;
+  }
+
+  .pdbg-states {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+    gap: 18px;
+  }
+  .pdbg-state {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border-radius: var(--r3);
+    background: var(--surface-2);
+  }
+  .pdbg-state__name {
+    font-size: var(--fs-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .pdbg-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 10px;
+  }
+
+  .pdbg-route {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 3.2em;
+    text-align: center;
+  }
+  /* Не «пилюля»: на узком экране подпись переносится, и полное скругление превращает
+     трёхстрочный блок в овал. */
+  .pdbg-route__chip {
+    padding: 3px 10px;
+    border-radius: var(--r1);
+    background: var(--surface-3);
+    color: var(--chip-text);
+    font-size: var(--fs-3);
+  }
+  .pdbg-route__chip :global(code) {
+    white-space: nowrap;
+  }
+  .pdbg-route__arrow {
+    font-size: var(--fs-6);
+    line-height: 1.2;
+    color: var(--text-muted);
+  }
+
+  .pdbg-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: var(--r2);
+    border: 1px dashed var(--border-strong);
+    background: var(--surface);
+    color: var(--text-muted);
+  }
+  .pdbg-copy__pods {
+    font-size: var(--fs-3);
+  }
+  .pdbg-copy__load {
+    font-size: var(--fs-3);
+  }
+  .pdbg-copy[data-side='blue'] b {
+    color: var(--tone-info-strong);
+  }
+  .pdbg-copy[data-side='green'] b {
+    color: var(--tone-ok-strong);
+  }
+  /* Копия под пользовательским трафиком — сплошная рамка; вторая ждёт пунктиром. */
+  .pdbg-copy[data-live='yes'][data-side='blue'] {
+    border: 1.5px solid var(--tone-info-strong);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-text);
+  }
+  .pdbg-copy[data-live='yes'][data-side='green'] {
+    border: 1.5px solid var(--tone-ok-strong);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-text);
+  }
+
+  .pdbg-wire {
+    justify-self: center;
+    width: 0;
+    height: 14px;
+    border-left: 1.5px solid var(--ghost);
+  }
+  .pdbg-db {
+    grid-column: 1 / -1;
+    padding: 9px 12px;
+    border-radius: var(--r2);
+    background: var(--ink);
+    color: var(--on-ink);
+    text-align: center;
+  }
+
+  @media (max-width: 480px) {
+    .pdbg-frame {
+      padding: 18px;
+    }
+    .pdbg-state {
+      padding: 12px 10px;
+    }
+    .pdbg-grid {
+      gap: 0 8px;
+    }
+  }
+
+  .pdbg-caption {
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    color: var(--text-muted);
+  }
+</style>

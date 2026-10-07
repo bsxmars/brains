@@ -1,0 +1,276 @@
+---
+title: "Обёртки: адаптер, фасад, заместитель, декоратор, мост"
+order: 2
+kicker: паттерны
+lead: "Пять структурных паттернов устроены одинаково: один объект держит другой и передаёт ему вызовы. Различаются они целью. В JavaScript у каждого есть готовый родственник — `promisify`, модуль, встроенный `Proxy`, синтаксис `@`, рендерер фреймворка, — и у каждой книжной версии своё место, где она ломается."
+leadWidth: 66
+summary: "Книжный адаптер и почему `private` заставляет его наследовать базу, адаптер через интерфейс, `promisify` и потерянный `this`; фасад над тремя сервисами и над `fetch`, который не считает 500 ошибкой; заместитель-класс против встроенного `Proxy` и кеш промисов, который хранит отказ; «декоратор», меняющий сам объект, порядок обёрток в стопке и `@` снизу вверх; мост между уведомлениями и провайдерами и рендерер Vue как мост."
+verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, `promisify` запущен настоящим `node`, `fetch` — против настоящего HTTP-сервера — `tests/unit/patterns-wrappers.test.ts`"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Зачем }
+  - { id: s2, label: Адаптер }
+  - { id: s3, label: Фасад }
+  - { id: s4, label: Заместитель }
+  - { id: s5, label: Декоратор }
+  - { id: s6, label: Мост }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  PLAIN_WRAPPER,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  WRAPPER_ROWS,
+  WRAPPERS_NOTE,
+  PLAIN_ADAPTER,
+  ADAPTER_CODE,
+  ADAPTER_IFACE_CODE,
+  ADAPTER_NOTES,
+  PROMISIFY_CODE,
+  PROMISIFY_NOTE,
+  PLAIN_FACADE,
+  FACADE_CODE,
+  FACADE_NOTES,
+  FETCH_CODE,
+  FETCH_NOTES,
+  PLAIN_PROXY,
+  PROXY_CODE,
+  PROXY_NOTES,
+  CACHE_CODE,
+  CACHE_FIX_CODE,
+  CACHE_NOTES,
+  PLAIN_DECORATOR_PATTERN,
+  DECORATOR_COURSE_CODE,
+  DECORATOR_WRAP_CODE,
+  DECORATOR_NOTES,
+  DECORATOR_SYNTAX_CODE,
+  DECORATOR_SYNTAX_NOTES,
+  PLAIN_BRIDGE,
+  BRIDGE_CODE,
+  BRIDGE_ROWS,
+  BRIDGE_NOTES,
+  BRIDGE_RENDERER_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Паттерны и язык" gap={24}>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WRAPPER} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Зачем: один объект между вами и другим"
+  lead="Код хочет работать с объектом, но объект не подходит: у него чужой интерфейс, слишком много частей, к нему нужен контроль или ему не хватает поведения. Переписывать объект нельзя или дорого. Тогда между кодом и объектом ставят ещё один — обёртку."
+  leadWidth={72}
+>
+  <Table
+    head={['паттерн', 'интерфейс снаружи', 'ради чего', 'что уже есть в JS']}
+    rows={WRAPPER_ROWS.map((r) => [r.k, r.outside, r.why, r.js])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(190px,1fr) minmax(200px,1fr) minmax(220px,1.1fr)"
+    minWidth={760}
+  />
+
+  <Md text={WRAPPERS_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Адаптер"
+  lead="Пример: код умеет сохранять данные только в `KVDatabase`, а заказчик принёс библиотеку постоянного хранилища с другим методом и другим форматом. Ни код, ни библиотеку менять не хочется. Адаптер принимает вызов в форме, которую ждёт код, и переводит его в форму библиотеки."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ADAPTER} />
+
+  ### Книжная версия: адаптер наследует то, что адаптирует
+
+  <CodeBlock code={ADAPTER_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  ### Адаптер под интерфейс
+
+  <CodeBlock code={ADAPTER_IFACE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Почему курсу понадобился `extends`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={ADAPTER_NOTES} size={14.5} />
+  </Card>
+
+  ### Адаптер, который даёт платформа
+
+  <CodeBlock code={PROMISIFY_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={PROMISIFY_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Фасад"
+  lead="Фасад прячет несколько объектов и порядок работы с ними за одним простым методом. Пример: чтобы отправить уведомление, надо найти шаблон, отправить его и записать в журнал — три сервиса. Снаружи остаётся одно `send`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FACADE} />
+
+  <CodeBlock code={FACADE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что фасад решает за вызывающего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={FACADE_NOTES} size={14.5} />
+  </Card>
+
+  ### Фасад над `fetch`
+
+  <CodeBlock code={FETCH_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Чего `fetch` не делает сам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={FETCH_NOTES} size={14.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Заместитель"
+  lead="Заместитель (proxy) стоит перед объектом с тем же интерфейсом и решает, пускать ли вызов дальше: проверить доступ, отдать ответ из кеша, отложить дорогую загрузку. Пример — API платежей, чьи данные видит не каждый пользователь. В JS у паттерна есть встроенный родственник — `Proxy`, — и ведут они себя противоположно."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+
+  <CodeBlock code={PROXY_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Закрыт по умолчанию или открыт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={PROXY_NOTES} size={14.5} />
+  </Card>
+
+  ### Кеширующий заместитель
+
+  <CodeBlock code={CACHE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <CodeBlock code={CACHE_FIX_CODE} size={11} lh={1.7} pad="12px 16px" />
+
+  <Card title="Что хранится в кеше промисов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={CACHE_NOTES} size={14.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Декоратор"
+  lead="Декоратор оборачивает объект и добавляет поведение, не меняя интерфейса: журнал, кеш, повтор при ошибке. Обёртки складываются стопкой, и каждая не знает о соседних. Слово «декоратор» в JS занято ещё и синтаксисом `@` — это тот же паттерн, применённый к классу."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DECORATOR_PATTERN} />
+
+  ### Книжная версия
+
+  <CodeBlock code={DECORATOR_COURSE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  ### Обёртка и порядок в стопке
+
+  <CodeBlock code={DECORATOR_WRAP_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что отличает декоратор от функции, которая меняет объект" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={DECORATOR_NOTES} size={14.5} />
+  </Card>
+
+  ### Синтаксис `@`
+
+  <CodeBlock code={DECORATOR_SYNTAX_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Паттерн и синтаксис" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={DECORATOR_SYNTAX_NOTES} size={14.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Мост"
+  lead="Сервис уведомлений доставляет их в Telegram и WhatsApp, а сами уведомления бывают мгновенные и отложенные. Если каждое сочетание делать отдельным классом, их число — произведение вариантов. Мост разводит две оси: «как и когда отправить» и «через кого»."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BRIDGE} />
+
+  <CodeBlock code={BRIDGE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Table
+    head={['вариантов', 'наследованием', 'мостом']}
+    rows={BRIDGE_ROWS.map((r) => [r.k, r.inherit, r.bridge])}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(180px,1fr) minmax(140px,.8fr) minmax(140px,.8fr)"
+    minWidth={480}
+  />
+
+  <Card title="Две иерархии вместо одной" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={BRIDGE_NOTES} size={14.5} />
+  </Card>
+
+  ### Мост во фреймворках
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={BRIDGE_RENDERER_NOTE} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+  lead="Книга «банды четырёх» описывает обёртки для C++ и Smalltalk; источники ниже показывают те же идеи на TypeScript и встроенные механизмы, которые их заменяют."
+  leadWidth={72}
+>
+  <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

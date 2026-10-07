@@ -1,0 +1,508 @@
+---
+title: "Роутер изнутри: от адреса до экрана"
+heading: "Роутер изнутри: от адреса до экрана"
+headingWidth: 22
+order: 18
+kicker: фреймворки изнутри
+lead: "Клик по ссылке в SPA не загружает новую страницу: роутер забирает его у браузера, меняет адрес через History API, находит по адресу цепочку компонентов и спрашивает guards, можно ли туда. Здесь — каждый из этих шагов, разобранный на учебном роутере, который ведёт себя как vue-router."
+leadWidth: 66
+summary: "History API и `popstate`, Navigation API и `intercept()`, когда роутер обязан отдать клик браузеру, шаблон пути → регулярка и вес, почему `/users/new` побеждает `/users/:id`, вложенные маршруты и `matched`, порядок guards, отмена и перенаправление, ленивые маршруты, водопад загрузок во вложенных уровнях, восстановление прокрутки. Учебный роутер сверен тестом с vue-router 5.3.1."
+verifiedOn: "vue-router 5.3.1, vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, Chromium 153 (Playwright 1.63), Firefox 155 и WebKit 26.6 — только наличие Navigation API, октябрь 2026: регулярки, веса, порядок и resolve учебного роутера сверены с vue-router на сотнях случайных таблиц; журналы guards и шкалы загрузки — с vue-router, смонтированным во Vue; события истории, клики и прокрутка сняты в Chromium на macOS. Ctrl+клик вне macOS и пункт «Открыть в новой вкладке» описаны по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: История вкладки }
+  - { id: s2, label: Navigation API }
+  - { id: s3, label: Перехват клика }
+  - { id: s4, label: Шаблон пути }
+  - { id: s5, label: Ранжирование }
+  - { id: s6, label: Вложенные маршруты }
+  - { id: s7, label: Guards }
+  - { id: s8, label: Ленивые маршруты и данные }
+  - { id: s9, label: Прокрутка }
+  - { id: s10, label: Тонкие места }
+  - { id: s11, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import RouterLab from '@/widgets/router-lab/ui/RouterLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_ROUTER,
+  PREREQ,
+  PREREQ_NOTE,
+  INTERCEPT_CODE,
+  HISTORY_CODE,
+  PLAIN_HISTORY,
+  HISTORY_ROWS,
+  HISTORY_NOTE,
+  CLONE_FACTS,
+  STATE_NOTE,
+  HASH_NOTE,
+  NAVAPI_CODE,
+  NAVIGATE_ROWS,
+  NAVIGATE_NOTE,
+  NAVAPI_ORDER_NOTE,
+  CLICK_ACTIONS,
+  CLICK_NOTE,
+  ROUTERLINK_NOTE,
+  LINK_ROWS,
+  LINK_NOTE,
+  MATCH_CODE,
+  PLAIN_SCORE,
+  PATTERN_ROWS,
+  WEIGHT_ROWS,
+  MATCH_NOTE,
+  RANK_CODE,
+  ROUTES_CODE,
+  RANKED,
+  RANK_NOTE,
+  SAME_SCORE_NOTE,
+  MATCHER_CODE,
+  RESOLVE_ROWS,
+  NESTED_NOTE,
+  GROUP_NOTE,
+  GUARDS_CODE,
+  NAVIGATE_CODE,
+  STAGE_ROWS,
+  PLAIN_GUARD,
+  GUARD_SCENARIOS,
+  FAILURE_ROWS,
+  FAILURE_NOTE,
+  NEXT_NOTE,
+  SHOP_CODE,
+  LOADERS_CODE,
+  SHOP_LEVELS,
+  SHOP_TARGET,
+  STRATEGIES,
+  LAZY_NOTE,
+  WATERFALL_NOTE,
+  ARRAY_NOTE,
+  DATA_CACHE_NOTE,
+  SCROLL_CODE,
+  PLAIN_SCROLL,
+  SCROLL_NOTE,
+  NO_SCROLL_NOTE,
+  NAVAPI_SCROLL_NOTE,
+  MATCH_PRESETS,
+  PATTERN_PRESETS,
+  MATCH_CAPTION,
+  PATTERN_CAPTION,
+  GUARDS_CAPTION,
+  DATA_CAPTION,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  CODES,
+  CLICK_ROWS,
+  NAVAPI_ENGINES_NOTE,
+  SHOP_NOTE,
+  WATERFALL_ROWS,
+  SCROLL_ROWS,
+  NAVAPI_SCROLL_ROWS,
+  NAVAPI_ORDER_TEXT,
+} from './data';
+
+<Section variant="intro" eyebrow="Один документ, много экранов" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Роутер SPA делает три вещи. **Забирает** у браузера переход по ссылке и меняет адрес
+    сам, без загрузки документа. **Находит** по адресу маршрут — и всю цепочку вложенных
+    маршрутов, которую рисуют `<RouterView>`. **Спрашивает** guards, можно ли туда, и
+    дожидается кода и данных нового экрана.
+
+  </Callout>
+
+  Обычный сайт отвечает на каждый клик новым HTML: браузер уходит со страницы, сервер
+  присылает другую. В одностраничном приложении документ один на всю сессию, а «страницы» —
+  это экраны, которые рисует JavaScript. Адрес при этом должен меняться как настоящий: его
+  копируют, по нему возвращаются кнопкой «назад», его открывают в новой вкладке. Роутер
+  связывает адрес и экран в обе стороны.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROUTER} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="История вкладки: адрес без перезагрузки"
+  lead="`history.pushState` меняет адрес в строке браузера и добавляет запись истории — а документ остаётся прежним. На этом стоит любой роутер SPA. Самый маленький из них — двадцать строк."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HISTORY} />
+
+  <Card title="Роутер на History API" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HISTORY_CODE} />
+  </Card>
+
+  ### Какие события приходят
+
+  <Table
+    head={['действие', '`popstate`', 'ещё в окне']}
+    rows={HISTORY_ROWS.map((r) => [r.action, r.popstate, r.other])}
+    tones={HISTORY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(260px,1.4fr) minmax(170px,.9fr) minmax(120px,.6fr)"
+    minWidth={600}
+  />
+
+  <Md text={HISTORY_NOTE} />
+
+  ### Состояние записи
+
+  <Table
+    head={['что положили в `pushState`', 'что получили']}
+    rows={CLONE_FACTS.map((r) => [r.what, r.result])}
+    kinds={['prose', 'prose']}
+    cols="minmax(180px,.8fr) minmax(320px,1.6fr)"
+    minWidth={540}
+  />
+
+  <Md text={STATE_NOTE} />
+
+  <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={HASH_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Navigation API: одно событие на все переходы"
+  lead="History API заставляет роутер ловить клики, слушать `popstate` и помнить, что `pushState` молчит. Navigation API собирает всё в одно событие `navigate`: браузер сам сообщает о любом переходе во вкладке и даёт его перехватить."
+  leadWidth={72}
+>
+  <Card title="Тот же роутер на navigate" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NAVAPI_CODE} />
+  </Card>
+
+  <Table
+    head={['как перешли', '`navigationType`', '`canIntercept`', 'ещё']}
+    rows={NAVIGATE_ROWS.map((r) => [r.how, r.type, r.canIntercept, r.extra])}
+    tones={NAVIGATE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(200px,1.1fr) minmax(110px,.6fr) minmax(110px,.5fr) minmax(200px,1fr)"
+    minWidth={660}
+  />
+
+  <Md text={NAVIGATE_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Порядок у перехваченного перехода" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAVAPI_ORDER_TEXT} tone="ok" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NAVAPI_ORDER_NOTE} />
+  </CardGrid>
+
+  <Md text={NAVAPI_ENGINES_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Перехват клика: когда отдать его браузеру"
+  lead="Роутер на History API ловит клики по ссылкам сам — одним слушателем на `document`. Отменить переход браузера он может не всегда: клик с ⌘ — это просьба открыть вкладку, а не перейти здесь."
+  leadWidth={72}
+>
+  <Card title="shouldIntercept" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INTERCEPT_CODE} />
+  </Card>
+
+  <Table
+    head={['ссылка', ...CLICK_ACTIONS.map((a) => a.label)]}
+    rows={CLICK_ROWS}
+    kinds={['prose', 'prose', 'prose', 'prose', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1.3fr) repeat(7, minmax(108px,.7fr))"
+    minWidth={1000}
+  />
+
+  <Md text={CLICK_NOTE} />
+
+  ### Ссылка или кнопка с `@click`
+
+  <Md text={ROUTERLINK_NOTE} />
+
+  <Table
+    head={['', '`<a href>` / `<RouterLink>`', '`<div @click="router.push(…)">`']}
+    rows={LINK_ROWS.map((r) => [r.k, r.a, r.div])}
+    tones={LINK_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(200px,1fr) minmax(220px,1.1fr)"
+    minWidth={620}
+  />
+
+  <Md text={LINK_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Шаблон пути: токены, регулярка, вес"
+  lead="`/users/:id` для роутера — не строка, а регулярное выражение и набор чисел. Регулярка отвечает, подходит ли адрес; числа — насколько точно. Учебная версия ниже даёт те же регулярки и веса, что vue-router 5.3.1."
+  leadWidth={72}
+>
+  <Card title="tokenize и compile" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MATCH_CODE} />
+  </Card>
+
+  <Md text={MATCH_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCORE} />
+
+  <Table
+    head={['шаблон', 'регулярка', 'вес']}
+    rows={PATTERN_ROWS.map((r) => [`\`${r.pattern}\``, `\`${r.re}\``, `\`${r.score}\``])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(320px,1.8fr) minmax(90px,.4fr)"
+    minWidth={640}
+  />
+
+  <Table
+    head={['токен', 'вес', 'пример']}
+    rows={WEIGHT_ROWS.map((r) => [r.token, r.weight, r.example])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(70px,.3fr) minmax(200px,1fr)"
+    minWidth={520}
+  />
+
+  <RouterLab client:visible view="pattern" codes={CODES} presets={PATTERN_PRESETS} caption={PATTERN_CAPTION} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Ранжирование: почему `/users/new` побеждает `/users/:id`"
+  lead="Подходящих маршрутов часто несколько: адрес `/users/new` подходит и к `/users/new`, и к `/users/:id`, и к «всему что угодно». Роутер не перебирает их в порядке объявления — он заранее сортирует записи по весу и берёт первую подходящую."
+  leadWidth={72}
+>
+  <Card title="Сквозная таблица маршрутов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ROUTES_CODE} />
+  </Card>
+
+  <Card title="Кто сильнее" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RANK_CODE} />
+  </Card>
+
+  <Table
+    head={['#', 'полный шаблон', 'имя', 'вес']}
+    rows={RANKED.map((r, i) => [String(i + 1), `\`${r.path}\``, r.name ? `\`${r.name}\`` : 'макет `UsersLayout`', `\`${r.score}\``])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(40px,.2fr) minmax(170px,1fr) minmax(150px,.8fr) minmax(120px,.6fr)"
+    minWidth={520}
+  />
+
+  <Md text={RANK_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SAME_SCORE_NOTE} />
+
+  <RouterLab client:visible view="match" codes={CODES} presets={MATCH_PRESETS} caption={MATCH_CAPTION} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Вложенные маршруты: найти сразу несколько уровней"
+  lead="`children` превращают таблицу в дерево. Роутер раскладывает его в плоский список полных путей, а найдя запись, поднимается по родителям: экран профиля — это макет раздела, внутри него профиль, внутри профиля — вкладка постов."
+  leadWidth={72}
+>
+  <Card title="createMatcher и resolve" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MATCHER_CODE} />
+  </Card>
+
+  <Table
+    head={['адрес', 'маршрут', '`params`', '`matched`']}
+    rows={RESOLVE_ROWS.map((r) => [`\`${r.path}\``, `\`${r.name}\``, `\`${r.params}\``, `\`${r.matched}\``])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(190px,1fr) minmax(100px,.5fr) minmax(170px,.9fr) minmax(250px,1.3fr)"
+    minWidth={760}
+  />
+
+  <Md text={NESTED_NOTE} />
+
+  <Md text={GROUP_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Guards: кто и в каком порядке решает"
+  lead="Маршрут найден, но переходить ещё рано. Роутер проходит восемь этапов, и на каждом кто-то может отменить переход или перенаправить его. Порядок жёсткий, и он объясняет большинство «почему мой guard не сработал»."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GUARD} />
+
+  <Table
+    head={['этап', 'кто вызывается', 'когда']}
+    rows={STAGE_ROWS.map((r) => [r.n, r.who, r.when])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(50px,.2fr) minmax(260px,1.3fr) minmax(240px,1.1fr)"
+    minWidth={580}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Guards сквозного примера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={GUARDS_CODE} />
+    </Card>
+
+    <Card title="Навигация по этапам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAVIGATE_CODE} />
+    </Card>
+  </CardGrid>
+
+  <RouterLab client:visible view="guards" codes={CODES} scenarios={GUARD_SCENARIOS} caption={GUARDS_CAPTION} />
+
+  ### Неудача — это не ошибка
+
+  <Table
+    head={['`failure.type`', 'имя', 'когда']}
+    rows={FAILURE_ROWS.map((r) => [r.type, r.name, r.when])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(100px,.4fr) minmax(120px,.5fr) minmax(260px,1.4fr)"
+    minWidth={500}
+  />
+
+  <Md text={FAILURE_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NEXT_NOTE} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Ленивые маршруты и данные: до перехода или после"
+  lead="Экрану нужны две вещи: его код и его данные. Код ленивого маршрута скачивается при первом переходе. Данные можно ждать до смены адреса или после — и от этого выбора зависит, выстроятся ли запросы вложенных уровней водопадом."
+  leadWidth={72}
+>
+  <Card title="Магазин в три уровня" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SHOP_CODE} />
+  </Card>
+
+  <Md text={LAZY_NOTE} />
+
+  <Card title="Четыре способа загрузить данные" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOADERS_CODE} />
+  </Card>
+
+  <Table
+    head={['способ', 'адрес сменился', 'экран готов']}
+    rows={WATERFALL_ROWS}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.3fr) minmax(130px,.6fr) minmax(130px,.6fr)"
+    minWidth={500}
+  />
+
+  <Md text={SHOP_NOTE} />
+
+  <RouterLab client:visible view="data" codes={CODES} strategies={STRATEGIES} levels={SHOP_LEVELS} target={SHOP_TARGET} caption={DATA_CAPTION} />
+
+  <Md text={WATERFALL_NOTE} />
+
+  <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ARRAY_NOTE} />
+
+  <Md text={DATA_CACHE_NOTE} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Прокрутка: где был и где окажется"
+  lead="При обычной смене документа браузер сам возвращает прокрутку на «назад». В SPA документ не меняется, и вопрос «где показать новый экран» решает роутер — или никто."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCROLL} />
+
+  <Card title="scrollBehavior" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCROLL_CODE} />
+  </Card>
+
+  <Table
+    head={['что', 'значение']}
+    rows={SCROLL_ROWS}
+    kinds={['prose', 'prose']}
+    cols="minmax(280px,1.2fr) minmax(280px,1.2fr)"
+    minWidth={600}
+  />
+
+  <Md text={SCROLL_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NO_SCROLL_NOTE} />
+
+  ### Прокрутка в Navigation API
+
+  <Table
+    head={['переход', 'прокрутка до', 'после', 'фокус']}
+    rows={NAVAPI_SCROLL_ROWS}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(260px,1.4fr) minmax(90px,.4fr) minmax(90px,.4fr) minmax(80px,.4fr)"
+    minWidth={560}
+  />
+
+  <Md text={NAVAPI_SCROLL_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Роутер — это перехват, поиск и проверка.** Перехватывать можно только то, что
+      пользователь просил сделать в этой вкладке. Искать — по весу, а не по порядку в массиве.
+      Проверять — в жёстком порядке, где отмена и перенаправление не бросают исключений.
+      А данные вложенных экранов грузите разом: каждый уровень, который ждёт родителя, добавляет
+      свою ступеньку ко времени экрана.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s11" eyebrow="Раздел 11" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

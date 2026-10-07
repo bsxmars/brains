@@ -1,0 +1,542 @@
+---
+title: Навигации без ожидания
+heading: "Навигации без ожидания: bfcache, Speculation Rules и prerender"
+headingWidth: 24
+order: 3
+kicker: сеть и безопасность
+lead: "Самая быстрая загрузка страницы — та, которой не было. Кнопка «назад» может вернуть страницу из памяти целиком, со всеми переменными, а переход по ссылке — показать страницу, которую браузер уже открыл заранее в невидимой вкладке. Оба механизма включаются почти даром, и оба молча выключаются одной строкой кода."
+leadWidth: 66
+summary: "Кеш «назад-вперёд»: что в нём хранится, что его ломает и как это узнать; Speculation Rules: prefetch и prerender следующей страницы, что успевает выполниться до клика и как не посчитать просмотр, которого не было."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63; bfcache — полный Chromium в новом headless-режиме без --disable-back-forward-cache; предрендер — бинарь без DevTools, отчёт маячками) против своего сервера на Node 26.8.2, сентябрь 2026. Firefox 155 и WebKit 26.6 проверены только на наличие API: восстановление из bfcache под Playwright в них не воспроизводится"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Кеш «назад-вперёд» }
+  - { id: s2, label: Почему не взяли }
+  - { id: s3, label: Возврат из кеша }
+  - { id: s4, label: Speculation Rules }
+  - { id: s5, label: До активации }
+  - { id: s6, label: Подсказки, SPA и метрики }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import PrerenderDiagram from '@/widgets/instant-navigation-prerender-diagram/ui/PrerenderDiagram.astro';
+import {
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_BFCACHE,
+  PLAIN_PRERENDER,
+  PLAIN_ACTIVATION,
+  BFCACHE_LEAVE_CHIPS,
+  BFCACHE_BACK_CHIPS,
+  BFCACHE_VS_HTTP,
+  BFCACHE_FACTS,
+  BLOCKERS,
+  BLOCKERS_NOTE,
+  NRR_CODE,
+  NRR_FACTS,
+  ENGINES_NOTE,
+  ENGINES_SOURCE,
+  UNLOAD_NOTE,
+  PAGESHOW_CODE,
+  WS_CODE,
+  RETURN_FACTS,
+  RULES_CODE,
+  RULES_HEADER_CODE,
+  RULE_PARTS,
+  PLAIN_EAGERNESS,
+  EAGERNESS_ROWS,
+  EAGERNESS_NOTE,
+  HEADERS_CODE,
+  SPEC_LIMITS,
+  KEY_FACTS,
+  KEY_NOTE,
+  PRERENDER_ROWS,
+  PRERENDER_ROWS_NOTE,
+  ACTIVATION_CHIPS,
+  ANALYTICS_CODE,
+  COSTS,
+  OLD_WAYS_ROWS,
+  METRICS_CODE,
+  METRICS_NOTE,
+  SPA_NOTE,
+  CHOICE,
+  PITFALLS,
+  SOURCES,
+  BFCACHE_SCENE_CODE,
+  BFCACHE_SCENE_NOTE,
+  BFCACHE_STEPS,
+  PLAIN_BFCACHE_HABITS,
+  PRERENDER_DIAGRAM,
+  PRERENDER_SCENE_CODE,
+  PRERENDER_STEPS,
+  PRERENDER_ENDINGS,
+} from './data';
+
+<Section variant="intro" eyebrow="Навигация, которую не нужно ждать" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Всё, что обычно делают ради скорости, — сжатие, кеширование, приоритеты — укорачивает
+    загрузку. Здесь другой приём: **загрузку убирают совсем**. Страницу, с которой ушли,
+    не выбрасывают, а замораживают; страницу, на которую вот-вот придут, открывают заранее.
+    Предрендеренная страница показывает первый контент через 39 мс после перехода,
+    а возврат из кеша «назад-вперёд» не делает к серверу ни одного запроса.
+
+  </Callout>
+
+  «Назад» и «вперёд» — обычный ритм работы с сайтом: человек открыл товар, вернулся
+  к списку, открыл следующий. Если список при каждом возврате собирается заново, с разбором
+  HTML и перезапуском всех скриптов, это не медленная сеть — это выброшенная работа. Кеш «назад-вперёд» (bfcache) хранит **живую страницу**, а не ответ сервера,
+  и возвращает её такой, какой её оставили.
+
+  Переход вперёд, на новую страницу, так не сэкономить — её ещё не было. Но часто известно,
+  куда пользователь пойдёт: навёл курсор на ссылку, начал нажимать кнопку. Правила
+  **Speculation Rules** разрешают браузеру по таким признакам скачать следующую страницу
+  (prefetch) или открыть её целиком в невидимой вкладке (prerender).
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BFCACHE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Кеш «назад-вперёд»: страница, которую не выгрузили"
+  lead="Уходя со страницы, браузер может не уничтожать её, а поставить на паузу целиком: с DOM, переменными JS и таймерами. По кнопке «назад» пауза снимается, и страница продолжает с того места, где её оставили, — без запроса к серверу и без единой строчки кода инициализации."
+  leadWidth={72}
+>
+  <Card title="Что приходит странице при уходе в кеш и при возврате" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={640} chips={BFCACHE_LEAVE_CHIPS} />
+
+    <FlowChips minWidth={560} chips={BFCACHE_BACK_CHIPS} />
+
+    <CardNote tone="prose">
+
+      **Ни `DOMContentLoaded`, ни
+      `load` при возврате не приходят** — они были при первой загрузке и повторяться не будут.
+      Единственный сигнал «страницу снова показали» — `pageshow` с `event.persisted === true`.
+      `freeze` и `resume` — события жизненного цикла страницы, о них подробно в
+      [«Планировании задач», раздел «Фон»](/js/task-scheduling/#s4).
+
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['', 'HTTP-кеш', 'bfcache']}
+    rows={BFCACHE_VS_HTTP.map((r) => [r.k, r.http, r.bf])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(200px,1.1fr) minmax(220px,1.3fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {BFCACHE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Почему страницу не взяли"
+  lead="Браузер кладёт страницу в bfcache, только если уверен, что её можно безопасно заморозить и разморозить. Всё, что связывает страницу с внешним миром — обработчик ухода, открытое окно, чужие сообщения, — может стать причиной отказа. Отказ ничем не виден: «назад» просто работает медленнее."
+  leadWidth={72}
+>
+  ### Одна страница, три привычки
+
+  <CodeBlock code={BFCACHE_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={BFCACHE_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {BFCACHE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BFCACHE_HABITS} />
+
+  ### Все случаи из замера
+
+  <Table
+    head={['что было на странице', 'после «назад»', 'причина в `notRestoredReasons`']}
+    rows={BLOCKERS.map((r) => [r.k, r.result, r.reason])}
+    tones={BLOCKERS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(220px,1.3fr) minmax(150px,.8fr) minmax(220px,1.2fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={BLOCKERS_NOTE} />
+
+  <Card tone="err" title="`unload`: главный виновник" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={UNLOAD_NOTE} />
+  </Card>
+
+  ### Как узнать причину
+
+  <Card title="`notRestoredReasons`: браузер объясняет отказ" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NRR_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      Поле живёт на записи навигации в Performance API. Раз причины приходят на той загрузке,
+      которая случилась **вместо** восстановления, собирать их можно у настоящих
+      пользователей, — и это единственный способ узнать, как часто «назад» у вас
+      на самом деле мгновенный.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {NRR_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Firefox и Safari" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={ENGINES_NOTE} />
+
+    <CardNote tone="warn">
+      <Md text={ENGINES_SOURCE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Возврат из кеша: что обновить"
+  lead="Страница, пролежавшая в кеше минуту, вернётся с минутными данными: корзиной, счётчиком уведомлений, именем пользователя, который, может быть, уже вышел. Браузер восстанавливает состояние, но не знает, что из него устарело. Это знает только код страницы."
+  leadWidth={72}
+>
+  <Card title="Две точки вместо load и unload" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PAGESHOW_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      `pagehide` приходит при **любом** уходе — и в кеш, и насовсем, — поэтому сохранять
+      черновики и отпускать ресурсы надо здесь. `pageshow` с `persisted` — при возврате
+      из кеша, и только тогда имеет смысл освежать данные: при обычной загрузке они и так
+      только что пришли с сервера.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {RETURN_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="ok" title="Соединение: закрыть при уходе, открыть при возврате" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={WS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="ok">
+
+      Такая страница восстанавливается и открывает новое соединение, а сервер узнаёт
+      о закрытии старого сразу при уходе, а не через секунды или минуты, когда страница
+      вернётся или будет выброшена из кеша.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Speculation Rules: prefetch и prerender"
+  lead="Правила — это JSON, которым страница говорит браузеру, куда пользователь, скорее всего, пойдёт дальше и насколько рано начинать готовиться. Это подсказка, а не приказ: браузер вправе правило проигнорировать — например, в режиме экономии трафика или при нехватке памяти."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PRERENDER} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Правило в разметке" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RULES_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Все ссылки сайта — в предрендер при наведении, кроме выхода и помеченных классом;
+        две самые вероятные страницы — в prefetch сразу. Поддержку можно проверить из JS:
+        `HTMLScriptElement.supports('speculationrules')`.
+
+      </CardNote>
+    </Card>
+
+    <Card title="Правило заголовком" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RULES_HEADER_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {RULE_PARTS.map((part) => (
+      <Card tone={part.tone ?? 'neutral'} title={part.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={part.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### `eagerness`: когда браузер начинает
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EAGERNESS} />
+
+  <Table
+    head={['`eagerness`', 'когда срабатывает', 'когда запрос пришёл на сервер']}
+    rows={EAGERNESS_ROWS.map((r) => [r.k, r.when, r.measured])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(140px,.6fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={640}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={EAGERNESS_NOTE} />
+
+  ### Что видит сервер и где правила не работают
+
+  <CodeBlock code={HEADERS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SPEC_LIMITS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Ключ, отмена и отказ
+
+  <CardGrid min={280} gap={14} align="start">
+    {KEY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={KEY_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Предрендеренная страница до активации"
+  lead="Предрендер — это настоящая загрузка страницы, только невидимая. Код страницы выполняется целиком, до клика и независимо от того, будет ли клик вообще. Браузер придерживает лишь то, что требует внимания человека, а всё остальное случается заранее — и за это отвечает автор страницы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIVATION} />
+
+  ### Одна страница товара — от наведения до клика
+
+  <CodeBlock code={PRERENDER_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <PrerenderDiagram diagram={PRERENDER_DIAGRAM} />
+
+  <Card title="До клика" titleSize={16.5} pad={18} gap={11} size={15.5}>
+    <NumberedList items={PRERENDER_STEPS} size={14.5} />
+  </Card>
+
+  <CardGrid min={290} gap={14} align="start">
+    {PRERENDER_ENDINGS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Что выполняется заранее, а что придержано
+
+
+  <Table
+    head={['что', 'пока `document.prerendering === true`']}
+    rows={PRERENDER_ROWS.map((r) => [r.k, r.v])}
+    tones={PRERENDER_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose']}
+    cols="minmax(220px,1fr) minmax(0,1.6fr)"
+    minWidth={560}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={PRERENDER_ROWS_NOTE} />
+
+  <Card title="Активация: что приходит странице" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <FlowChips minWidth={680} chips={ACTIVATION_CHIPS} />
+
+    <CardNote tone="prose">
+
+      Нового запроса за документом на переходе нет: страницу просто показывают. Сначала
+      `visibilitychange` с `visible`, сразу за ним `prerenderingchange`; только после этого
+      браузер начинает рисовать кадры и отпускает придержанные промисы.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="err" title="Просмотр — это активация, а не загрузка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ANALYTICS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {COSTS.map((cost) => (
+      <Card tone={cost.tone ?? 'neutral'} title={cost.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={cost.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Старые подсказки, SPA и метрики"
+  lead="Заготовить следующую страницу пытались и раньше — подсказками в `<link>`. От них осталось меньше, чем обещают их имена. А метрики загрузки для предрендеренной страницы без поправки врут в худшую сторону: самые быстрые визиты выглядят самыми медленными."
+  leadWidth={72}
+>
+  <Table
+    head={['способ', 'задумывался как', 'что делает в Chromium 153']}
+    rows={OLD_WAYS_ROWS.map((r) => [r.k, r.what, r.now])}
+    tones={OLD_WAYS_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(190px,.9fr) minmax(190px,1fr) minmax(280px,1.6fr)"
+    minWidth={760}
+  />
+
+  <Card title="LCP считают от активации" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={METRICS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={METRICS_NOTE} />
+
+    <CardNote tone="prose">
+
+      Что такое LCP и из каких слагаемых он состоит — в [«Критическом пути», раздел
+      «LCP»](/render/rendering-crp/#s2). Предрендер обнуляет почти все эти слагаемые разом:
+      сеть, разбор, стили и отрисовка уже случились до клика.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="warn" title="Переходы внутри SPA" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={SPA_NOTE} />
+  </Card>
+
+  <DarkPanel eyebrow="Что из этого включать">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Мгновенный «назад» почти бесплатен, мгновенный «вперёд» стоит трафика.** Первое —
+      это в основном то, чего не делать; второе — ставка на догадку, и её цену платят
+      пользователь и сервер.
+
+    </DarkText>
+  </DarkPanel>
+
+  <Card title="Как выбрать" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={CHOICE} size={15.5} />
+  </Card>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+  lead="Кеш «назад-вперёд» описан в самом HTML Standard, а Speculation Rules, предрендер и причины отказа кеша — предложения WICG (группы, где браузеры обкатывают будущие стандарты), частично перенесённые в HTML Standard; живут они в первую очередь в Chromium. Поэтому документация Chrome здесь не вторичный пересказ, а основной источник, и устаревает она быстрее спецификаций."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    {SOURCES.map((group) => (
+      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
+        {group.items.map((item) => (
+          <Md text={item} />
+        ))}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [View Transitions](/render/view-transitions/#s5) — анимация перехода между документами, в том числе к предрендеренной странице.
+    [Планирование задач](/js/task-scheduling/#s4) — состояния страницы,
+    заморозка и место bfcache среди них. [Сеть и кеширование](/platform/network/#s2) —
+    HTTP-кеш, `no-store` и `no-cache`. [Критический путь](/render/rendering-crp/) — LCP, CLS,
+    INP и чем их мерить. [Кадр браузера](/render/render-pipeline/#s2) — почему у спрятанной
+    и замороженной страницы нет кадров. [Устройство браузера](/js/browser-architecture/#s1) —
+    источник, сайт и процессы, в которых живёт предрендер.
+
+  </Card>
+</Section>

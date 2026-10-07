@@ -1,0 +1,247 @@
+---
+/**
+ * Анатомия промиса: четыре скрытых поля слева, две операции над ними справа.
+ *
+ * Левая колонка нарисована как сам объект — заголовок «объект промиса» и строки полей, —
+ * и это единственная причина, по которой блок не собран из карточек: строки со своими
+ * разделителями внутри одной рамки карточкой не выражаются.
+ */
+import Callout from '@/shared/ui/Callout.astro';
+import Pill from '@/shared/ui/Pill.astro';
+---
+
+<div class="split">
+  <div class="object">
+    <div class="object__head">объект промиса</div>
+
+    <div class="rows">
+      <div class="row row--stack">
+        <div class="line">
+          <span class="slot">[[PromiseState]]</span>
+          <span class="warnings">переход РОВНО ОДИН раз</span>
+        </div>
+        <div class="states">
+          <Pill tone="neutral">pending</Pill>
+          <span class="arrow">→</span>
+          <Pill tone="ok">fulfilled</Pill>
+          <span class="or">|</span>
+          <Pill tone="err">rejected</Pill>
+        </div>
+      </div>
+
+      <div class="row line">
+        <span class="slot">[[PromiseResult]]</span>
+        <span class="hint">значение либо причина</span>
+      </div>
+
+      <div class="row line">
+        <span class="slot">[[PromiseIsHandled]]</span>
+        <span class="hint">по нему стреляет unhandled</span>
+      </div>
+
+      <div class="row row--lists">
+        <div class="list-slot">[[PromiseFulfillReactions]]</div>
+        <div class="list-slot">[[PromiseRejectReactions]]</div>
+        <div class="chips">
+          <Pill tone="info" shape="chip">r1</Pill>
+          <Pill tone="info" shape="chip">r2</Pill>
+          <Pill tone="info" shape="chip">r3</Pill>
+        </div>
+        <div class="lists-note">Пока pending — это <b>просто списки</b>. И это сильные ссылки.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ops">
+    <div class="op op--ok">
+      <div class="op__head">
+        <span class="op__glyph">◀</span>
+        <span class="op__name">PerformPromiseThen</span>
+        <span class="op__cost">в список · 0 тиков</span>
+      </div>
+      <div class="op__body">
+        <code>.then / .catch / .finally / await</code> на pending-промисе только кладут реакцию
+        в список. В очередь не попадает ничего.
+      </div>
+    </div>
+
+    <div class="op op--warn">
+      <div class="op__head">
+        <span class="op__name">ResolvePromise(v)</span>
+        <span class="op__glyph">▶</span>
+        <span class="op__cost">в очередь · 0, +1 или +2</span>
+      </div>
+      <div class="op__body">
+        Вот здесь и появляются тики. Каждое обращение к <code>HostEnqueuePromiseJob</code> — один
+        тик.
+      </div>
+    </div>
+
+    <Callout size={16.5} lh={1.55} fg="code">
+      Считать надо <b>постановки в очередь</b>, а не синтаксис. Тик тратится не на слово <code>await</code> и не на вызов <code>.then</code>.
+    </Callout>
+  </div>
+</div>
+
+<style>
+  .split {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(310px, 100%), 1fr));
+    gap: 20px;
+    align-items: start;
+  }
+
+  .object {
+    background: var(--surface);
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    overflow: hidden;
+  }
+  .object__head {
+    padding: 12px 16px;
+    background: var(--ink);
+    color: var(--on-ink);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+  }
+  .row {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--divider);
+  }
+  .row--stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .slot {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    font-weight: 600;
+  }
+  .warnings {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--tone-err-strong);
+  }
+  .hint {
+    font-size: var(--fs-5);
+    color: var(--text-muted);
+  }
+
+  .states {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+  }
+  .arrow {
+    color: var(--text-faint);
+    font-size: var(--fs-3);
+  }
+  .or {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--dim);
+  }
+
+  /* Списки реакций — на фиолетовой подложке: это та часть объекта, ради которой урок. */
+  .row--lists {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 14px 16px;
+    border-bottom: 0;
+    background: var(--tone-info-bg);
+  }
+  .list-slot {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    font-weight: 600;
+    color: var(--tone-info-strong);
+  }
+  .chips {
+    display: flex;
+    gap: 5px;
+    margin-top: 3px;
+  }
+  .lists-note {
+    margin-top: 3px;
+    font-size: var(--fs-5);
+    line-height: 1.5;
+    color: var(--prose);
+  }
+
+  .ops {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .op {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px;
+    border-radius: var(--r3);
+  }
+  .op--ok {
+    background: var(--tone-ok-bg);
+    border: 1px solid var(--tone-ok-line);
+  }
+  .op--warn {
+    background: var(--tone-warn-bg);
+    border: 1px solid var(--tone-warn-line);
+  }
+
+  .op__head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .op__name {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+  }
+  .op__glyph {
+    font-size: var(--fs-5);
+  }
+  .op__cost {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+  }
+  .op__body {
+    font-size: var(--fs-6);
+    line-height: 1.55;
+  }
+
+  .op--ok .op__name,
+  .op--ok .op__body {
+    color: var(--tone-ok-text);
+  }
+  .op--ok .op__glyph,
+  .op--ok .op__cost {
+    color: var(--tone-ok-strong);
+  }
+
+  .op--warn .op__name,
+  .op--warn .op__glyph,
+  .op--warn .op__cost {
+    color: var(--tone-warn-strong);
+  }
+  .op--warn .op__body {
+    color: var(--tone-warn-text);
+  }
+</style>

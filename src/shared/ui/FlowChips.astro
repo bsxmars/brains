@@ -1,0 +1,108 @@
+---
+/**
+ * Цепочка шагов: фишки со стрелками между ними.
+ *
+ * Так в уроках рисуют последовательности, которые не ветвятся: шаги кадра, путь запроса,
+ * порядок фаз. Тон фишки говорит, чей это шаг — микрозадачи фиолетовые, рендер зелёный,
+ * пунктирная серая означает «может и не случиться».
+ *
+ * Цепочка всегда лежит в контейнере с горизонтальной прокруткой: на телефоне она длиннее
+ * экрана, и прокручиваться должна она, а не страница.
+ */
+export interface FlowChip {
+  label: string;
+  tone?: 'ink' | 'info' | 'warn' | 'ok' | 'dashed';
+}
+
+interface Props {
+  chips: FlowChip[];
+  minWidth?: number;
+}
+
+/**
+ * ⚠️ `minWidth` больше не задаёт ленте жёсткую ширину.
+ *
+ * Он остаётся как **порог прокрутки**: пока контейнер шире, цепочка просто переносится
+ * на следующую строку; если уже — включается горизонтальная прокрутка, чтобы один длинный
+ * шаг не ломал вёрстку. Темы передают сюда числа от 520 до 760, и раньше каждое из них
+ * заставляло ленту вылезать за узкую карточку.
+ */
+const { chips, minWidth = 620 } = Astro.props;
+---
+
+<div class="scroll">
+  <div class="flow" style={`--flow-min:${minWidth}px`}>
+    {
+      chips.map((chip, i) => (
+        <>
+          {i > 0 && <span class="arrow">→</span>}
+          <span class="chip" data-tone={chip.tone ?? 'ink'}>
+            {chip.label}
+          </span>
+        </>
+      ))
+    }
+  </div>
+</div>
+
+<style>
+  /* `min-width: 0` — чтобы цепочка не растягивала страницу: во флекс-колонке элемент
+     по умолчанию не сжимается ниже ширины содержимого. */
+  .scroll {
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  /* ⚠️ Цепочка **переносится**, а не обрезается.
+     Раньше лента получала жёсткую `min-width` (520…760px у разных тем) и прокручивалась внутри
+     себя. В узком контейнере — например, внутри карточки — последний шаг уезжал под край без
+     всякого признака прокрутки, и читатель терял именно его. А последний шаг в такой цепочке
+     обычно и есть вывод: «композитор: слой канваса + слои страницы».
+     Перенос ленту не портит: это последовательность шагов, а не таблица. */
+  .flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px 7px;
+    row-gap: 9px;
+  }
+  /* Стрелка не остаётся одна в конце строки: она прилипает к следующему шагу. */
+  .arrow {
+    margin-right: -7px;
+    padding-right: 7px;
+  }
+  .arrow {
+    color: var(--text-faint);
+  }
+  .chip {
+    padding: 11px 13px;
+    border-radius: var(--r2);
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    white-space: nowrap;
+  }
+  .chip[data-tone='ink'] {
+    border: 1px solid var(--ink);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .chip[data-tone='info'] {
+    border: 1px solid var(--tone-info-line);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-strong);
+  }
+  .chip[data-tone='warn'] {
+    border: 1px solid var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .chip[data-tone='ok'] {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  .chip[data-tone='dashed'] {
+    border: 1px dashed var(--hairline);
+    color: var(--text-faint);
+  }
+</style>

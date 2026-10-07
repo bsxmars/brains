@@ -1,0 +1,161 @@
+---
+/**
+ * Таблица с чернильной шапкой.
+ *
+ * В оригиналах это была сетка из `div`, и для скринридера таблицы там не существовало вовсе:
+ * ни строк, ни столбцов, ни связи ячейки с заголовком. Здесь настоящая `<table>` — вид тот же,
+ * смысл появился.
+ *
+ * Ширины колонок задаются пропом `cols` в единицах `fr`/`px`, а вся таблица лежит в обёртке
+ * с горизонтальной прокруткой: широкая таблица должна прокручиваться сама, а не тащить вбок
+ * страницу.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  /** Заголовки колонок. Пустая строка — колонка без заголовка. Разрешена строчная разметка. */
+  head: string[];
+  /** Строки: ячейки в том же порядке. В ячейках работает строчная разметка. */
+  rows: string[][];
+  /** `grid-template-columns` для строки, например `minmax(200px,1.3fr) minmax(140px,.9fr)`. */
+  cols?: string;
+  /** Минимальная ширина таблицы — ниже неё включается прокрутка. */
+  minWidth?: number;
+  /** Вид ячеек по колонкам: моно-акцент, обычный текст, приглушённый или тоновый. */
+  kinds?: ('mono' | 'prose' | 'muted' | 'ok' | 'warn')[];
+  /**
+   * Тон первой колонки построчно — когда цвет ключа означает вердикт.
+   * Так в уроке про event loop отделены настоящие микрозадачи от похожих на них.
+   */
+  tones?: ('info' | 'err' | 'ok' | 'warn')[];
+  /** К какой колонке относится `tones`. По умолчанию к первой — там обычно и стоит ключ. */
+  toneColumn?: number;
+}
+
+const { head, rows, cols, minWidth = 600, kinds = [], tones = [], toneColumn = 0 } = Astro.props;
+
+const template = cols ?? head.map(() => 'minmax(0, 1fr)').join(' ');
+const kindOf = (i: number) => kinds[i] ?? (i === 0 ? 'prose' : 'muted');
+---
+
+<div class="wrap">
+  <table style={`--table-cols:${template};--table-min:${minWidth}px`}>
+    <thead>
+      <tr>
+        {/* Через `inlineMd`, как и ячейки: в шапке почти всегда стоит имя в обратных кавычках
+            («React без `memo`», «`счётчик +1`»). Без разбора кавычки доезжают до читателя —
+            и это ловил `markup.spec`, а не глаз. */}
+        {head.map((title) => <th set:html={inlineMd(title)} />)}
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row, r) => (
+          <tr>
+            {row.map((cell, i) => (
+              <td
+                data-kind={kindOf(i)}
+                data-tone={i === toneColumn ? tones[r] : undefined}
+                set:html={inlineMd(cell)}
+              />
+            ))}
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .wrap {
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    min-width: var(--table-min);
+    border-collapse: collapse;
+  }
+  /* Сетка вместо табличной раскладки: ширины колонок задаёт вызывающий, как в оригиналах. */
+  tr {
+    display: grid;
+    grid-template-columns: var(--table-cols);
+  }
+  thead tr {
+    background: var(--ink);
+    --inline-code-bg: transparent;
+    color: var(--on-ink);
+  }
+  th {
+    padding: 11px 14px;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: start;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child {
+    border-bottom: 0;
+  }
+  td {
+    padding: 12px 14px;
+    font-size: var(--fs-6);
+    line-height: 1.45;
+    color: var(--ink);
+    /* ⚠️ Не украшение: Aura объявляет голое правило `td { text-align: end }`, и без этой
+       строки содержимое всех таблиц курса прижимается к правому краю ячейки, а шапка
+       остаётся слева — термин и его расшифровка начинаются в разных местах строки.
+       Правило библиотеки не видно грепом по `src/`, и находится оно только вопросом
+       к браузеру: у ячейки вычисленный `text-align: end` при `start` у всех предков. */
+    text-align: start;
+  }
+  td[data-kind='mono'] {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.5;
+    color: var(--tone-info-strong);
+  }
+  td[data-kind='muted'] {
+    font-size: var(--fs-5);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+  td[data-kind='ok'] {
+    font-size: var(--fs-5);
+    line-height: 1.5;
+    color: var(--tone-ok-strong);
+  }
+  td[data-kind='warn'] {
+    font-size: var(--fs-5);
+    line-height: 1.5;
+    color: var(--tone-warn-strong);
+  }
+
+  /* Код в шапке и в моно-ячейке — не уменьшать. Базовое `code { font-size: .92em }` рассчитано
+     на прозу; в ячейке, которая сама уже моно на ступени `--fs-2`/`--fs-3`, оно давало
+     10.2–11.1px отрисованных: имена, ради которых стоит строка, были мельче всего вокруг. */
+  th :global(code),
+  td[data-kind='mono'] :global(code) {
+    font-size: 1em;
+  }
+
+  /* Тон первой колонки перебивает её обычный цвет: здесь цвет — это вердикт. */
+  td[data-tone='info'] {
+    color: var(--tone-info-strong);
+  }
+  td[data-tone='err'] {
+    color: var(--tone-err-strong);
+  }
+  td[data-tone='ok'] {
+    color: var(--tone-ok-strong);
+  }
+  td[data-tone='warn'] {
+    color: var(--tone-warn-strong);
+  }
+</style>

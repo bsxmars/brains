@@ -1,0 +1,295 @@
+---
+/**
+ * Диаграмма последовательности: кто кому что отправил и где что решилось.
+ *
+ * Нужна теме «Безопасность фронтенда» дважды — для preflight и для CSRF, — и оба раза смысл
+ * один: **в каком участнике** принимается решение. Проверок CORS две, и обе живут в браузере,
+ * а не на сервере; кука при CSRF прикладывается браузером, а не страницей evil.com. Столбцы
+ * участников с линиями жизни показывают это без слов: заметка стоит на той линии, где решают.
+ *
+ * HTML, а не SVG. На узкой колонке (контейнерный запрос, а не медиазапрос: схема живёт
+ * внутри карточек разной ширины) линии жизни пропадают, а каждая строка получает подпись
+ * «кто → кому» — выходит тот же рассказ списком, без горизонтальной прокрутки.
+ *
+ * Все строки — из `data.ts` темы и печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+import type { SeqDiagram, SeqMessage, SeqRow } from '../model/types';
+
+interface Props {
+  diagram: SeqDiagram;
+}
+
+const { diagram } = Astro.props;
+const n = diagram.lanes.length;
+const isMessage = (row: SeqRow): row is SeqMessage => 'from' in row;
+---
+
+<figure class="ssd-frame">
+  <div class="t-eyebrow t-eyebrow--panel">{diagram.title}</div>
+
+  <div class="ssd-box">
+    <div class="ssd-seq" style={`--ssd-n:${n}`}>
+      <div class="ssd-lanes" aria-hidden="true">
+        {diagram.lanes.map((lane) => <div class="ssd-lane"><span>{lane}</span></div>)}
+      </div>
+
+      <ol class="ssd-body">
+        {
+          diagram.lanes.map((_, i) => (
+            <li class="ssd-life" aria-hidden="true" style={`--ssd-i:${i}`} />
+          ))
+        }
+        {
+          diagram.rows.map((row) =>
+            isMessage(row) ? (
+              <li
+                class={`ssd-msg ssd--${row.tone ?? 'plain'}`}
+                data-dir={row.to > row.from ? 'right' : 'left'}
+                data-cut={row.cut ? '' : undefined}
+                style={`--ssd-lo:${Math.min(row.from, row.to)};--ssd-span:${Math.abs(row.to - row.from)}`}
+              >
+                <span class="ssd-who">
+                  {diagram.lanes[row.from]} → {diagram.lanes[row.to]}
+                </span>
+                <span class="ssd-label" set:html={inlineMd(row.text)} />
+                <span class="ssd-arrow" aria-hidden="true">
+                  <span class="ssd-line" />
+                  <span class="ssd-tip">{row.cut ? '✕' : row.to > row.from ? '▶' : '◀'}</span>
+                </span>
+              </li>
+            ) : (
+              <li
+                class={`ssd-note ssd--${row.tone ?? 'plain'}`}
+                style={`--ssd-at:${row.at};--ssd-span:${row.span ?? 1}`}
+              >
+                <span class="ssd-who">{diagram.lanes[row.at]}</span>
+                <span class="ssd-note__box" set:html={inlineMd(row.text)} />
+              </li>
+            ),
+          )
+        }
+      </ol>
+    </div>
+  </div>
+
+  <figcaption class="ssd-caption" set:html={inlineMd(diagram.caption)} />
+</figure>
+
+<style>
+  .ssd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .ssd-box {
+    container: ssd / inline-size;
+  }
+
+  .ssd-lanes {
+    display: grid;
+    grid-template-columns: repeat(var(--ssd-n), minmax(0, 1fr));
+  }
+  .ssd-lane {
+    display: flex;
+    justify-content: center;
+    padding: 0 6px;
+  }
+  .ssd-lane > span {
+    padding: 8px 12px;
+    border: 1px solid var(--ink);
+    border-radius: var(--r2);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    font-weight: 600;
+    text-align: center;
+    color: var(--ink);
+  }
+
+  .ssd-body {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 16px 0 6px;
+    list-style: none;
+  }
+
+  /* Линия жизни участника — по центру его столбца, от шапки до конца схемы. */
+  .ssd-life {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc((var(--ssd-i) + 0.5) * 100% / var(--ssd-n));
+    width: 0;
+    border-left: 1.5px dashed var(--border-strong);
+  }
+
+  .ssd-msg,
+  .ssd-note {
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  /* Стрелка идёт от центра одного столбца к центру другого. */
+  .ssd-msg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: calc(var(--ssd-span) * 100% / var(--ssd-n));
+    margin-left: calc((var(--ssd-lo) + 0.5) * 100% / var(--ssd-n));
+    color: var(--text-muted);
+  }
+  .ssd-label {
+    max-width: calc(100% - 16px);
+    padding: 0 6px;
+    background: var(--surface);
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    text-align: center;
+    color: var(--text);
+  }
+  .ssd-arrow {
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+  .ssd-msg[data-dir='left'] .ssd-arrow {
+    flex-direction: row-reverse;
+  }
+  .ssd-line {
+    flex: 1;
+    border-top: 2px solid currentcolor;
+  }
+  .ssd-msg[data-cut] .ssd-line {
+    border-top-style: dashed;
+  }
+  .ssd-tip {
+    font-size: var(--fs-3);
+    line-height: 1;
+  }
+
+  .ssd-note {
+    display: flex;
+    justify-content: center;
+    width: calc(var(--ssd-span) * 100% / var(--ssd-n));
+    margin-left: calc(var(--ssd-at) * 100% / var(--ssd-n));
+    padding: 0 8px;
+  }
+  .ssd-note__box {
+    padding: 8px 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r2);
+    background: var(--surface-2);
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    text-align: center;
+    color: var(--prose);
+  }
+
+  .ssd--ok {
+    color: var(--tone-ok-strong);
+  }
+  .ssd--err {
+    color: var(--tone-err-strong);
+  }
+  .ssd--warn {
+    color: var(--tone-warn-strong);
+  }
+  .ssd--info {
+    color: var(--tone-info-strong);
+  }
+  .ssd-note.ssd--ok .ssd-note__box {
+    border-color: var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  .ssd-note.ssd--err .ssd-note__box {
+    border-color: var(--tone-err-line);
+    background: var(--tone-err-bg);
+    color: var(--tone-err-strong);
+  }
+  .ssd-note.ssd--warn .ssd-note__box {
+    border-color: var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .ssd-note.ssd--info .ssd-note__box {
+    border-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-strong);
+  }
+
+  .ssd-who {
+    display: none;
+    font-size: var(--fs-3);
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .ssd-caption {
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  /* Узкая колонка: столбцы не помещают подписей — рассказ идёт списком «кто → кому». */
+  @container ssd (max-width: 560px) {
+    .ssd-lanes,
+    .ssd-life,
+    .ssd-arrow {
+      display: none;
+    }
+    .ssd-body {
+      padding-top: 0;
+    }
+    .ssd-msg,
+    .ssd-note {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 3px;
+      width: auto;
+      margin-left: 0;
+      padding: 0 0 0 12px;
+      border-left: 3px solid currentcolor;
+    }
+    .ssd-note {
+      border-left-color: var(--border-strong);
+    }
+    .ssd-note.ssd--ok {
+      border-left-color: var(--tone-ok-line);
+    }
+    .ssd-note.ssd--err {
+      border-left-color: var(--tone-err-line);
+    }
+    .ssd-note.ssd--warn {
+      border-left-color: var(--tone-warn-line);
+    }
+    .ssd-note.ssd--info {
+      border-left-color: var(--tone-info-line);
+    }
+    .ssd-who {
+      display: block;
+    }
+    /* Селектор длиннее тоновых правил выше: иначе заметка сохранила бы плашку. */
+    .ssd-body .ssd-label,
+    .ssd-body .ssd-note .ssd-note__box {
+      max-width: none;
+      padding: 0;
+      border: 0;
+      background: none;
+      text-align: start;
+    }
+  }
+</style>

@@ -1,0 +1,129 @@
+/**
+ * Вид элементов страницы — ровно то, что стояло в `<helmet>` оригинала, плюс дефолты для
+ * тегов, которым в бандле прописывали стиль инлайном на каждом вхождении (`h1`, `p`, `pre`).
+ *
+ * ⚠️ Глобального ресета здесь нет и быть не должно. В оригинале его тоже нет: загрузчик
+ * выбрасывал собственный `*{box-sizing:border-box;margin:0;padding:0}` вместе со всем
+ * документом, поэтому элементы считаются как `content-box`, а корневой `line-height` —
+ * `normal`. Preflight или `* { box-sizing: border-box }` сдвинули бы вёрстку уроков.
+ */
+@layer lesson-base {
+  body {
+    margin: 0;
+    background: var(--canvas);
+    /* Цвет и шрифт здесь, а не только на корневом блоке урока: иначе всё, что однажды окажется
+       вне блока, придёт браузерными дефолтами — чёрным и Times, которых в курсе нет. */
+    color: var(--ink);
+    font-family: var(--serif);
+    -webkit-font-smoothing: antialiased;
+    /* Слово длиннее строки рвётся, а не тащит страницу вбок: на 320px так вылезало
+       «неаутентифицированный». Обычные слова не трогает — перенос только когда места нет совсем. */
+    overflow-wrap: break-word;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+  a:hover {
+    color: var(--tone-warn-accent);
+  }
+
+  ::selection {
+    background: var(--selection);
+  }
+
+  h1,
+  h2,
+  h3,
+  p,
+  figure {
+    margin: 0;
+  }
+
+  /* Подзаголовок внутри раздела. Размер тот же, что в оригиналах. */
+  h3 {
+    font-size: var(--fs-h3);
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+  }
+
+  /* Код в строке. Размер — доля от окружающего текста (0.92em; в оригинале было 0.86em).
+     Перенос «где придётся» включается только когда места действительно нет: имена вроде
+     `Origin-Agent-Cluster` или `NewPromiseResolveThenableJob` иначе утаскивают страницу вбок
+     на узком экране. */
+  code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    overflow-wrap: anywhere;
+    padding: 0.08em 0.3em;
+    border-radius: 0.3em;
+    /* Подложка — решение автора 2026-09-30: латиница кода в русской прозе терялась.
+       На чернильных плашках её снимают через `--inline-code-bg: transparent`. */
+    background: var(--inline-code-bg, var(--surface-3));
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /* Блок кода: монохромный, без подсветки. Fenced-блоки MDX приходят сюда же. */
+  pre {
+    margin: 0;
+    padding: 13px 15px;
+    border-radius: var(--r2);
+    background: var(--ink);
+    color: var(--code-fg);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.7;
+    overflow: auto;
+  }
+  pre code {
+    font: inherit;
+    color: inherit;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  /*
+   * Проза, написанная прямо в разделе темы.
+   *
+   * Текст внутри компонентов получает роль из шкалы (`Card`, `Callout`, `Md` — все ставят
+   * размер сами), а абзац, набранный в MDX на уровне `<Section>`, не получал ничего: браузер
+   * давал ему свои 16px и `line-height: normal`. Рядом с прозой курса (16.74px, интерлиньяж
+   * 1.55) это читается как другой шрифт — именно так это и заметили глазом, хотя гарнитура
+   * везде одна.
+   *
+   * Правило повторяет роль `.t-body` и живёт в слое `lesson-base`: scoped-стили компонентов
+   * стоят вне слоёв и потому выигрывают — карточки, врезки и демо остаются со своими размерами.
+   */
+  .section > p,
+  .section > .md,
+  .section > ul,
+  .section > ol {
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+
+  /*
+   * Проза на всю колонку — по ширине (решение автора курса 2026-09-30); текст карточек во всю ширину
+   * раздела — тоже. Карточки в сетках (`CardGrid`) остаются по левому краю: в колонке ~250px
+   * выравнивание по ширине давало дыры между словами даже с переносами (проверено глазом). Переносы включены
+   * вместе с выравниванием: без них на узком экране пробелы растягиваются в дыры. Язык для
+   * словаря переносов даёт `lang="ru"` на `<html>`. Таблицы, подписи демо и заголовки остаются
+   * по левому краю.
+   */
+  .section > p,
+  .section > .md,
+  .section > .header > .lead,
+  .hero-lead,
+  .section > .card > .card__text,
+  .section > .card > .md,
+  .section > .card > p {
+    text-align: justify;
+    hyphens: auto;
+  }
+}

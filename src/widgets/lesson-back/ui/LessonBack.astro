@@ -1,0 +1,77 @@
+---
+/**
+ * Выход к списку уроков.
+ *
+ * Живёт не в шапке урока, а в полосе над ней, и это не про вкус: колонка текста шириной
+ * 1060px на широком экране стоит далеко от края, и ссылка, попав в неё, оказывалась внутри
+ * материала. Здесь она прижата к краю страницы — там, где её ищут глазами, и там, где она
+ * никому не мешает читать.
+ */
+interface Props {
+  href?: string;
+  label?: string;
+  /** Прилипать к верху при прокрутке. */
+  sticky?: boolean;
+  /**
+   * На сколько отступить от верха, px.
+   *
+   * На списке направления полоса одна и прилипает к нулю. На странице темы над ней стоит
+   * липкая навигация по разделам — там стрелка обязана встать **под** неё, иначе полосы
+   * наложатся. Высота навигации передаётся числом, а не зашита здесь: виджет не должен знать
+   * про соседа, а страница — знает обоих.
+   */
+  stickyTop?: number;
+}
+
+const { href = '/', label = 'все уроки', sticky = false, stickyTop = 0 } = Astro.props;
+---
+
+<div
+  class:list={['row', sticky && 'row--sticky']}
+  style={sticky && stickyTop ? `--back-top:${stickyTop}px` : undefined}
+>
+  <a class="back" href={href}>
+    <span class="back__arrow" aria-hidden="true">←</span>{label}
+  </a>
+</div>
+
+<style>
+  .row {
+    padding: 28px 0 0;
+  }
+
+  /* Прилипшая полоса обязана быть непрозрачной: под ней едет текст страницы.
+     Отбивка снизу тоже её, иначе на прилипшей полосе строки подходят вплотную к ссылке. */
+  /* Слой ниже, чем у полосы разделов (там 50): когда обе прилипли, навигация проходит
+     поверх стрелки, а не наоборот. */
+  .row--sticky {
+    position: sticky;
+    top: var(--back-top, 0px);
+    z-index: 20;
+    padding: 20px 0 14px;
+    background: var(--canvas);
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: var(--fs-5);
+    line-height: 1;
+    text-decoration: none;
+    color: var(--text-muted);
+    transition: all 0.18s;
+  }
+  .back__arrow {
+    font-size: var(--fs-8);
+    line-height: 1;
+    transition: transform 0.18s;
+  }
+  .back:hover {
+    color: var(--ink);
+  }
+  .back:hover .back__arrow {
+    transform: translateX(-3px);
+  }
+</style>

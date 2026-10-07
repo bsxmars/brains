@@ -1,0 +1,204 @@
+---
+/**
+ * Как `actions/cache` ищет запись: лесенка из двух вопросов и трёх исходов.
+ *
+ * Разбор четырёх прогонов идёт по времени (первый, второй, третий…), а механизм — по вопросам:
+ * «есть ли ключ целиком», «есть ли ключ с тем же началом». Схема ставит каждый прогон на ту
+ * ступень, где он остановился, — видно, что прогоны 2 и 4 выглядят для кеша одинаково,
+ * хотя один правильный, а другой — опечатка.
+ *
+ * Каждая строка — три клетки слева направо: вопрос → что распаковано → что сохранится.
+ * На узком экране клетки строки встают друг под другом; прокрутки вбок нет.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Row {
+  ask: string;
+  got: string;
+  end: string;
+  runs: string;
+  tone: 'ok' | 'warn' | 'err';
+}
+
+interface Props {
+  data: {
+    title: string;
+    no: string;
+    head: string[];
+    rows: Row[];
+    caption: string;
+  };
+}
+
+const { data } = Astro.props;
+---
+
+<figure class="gacl-frame">
+  <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
+
+  <div class="gacl-head" aria-hidden="true">
+    {data.head.map((h) => <span set:html={inlineMd(h)} />)}
+  </div>
+
+  <ol class="gacl-rows">
+    {
+      data.rows.map((row, i) => (
+        <li class="gacl-row" data-tone={row.tone}>
+          {i > 0 && <span class="gacl-down">↓ {data.no}</span>}
+          <div class="gacl-cells">
+            <div class="gacl-cell gacl-cell--ask">
+              <span class="gacl-label">{data.head[0]}</span>
+              <span set:html={inlineMd(row.ask)} />
+            </div>
+            <span class="gacl-arrow" aria-hidden="true">→</span>
+            <div class="gacl-cell gacl-cell--got">
+              <span class="gacl-label">{data.head[1]}</span>
+              <span set:html={inlineMd(row.got)} />
+            </div>
+            <span class="gacl-arrow" aria-hidden="true">→</span>
+            <div class="gacl-cell gacl-cell--end">
+              <span class="gacl-label">{data.head[2]}</span>
+              <span set:html={inlineMd(row.end)} />
+            </div>
+          </div>
+          <div class="gacl-runs" set:html={inlineMd(row.runs)} />
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption class="gacl-caption" set:html={inlineMd(data.caption)} />
+</figure>
+
+<style>
+  .gacl-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 24px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+  }
+  .gacl-frame :global(code) {
+    font-size: 1em;
+    white-space: nowrap;
+  }
+
+  /* Шапка колонок — только на широком экране; на узком подпись стоит в каждой клетке. */
+  .gacl-head {
+    display: grid;
+    grid-template-columns: 1fr 1.6em 1fr 1.6em 1fr;
+    font-size: var(--fs-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .gacl-head span:nth-child(2) {
+    grid-column: 3;
+  }
+  .gacl-head span:nth-child(3) {
+    grid-column: 5;
+  }
+
+  .gacl-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .gacl-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .gacl-down {
+    padding: 2px 0 2px 18px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .gacl-cells {
+    display: grid;
+    grid-template-columns: 1fr 1.6em 1fr 1.6em 1fr;
+    align-items: stretch;
+  }
+  .gacl-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 11px 13px;
+    border-radius: var(--r2);
+    color: var(--prose);
+  }
+  .gacl-label {
+    display: none;
+    font-size: var(--fs-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .gacl-cell--ask {
+    border: 1px solid var(--ink);
+  }
+  .gacl-cell--end {
+    background: var(--surface-2);
+  }
+  .gacl-arrow {
+    align-self: center;
+    text-align: center;
+    color: var(--text-faint);
+  }
+
+  .gacl-row[data-tone='ok'] .gacl-cell--got {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-text);
+  }
+  .gacl-row[data-tone='warn'] .gacl-cell--got {
+    border: 1px solid var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-text);
+  }
+  .gacl-row[data-tone='err'] .gacl-cell--got {
+    border: 1px solid var(--tone-err-line);
+    background: var(--tone-err-bg);
+    color: var(--tone-err-text);
+  }
+
+  .gacl-runs {
+    padding-left: 14px;
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 720px) {
+    .gacl-head {
+      display: none;
+    }
+    .gacl-cells {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .gacl-label {
+      display: block;
+    }
+    .gacl-arrow {
+      transform: rotate(90deg);
+      line-height: 1.4;
+    }
+  }
+
+  .gacl-caption {
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    color: var(--text-muted);
+  }
+</style>

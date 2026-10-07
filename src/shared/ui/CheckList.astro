@@ -1,0 +1,72 @@
+---
+/**
+ * Список правил с галочками — то, что надо делать, в отличие от списка ошибок рядом.
+ *
+ * Отдельный компонент, а не маркированный список, ради двух вещей: галочка выровнена
+ * по первой строке и не уезжает при переносе, а тон задаёт смысл — зелёный «делайте так»,
+ * красный «так не делайте».
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  /** Пункты списка. Работает строчная разметка: `` `код` `` и `**жирный**`. */
+  items: string[];
+  tone?: 'ok' | 'err';
+  size?: number;
+}
+
+const { items, tone = 'ok', size = 15.5 } = Astro.props;
+const mark = tone === 'ok' ? '✓' : '✗';
+---
+
+<ul class="list" data-tone={tone} style={`--check-fs:calc(${size}px * var(--fs-scale))`}>
+  {
+    items.map((item) => (
+      <li class="item">
+        <span class="mark" aria-hidden="true">
+          {mark}
+        </span>
+        <span class="text" set:html={inlineMd(item)} />
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    /* Та же ступень, что у прозы страницы; проп `size` больше размер не задаёт (2026-09-30). */
+    font-size: var(--fs-6);
+    line-height: 1.6;
+  }
+  .mark {
+    flex-shrink: 0;
+  }
+  /* Без этого flex-элемент не уже своего самого длинного слова, и «неаутентифицированный»
+     на 320px утаскивало страницу вбок. */
+  .text {
+    min-width: 0;
+  }
+  .list[data-tone='ok'] .item {
+    color: var(--tone-ok-text);
+  }
+  .list[data-tone='ok'] .mark {
+    color: var(--tone-ok-strong);
+  }
+  .list[data-tone='err'] .item {
+    color: var(--tone-err-text);
+  }
+  .list[data-tone='err'] .mark {
+    color: var(--tone-err-strong);
+  }
+</style>

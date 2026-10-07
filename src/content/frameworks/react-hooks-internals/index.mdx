@@ -1,0 +1,464 @@
+---
+title: "React изнутри: хуки и контекст"
+order: 4
+kicker: фреймворки изнутри
+lead: "Почему `setState` тем же значением иногда всё же вызывает функцию компонента, почему `memo` не останавливает контекст и почему стор, прочитанный в рендере, показывает на одном экране два разных числа. Ответ на каждый вопрос — несколько строк в `ReactFiberHooks.js`. Здесь эти строки написаны по шагам, и тест сверяет их с React 19.3 — вплоть до формы ячеек на файбере."
+leadWidth: 66
+summary: "Хуки изнутри: диспетчер и список ячеек, useRef и useMemo, очередь useReducer и ранний выход useState, контекст как стек и пометка читателей мимо memo, useSyncExternalStore и разрыв экрана без него."
+verifiedOn: React 19.3 · Node 26.8
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Каркас }
+  - { id: s2, label: Диспетчер }
+  - { id: s3, label: useRef и useMemo }
+  - { id: s4, label: useReducer и useState }
+  - { id: s5, label: Контекст }
+  - { id: s6, label: Внешний стор }
+  - { id: s7, label: Против React }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MiniHooks from '@/widgets/mini-hooks/ui/MiniHooks.vue';
+import {
+  CELLS_NOTE,
+  COND_CONTEXT_CODE,
+  COND_CONTEXT_NOTE,
+  CONTEXT_LINK,
+  CONTEXT_NOTE,
+  CONTEXT_TRACE,
+  DEMO_CELLS,
+  DEMO_CONTEXT,
+  DEMO_NOTE,
+  DEMO_TEAR,
+  DEPS_IS_CODE,
+  DEPS_IS_TRACE,
+  DEPS_NOTE,
+  DIFF,
+  DIFF_NOTE,
+  DISPATCHER_REACT_NOTE,
+  EAGER_NOTE,
+  EFFECT_LINK,
+  GLOSSARY,
+  HOOK_CELLS_CODE,
+  HOOK_CELLS_TABLE,
+  LANES_NOTE,
+  MEMO_NOTE,
+  MINI_HOOKS_CODE,
+  NO_MEMO_NOTE,
+  PITFALLS,
+  PLAIN_CHILD_LANES,
+  PLAIN_DISPATCHER,
+  PLAIN_EAGER,
+  PLAIN_PROVIDER_STACK,
+  PLAIN_TEARING,
+  PREREQ,
+  PREREQ_NOTE,
+  QUEUE_LINK,
+  REDUCER_NOTE,
+  REDUCER_SAME_CODE,
+  REDUCER_SAME_TRACE,
+  REDUCER_WHY,
+  REF_NOTE,
+  RELATED,
+  SAME_VALUE_CODE,
+  SAME_VALUE_TRACE,
+  SCENARIO_CONTEXT,
+  SCENARIO_TEAR_PLAIN,
+  SKELETON_NOTE,
+  SOURCES,
+  STEP_BAILOUT,
+  STEP_CONTEXT,
+  STEP_DISPATCHER,
+  STEP_EFFECT,
+  STEP_MEMO,
+  STEP_REDUCER,
+  STEP_REF,
+  STEP_ROOT,
+  STEP_STORE,
+  STORE_NOTE,
+  TEAR_MOUNT_TRACE,
+  TEAR_TRACE,
+  TEAR_WHY,
+  UNCACHED_NOTE,
+  UNCACHED_SNAPSHOT_CODE,
+  EAGER_SCENE_NOTE,
+  EAGER_SCENE_STEPS,
+  TEAR_SCENE_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Хуки: когда именно"
+  lead="Снаружи хуки описывают глаголами: `useMemo` запоминает, контекст пробрасывает, `useSyncExternalStore` подписывает. Каждый глагол верен, пока не спросишь, **когда именно** — когда запомненное пересчитается, кого контекст разбудит, в какой момент подписка успеет. На эти вопросы отвечает не документация, а три поля файбера: список ячеек, `dependencies` и пометки работы."
+  leadWidth={70}
+>
+  <CardGrid min={240} gap={14}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
+  <CardGrid min={260} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Каркас: работа своя и работа ниже"
+  lead="Всё, что делают `memo`, контекст и ранний выход `setState`, сводится к одному решению — вызывать ли функцию компонента. Его принимает `beginWork` по двум числам на файбере: `lanes` — есть ли работа у него самого, `childLanes` — есть ли она где-то ниже. `setState` ставит `lanes` своему файберу и `childLanes` каждому предку до корня."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHILD_LANES} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SKELETON_NOTE} />
+
+  <Card title="Шаг 1 · файбер, `beginWork` и пропуск поддерева" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_BAILOUT} />
+
+
+    Пропусков два. Если ни пропсы, ни своя работа не изменились, `beginWork` зовёт `bailout`:
+    при пустых `childLanes` он возвращает `null`, и поддерево не обходится вовсе, а иначе
+    переносит детей из текущего дерева с их **прежними** пропсами — и каждый ребёнок сможет
+    пропуститься сам. `memo` меняет только первую проверку: равные по `Object.is` пропсы
+    подменяются прежним объектом, и дальше всё идёт так, будто родитель ничего не передавал.
+
+  </Card>
+
+  <Card title="Шаг 2 · корень: полосы, нарезка и коммит" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_ROOT} />
+
+
+    `scheduleUpdateOnFiber` — единственный путь, которым работа попадает в дерево: пометить
+    файбер, пометить дорожку к корню, заказать рендер. Синхронное обновление рендерится одним
+    куском в микрозадаче, переходное — задачами, и между файберами цикл спрашивает `shouldYield`.
+    Две строки в конце `performWork`, про внешние сторы, понадобятся в разделе
+    «Внешний стор»: без нарезки их не было бы вовсе.
+
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={LANES_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Диспетчер: один `useState`, две реализации"
+  lead="`useState`, который импортирует приложение, ничего не хранит и ничего не считает: он спрашивает у текущего диспетчера, что делать. Перед вызовом компонента `renderWithHooks` ставит диспетчер монтирования или обновления — смотря, есть ли у файбера прошлый список ячеек, — а после вызова снимает. Отсюда и ошибка «хук вне компонента»: вне рендера спрашивать некого."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISPATCHER} />
+
+  <Card title="Шаг 3 · диспетчер и курсор по списку ячеек" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_DISPATCHER} />
+
+
+    `mountWorkInProgressHook` заводит ячейку и цепляет её в конец списка.
+    `updateWorkInProgressHook` делает шаг по списку **прошлого** рендера и копирует ячейку
+    в новый. Это тот же принцип, что и в [массиве ячеек из «React изнутри: свой рендерер
+    и хуки»](/frameworks/react-internals/#s5), но уже в форме React: связный список с первой
+    ячейкой в `fiber.memoizedState`. Кончился прошлый список раньше, чем вызовы, — «more hooks»;
+    вызовы кончились раньше списка — «fewer hooks». Тексты этих двух ошибок и ошибки вне рендера
+    у мини-версии начинаются теми же словами, что у React, — их легко узнать в своей консоли.
+
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={DISPATCHER_REACT_NOTE} />
+
+  ### Что лежит в ячейках
+
+  <Card title="Компонент со всеми хуками темы" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={HOOK_CELLS_CODE} />
+
+    <Table
+      head={HOOK_CELLS_TABLE.head}
+      rows={HOOK_CELLS_TABLE.rows}
+      cols="minmax(40px,.25fr) minmax(170px,.9fr) minmax(260px,1.8fr)"
+      kinds={['mono', 'prose', 'muted']}
+      minWidth={520}
+    />
+
+    <Md text={CELLS_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="`useRef`, `useMemo`, `useCallback`: ячейка без очереди"
+  lead="У этих трёх хуков нет ни очереди, ни `dispatch`: они не умеют заказать рендер. `useRef` хранит объект, созданный один раз. `useMemo` и `useCallback` хранят пару «значение, зависимости» и на каждом рендере решают одно — отдать старое значение или положить новое."
+  leadWidth={70}
+>
+  <CardGrid min={280} gap={14} align="start">
+    <Card title="Шаг 4 · `useRef`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+      <CodeBlock code={STEP_REF} />
+
+      <Md text={REF_NOTE} />
+    </Card>
+
+    <Card title="Зависимости сравнивает `Object.is`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+      <CodeBlock code={DEPS_IS_CODE} />
+
+      <CodeBlock code={DEPS_IS_TRACE} tone="ok" />
+
+      <Md text={DEPS_NOTE} />
+    </Card>
+  </CardGrid>
+
+  <Card title="Шаг 5 · `useMemo` и `useCallback`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_MEMO} />
+
+    <Md text={MEMO_NOTE} />
+  </Card>
+
+  ### Ячейки одного компонента по шагам
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={DEMO_NOTE} />
+
+  <MiniHooks client:visible code={MINI_HOOKS_CODE} scenarios={DEMO_CELLS} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="`useReducer` и `useState`: очередь и ранний выход"
+  lead="`useState` — это `useReducer` с готовым редьюсером: `action` либо новое значение, либо функция от старого. Ячейка, очередь и свёртка очереди в рендере у них общие. Отличие одно, и оно в `dispatch`: `setState` пробует посчитать новое состояние сразу и, если оно то же, не заказывает рендер вовсе."
+  leadWidth={70}
+>
+  <Card title="Шаг 6 · очередь, редьюсер и eager state" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_REDUCER} />
+
+
+    `updateReducerImpl` сворачивает очередь от состояния последнего коммита и сравнивает
+    результат с ним же. Совпало — `didReceiveUpdate` остаётся `false`, и `updateFunctionComponent`
+    уходит в `bailout`: функция вызвана, но её дети не сверяются. Очередь чистит коммит, а не
+    рендер: брошенный рендер не должен терять обновления.
+
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EAGER} />
+
+  <CardGrid min={290} gap={14} align="start">
+    <Card tone="warn" title="`setState` тем же значением: ноль, один, ноль" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={SAME_VALUE_CODE} />
+
+      <CodeBlock code={SAME_VALUE_TRACE} tone="ok" />
+
+      <Md text={EAGER_NOTE} />
+    </Card>
+
+    <Card tone="err" title="`dispatch` тем же состоянием: каждый раз" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={REDUCER_SAME_CODE} />
+
+      <CodeBlock code={REDUCER_SAME_TRACE} tone="ok" />
+
+      <Md text={REDUCER_NOTE} />
+
+      <Md text={REDUCER_WHY} />
+    </Card>
+  </CardGrid>
+
+  ### «Ноль, один, ноль» — клик за кликом
+
+  <Md text={EAGER_SCENE_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {EAGER_SCENE_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Файберы:** ${st.bufs}.`} />
+        <Md text={st.what} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={QUEUE_LINK} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Контекст: стек значений и пометка читателей"
+  lead="У контекста нет ячейки и нет очереди. Значение лежит в поле самого объекта контекста, и провайдер подменяет его на время обхода своего поддерева. Чтение записывает контекст в `fiber.dependencies`. Когда значение провайдера меняется, читателям ставят `lanes`, а дорожке к ним — `childLanes`, и пропуск по пропсам их уже не остановит."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROVIDER_STACK} />
+
+  <Card title="Шаг 7 · провайдер, `readContext` и распространение" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_CONTEXT} />
+
+
+    Стек нужен потому, что обход идёт по одному файберу. Провайдер кладёт значение на спуске
+    (`pushProvider` в начале `beginWork` — **до** любого пропуска) и снимает на подъёме
+    (`popProvider` в `completeUnitOfWork`). Всё, что обходится между этими двумя точками, видит
+    его значение, а соседнее поддерево — прежнее. Вложенный провайдер того же контекста —
+    граница: `propagateContextChange` за неё не идёт, там свои читатели.
+
+  </Card>
+
+  <Card title="Кто вызван: тема, пользователь, постороннее состояние" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={SCENARIO_CONTEXT} />
+
+    <CodeBlock code={CONTEXT_TRACE} tone="ok" />
+
+    <Md text={CONTEXT_NOTE} />
+  </Card>
+
+  <CardGrid min={290} gap={14} align="start">
+    <Card tone="err" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={NO_MEMO_NOTE} />
+
+    <Card tone="warn" title="`useContext` под условием" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={COND_CONTEXT_CODE} />
+
+      <Md text={COND_CONTEXT_NOTE} />
+    </Card>
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CONTEXT_LINK} />
+
+  ### Контекст мимо `memo` по шагам
+
+  <MiniHooks client:visible code={MINI_HOOKS_CODE} scenarios={DEMO_CONTEXT} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Внешний стор: снимок, подписка и разрыв"
+  lead="Стор вне React меняется, когда захочет, — в том числе посреди нарезанного рендера. Компонент, который читает его прямо в теле, получает значение на момент своего вызова, и соседние компоненты одного рендера могут прочитать разные версии. `useSyncExternalStore` не даёт такому экрану дойти до коммита."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEARING} />
+
+  <Card title="Разрыв: переход, и после первой ячейки — `store.set`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={SCENARIO_TEAR_PLAIN} />
+
+    <CodeBlock code={TEAR_TRACE} tone="ok" />
+
+
+    Без хука `A` прочитала `0`, событие сменило стор, `B` и `C` прочитали `1` — и коммит
+    показал экран, которого не было ни в одной версии стора. С хуком тот же экран в коммит
+    не попадает: слушатель видит устаревший снимок, ставит синхронное обновление, и оно
+    бросает недостроенный переход. React коммитит два раза — срочное, затем сам переход, —
+    и оба экрана целые. Мини-версия коммитит один раз, но разорванного экрана нет ни у кого:
+    чем отличается число коммитов, сказано в разделе «Чего в мини-версии нет».
+
+  </Card>
+
+  ### Тот же сценарий по шагам
+
+  <CardGrid min={290} gap={14} align="start">
+    {TEAR_SCENE_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Без хука.** ${st.plain}`} />
+        <Md text={`**С \`useSyncExternalStore\`.** ${st.sync}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={TEAR_WHY} />
+
+  <Card title="Шаг 8 · `useSyncExternalStore`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_STORE} />
+
+    <Md text={STORE_NOTE} />
+  </Card>
+
+  <Card title="Разрыв на монтировании: подписки ещё нет" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={TEAR_MOUNT_TRACE} tone="ok" />
+
+
+    Ячейки появляются переходом, а стор меняется после первой из них. Подписка — эффект, она
+    появится только после коммита, так что слушателю здесь сработать не на чем. Спасает проверка
+    в конце нарезанного рендера. Она находит устаревший снимок, и все три ячейки рендерятся
+    заново, синхронно. В коммит уходит только второй проход.
+
+  </Card>
+
+  <Card title="Шаг 9 · эффект, на котором держится подписка" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_EFFECT} />
+
+    <Md text={EFFECT_LINK} />
+  </Card>
+
+  <Card tone="err" title="Снимок обязан быть тем же объектом" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={UNCACHED_SNAPSHOT_CODE} />
+
+    <Md text={UNCACHED_NOTE} />
+  </Card>
+
+  ### Разрыв по шагам: стор без хука и с ним
+
+  <MiniHooks client:visible code={MINI_HOOKS_CODE} scenarios={DEMO_TEAR} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Чего в мини-версии нет"
+  lead="На сценариях этой темы мини-версия вызывает те же компоненты в том же порядке и показывает ту же разметку, что React 19.3. Но устроена она проще, и в трёх местах это видно по выводу."
+  leadWidth={70}
+>
+  <Table
+    head={DIFF.head}
+    rows={DIFF.rows}
+    cols="minmax(160px,.9fr) minmax(180px,1fr) minmax(260px,1.6fr)"
+    kinds={['prose', 'muted', 'muted']}
+    minWidth={640}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={DIFF_NOTE} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Источники"
+  lead="Спецификации у React нет — есть исходники. Ссылки ведут в файлы, где лежат настоящие версии функций с теми же именами, что и здесь."
+  leadWidth={70}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

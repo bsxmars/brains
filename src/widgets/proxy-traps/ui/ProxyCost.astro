@@ -1,0 +1,121 @@
+---
+/**
+ * Цена перехвата: три столбика и честная подпись, чем именно мерили.
+ *
+ * Числа в оригинале («10 / 66 / 121 мс») не воспроизвелись — см. комментарий к `PROXY_COST`
+ * в `data.ts`. Здесь стоит свежий замер, и рядом написано, на чём он снят: цифра без стенда
+ * в таком блоке бесполезна, потому что читатель сравнивает её со своей машиной.
+ *
+ * Столбики подписаны отношением, а не только миллисекундами: абсолютные значения устареют
+ * с следующей версией движка, а «геттер дороже поля на порядок» — нет.
+ */
+import { inlineMd } from '@/shared/lib/format';
+import type { CostBar } from '../model/types';
+
+interface Props {
+  bars: CostBar[];
+  /** Чем мерили: число итераций, версия движка, машина. */
+  caption: string;
+  note?: string;
+}
+
+const { bars, caption, note } = Astro.props;
+---
+
+<div class="cost">
+  <div class="t-label">{caption}</div>
+
+  <div class="bars">
+    {
+      bars.map((bar) => (
+        <div class="bar">
+          <span class="bar__label">{bar.label}</span>
+          <span class="bar__track">
+            <span class="bar__fill" data-tone={bar.tone} style={`width:${Math.round(bar.ratio * 100)}%`} />
+          </span>
+          <span class="bar__value">{bar.value}</span>
+        </div>
+      ))
+    }
+  </div>
+
+  {note && <p class="note" set:html={inlineMd(note)} />}
+</div>
+
+<style>
+  .cost {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    border-radius: var(--r4);
+    background: var(--surface);
+    box-shadow: var(--shadow-2);
+    min-width: 0;
+  }
+
+  .bars {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+  }
+  .bar {
+    display: grid;
+    grid-template-columns: minmax(0, 150px) minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+  }
+  .bar__label {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+  /* Дорожка задаёт общую шкалу: без неё столбики не с чем сравнивать. */
+  .bar__track {
+    height: 14px;
+    border-radius: var(--r1);
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .bar__fill {
+    display: block;
+    height: 100%;
+    border-radius: var(--r1);
+  }
+  .bar__fill[data-tone='neutral'] {
+    background: var(--bar-neutral);
+  }
+  .bar__fill[data-tone='violet'] {
+    background: var(--bar-violet);
+  }
+  .bar__fill[data-tone='amber'] {
+    background: var(--bar-amber);
+  }
+  .bar__value {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .note {
+    margin: 0;
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+  .note :global(b) {
+    color: var(--ink);
+  }
+
+  @media (max-width: 560px) {
+    .bar {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .bar__track {
+      grid-column: 1 / -1;
+      order: 3;
+    }
+  }
+</style>

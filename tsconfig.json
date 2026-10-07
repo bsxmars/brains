@@ -1,0 +1,9 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "paths": { "@/*": ["./src/*"] },
+    "jsx": "preserve"
+  },
+  "include": [".astro/types.d.ts", "**/*"],
+  "exclude": ["dist", "legacy", "node_modules", "tests/fixtures/compression", "tests/fixtures/performance-budgets"]
+}

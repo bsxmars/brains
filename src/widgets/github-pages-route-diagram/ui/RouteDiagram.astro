@@ -1,0 +1,229 @@
+---
+/**
+ * Что статический хостинг отвечает на клиентский адрес: дерево из двух развилок.
+ *
+ * Четыре варианта сайта в теме разобраны карточками рядом друг с другом — и выглядят как
+ * четыре равноправных решения. Дерево показывает, что это не так: у сервера всего один
+ * вопрос («есть файл или нет»), а всё остальное — выбор того, **что лежит в `404.html`**.
+ * Поэтому три листа из четырёх заканчиваются одним кодом 404, как бы ни выглядела страница.
+ *
+ * Дерево вертикальное: на узком экране листья складываются по строкам, прокрутки нет.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Leaf {
+  when: string;
+  sees: string;
+  code: string;
+  tone: 'ok' | 'warn' | 'err';
+  flag?: string;
+}
+
+interface Props {
+  data: {
+    title: string;
+    request: string;
+    forks: { ask: string; leaves: Leaf[] }[];
+    head: { sees: string; code: string };
+    caption: string;
+  };
+}
+
+const { data } = Astro.props;
+---
+
+<figure class="ghrd-frame">
+  <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
+
+  <div class="ghrd-root" set:html={inlineMd(data.request)} />
+
+  <ul class="ghrd-tree">
+    {
+      data.forks.map((fork) => (
+        <li class="ghrd-branch">
+          <div class="ghrd-ask" set:html={inlineMd(fork.ask)} />
+          <ul class="ghrd-tree">
+            {fork.leaves.map((leaf) => (
+              <li class="ghrd-branch">
+                <div class="ghrd-leaf" data-tone={leaf.tone}>
+                  <span class="ghrd-when" set:html={inlineMd(leaf.when)} />
+                  <span class="ghrd-sees">
+                    <span class="ghrd-label">{data.head.sees}</span>
+                    <span set:html={inlineMd(leaf.sees)} />
+                  </span>
+                  <span class="ghrd-code">
+                    <span class="ghrd-label">{data.head.code}</span>
+                    <b>{leaf.code}</b>
+                  </span>
+                  {leaf.flag && <span class="ghrd-flag" set:html={inlineMd(leaf.flag)} />}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))
+    }
+  </ul>
+
+  <figcaption class="ghrd-caption" set:html={inlineMd(data.caption)} />
+</figure>
+
+<style>
+  .ghrd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+    padding: 24px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+  }
+  .ghrd-frame > .t-eyebrow {
+    margin-bottom: 16px;
+  }
+  .ghrd-frame :global(code) {
+    font-size: 1em;
+  }
+
+  .ghrd-root {
+    align-self: flex-start;
+    padding: 10px 14px;
+    border-radius: var(--r2);
+    background: var(--ink);
+    color: var(--on-ink);
+    --inline-code-bg: transparent;
+  }
+
+  /*
+   * Дерево на рамках: у каждой ветки уголок к своему узлу, у всех, кроме последней, —
+   * ещё и продолжение вертикали вниз, к соседке. `--ghrd-knee` — высота середины первой
+   * строки узла: к ней приходит горизонталь уголка.
+   */
+  .ghrd-tree {
+    --ghrd-knee: 22px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 10px 0 0 14px;
+    list-style: none;
+  }
+  .ghrd-branch {
+    position: relative;
+    padding-left: 22px;
+  }
+  .ghrd-branch::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 0;
+    width: 16px;
+    height: calc(var(--ghrd-knee) + 10px);
+    border-left: 1.5px solid var(--ghost);
+    border-bottom: 1.5px solid var(--ghost);
+    border-bottom-left-radius: var(--r1);
+  }
+  .ghrd-branch:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: -10px;
+    left: 0;
+    border-left: 1.5px solid var(--ghost);
+  }
+
+  .ghrd-ask {
+    display: inline-block;
+    padding: 10px 14px;
+    border: 1px solid var(--ink);
+    border-radius: var(--r2);
+  }
+
+  .ghrd-leaf {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+    gap: 6px 16px;
+    align-items: baseline;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    background: var(--surface-2);
+  }
+  .ghrd-when {
+    font-weight: 600;
+  }
+  .ghrd-sees {
+    color: var(--prose);
+  }
+  .ghrd-label {
+    display: none;
+    font-size: var(--fs-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .ghrd-code b {
+    padding: 2px 9px;
+    border-radius: var(--r-full);
+    font-weight: 600;
+  }
+  .ghrd-leaf[data-tone='ok'] .ghrd-code b {
+    background: var(--tone-ok-chip);
+    color: var(--tone-ok-text);
+  }
+  .ghrd-leaf[data-tone='warn'] .ghrd-code b {
+    background: var(--tone-warn-chip);
+    color: var(--tone-warn-text);
+  }
+  .ghrd-leaf[data-tone='err'] .ghrd-code b {
+    background: var(--tone-err-chip);
+    color: var(--tone-err-text);
+  }
+  .ghrd-flag {
+    grid-column: 1 / -1;
+    padding-top: 6px;
+    border-top: 1px dashed var(--tone-err-line);
+    font-size: var(--fs-3);
+    color: var(--tone-err-strong);
+  }
+
+  @media (max-width: 720px) {
+    .ghrd-tree {
+      padding-left: 6px;
+    }
+    .ghrd-branch {
+      padding-left: 18px;
+    }
+    .ghrd-branch::before {
+      width: 12px;
+    }
+    .ghrd-leaf {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .ghrd-when {
+      grid-column: 1 / -1;
+    }
+    .ghrd-sees,
+    .ghrd-code {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .ghrd-label {
+      display: block;
+    }
+  }
+
+  .ghrd-caption {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    color: var(--text-muted);
+  }
+</style>

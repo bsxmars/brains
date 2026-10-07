@@ -1,0 +1,193 @@
+---
+/**
+ * Как запрос находит под: две полосы — кто ведёт список адресов и кто везёт запрос.
+ *
+ * Весь смысл схемы — в том, что это **разные** участники. Сервис стоит в начале верхней
+ * полосы (его селектор задаёт список), но в нижней его нет вовсе: запрос знает только адрес
+ * сервиса, а пересылают его правила на узле. Не готовый под на схеме есть, а в списке — нет.
+ *
+ * HTML, а не SVG: на узком экране цепочки складываются в колонку, и подписи не мельчают.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface DiagramNode {
+  t: string;
+  s?: string;
+  tone: string;
+}
+
+interface Lane {
+  k: string;
+  nodes: DiagramNode[];
+  pods?: { t: string; ok: boolean }[];
+}
+
+interface Props {
+  title: string;
+  caption: string;
+  lanes: Lane[];
+}
+
+const { title, caption, lanes } = Astro.props;
+---
+
+<figure class="ksd">
+  <div class="t-eyebrow t-eyebrow--panel">{title}</div>
+
+  {
+    lanes.map((lane, li) => (
+      <>
+        {li > 0 && (
+          <div class="ksd-link" aria-hidden="true">
+            ↓ список становится правилами пересылки на узлах
+          </div>
+        )}
+        <div class="ksd-lane">
+          <div class="t-label ksd-lane-k">{lane.k}</div>
+          <div class="ksd-flow">
+            {lane.nodes.map((node, i) => (
+              <>
+                {i > 0 && <span class="ksd-arrow" aria-hidden="true">→</span>}
+                <div class="ksd-node" data-tone={node.tone}>
+                  <span class="ksd-node-t" set:html={inlineMd(node.t)} />
+                  {node.s && <span class="ksd-node-s" set:html={inlineMd(node.s)} />}
+                </div>
+              </>
+            ))}
+            {lane.pods && (
+              <>
+                <span class="ksd-arrow" aria-hidden="true">→</span>
+                <div class="ksd-pods">
+                  {lane.pods.map((pod) => (
+                    <div class="ksd-pod" data-ok={pod.ok ? 'yes' : 'no'}>
+                      <span class="ksd-pod-mark" aria-hidden="true">{pod.ok ? '✓' : '✗'}</span>
+                      <span set:html={inlineMd(pod.t)} />
+                      {!pod.ok && <span class="ksd-pod-off">— нет в списке</span>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </>
+    ))
+  }
+
+  <figcaption class="t-note" set:html={inlineMd(caption)} />
+</figure>
+
+<style>
+  .ksd {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .ksd-lane {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ksd-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .ksd-arrow {
+    align-self: center;
+    color: var(--text-faint);
+    font-size: var(--fs-5);
+  }
+
+  .ksd-link {
+    align-self: center;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+
+  .ksd-node {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .ksd-node-t {
+    font-size: var(--fs-4);
+    font-weight: 600;
+  }
+  .ksd-node-s {
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+  .ksd-node[data-tone='ink'] {
+    border-color: var(--ink);
+  }
+  .ksd-node[data-tone='info'] {
+    border-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+  }
+  .ksd-node[data-tone='info'] .ksd-node-t {
+    color: var(--tone-info-strong);
+  }
+  .ksd-node[data-tone='dim'] {
+    background: var(--surface-2);
+  }
+
+  .ksd-pods {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .ksd-pod {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    padding: 6px 11px;
+    border-radius: var(--r2);
+    font-size: var(--fs-3);
+  }
+  .ksd-pod[data-ok='yes'] {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  .ksd-pod[data-ok='no'] {
+    border: 1px dashed var(--tone-err-line);
+    color: var(--tone-err-strong);
+  }
+  .ksd-pod-mark {
+    font-weight: 700;
+  }
+  .ksd-pod-off {
+    font-weight: 600;
+  }
+
+  /* На узком экране цепочка идёт сверху вниз: стрелки поворачиваются, узлы — во всю ширину. */
+  @media (max-width: 640px) {
+    .ksd {
+      padding: 16px;
+    }
+    .ksd-flow {
+      flex-direction: column;
+    }
+    .ksd-arrow {
+      transform: rotate(90deg);
+    }
+  }
+</style>

@@ -1,0 +1,281 @@
+/**
+ * Вид обеих половин демо — **один файл на два рантайма**.
+ *
+ * Две панели стоят рядом и сравниваются числом к числу, поэтому они обязаны быть неотличимы.
+ * Две копии стилей разъехались бы на первой же правке, и разъехались бы незаметно — читатель
+ * решил бы, что разница в панелях что-то значит.
+ *
+ * ⚠️ Почему обычный CSS, а не CSS-модуль, как у React-демо соседнего урока: **модуль,
+ * импортированный в `.vue`, разваливает серверный рендер**. Сборка падает на
+ * `Cannot read properties of undefined (reading 'pane')` — в серверном чанке объект классов
+ * оказывается `undefined`, хотя тот же импорт в `.tsx` работает. Здесь файл импортирует
+ * `TwoModels.astro`, а обе половины пишут имена классов строкой.
+ *
+ * Отсюда же префикс `tm-` у каждого класса: правила глобальные, и `.node` или `.row` без
+ * префикса столкнулись бы с чужими. Слой `lesson-overrides` — потому что всё глобальное
+ * в этом курсе обязано лежать в слое (см. `shared/styles/layers.css`).
+ *
+ * Ни одного цвета и ни одного размера мимо токенов курса (`shared/ui/theme.ts`).
+ */
+
+@layer lesson-overrides {
+  /* ---- Панель одной модели ---- */
+  /* Своя подложка нужна: линию между половинами рисует зазор сетки, просвечивая сквозь него
+     (см. `TwoModels.astro`), — а для этого панели обязаны быть непрозрачными. */
+  .tm-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    background: var(--surface);
+    min-width: 0;
+  }
+
+  /* Обе шапки одной высоты — иначе панели начинают дерево на разных уровнях и числа,
+     ради сравнения которых демо и существует, оказываются на разной высоте.
+     Минимум равен высоте «пилюли» с её паддингами: 5px + 5px + строка ~13px + рамки. */
+  .tm-pane-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    min-height: 26px;
+  }
+
+  /* Правая половина: место переключателя занимает подпись — тем же кеглем и цветом,
+     что метка «пилюль» слева, и так же прижата к правому краю. */
+  .tm-pane-note {
+    margin: 0 0 0 auto;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+  .tm-pane-title {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    color: var(--ink);
+  }
+  .tm-pane-tag {
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    color: var(--chip-text);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    white-space: nowrap;
+  }
+
+  /* ---- Наблюдаемое поддерево ---- */
+  .tm-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .tm-node {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 10px 12px;
+    border-radius: var(--r2);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--border);
+    transition:
+      background 0.3s,
+      box-shadow 0.3s;
+    min-width: 0;
+  }
+  /* Мигнуло — значит render-функция этого узла отработала заново. */
+  .tm-node[data-flash='on'] {
+    background: var(--tone-warn-bg);
+    box-shadow: inset 0 0 0 1px var(--tone-warn-line);
+    transition:
+      background 0.05s,
+      box-shadow 0.05s;
+  }
+  .tm-node-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tm-node-name {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    color: var(--ink);
+  }
+  .tm-node-note {
+    font-size: var(--fs-4);
+    line-height: 1.45;
+    color: var(--text-muted);
+  }
+  .tm-node-value {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--tone-info-strong);
+  }
+  .tm-children {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-left: 12px;
+    padding-left: 11px;
+    border-left: 1px solid var(--rule);
+    min-width: 0;
+  }
+
+  /* ---- Список задачи ---- */
+  .tm-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 0;
+  }
+  .tm-row {
+    padding: 4px 9px;
+    border-radius: var(--r1);
+    background: var(--surface-2);
+    color: var(--chip-text);
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    transition: background 0.3s;
+  }
+  .tm-row[data-flash='on'] {
+    background: var(--tone-warn-chip);
+  }
+
+  /* ---- Приборы: стоят вне наблюдаемого поддерева ---- */
+  .tm-meters {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+  .tm-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+    gap: 10px;
+  }
+  .tm-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 11px 13px;
+    border-radius: var(--r2);
+    background: var(--surface-2);
+    min-width: 0;
+  }
+  .tm-stat-label {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .tm-stat-value {
+    font-family: var(--mono);
+    font-size: var(--fs-8);
+    line-height: 1.2;
+    color: var(--ink);
+  }
+  .tm-stat-value[data-tone='ok'] {
+    color: var(--tone-ok-strong);
+  }
+  .tm-stat-value[data-tone='warn'] {
+    color: var(--tone-warn-strong);
+  }
+  .tm-stat-note {
+    font-size: var(--fs-4);
+    line-height: 1.45;
+    color: var(--text-muted);
+  }
+
+  /* Разбор по узлам — тоже снаружи поддерева: внутри он считал бы сам себя. */
+  .tm-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+  .tm-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--chip-text);
+    white-space: nowrap;
+  }
+  .tm-chip[data-zero='yes'] {
+    background: var(--tone-ok-chip);
+    color: var(--tone-ok-strong);
+  }
+  .tm-chip-num {
+    color: var(--ink);
+  }
+  .tm-chip[data-zero='yes'] .tm-chip-num {
+    color: var(--tone-ok-strong);
+  }
+  .tm-empty {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    font-style: italic;
+    color: var(--ghost);
+  }
+
+  /* ---- Переключатель внутри панели (есть только у React) ---- */
+  .tm-pills {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 0 0 0 auto;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .tm-pills-label {
+    padding: 0 4px 0 0;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--text-faint);
+  }
+  .tm-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-full);
+    background: var(--surface);
+    color: var(--chip-text);
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tm-pill:has(.tm-pill-input:checked) {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--on-ink);
+  }
+  .tm-pill:has(.tm-pill-input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  /* Радио не рисуется, но цвет и шрифт у него браузерные — в курсе таких нет. */
+  .tm-pill-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    font: inherit;
+    color: inherit;
+  }
+}

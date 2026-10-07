@@ -1,0 +1,443 @@
+---
+title: "Server Components изнутри"
+order: 6
+kicker: фреймворки изнутри
+lead: "Серверный компонент присылает в браузер не HTML и не свой код, а результат — дерево элементов текстовым потоком Flight. В потоке видно всё: где дыра под `async`, что пролезло через `'use client'`, почему серверная функция приезжает номером, а не кодом."
+leadWidth: 66
+summary: "Чем Server Components отличаются от SSR, формат потока Flight строка за строкой, учебный сериализатор, сверенный с настоящим React, граница 'use client' и её ошибки, серверные функции, async-компоненты, Suspense и cache()."
+verifiedOn: "react-server-dom-webpack 19.3.0 · React 19.3.0 · Node 26.8.2, продакшен и отладочная сборки; сентябрь 2026"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Не другой SSR }
+  - { id: s2, label: Формат потока }
+  - { id: s3, label: Своими руками }
+  - { id: s4, label: "Граница 'use client'" }
+  - { id: s5, label: Серверные функции }
+  - { id: s6, label: "Async, Suspense, cache" }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import RscFlight from '@/widgets/rsc-flight/ui/RscFlight.vue';
+import {
+  ACTION_CODE,
+  ACTION_FACTS,
+  ACTION_NOTE,
+  BOUNDARY_ERRORS,
+  BOUNDARY_FACTS,
+  CACHE_CODE,
+  CACHE_NOTE,
+  CACHE_RUNS,
+  DEMO_CAPTION,
+  DEMO_DATA,
+  DEMO_MANIFEST,
+  DEMO_NOTE,
+  ELEMENT_TUPLE,
+  FLIGHT_CLIENT_CODE,
+  FLIGHT_SAMPLE_VIEW,
+  FLIGHT_SERVER_CODE,
+  FORMAT_FACTS,
+  GLOSSARY,
+  INTRO_NOTE,
+  MINI_NOTE,
+  MINI_VS_REAL,
+  ORDER_FACTS,
+  PAGE_CODE,
+  PITFALLS,
+  PLAIN_ACTION,
+  PLAIN_BOUNDARY,
+  PLAIN_CACHE,
+  PLAIN_FLIGHT,
+  PLAIN_RSC,
+  PREFIXES,
+  PREREQ,
+  PREREQ_NOTE,
+  PROP_TABLE,
+  RELATED,
+  ROW_KINDS,
+  SERVER_REACT_NOTE,
+  SOURCES,
+  SSR_FROM_FLIGHT_CODE,
+  SSR_FROM_FLIGHT_HTML,
+  SSR_FROM_FLIGHT_NOTE,
+  SSR_VS_RSC,
+  FLIGHT_READ_NOTE,
+  FLIGHT_READ_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Компоненты, которые остаются на сервере" lead={INTRO_NOTE} leadWidth={72}>
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={260} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Не другой SSR, а другой вид компонента"
+  lead="SSR отвечает на вопрос «как показать страницу до того, как приехал код». Server Components отвечают на другой: «какой код вообще не должен ехать в браузер». Ответы складываются, а не заменяют друг друга."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RSC} />
+
+  <Table
+    head={SSR_VS_RSC.head}
+    rows={SSR_VS_RSC.rows}
+    cols={SSR_VS_RSC.cols}
+    kinds={SSR_VS_RSC.kinds}
+    minWidth={SSR_VS_RSC.minWidth}
+  />
+
+  <Card tone="warn" title="Другая сборка React" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={SERVER_REACT_NOTE} />
+  </Card>
+
+  ### SSR поверх Flight
+
+  <Card pad={22} radius={5} gap={16}>
+    <div class="t-eyebrow t-eyebrow--panel">Путь одного запроса, когда включено и то и другое</div>
+
+    <FlowChips
+      minWidth={640}
+      chips={[
+        { label: 'серверные компоненты' },
+        { label: 'поток Flight', tone: 'info' },
+        { label: 'HTML из потока (SSR)', tone: 'warn' },
+        { label: 'гидратация клиентских', tone: 'ok' },
+      ]}
+    />
+
+    <Md text={SSR_FROM_FLIGHT_NOTE} />
+
+    <CodeBlock code={SSR_FROM_FLIGHT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CodeBlock code={SSR_FROM_FLIGHT_HTML} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      Комментарии-маркеры вокруг `ul` и `aside` — те же границы Suspense, что в обычном SSR, а сам HTML ничем не
+      выдаёт, какие компоненты были серверными. Разница видна только в том, что уедет
+      в браузер вслед за ним: код одного `Like`, а не всей страницы. Как этот HTML потом
+      оживает, разобрано в [«SSR и гидратация: React и Vue»](/frameworks/ssr-hydration/#s2).
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Формат потока: строки, номера и $-ссылки"
+  lead="Поток Flight — текст из строк `id:значение`. Значение почти всегда JSON, а всё, чего в JSON нет, — элементы, ссылки на модули, промисы, символы — записано строками с префиксом `$`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLIGHT} />
+
+  <Card title="Сквозной пример: страница поста" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={PAGE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      `h` — это `createElement`, `client` и `action` — то, во что сборщик превращает экспорты
+      модулей с `'use client'` и `'use server'`, `query` — запрос в базу. Поля `opts` меняют
+      ровно то, чем потоки различаются: лайк серверный или клиентский, комментарии сразу
+      или `async`, есть ли Suspense и что лежит в пропе.
+
+    </CardNote>
+  </Card>
+
+  <Card title="Настоящий поток: клиентский лайк, async-комментарии, Suspense" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FLIGHT_SAMPLE_VIEW} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      Так его выдал `renderToPipeableStream` из `react-server-dom-webpack` 19.3.0 в продакшен-сборке —
+      три куска, как они пришли в `Writable`. Функций `page`, `Comments`, `Related` в нём нет:
+      только то, что они вернули. Строки `3:` и `4:` — ответы двух `async`-компонентов,
+      досланные позже, на места `$L3` и `$L4` в корне.
+
+    </CardNote>
+  </Card>
+
+  ### Тот же поток, прочитанный по строкам
+
+  <Md text={FLIGHT_READ_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {FLIGHT_READ_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <CodeBlock code={st.line} size={11.5} lh={1.6} pad="10px 12px" />
+        <Md text={st.what} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Какие бывают строки
+
+  <Table
+    head={ROW_KINDS.head}
+    rows={ROW_KINDS.rows}
+    cols={ROW_KINDS.cols}
+    kinds={ROW_KINDS.kinds}
+    minWidth={ROW_KINDS.minWidth}
+  />
+
+  <Md text={`Элемент внутри строки — кортеж из четырёх: \`${ELEMENT_TUPLE}\`. Первый \`"$"\` — маркер «это элемент», дальше тип, ключ и пропсы. Тип — строка для обычного тега или ссылка для всего остального.`} />
+
+  ### Префиксы значений
+
+  <Table
+    head={['префикс', 'что значит']}
+    rows={PREFIXES.map((p) => [p.p, p.d])}
+    cols="minmax(200px,.8fr) minmax(320px,1.6fr)"
+    kinds={['mono', 'prose']}
+    minWidth={600}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {FORMAT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Сериализатор своими руками"
+>
+  <Md text={MINI_NOTE} />
+
+  <Card title="Сервер: renderToFlight" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FLIGHT_SERVER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <Card title="Клиент: createFromFlight" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FLIGHT_CLIENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      Одно правило клиента легко проглядеть: ссылка на E-строку внутри пропсов валит **весь
+      элемент**, а не подставляет в проп ошибку. Так делает и настоящий клиент — это видно,
+      если сравнить их деревья после каждого куска.
+
+    </CardNote>
+  </Card>
+
+  ### Демо: поток у вас в браузере
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEMO_NOTE} />
+  </Card>
+
+  <RscFlight
+    client:visible
+    serverCode={FLIGHT_SERVER_CODE}
+    clientCode={FLIGHT_CLIENT_CODE}
+    pageCode={PAGE_CODE}
+    manifest={DEMO_MANIFEST}
+    data={DEMO_DATA}
+    caption={DEMO_CAPTION}
+  />
+
+  ### Чем учебный отличается от настоящего
+
+  <Table
+    head={MINI_VS_REAL.head}
+    rows={MINI_VS_REAL.rows}
+    cols={MINI_VS_REAL.cols}
+    kinds={MINI_VS_REAL.kinds}
+    minWidth={MINI_VS_REAL.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+
+    В дереве демо ни одного из этих случаев не встречается — поэтому там учебный и настоящий
+    потоки совпадают.
+
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Граница 'use client': что пролезает в пропсы"
+  lead="Всё, что серверный компонент кладёт в пропсы клиентского, должно пережить путь через текст. Данные переживают, функции и экземпляры классов — нет."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BOUNDARY} />
+
+  <Table
+    head={PROP_TABLE.head}
+    rows={PROP_TABLE.rows}
+    cols={PROP_TABLE.cols}
+    kinds={PROP_TABLE.kinds}
+    minWidth={PROP_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+
+    Каждая строка — `h(Like, { v: … })`, отрендеренный настоящим сервером и разобранный настоящим
+    клиентом. `save` — серверная функция из сквозного примера, `2:` — первая свободная строка
+    после I-строки модуля. Практический вывод: в пропсы клиентского компонента кладут данные;
+    поведение либо живёт внутри самого клиентского компонента, либо приходит серверной функцией.
+
+  </Card>
+
+  ### Тексты ошибок
+
+  <Table
+    head={BOUNDARY_ERRORS.head}
+    rows={BOUNDARY_ERRORS.rows}
+    cols={BOUNDARY_ERRORS.cols}
+    kinds={BOUNDARY_ERRORS.kinds}
+    minWidth={BOUNDARY_ERRORS.minWidth}
+  />
+
+  <CardGrid min={290} gap={14} align="start">
+    {BOUNDARY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Серверные функции: ссылка вместо кода"
+  lead="Функцию через границу не передать — кроме той, что объявлена на сервере директивой `'use server'`. Её тоже не передают: передают id, по которому клиент может попросить сервер её вызвать."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTION} />
+
+  <Card title="Путь вызова" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ACTION_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={290} gap={14} align="start">
+    {ACTION_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ACTION_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Async, Suspense и cache()"
+  lead="`async`-компонент — главное, что серверные компоненты умеют, а клиентские нет. Сервер не ждёт его на месте: ставит дыру и досылает результат, когда промис разрешится."
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={14} align="start">
+    {ORDER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Главная мысль раздела">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Сервер ждёт промисы, клиент ждёт на границах.** Порядок кусков решают `await`
+      в серверных компонентах; что читатель увидит, пока куска нет, решает Suspense.
+
+    </DarkText>
+  </DarkPanel>
+
+  ### cache(): один запрос на рендер
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE} />
+
+  <Card title="Три компонента, два запроса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={CACHE_RUNS.head}
+    rows={CACHE_RUNS.rows}
+    cols={CACHE_RUNS.cols}
+    kinds={CACHE_RUNS.kinds}
+    minWidth={CACHE_RUNS.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6}>
+    <Md text={CACHE_NOTE} />
+  </Card>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+  lead="Документация — чтобы проверить формулировку, исходники пакета — потому что у формата нет другой спецификации."
+  leadWidth={72}
+>
+  <SourceList items={SOURCES} />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

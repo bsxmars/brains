@@ -1,0 +1,202 @@
+---
+/**
+ * Обратная волна стримов — статичная схема к разделу «Трансформация», блок «Цепочка звеньев
+ * и обратная волна».
+ *
+ * Цепочка поставлена вертикально, а не в ряд, как в `FlowChips` над ней: волна идёт
+ * в обратную сторону, и две встречные стрелки — данные вниз, «хватит» вверх — должны стоять
+ * рядом с каждым звеном. В ряд из семи звеньев на телефоне этого не уместить, а столбик
+ * читается на любой ширине без прокрутки.
+ *
+ * Звенья сети (сервер, сокет) отделены от звеньев JS штриховой рамкой: в тексте темы шаг
+ * в сети помечен «требует проверки», и схема не должна выдавать его за снятый.
+ *
+ * Строки — пропом из `data.ts` темы (`WAVE_DIAGRAM`), печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  diagram: {
+    title: string;
+    down: string;
+    up: string;
+    rows: {
+      node: string;
+      where: 'net' | 'js';
+      tone: 'neutral' | 'info' | 'warn' | 'ok';
+      n: string;
+      step: string;
+      unsure?: boolean;
+    }[];
+  };
+}
+
+const { diagram } = Astro.props;
+---
+
+<figure class="swd-frame">
+  <figcaption class="t-eyebrow t-eyebrow--panel">{diagram.title}</figcaption>
+
+  <div class="swd-heads" aria-hidden="true">
+    <span class="swd-head">↓ {diagram.down}</span>
+    <span class="swd-head swd-head--up">↑ {diagram.up}</span>
+  </div>
+
+  <ol class="swd-rows">
+    {
+      diagram.rows.map((row, i) => (
+        <li class="swd-row">
+          <div class:list={['swd-node', `swd-node--${row.tone}`, row.where === 'net' && 'swd-node--net']}>
+            {row.node}
+          </div>
+          <div class:list={['swd-step', row.unsure && 'swd-step--unsure']}>
+            <span class="swd-num">{row.n}</span>
+            <span class="swd-text" set:html={inlineMd(row.step)} />
+          </div>
+          {i < diagram.rows.length - 1 && (
+            <div class="swd-links" aria-hidden="true">
+              <span class="swd-link">↓</span>
+              <span class="swd-link swd-link--up">↑</span>
+            </div>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+</figure>
+
+<style>
+  .swd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  /* Две колонки на всё: звено и то, что с ним происходит, когда волна до него дошла. */
+  .swd-heads,
+  .swd-row {
+    display: grid;
+    grid-template-columns: minmax(0, 230px) minmax(0, 1fr);
+    column-gap: 16px;
+  }
+  .swd-head {
+    font-size: var(--fs-3);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .swd-head--up {
+    color: var(--tone-err-strong);
+  }
+
+  .swd-rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .swd-row {
+    align-items: center;
+  }
+
+  .swd-node {
+    padding: 10px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r2);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .swd-node--info {
+    border-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-strong);
+  }
+  .swd-node--warn {
+    border-color: var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .swd-node--ok {
+    border-color: var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  /* Сеть — не JS: другой мир, и шаги в нём тема замером не закрывала. */
+  .swd-node--net {
+    border-style: dashed;
+    background: var(--surface-2);
+    color: var(--text-muted);
+  }
+
+  .swd-step {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 12px;
+    border-left: 3px solid var(--tone-err-line);
+    border-radius: var(--r1);
+    background: var(--tone-err-bg);
+  }
+  .swd-step--unsure {
+    border-left-style: dashed;
+    background: var(--sunk-dim);
+  }
+  .swd-num {
+    flex: none;
+    min-width: 2.2em;
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--tone-err-strong);
+  }
+  .swd-text {
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--prose);
+  }
+
+  /* Промежуток между звеньями: данные вниз под звеном, волна вверх под шагом. */
+  .swd-links {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    padding: 2px 0;
+    line-height: 1.2;
+  }
+  .swd-link {
+    padding-left: 18px;
+    font-size: var(--fs-5);
+    color: var(--ghost);
+  }
+  .swd-link--up {
+    color: var(--tone-err-strong);
+  }
+
+  /* Узкий экран: шаг встаёт под своим звеном, стрелки — одной строкой между звеньями. */
+  @media (max-width: 620px) {
+    .swd-heads,
+    .swd-row {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: 6px;
+    }
+    .swd-links {
+      display: flex;
+      gap: 14px;
+    }
+    .swd-link {
+      padding-left: 12px;
+    }
+    .swd-num {
+      min-width: 0;
+    }
+  }
+</style>

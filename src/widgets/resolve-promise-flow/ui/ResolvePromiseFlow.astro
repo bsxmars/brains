@@ -1,0 +1,285 @@
+---
+/**
+ * `ResolvePromise(v)` как блок-схема: четыре развилки и цена каждого выхода.
+ *
+ * ⚠️ Здесь исправлена ошибка оригинала. Там вторая ступень подписана «job зовёт
+ * then(resolveFn, rejectFn), вызов resolveFn — +1», как будто разворачивание любого thenable
+ * всегда стоит два тика. На деле второй тик берёт не job, а `then` того объекта, который
+ * развернули: у нативного промиса `then` ставит собственную реакцию, а синхронный thenable
+ * зовёт `resolveFn` прямо внутри job и стоит один тик. Отсюда и замеры: вернуть из `.then`
+ * значение — 2 тика, синхронный thenable — 3, нативный промис — 4 (проверено в Node 24.11,
+ * закреплено в `tests/unit/ruler.test.ts`).
+ */
+import Callout from '@/shared/ui/Callout.astro';
+---
+
+<div class="frame">
+  <div class="head">
+    <span class="head__index">операция 2</span>
+    <span class="head__name">ResolvePromise(v)</span>
+    <span class="head__note">— самая содержательная часть</span>
+  </div>
+
+  <div class="flow">
+    <div class="branch">
+      <div class="question">v === сам промис?</div>
+      <div class="glyph glyph--err">▶</div>
+      <div class="outcome outcome--err">
+        <span class="outcome__text">отказ TypeError — защита от цикла</span>
+        <span class="outcome__cost">—</span>
+      </div>
+    </div>
+    <div class="down"><span class="down__line"></span><span class="down__label">нет ↓</span></div>
+
+    <div class="branch">
+      <div class="question">v — не объект?</div>
+      <div class="glyph glyph--ok">▶</div>
+      <div class="outcome outcome--ok">
+        <span class="outcome__name">FulfillPromise(v)</span>
+        <span class="outcome__cost">+0</span>
+      </div>
+    </div>
+    <div class="down"><span class="down__line"></span><span class="down__label">нет ↓</span></div>
+
+    <div class="getter">
+      <div class="getter__name">then = v.then</div>
+      <div class="getter__text">Это <b>ГЕТТЕР</b>. Может бросить, может быть побочным.</div>
+    </div>
+    <div class="down"><span class="down__line"></span></div>
+
+    <div class="branch">
+      <div class="question">then не функция?</div>
+      <div class="glyph glyph--ok">▶</div>
+      <div class="outcome outcome--ok">
+        <span class="outcome__name">FulfillPromise(v)</span>
+        <span class="outcome__cost">+0</span>
+      </div>
+    </div>
+    <div class="down down--warn">
+      <span class="down__line"></span><span class="down__label">функция ↓</span>
+    </div>
+
+    <div class="job">
+      <div class="job__line">
+        <span class="job__name">HostEnqueuePromiseJob(NewPromiseResolveThenableJob)</span>
+        <span class="job__cost">+1</span>
+      </div>
+      <div class="job__line job__line--nested">
+        <span class="job__text">job зовёт then(resolveFn, rejectFn) — синхронный thenable зовёт resolveFn прямо здесь</span>
+        <span class="job__cost">+0</span>
+      </div>
+      <div class="job__line job__line--nested">
+        <span class="job__text">...а нативный промис откладывает вызов ещё на одну реакцию</span>
+        <span class="job__cost">+1</span>
+      </div>
+    </div>
+  </div>
+
+  <Callout size={17} lh={1.5}>
+    Вот и «<b>+2 тика за промис на выходе</b>». Не магия — две последовательные постановки в
+    очередь: сам job и реакция внутри его <code>then</code>. Синхронный thenable обходится
+    одной.
+  </Callout>
+</div>
+
+<style>
+  .frame {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+    background: var(--surface);
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+  }
+
+  .head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .head__index {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--tone-warn-strong);
+  }
+  .head__name {
+    font-family: var(--mono);
+    font-size: var(--fs-6);
+    font-weight: 600;
+  }
+  .head__note {
+    font-size: var(--fs-6);
+    color: var(--text-muted);
+  }
+
+  .flow {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Вопрос слева, стрелка, исход справа — одна ступень схемы. */
+  .branch {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1.1fr);
+    align-items: center;
+  }
+  .question {
+    padding: 13px 15px;
+    border: 1px solid var(--ink);
+    border-radius: var(--r3);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+  }
+  .glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--fs-4);
+  }
+  .glyph--err {
+    color: var(--tone-err-strong);
+  }
+  .glyph--ok {
+    color: var(--tone-ok-strong);
+  }
+
+  .outcome {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 15px;
+    border-radius: var(--r3);
+  }
+  .outcome--err {
+    border: 1px solid var(--tone-err-line);
+    background: var(--tone-err-bg);
+  }
+  .outcome--ok {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+  }
+  .outcome__text {
+    font-size: var(--fs-6);
+    color: var(--tone-err-text);
+  }
+  .outcome__name {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    color: var(--tone-ok-text);
+  }
+  .outcome__cost {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    white-space: nowrap;
+  }
+  .outcome--err .outcome__cost {
+    color: var(--tone-err-strong);
+  }
+  .outcome--ok .outcome__cost {
+    color: var(--tone-ok-strong);
+  }
+
+  /* Переход к следующей развилке: короткая линия и подпись, по какой ветке идём. */
+  .down {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 0 6px 22px;
+  }
+  .down__line {
+    width: 1px;
+    height: 18px;
+    background: var(--ghost);
+  }
+  .down__label {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--text-faint);
+  }
+  .down--warn .down__line {
+    background: var(--bar-amber);
+  }
+  .down--warn .down__label {
+    color: var(--tone-warn-strong);
+  }
+
+  .getter,
+  .job {
+    display: flex;
+    flex-direction: column;
+    border: 1.5px solid var(--bar-amber);
+    border-radius: var(--r3);
+    background: var(--tone-warn-bg);
+  }
+  .getter {
+    gap: 5px;
+    padding: 13px 15px;
+  }
+  .getter__name {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    color: var(--tone-warn-strong);
+  }
+  .getter__text {
+    font-size: var(--fs-5);
+    line-height: 1.45;
+    color: var(--tone-warn-text);
+  }
+
+  .job {
+    gap: 9px;
+    padding: 14px 16px;
+  }
+  .job__line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .job__line--nested {
+    padding-left: 16px;
+    border-left: 2px solid var(--bar-amber);
+  }
+  .job__name {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    color: var(--tone-warn-strong);
+  }
+
+  /* `HostEnqueuePromiseJob(NewPromiseResolveThenableJob)` — пятьдесят символов без единого
+     пробела. На широком экране это одна строка, а на 320px переносить его браузеру негде,
+     и он утаскивал вбок всю страницу. Перенос «где придётся» включается только тогда,
+     когда места действительно нет, поэтому на десктопе ничего не меняется. */
+  .job__name,
+  .job__text,
+  .question,
+  .outcome__name {
+    overflow-wrap: anywhere;
+  }
+
+  /* На телефоне ступень складывается: вопрос сверху, исход снизу, стрелка не нужна. */
+  @media (max-width: 560px) {
+    .branch {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .glyph {
+      display: none;
+    }
+  }
+  .job__text {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--tone-warn-text);
+  }
+  .job__cost {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    white-space: nowrap;
+    color: var(--tone-warn-strong-2);
+  }
+</style>

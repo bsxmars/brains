@@ -1,0 +1,200 @@
+---
+/**
+ * Кадр WebSocket байт за байтом — схема к разделу «Кадры и маска».
+ *
+ * Байты — те же, что печатает демо под `encodeFrame` для слова `Hello` с маской из RFC 6455
+ * (`FRAME_DEMO_NOTE`). Карточки `FRAME_PARTS` описывают поля словами, а здесь видно, где
+ * какое поле кончается: первые два байта разобраны по битам, пустое поле «длина дальше»
+ * стоит пунктиром — его у короткого кадра нет, но место в формате у него есть.
+ *
+ * Поля — флекс с переносом: на узком экране кадр продолжается следующей строкой, как текст,
+ * и подписи не мельчают. Все строки — из `data.ts` темы, печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+import type { FrameDiagramData } from '../model/types';
+
+interface Props {
+  diagram: FrameDiagramData;
+}
+
+const { diagram } = Astro.props;
+---
+
+<figure class="rfd-frame">
+  <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(diagram.title)} />
+
+  <ol class="rfd-fields">
+    {
+      diagram.fields.map((field) => (
+        <li class={`rfd-field rfd--${field.tone}`} data-empty={field.bytes.length ? undefined : ''}>
+          <span class="rfd-k">{field.k}</span>
+          <span class="rfd-bytes">
+            {field.bytes.length ? (
+              field.bytes.map((byte, i) => (
+                <span class="rfd-byte">
+                  <span class="rfd-hex">{byte}</span>
+                  {field.under?.[i] && <span class="rfd-under">{field.under[i]}</span>}
+                </span>
+              ))
+            ) : (
+              <span class="rfd-byte rfd-byte--none">—</span>
+            )}
+          </span>
+          {field.bits && (
+            <span class="rfd-bits">
+              {field.bits.map((bits) => (
+                <span class="rfd-bit">
+                  <span class="rfd-bit__b">{bits.b}</span>
+                  <span class="rfd-bit__t" set:html={inlineMd(bits.t)} />
+                </span>
+              ))}
+            </span>
+          )}
+          <span class="rfd-d" set:html={inlineMd(field.d)} />
+        </li>
+      ))
+    }
+  </ol>
+
+  <div class="rfd-server" set:html={inlineMd(diagram.server)} />
+
+  <figcaption class="rfd-caption" set:html={inlineMd(diagram.caption)} />
+</figure>
+
+<style>
+  .rfd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .rfd-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rfd-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r3);
+    box-sizing: border-box;
+  }
+  .rfd-field[data-empty] {
+    flex-basis: 120px;
+    border-style: dashed;
+  }
+  .rfd--info {
+    border-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-strong);
+  }
+  .rfd--warn {
+    border-color: var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .rfd--ok {
+    border-color: var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  .rfd--none {
+    color: var(--text-muted);
+  }
+
+  .rfd-k {
+    font-size: var(--fs-3);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .rfd-bytes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .rfd-byte {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 34px;
+    padding: 6px 5px;
+    border: 1px solid currentcolor;
+    border-radius: var(--r1);
+    background: var(--surface);
+    font-family: var(--mono);
+  }
+  .rfd-byte--none {
+    border-style: dashed;
+    font-size: var(--fs-4);
+  }
+  .rfd-hex {
+    font-size: var(--fs-5);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .rfd-under {
+    font-size: var(--fs-3);
+  }
+
+  .rfd-bits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .rfd-bit {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 7px;
+    border-left: 2px solid currentcolor;
+  }
+  .rfd-bit__b {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .rfd-bit__t {
+    font-size: var(--fs-3);
+  }
+
+  .rfd-d {
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    color: var(--prose);
+  }
+
+  .rfd-server {
+    padding: 10px 12px;
+    border-left: 3px solid var(--border-strong);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--prose);
+  }
+
+  .rfd-caption {
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+</style>

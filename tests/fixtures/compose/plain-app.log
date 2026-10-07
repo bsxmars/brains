@@ -1,0 +1,6 @@
+app-1    | APP start=1789468894.
+app-1    | APP resolve db: 172.21.0.3        db  db;
+app-1    | APP resolve cache: 172.21.0.2        cache  cache;
+app-1    | APP db=FAIL at=1789468894.
+app-1    | APP err: psql: error: connection to server at "db" (172.21.0.3), port 5432 failed: Connection refused 	Is the server running on that host and accepting TCP/IP connections? 
+app-1    | APP exit=1

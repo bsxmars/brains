@@ -1,0 +1,398 @@
+---
+title: XS-Leaks
+heading: "XS-Leaks: как чужой сайт узнаёт о вас, ничего не прочитав"
+headingWidth: 24
+order: 8
+kicker: сеть и безопасность
+lead: "Правило одного источника не даёт чужой странице прочитать ваш ответ — но не мешает ей заметить, загрузился ли он, сколько в нём фреймов и куда он перенаправил. Одного такого признака хватает, чтобы узнать, вошёл ли человек на сайт или есть ли у него доступ к документу. Закрывается это не одним заголовком, а набором, и у каждого в наборе своя дыра."
+leadWidth: 66
+summary: "Что такое межсайтовая утечка одного бита и почему SOP её не закрывает; классы утечек и что закрывает каждый; Fetch Metadata и серверная политика изоляции ресурсов, CORP, COOP и frame-ancestors — с поведением каждого заголовка, снятым на стенде из двух сайтов."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless) против своего сервера на Node 26.8.2, https с самоподписанным сертификатом и http для контроля; три хоста a.test, sub.a.test и b.test через --host-resolver-rules, сентябрь 2026. Снималось только поведение защитных заголовков — с ними и без них. Разделение HTTP-кеша — по документации Chrome, без запуска. Firefox и WebKit не снимались"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Один бит вместо ответа }
+  - { id: s2, label: Классы утечек }
+  - { id: s3, label: Fetch Metadata }
+  - { id: s4, label: Политика изоляции }
+  - { id: s5, label: CORP, COOP, frame-ancestors }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import FetchMetadataPolicy from '@/widgets/fetch-metadata-policy/ui/FetchMetadataPolicy.vue';
+import {
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_LEAK,
+  PLAIN_FETCH_METADATA,
+  LEAK_CHIPS,
+  LEAK_LINKS,
+  SOP_NOTE,
+  BIT_NOTE,
+  LEAK_CLASSES,
+  CLASSES_NOTE,
+  SEC_FETCH_ROWS,
+  SEC_FETCH_DECISIONS,
+  RULE_NOTES,
+  HTTP_NOTE,
+  METADATA_FACTS,
+  RIP_CODE,
+  RIP_MIDDLEWARE_CODE,
+  RIP_STAND,
+  RIP_PRESETS,
+  RIP_NOTES,
+  CORP_ROWS,
+  CORP_NOTE,
+  PLAIN_CORP,
+  PLAIN_COOP,
+  COOP_ROWS,
+  COOP_NOTE,
+  FRAME_ROWS,
+  FRAME_NOTE,
+  DEFENSE_SUMMARY,
+  BASELINE,
+  PITFALLS,
+  SOURCES,
+  ONE_BIT_SCENE_CODE,
+  ONE_BIT_SCENE_NOTE,
+  ONE_BIT_STEPS,
+  PLAIN_ONE_BIT,
+  COOP_SCENE_NOTE,
+  COOP_STEPS,
+  PLAIN_COOP_VALUES,
+} from './data';
+
+<Section variant="intro" eyebrow="Утечка без чтения" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Чужая страница не может прочитать ответ вашего сайта. Но она может попросить браузер
+    пользователя его загрузить — **с куками пользователя** — и посмотреть, что из этого вышло:
+    ошибка или успех, сколько фреймов, было ли перенаправление. Ответ прочитан не был,
+    а вопрос «вошёл ли этот человек в вашу клинику» уже решён.
+
+  </Callout>
+
+  Такие утечки называют XS-Leaks, от cross-site leaks. Уязвимость здесь не в чьём-то
+  коде — это свойство самого веба, где страницы свободно ссылаются друг на друга. Поэтому
+  и закрывается она не исправлением бага, а заголовками, которые сужают, что чужой сайт
+  может запросить и что он может увидеть.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LEAK} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Один бит вместо ответа"
+  lead="Утечке нужны три звена: запрос уходит с куками пользователя, ответ зависит от того, кто этот пользователь, и разница видна чужой странице. Каждая защита в этой теме рвёт одно из звеньев — и полезно заранее знать, какое."
+  leadWidth={72}
+>
+  <Card title="Из чего складывается утечка" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={640} chips={LEAK_CHIPS} />
+
+    <CardNote tone="prose">
+      <Md text={SOP_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Одна картинка, три защиты
+
+  <CodeBlock code={ONE_BIT_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Md text={ONE_BIT_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {ONE_BIT_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ONE_BIT} />
+
+  Те же три звена — и что рвёт каждое, коротко:
+
+  <CardGrid min={280} gap={14} align="start">
+    {LEAK_LINKS.map((link) => (
+      <Card tone={link.tone ?? 'neutral'} title={link.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={link.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={BIT_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Классы утечек и что их закрывает"
+  lead="Каналов много, а механизмов защиты немного, и каждый закрывает несколько каналов сразу. Ни один не закрывает все: у политики изоляции нет власти над переходами, у CORP — над окнами, у COOP — над картинками."
+  leadWidth={72}
+>
+  <Table
+    head={['канал', 'какой бит утекает', 'что закрывает']}
+    rows={LEAK_CLASSES.map((r) => [r.k, r.bit, r.closes])}
+    tones={LEAK_CLASSES.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(150px,.7fr) minmax(260px,1.4fr) minmax(260px,1.3fr)"
+    minWidth={760}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CLASSES_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Fetch Metadata: что браузер сообщает серверу"
+  lead="Раньше сервер не мог отличить картинку со своей страницы от той же картинки, вставленной на чужую: запрос одинаковый, куки те же. Теперь каждый запрос по https браузер снабжает заголовками `Sec-Fetch-*`: откуда он пришёл относительно адресата, каким способом и ради чего."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FETCH_METADATA} />
+
+  <Table
+    head={['что сделала страница', '`Site`', '`Mode`', '`Dest`', 'решение политики']}
+    rows={SEC_FETCH_ROWS.map((r, i) => [
+      r.k + (r.method === 'POST' ? ' · `POST`' : ''),
+      `\`${r.site}\``,
+      `\`${r.mode}\``,
+      `\`${r.dest}\``,
+      SEC_FETCH_DECISIONS[i].allow ? `пропустить · \`${SEC_FETCH_DECISIONS[i].rule}\`` : `**403** · \`${SEC_FETCH_DECISIONS[i].rule}\``,
+    ])}
+    tones={SEC_FETCH_DECISIONS.map((d) => (d.allow ? 'ok' : 'err'))}
+    toneColumn={4}
+    kinds={['prose', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(210px,1.4fr) minmax(100px,.6fr) minmax(90px,.55fr) minmax(90px,.55fr) minmax(170px,1fr)"
+    minWidth={780}
+  />
+
+  <Card tone="err" title="На http заголовков нет" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={HTTP_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {METADATA_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Политика изоляции ресурсов"
+  lead="Самый сильный слой из доступных серверу: чужой сайт получает отказ раньше, чем сервер прочитал куку и сходил в базу. Ответа, зависящего от пользователя, нет — и различать нечего. Переходы по ссылкам политика пропускает, иначе на сайт нельзя было бы прийти из поиска."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Политика — функция от заголовков" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RIP_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Где она стоит" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RIP_MIDDLEWARE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Перед всем приложением, а не в обработчике отдельного адреса: отказ должен случаться
+        до того, как ответ начал зависеть от пользователя. Тот же приём против CSRF, только
+        для записи, — в [«Безопасности фронтенда», раздел «CSRF и кликджекинг»](/platform/security/#s5).
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Решение политики по заголовкам
+
+  <FetchMetadataPolicy client:visible code={RIP_CODE} presets={RIP_PRESETS} ruleNotes={RULE_NOTES} />
+
+  ### Та же строка перед настоящим браузером
+
+  <Table
+    head={['запрос на стенде', 'что получила страница', 'ветка']}
+    rows={RIP_STAND.map((r) => [r.k, r.got, r.rule])}
+    tones={RIP_STAND.map((r) => r.tone)}
+    toneColumn={1}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(260px,1.5fr) minmax(170px,.9fr) minmax(120px,.6fr)"
+    minWidth={640}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {RIP_NOTES.map((note) => (
+      <Card tone={note.tone ?? 'neutral'} title={note.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={note.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="CORP, COOP и frame-ancestors"
+  lead="Политика изоляции решает на сервере, пускать ли запрос. Эти три заголовка работают иначе: сервер отвечает, а браузер решает, что из ответа показать чужой странице. Запрос до сервера при этом доходит всегда."
+  leadWidth={72}
+>
+  ### `Cross-Origin-Resource-Policy`: не встраивать чужим
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CORP} />
+
+  <Table
+    head={['страница', 'CORP у картинки `a.test`', '`<img>`', '`fetch`, `no-cors`']}
+    rows={CORP_ROWS.map((r) => [r.page, r.corp, r.img, r.fetch])}
+    tones={CORP_ROWS.map((r) => r.tone)}
+    toneColumn={1}
+    kinds={['mono', 'mono', 'prose', 'prose']}
+    cols="minmax(110px,.6fr) minmax(170px,1fr) minmax(130px,.8fr) minmax(150px,.9fr)"
+    minWidth={600}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={CORP_NOTE} />
+
+  ### `Cross-Origin-Opener-Policy`: не держать ссылку на окно
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COOP} />
+
+  <Md text={COOP_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {COOP_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COOP_VALUES} />
+
+  Все восемь случаев со стенда — таблицей, строки по порядку:
+
+  <Table
+    head={['открывает', 'открытое окно', '`window.opener` в окне', 'ссылка у открывшего']}
+    rows={COOP_ROWS.map((r) => [r.opener, r.target, r.openerSeen, r.handle])}
+    tones={COOP_ROWS.map((r) => r.tone)}
+    toneColumn={1}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,1fr) minmax(190px,1.1fr) minmax(130px,.7fr) minmax(130px,.7fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={COOP_NOTE} />
+
+  ### `frame-ancestors` и `X-Frame-Options`: не встраивать во фрейм
+
+  <Table
+    head={['страница с фреймом', 'заголовок у `a.test`', 'показан', 'запрос дошёл']}
+    rows={FRAME_ROWS.map((r) => [r.page, r.header, r.shown, r.requested])}
+    tones={FRAME_ROWS.map((r) => r.tone)}
+    toneColumn={1}
+    kinds={['mono', 'prose', 'prose', 'muted']}
+    cols="minmax(110px,.6fr) minmax(250px,1.6fr) minmax(80px,.45fr) minmax(90px,.5fr)"
+    minWidth={600}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={FRAME_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={DEFENSE_SUMMARY} />
+    </DarkText>
+  </DarkPanel>
+
+  <Card title="Базовый набор" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={BASELINE} size={15.5} />
+  </Card>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+>
+  <CardGrid min={320} gap={16} align="start">
+    {SOURCES.map((group) => (
+      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
+        {group.items.map((item) => (
+          <Md text={item} />
+        ))}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [Безопасность фронтенда](/platform/security/#s1) — источник, SOP,
+    CORS, `SameSite` и кликджекинг. [Сеть и кеширование](/platform/network/#s1) — Resource
+    Timing и `Timing-Allow-Origin`. [Устройство браузера](/js/browser-architecture/#s1) —
+    сайт, изоляция процессов и ORB. [Воркеры и параллелизм](/js/workers/#s5) — COOP
+    и COEP ради изоляции источника.
+    [Сжатие в вебе](/platform/compression/#s6) — BREACH: длина сжатого ответа выдаёт секрет.
+
+  </Card>
+</Section>

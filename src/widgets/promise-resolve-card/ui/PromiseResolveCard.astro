@@ -1,0 +1,61 @@
+---
+/**
+ * Карточка третьей операции — `PromiseResolve(C, v)`.
+ *
+ * Заголовок здесь двухэтажный: номер операции моно 11px и её имя моно 13px, оба цветом тона.
+ * Ради двух строк заголовка расширять общий `Card` не стоит — это подпись конкретного места
+ * в уроке, а не роль, повторяющаяся в курсе.
+ */
+import Card from '@/shared/ui/Card.astro';
+---
+
+<Card tone="info" pad={18} radius={5} gap={11} lh={1.6}>
+  <div class="head">
+    <span class="index">операция 3</span>
+    <span class="name">PromiseResolve(C, v)</span>
+  </div>
+
+  <div class="body">
+    То, что делает <code>await</code> и <code>Promise.resolve</code>. Если <code>v</code> — уже
+    нативный промис и его конструктор совпадает, возвращается <b>тот же объект</b>, без обёртки.
+  </div>
+
+  <div class="chip">Promise.resolve(p) === p · 0 тиков</div>
+</Card>
+
+<style>
+  .head {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    flex-wrap: wrap;
+  }
+  .index {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--tone-info-strong);
+  }
+  .name {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--tone-info-strong);
+  }
+
+  .body {
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+
+  /* Формула в рамке — на светлой подложке внутри цветной карточки. */
+  .chip {
+    padding: 11px 13px;
+    border: 1px solid var(--tone-info-line);
+    border-radius: var(--r2);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--tone-info-strong);
+  }
+</style>

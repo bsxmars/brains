@@ -1,0 +1,467 @@
+---
+title: Очереди и идемпотентность
+heading: "Очереди и идемпотентность: ровно один раз не бывает"
+headingWidth: 24
+order: 4
+kicker: данные и бэкенд
+lead: "Обработчик начислил бонусы и упал, не успев сказать очереди «готово». Через 200 мс сообщение заберёт другой обработчик — и начислит ещё раз. Очередь не умеет «ровно один раз»: она выбирает между «может потеряться» и «может прийти дважды». Как устроено подтверждение, куда деваются зависшие и ядовитые сообщения и как сделать, чтобы дубль ничего не менял."
+leadWidth: 66
+summary: "Зачем очередь; «не больше одного раза» и «не меньше одного раза»; `XACK` до работы и после по шагам; список ожидания, `XPENDING`, счётчик доставок и `XAUTOCLAIM`; ядовитые сообщения и очередь мёртвых писем; ключ идемпотентности и `INSERT … ON CONFLICT DO NOTHING` в одной транзакции с эффектом; двойная запись и outbox; порядок и партиции; перебор всех точек падения."
+verifiedOn: "Redis 7.4.11 (redis:7-alpine в Docker), ioredis 5.11.1, @electric-sql/pglite 0.5.8 (PostgreSQL 18.3), PostgreSQL 16.15 (postgres:16-alpine, два сеанса psql), Node 24.11.0, октябрь 2026: журналы всех сценариев, перебор точек падения для двенадцати вариантов кода, медленный обработчик, удалённая запись и одновременная вставка ключа сняты стендом (пересборка — tests/unit/queues.test.ts при QUEUES_REDIS_CONTAINER и QUEUES_PG_CONTAINER); учебная модель сверена с ними строка в строку и с PGlite — при каждом прогоне. По документации: RabbitMQ, SQS и Kafka, Debezium"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Зачем очередь }
+  - { id: s2, label: Подтверждение }
+  - { id: s3, label: Список ожидания }
+  - { id: s4, label: Ядовитые сообщения }
+  - { id: s5, label: Ключ и дубли }
+  - { id: s6, label: Outbox }
+  - { id: s7, label: Порядок }
+  - { id: s8, label: Все точки падения }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import QueueLab from '@/widgets/queue-lab/ui/QueueLab.vue';
+import CrashLab from '@/widgets/queue-lab/ui/CrashLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_QUEUE,
+  PREREQ,
+  PREREQ_NOTE,
+  WHY_ROWS,
+  EXAMPLE_TEXT,
+  SCHEMA_SQL,
+  SQL_CODE,
+  INTRO_LOG,
+  INTRO_NOTE,
+  BROKER_ROWS,
+  BROKER_NOTE,
+  CONSUMER_CODE,
+  ACK_CODE,
+  POINT_NOTE,
+  GUARANTEE_ROWS,
+  ACK_NOTE,
+  PLAIN_VISIBILITY,
+  CLAIM_CODE,
+  BROKER_CODE,
+  SLOW_LOG,
+  SLOW_NOTE,
+  TRIM_LOG,
+  PENDING_FACTS,
+  RESTART_NOTE,
+  PLAIN_POISON,
+  DLQ_NOTE,
+  DLQ_FACTS,
+  IDEMPOTENT_CODE,
+  KEY_NOTE,
+  KEY_ORDER,
+  PLAIN_UNIQUE,
+  PG_RUNS,
+  PG_CASES,
+  RETRY_LINK,
+  OUTSIDE_NOTE,
+  PLAIN_OUTBOX,
+  PRODUCER_CODE,
+  OUTBOX_FACTS,
+  GAP_NOTE,
+  SKIP_LOCKED_LINK,
+  ORDER_TEXT,
+  ORDER_ROWS,
+  PARTITION_LINK,
+  FULL_SCHEDULE,
+  PRODUCER_OPTIONS,
+  HANDLER_OPTIONS,
+  DB_CODE,
+  RUNNER_CODE,
+  MODEL_NOTE,
+  CRASH_CAPTION,
+  CRASH_SUMMARY,
+  SCENES,
+  PARTS,
+  CAPTIONS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Ровно один раз" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Очередь не умеет доставлять «ровно один раз». Обработчик может упасть между «сделал»
+    и «сообщил, что сделал», и очереди остаётся выбрать: забыть сообщение или выдать его снова.
+    **«Ровно один раз» собирают на стороне обработчика**: доставка «не меньше одного раза»
+    плюс обработка, для которой повтор ничего не меняет.
+
+  </Callout>
+
+  Сервис заказов не начисляет бонусы сам. Он кладёт в очередь событие «заказ оплачен»,
+  а начисляет отдельный обработчик. Между ними сеть, Redis и два процесса, и каждый может
+  упасть на любой строке. От того, на какой именно, зависит, потеряются бонусы или
+  начислятся дважды.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Зачем очередь"
+  lead="Очередь разрывает вызов на две половины. Отправитель кладёт сообщение и сразу идёт дальше, обработчик забирает его, когда может. Упал обработчик или не успевает за потоком — сообщения ждут, а отправитель этого даже не замечает."
+  leadWidth={72}
+>
+  <CardGrid min={240} gap={14} align="start">
+    {WHY_ROWS.map((row) => (
+      <Card title={row.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={row.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Сквозной пример
+
+  <Md text={EXAMPLE_TEXT} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Таблицы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCHEMA_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Запросы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SQL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Поток и группа
+
+  <Card title="Три события и один обработчик" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INTRO_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={INTRO_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['', 'Redis Streams', 'RabbitMQ', 'Amazon SQS', 'Kafka']}
+    rows={BROKER_ROWS.map((r) => [r.k, r.redis, r.rabbit, r.sqs, r.kafka])}
+    kinds={['prose', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(130px,.8fr) minmax(150px,1fr) minmax(150px,1fr) minmax(150px,1fr) minmax(150px,1fr)"
+    minWidth={780}
+  />
+
+  <Md text={BROKER_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Подтверждение: до работы или после"
+  lead="Обработчик делает две вещи: эффект — начисляет бонусы — и подтверждение, `XACK`. Упасть он может между ними. От порядка этих двух строк зависит, что случится с сообщением при падении: потеряется оно или придёт ещё раз."
+  leadWidth={72}
+>
+  <Card title="Обработчик: чтение и доставка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CONSUMER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Два порядка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ACK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={POINT_NOTE} />
+  </CardGrid>
+
+  <Table
+    head={['гарантия', 'порядок', 'упал между эффектом и XACK']}
+    rows={GUARANTEE_ROWS.map((r) => [r.k, r.order, r.crash])}
+    tones={GUARANTEE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(150px,.7fr) minmax(320px,2fr)"
+    minWidth={700}
+  />
+
+  ### Три падения по шагам
+
+  <QueueLab client:visible parts={PARTS} scenarios={SCENES.ack} caption={CAPTIONS.ack} />
+
+  <Md text={ACK_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Список ожидания и повторная выдача"
+  lead="Запись, выданная обработчику, числится за ним, пока не придёт `XACK`. Сам Redis её никому не отдаст: упавший обработчик держит запись сколько угодно долго. Забирает её живой обработчик — командой `XAUTOCLAIM`, если запись висит дольше заданного времени."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VISIBILITY} />
+
+  <Card title="Забрать своё и чужое" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLAIM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {PENDING_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Запись удалили, пока она висела" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={TRIM_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Медленный — не значит упавший
+
+  <Card title="Таймаут короче обработки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SLOW_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="warn">
+      <Md text={SLOW_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Перезапуск
+
+  <Md text={RESTART_NOTE} />
+
+  <QueueLab client:visible parts={PARTS} scenarios={SCENES.pending} caption={CAPTIONS.pending} />
+
+  ### Как устроен учебный Redis
+
+  <Card title="Поток, группа и список ожидания в памяти" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BROKER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Ядовитые сообщения и очередь мёртвых писем"
+  lead="Сообщение, на котором обработка падает каждый раз, не уйдёт само: без `XACK` оно возвращается снова и снова, занимает обработчиков и копит счётчик доставок. После нескольких попыток его перекладывают в отдельный поток — очередь мёртвых писем — и подтверждают в основном."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POISON} />
+
+  <QueueLab client:visible parts={PARTS} scenarios={SCENES.poison} caption={CAPTIONS.poison} />
+
+  <Md text={DLQ_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {DLQ_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Идемпотентный обработчик"
+  lead="Дубли неизбежны: их приносят повторная выдача, перезапуск, ретранслятор. Значит, обработчик должен узнавать повтор и ничего не делать. Для этого у события есть ключ, а в базе — таблица обработанных ключей, которая меняется той же транзакцией, что и бонусы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_UNIQUE} />
+
+  <Card title="Два обработчика с ключом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={IDEMPOTENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={KEY_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={240} gap={14} align="start">
+    {KEY_ORDER.map((k) => (
+      <Card tone={k.tone} title={k.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={k.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Где записан ключ
+
+  <QueueLab client:visible parts={PARTS} scenarios={SCENES.idempotent} caption={CAPTIONS.idempotent} />
+
+  ### Двое с одним событием
+
+  Повтор приходит не только после падения. Медленный обработчик и тот, кто забрал его запись,
+  работают с одним событием одновременно — каждый в своём соединении с базой. Вот как это выглядит
+  в двух настоящих сеансах Postgres:
+
+  <CardGrid min={300} gap={16} align="start">
+    {PG_CASES.map((c) => (
+      <Card tone={c.tone} title={c.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+        <CodeBlock code={PG_RUNS[c.id].log.join('\n')} size={11} lh={1.6} pad="12px 14px" />
+
+        <Md text={c.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Md text={RETRY_LINK} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={OUTSIDE_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Двойная запись и outbox"
+  lead="Сервис заказов должен сделать две вещи: записать заказ в базу и опубликовать событие. Это две системы, и общей транзакции у них нет. Упадёт процесс между ними — получится заказ без события или событие без заказа."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OUTBOX} />
+
+  <Card title="Три издателя и ретранслятор" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PRODUCER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <QueueLab client:visible parts={PARTS} scenarios={SCENES.outbox} caption={CAPTIONS.outbox} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {OUTBOX_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Дыра в номерах
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Два сеанса пишут в outbox" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PG_RUNS['outbox-gap'].log.join('\n')} size={11} lh={1.6} pad="12px 14px" />
+    </Card>
+
+    <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={GAP_NOTE} />
+  </CardGrid>
+
+  <Md text={SKIP_LOCKED_LINK} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Порядок сообщений и партиции"
+  lead="Поток в Redis упорядочен: записи лежат по номерам. Но порядок записи — ещё не порядок обработки. Два обработчика берут соседние записи и заканчивают когда придётся, а повторная выдача приносит старое сообщение после нового."
+  leadWidth={72}
+>
+  <QueueLab client:visible parts={PARTS} scenarios={SCENES.order} caption={CAPTIONS.order} />
+
+  <Md text={ORDER_TEXT} />
+
+  <Table
+    head={['способ', 'как', 'цена']}
+    rows={ORDER_ROWS.map((r) => [r.k, r.how, r.cost])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(280px,1.5fr) minmax(240px,1.2fr)"
+    minWidth={700}
+  />
+
+  <Md text={PARTITION_LINK} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Все точки падения"
+  lead="Один сценарий — один случай. Чтобы сказать «эффект ровно один раз при любом падении», нужно проверить все места, где процесс может упасть. Меток в коде немного, их можно перебрать: прогнать заказ через всю цепочку, роняя процесс на каждой метке по очереди."
+  leadWidth={72}
+>
+  <CrashLab client:visible parts={PARTS} schedule={FULL_SCHEDULE} producers={PRODUCER_OPTIONS} handlers={HANDLER_OPTIONS} caption={CRASH_CAPTION} />
+
+  <Table
+    head={['издатель', 'обработчик', 'меток', 'ровно один', 'потеряно', 'лишнее']}
+    rows={CRASH_SUMMARY.map((r) => [r.producer, r.handler, String(r.points), String(r.once), String(r.lost), String(r.extra)])}
+    tones={CRASH_SUMMARY.map((r) => (r.lost + r.extra === 0 ? 'ok' : 'err'))}
+    kinds={['prose', 'prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(150px,1fr) minmax(180px,1.2fr) minmax(70px,.4fr) minmax(90px,.5fr) minmax(90px,.5fr) minmax(80px,.5fr)"
+    minWidth={700}
+  />
+
+  ### Как устроен прогон
+
+  <Md text={MODEL_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Учебная база" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Расписание и падения" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RUNNER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Ровно один раз из двенадцати вариантов даёт только один: outbox у издателя и ключ
+      в транзакции у обработчика.** Остальные теряют или удваивают хотя бы на одной метке.
+      Оба приёма — про одно и то же: то, что должно случиться вместе, записывается одной
+      транзакцией в одну базу, а всё, что пересекает границу систем, повторяется, пока не
+      пройдёт, и узнаётся по ключу при повторе.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

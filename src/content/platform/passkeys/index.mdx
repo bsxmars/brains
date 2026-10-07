@@ -1,0 +1,361 @@
+---
+title: Passkeys и WebAuthn
+heading: "Passkeys и WebAuthn: вход без пароля"
+headingWidth: 24
+order: 12
+kicker: сеть и безопасность
+lead: "Пароль — общий секрет: его знают и пользователь, и сервер, а значит, его можно выманить, подсмотреть или унести из базы. Passkey — пара ключей: закрытый не покидает устройство, сервер хранит только открытый, а вход — это подпись под свежим числом от сервера. Что лежит в ответах `create` и `get`, как сервер их проверяет и почему поддельный сайт не может получить подпись для настоящего."
+leadWidth: 66
+summary: "Пара ключей вместо общего секрета; регистрация `navigator.credentials.create` и вход `get`; `clientDataJSON` и `authenticatorData` по байтам — rpIdHash, флаги UP/UV/BE/BS, счётчик; подпись над `authenticatorData ‖ SHA-256(clientDataJSON)` и проверка ES256 на `crypto.subtle`; почему не работает фишинг; синхронизируемые ключи и вход из автозаполнения. Ответы сняты стендом в Chromium с виртуальным аутентификатором и сверены с `@simplewebauthn/server`."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63.0) с виртуальным аутентификатором CDP, Node 24.11.0, @simplewebauthn/server 14.0.3, октябрь 2026: регистрация, два входа, вход с другого порта, поддельный домен, повтор и conditional UI сняты стендом на своём сервере node:http; функции темы сверены tests/unit/passkeys.test.ts с @simplewebauthn/server и node:crypto. Поведение облачных менеджеров ключей и UI автозаполнения — по спецификации WebAuthn Level 3 и документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Ключ вместо пароля }
+  - { id: s2, label: Регистрация }
+  - { id: s3, label: Вход и подпись }
+  - { id: s4, label: Почему фишинг не проходит }
+  - { id: s5, label: Синхронизация и автозаполнение }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import PasskeyLab from '@/widgets/passkey-lab/ui/PasskeyLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_PASSKEY,
+  PREREQ,
+  PREREQ_NOTE,
+  KEY_VS_PASSWORD,
+  CEREMONY_CHIPS,
+  CEREMONY_NOTE,
+  CLIENT_CODE,
+  REG_OPTIONS_CODE,
+  OPTIONS_ROWS,
+  PLAIN_CLIENT_DATA,
+  CLIENT_DATA_ROWS,
+  PLAIN_AUTHDATA,
+  AUTHDATA_LAYOUT,
+  AUTHDATA_CODE,
+  AUTHDATA_NOTE,
+  STORED_ROWS,
+  SIGNED_CHIPS,
+  SIGNED_NOTE,
+  VERIFY_CODE,
+  DER_NOTE,
+  COUNTER_NOTE,
+  DEMO_SCENARIOS,
+  DEMO_CAPTION,
+  PLAIN_RPID,
+  RPID_RULES,
+  REFUSALS,
+  PHISHING_NOTE,
+  XSS_NOTE,
+  PLAIN_SYNC,
+  BACKUP_ROWS,
+  BACKUP_NOTE,
+  PLAIN_CONDITIONAL,
+  CONDITIONAL_CODE,
+  CONDITIONAL_FACTS,
+  TAKEAWAY,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Вход без секрета" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    При входе по паролю секрет знают двое — человек и сервер, — и его можно выманить.
+    В passkey **общего секрета нет**: закрытый ключ остаётся в устройстве, сервер хранит
+    открытый, а вход — это подпись под случайным числом от сервера. И браузер сам вписывает
+    в подписанные данные адрес страницы, на которой всё происходит.
+
+  </Callout>
+
+  Пароль проверяют сравнением: человек прислал строку, сервер сверил её с тем, что помнит.
+  Значит, строку можно перехватить, подобрать или ввести на поддельном сайте, и она сработает
+  на настоящем. Подпись проверяют иначе: сервер не знает, чем её поставили, и узнать не может.
+  Он только убеждается, что подпись сделана ключом, открытую часть которого ему дали при
+  регистрации, и что подписано именно то, что он ждёт.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PASSKEY} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Ключ вместо пароля"
+  lead="Для каждого сайта устройство создаёт свою пару ключей. Открытый уходит на сервер при регистрации, закрытый не уходит никуда. При входе сервер присылает случайные байты, устройство их подписывает, сервер проверяет подпись открытым ключом."
+  leadWidth={72}
+>
+  <Table
+    head={['', 'пароль', 'passkey']}
+    rows={KEY_VS_PASSWORD.map((r) => [r.k, r.password, r.passkey])}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(180px,.9fr) minmax(220px,1.2fr) minmax(240px,1.3fr)"
+    minWidth={680}
+  />
+
+  <Card title="Обе операции — один и тот же обмен" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={760} chips={CEREMONY_CHIPS} />
+
+    <Md text={CEREMONY_NOTE} />
+  </Card>
+
+  Отпечаток пальца или PIN, которые человек вводит при входе, на сервер не уходят. Их проверяет
+  само устройство — так оно решает, можно ли сейчас пользоваться закрытым ключом. Сервер узнаёт
+  только итог: один бит «пользователь проверен» в ответе.
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Регистрация: `create`"
+  lead="Сквозной пример на всю тему — страница банка на `http://bank.localhost:50400` и её сервер. Страница берёт у сервера параметры, отдаёт их браузеру и отправляет ответ обратно. Весь клиентский код входа — два вызова и два запроса."
+  leadWidth={72}
+>
+  <Card title="Страница банка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLIENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      `parseCreationOptionsFromJSON` и `toJSON()` переводят байтовые поля из base64url и обратно:
+      `challenge` и `user.id` браузер ждёт байтами, а по сети удобнее строки.
+
+    </CardNote>
+  </Card>
+
+  ### Что сервер просит у браузера
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Ответ /reg/options" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REG_OPTIONS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Table
+      head={['поле', 'на стенде', 'зачем']}
+      rows={OPTIONS_ROWS.map((r) => [r.k, r.v, r.d])}
+      kinds={['mono', 'prose', 'prose']}
+      cols="minmax(130px,.7fr) minmax(110px,.6fr) minmax(220px,1.6fr)"
+      minWidth={520}
+    />
+  </CardGrid>
+
+  ### Что возвращает браузер: `clientDataJSON`
+
+  Ответ `create` состоит из двух частей, и пишут их разные участники. `clientDataJSON`
+  собирает браузер: это JSON, где записано, что произошло и где.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLIENT_DATA} />
+
+  <Table
+    head={['поле', 'на стенде', 'зачем']}
+    rows={CLIENT_DATA_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(200px,1fr) minmax(260px,1.6fr)"
+    minWidth={620}
+  />
+
+  ### `authenticatorData`: байты аутентификатора
+
+  Вторую часть пишет аутентификатор. Это не JSON, а байты с полями фиксированной длины.
+  При регистрации она лежит внутри `attestationObject` — словаря CBOR с полями `fmt`,
+  `attStmt` и `authData`, — а `toJSON()` кладёт её ещё и отдельным полем
+  `authenticatorData`.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AUTHDATA} />
+
+  <Table
+    head={['с байта', 'длина', 'поле', 'что внутри']}
+    rows={AUTHDATA_LAYOUT.map((r) => [r.at, r.len, r.k, r.d])}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(70px,.4fr) minmax(70px,.4fr) minmax(120px,.7fr) minmax(260px,2fr)"
+    minWidth={600}
+  />
+
+  <Card title="Разбор authenticatorData" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={AUTHDATA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={AUTHDATA_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что сервер запоминает
+
+  Сервер проверяет ответ — те же `type`, `challenge`, `origin` и `rpIdHash`, что и при входе, —
+  и сохраняет запись о ключе. Пароля в ней нет, и ничего, что работало бы как пароль.
+
+  <Table
+    head={['поле', 'на стенде', 'зачем']}
+    rows={STORED_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(130px,.6fr) minmax(130px,.6fr) minmax(280px,1.8fr)"
+    minWidth={600}
+  />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Вход: `get` и подпись"
+  lead="При входе сервер снова выдаёт challenge, браузер снова собирает `clientDataJSON`, а аутентификатор возвращает 37 байт `authenticatorData` и подпись. Новых ключей нет, флаг AT выключен. Вся проверка — сверить поля и проверить одну подпись ES256."
+  leadWidth={72}
+>
+  <Card title="Что подписано" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={760} chips={SIGNED_CHIPS} />
+
+    <Md text={SIGNED_NOTE} />
+  </Card>
+
+  <Card title="Проверка регистрации и входа" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VERIFY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="Формат подписи" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DER_NOTE} />
+
+    <Card tone="info" title="Счётчик подписей" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={COUNTER_NOTE} />
+  </CardGrid>
+
+  ### Проверка ответа
+
+  <PasskeyLab client:visible authDataCode={AUTHDATA_CODE} verifyCode={VERIFY_CODE} scenarios={DEMO_SCENARIOS} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Почему фишинг не проходит"
+  lead="Ключ привязан к `rp.id` — домену сайта. Браузер сам решает, какой `rp.id` разрешён странице, и сам пишет её `origin` в `clientDataJSON`. Поддельный сайт может скопировать вид банка до пикселя, но домен у него другой — и это решает всё."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RPID} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {RPID_RULES.map((rule) => (
+      <Card tone={rule.tone ?? 'neutral'} title={rule.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={rule.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Что отказало на стенде
+
+  <Table
+    head={['попытка', 'что сделано', 'ответ']}
+    rows={REFUSALS.map((r) => [r.k, r.what, r.got])}
+    tones={REFUSALS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(160px,.7fr) minmax(220px,1fr) minmax(280px,1.5fr)"
+    minWidth={700}
+  />
+
+  <Md text={PHISHING_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={XSS_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Синхронизация и вход из автозаполнения"
+  lead="Ранние ключи WebAuthn жили в одном устройстве: потерял USB-ключ — потерял вход. Passkeys обычно синхронизируются через менеджер паролей: iCloud Keychain, Google Password Manager, 1Password. Сервер узнаёт об этом по двум флагам."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYNC} />
+
+  <Table
+    head={['ключ', 'флаги', 'BE', 'BS', 'что это значит']}
+    rows={BACKUP_ROWS.map((r) => [r.k, r.flags, r.be, r.bs, r.d])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(170px,.9fr) minmax(70px,.35fr) minmax(40px,.2fr) minmax(40px,.2fr) minmax(260px,1.8fr)"
+    minWidth={680}
+  />
+
+  <Md text={BACKUP_NOTE} />
+
+  ### Вход из подсказки поля
+
+  Обычный `get()` открывает окно браузера: «Войти с ключом?». Есть и тихий режим —
+  conditional UI. Запрос ставят заранее, при загрузке страницы, и браузер показывает
+  ключи в подсказке поля логина, рядом с сохранёнными паролями. Человек выбирает ключ — запрос
+  разрешается. Не выбирает — ничего не происходит.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONDITIONAL} />
+
+  <Card title="Ключи в подсказке поля" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CONDITIONAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {CONDITIONAL_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={TAKEAWAY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,41 @@
+---
+/**
+ * Тёмная панель: надзаголовок, внутренние карточки и текст на чернилах.
+ *
+ * От `Callout` отличается назначением. Callout — одна фраза, панель — разбор на две-три
+ * колонки, у которого есть свой заголовок и свои рамки (#3A362D — единственная линия,
+ * различимая на чернилах).
+ */
+interface Props {
+  eyebrow?: string;
+  pad?: number;
+  gap?: number;
+}
+
+const { eyebrow, pad = 24, gap = 16 } = Astro.props;
+---
+
+<div class="panel" style={`--panel-pad:${pad}px;--panel-gap:${gap}px`}>
+  {eyebrow && <div class="t-eyebrow t-eyebrow--on-ink">{eyebrow}</div>}
+  <slot />
+</div>
+
+<style>
+  .panel {
+    --inline-code-bg: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: var(--panel-gap);
+    padding: var(--panel-pad);
+    border-radius: var(--r4);
+    background: var(--ink);
+    color: var(--code-fg);
+  }
+
+  /* Ссылка на чернилах — то же правило, что в `DarkCard`. Акцент курса даёт на `--ink`
+     3.17:1 (посчитано, не прикинуто), а порог для текста — 4.5:1. Светлый оттенок того же
+     семейства даёт 9.78:1. Правило нужно и здесь: ссылки ставят в прозу внутри панели. */
+  .panel :global(a) {
+    color: var(--tone-info-on-ink);
+  }
+</style>

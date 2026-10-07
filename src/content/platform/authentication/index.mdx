@@ -1,0 +1,338 @@
+---
+title: Аутентификация
+heading: "Аутентификация: сессии, токены, OAuth и OIDC"
+headingWidth: 24
+order: 11
+kicker: сеть и безопасность
+lead: "Сервер должен узнать пользователя на каждом запросе. Либо он помнит его сам — сессия и кука с номером, — либо пользователь приносит подписанное утверждение о себе — токен. Как считается и проверяется подпись JWT, почему его нельзя отозвать, и как вход через чужой сервис — OAuth с PKCE и OpenID Connect — доставляет токен в браузер так, чтобы по дороге его не перехватили."
+leadWidth: 66
+summary: "Сессия на сервере против самодостаточного токена; подпись JWT HS256 на Web Crypto, почему подпись ≠ шифрование, `alg: none` и отзыв до `exp`; BFF и клиент только в браузере; OAuth 2.0 authorization code + PKCE по шагам — verifier, challenge, `state`; OpenID Connect — id_token, `nonce` и проверки. Вход снят стендом в Chromium, функции темы сверены с векторами RFC."
+verifiedOn: "Node 24.11.0 (Web Crypto, node:crypto), Chromium 153.0.8010.12 (Playwright 1.63.0), октябрь 2026: вход authorization code + PKCE + OIDC через свой сервер авторизации на node:http снят стендом; функции темы сверены tests/unit/authentication.test.ts с RFC 7515 A.1, RFC 7636 B и node:crypto. RFC 6749, 7636, 7519, 7515, 7518, 8725, 9700 и OpenID Connect Core 1.0 — по текстам стандартов"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Сессия или токен }
+  - { id: s2, label: Подпись JWT }
+  - { id: s3, label: Где держать вход }
+  - { id: s4, label: OAuth и PKCE }
+  - { id: s5, label: OpenID Connect }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import JwtLab from '@/widgets/auth-lab/ui/JwtLab.vue';
+import PkceFlow from '@/widgets/auth-lab/ui/PkceFlow.vue';
+import {
+  GLOSSARY,
+  PLAIN_AUTH,
+  PREREQ,
+  PREREQ_NOTE,
+  SESSION_CODE,
+  TOKEN_CODE,
+  SESSION_ROWS,
+  REVOKE_NOTE,
+  PLAIN_SIGNATURE,
+  JWT_CODE,
+  SIGN_STEPS,
+  SIGN_VS_ENCRYPT,
+  RFC7515_NOTE,
+  JWT_VARIANTS,
+  JWT_LAB_CAPTION,
+  STORAGE_NOTE,
+  PLAIN_BFF,
+  ARCH_ROWS,
+  ARCH_NOTE,
+  PLAIN_OAUTH,
+  OAUTH_CHIPS,
+  WHY_CODE,
+  PLAIN_PKCE,
+  PKCE_CODE,
+  PKCE_NOTE,
+  PKCE_WHAT,
+  RFC7636_VERIFIER,
+  PLAIN_STATE,
+  STATE_NOTE,
+  FLOW_STEPS,
+  FLOW_CAPTION,
+  STAND,
+  STAND_CHALLENGE,
+  STAND_FAILURES,
+  PLAIN_OIDC,
+  OIDC_INTRO,
+  ID_TOKEN_CLAIMS,
+  ID_CHECKS,
+  DISCOVERY_CODE,
+  DISCOVERY_NOTE,
+  TOKEN_KIND_ROWS,
+  OIDC_TAKEAWAY,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Кто это пришёл" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    HTTP ничего не помнит: каждый запрос приходит к серверу как от незнакомца. Чтобы узнать
+    пользователя, сервер либо **хранит запись о входе у себя** и даёт браузеру номер, либо
+    **выдаёт подписанное утверждение**, которое браузер приносит сам. Всё остальное в теме —
+    следствия этого выбора.
+
+  </Callout>
+
+  Пароль вводят один раз. Дальше на каждом запросе нужно что-то, что заменяет пароль:
+  номер сессии или токен. Тот, у кого оно в руках, для сервера и есть пользователь. Поэтому
+  вопросы темы — где это «что-то» лежит, как его проверяют, как не дать его украсть по дороге
+  и как забрать обратно.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AUTH} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Сессия или токен"
+  lead="Сессия: сервер хранит запись о входе, а браузер носит только её случайный номер. Токен: сервер записывает всё нужное в саму строку, подписывает её и больше ничего не хранит. Разница видна на трёх моментах — входе, обычном запросе и выходе."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сессия на сервере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SESSION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Самодостаточный токен" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TOKEN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['', 'сессия + кука', 'JWT']}
+    rows={SESSION_ROWS.map((r) => [r.k, r.session, r.token])}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(200px,1fr) minmax(230px,1.3fr) minmax(250px,1.4fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={REVOKE_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Подпись JWT: как её считают и проверяют"
+  lead="HS256 — самый простой алгоритм подписи JWT: HMAC с хешем SHA-256 и одним общим секретом. Вся подпись и вся проверка умещаются в полсотни строк на Web Crypto, который есть и в браузере, и в Node. Библиотеки делают то же самое, только с большим числом алгоритмов и проверок."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SIGNATURE} />
+
+  <Card title="Подпись и проверка HS256" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={JWT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={RFC7515_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {SIGN_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SIGN_VS_ENCRYPT} />
+
+  ### Разбери токен
+
+  <JwtLab client:visible jwtCode={JWT_CODE} pkceCode={PKCE_CODE} variants={JWT_VARIANTS} secret={STAND.apiSecret} caption={JWT_LAB_CAPTION} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Где держать вход в браузере"
+  lead="Вопрос не «кука или `localStorage`», а «что окажется у чужого скрипта, если он выполнится на странице». Ответ зависит от того, кто проходит вход: браузер сам или сервер вашего сайта."
+  leadWidth={72}
+>
+  <Md text={STORAGE_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BFF} />
+
+  <Table
+    head={['схема', 'как устроено', 'что достанется XSS']}
+    rows={ARCH_ROWS.map((r) => [r.k, r.how, r.xss])}
+    tones={ARCH_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.7fr) minmax(280px,1.5fr) minmax(240px,1.2fr)"
+    minWidth={720}
+  />
+
+  <Md text={ARCH_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="OAuth 2.0: код и PKCE"
+  lead="OAuth — способ получить токен от чужого сервиса, не узнавая пароль пользователя. Браузер уходит на сайт провайдера, пользователь входит там, а приложение получает код и меняет его на токены. PKCE делает перехваченный по дороге код бесполезным."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OAUTH} />
+
+  <Card title="Вход за шесть шагов" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={720} chips={OAUTH_CHIPS} />
+  </Card>
+
+  <Md text={WHY_CODE} />
+
+  ### PKCE: доказать, что код ваш
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PKCE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Verifier и challenge" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PKCE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PKCE_NOTE} />
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {PKCE_WHAT.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### `state`: ответ на ваш запрос
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STATE} />
+
+  <Md text={STATE_NOTE} />
+
+  ### Вход по шагам
+
+  <PkceFlow
+    client:visible
+    jwtCode={JWT_CODE}
+    pkceCode={PKCE_CODE}
+    steps={FLOW_STEPS}
+    stand={{ verifier: STAND.verifier, challenge: STAND_CHALLENGE }}
+    rfcVerifier={RFC7636_VERIFIER}
+    caption={FLOW_CAPTION}
+  />
+
+  ### Что сервер авторизации отвергает
+
+  <Table
+    head={['попытка', 'что сделано', 'ответ']}
+    rows={STAND_FAILURES.map((r) => [r.k, r.what, r.got])}
+    tones={STAND_FAILURES.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(160px,.6fr) minmax(220px,1fr) minmax(280px,1.4fr)"
+    minWidth={680}
+  />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="OpenID Connect: кто вошёл"
+  lead={OIDC_INTRO}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OIDC} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="id_token со стенда: нагрузка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ID_TOKEN_CLAIMS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Что клиент проверяет" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CheckList items={ID_CHECKS} tone="ok" size={14.5} />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['', 'access-токен', 'id_token']}
+    rows={TOKEN_KIND_ROWS.map((r) => [r.k, r.access, r.id])}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(160px,.8fr) minmax(250px,1.3fr) minmax(250px,1.3fr)"
+    minWidth={680}
+  />
+
+  ### Документ обнаружения
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Адреса и ключи провайдера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DISCOVERY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DISCOVERY_NOTE} />
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={OIDC_TAKEAWAY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

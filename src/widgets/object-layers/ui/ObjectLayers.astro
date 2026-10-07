@@ -1,0 +1,183 @@
+---
+/**
+ * Карта урока: четыре слоя, из которых настоящий только нижний.
+ *
+ * Смысл картинки — в направлении. Верхние слои читаются как отдельные темы («классы»,
+ * «символы», «прокси»), а на деле все три разворачиваются в нижний, и последний раздел
+ * урока целиком состоит из случаев, где это видно. Поэтому слои стоят стопкой, а не в ряд:
+ * ряд читался бы как перечисление равноправных штук.
+ */
+import { inlineMd } from '@/shared/lib/format';
+import type { ObjectLayer } from '../model/types';
+
+interface Props {
+  layers: ObjectLayer[];
+  /** Подпись под стопкой — про то, зачем в уроке есть раздел «тонкие места». */
+  foot?: string;
+}
+
+const { layers, foot } = Astro.props;
+---
+
+<div class="map">
+  <div class="stack">
+    {
+      layers.map((layer) => (
+        <div class="layer" data-ground={layer.ground ? 'yes' : 'no'}>
+          <div class="layer__head">
+            <span class="layer__eyebrow">{layer.eyebrow}</span>
+            <span class="layer__title">{layer.title}</span>
+          </div>
+          <div class="layer__items">
+            {layer.items.map((item) => (
+              <span class="item" set:html={inlineMd(item)} />
+            ))}
+          </div>
+          {layer.note && <p class="layer__note" set:html={inlineMd(layer.note)} />}
+          {layer.where && <p class="layer__where" set:html={inlineMd(layer.where)} />}
+        </div>
+      ))
+    }
+  </div>
+
+  {foot && <p class="foot" set:html={inlineMd(foot)} />}
+</div>
+
+<style>
+  .map {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Стопка поднята одной тенью целиком, а не по полосе: это одна картинка, а не четыре
+     карточки. Полосы разделяются волосяной линией внутри. */
+  .stack {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--r4);
+    background: var(--surface);
+    box-shadow: var(--shadow-2);
+    overflow: hidden;
+  }
+
+  .layer {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.6fr);
+    gap: 10px 20px;
+    align-items: baseline;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--divider);
+  }
+  .layer:last-child {
+    border-bottom: 0;
+  }
+
+  /* Нижний слой — единственная реальность, поэтому он чернильный: остальные три надстроены
+     над ним и в него же разворачиваются. */
+  .layer[data-ground='yes'] {
+    background: var(--ink);
+    --inline-code-bg: transparent;
+    border-bottom: 0;
+  }
+
+  .layer__head {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .layer__eyebrow {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .layer[data-ground='yes'] .layer__eyebrow {
+    color: var(--tone-info-on-ink);
+  }
+
+  .layer__title {
+    font-family: var(--serif);
+    font-size: var(--fs-7);
+    font-weight: 500;
+    line-height: 1.25;
+    color: var(--ink);
+  }
+  .layer[data-ground='yes'] .layer__title {
+    color: var(--on-ink);
+  }
+
+  .layer__items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .item {
+    padding: 7px 11px;
+    border-radius: var(--r1);
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    color: var(--chip-text);
+  }
+  .layer[data-ground='yes'] .item {
+    background: var(--ink-chip);
+    color: var(--ink-prose);
+  }
+  .item :global(code) {
+    color: inherit;
+  }
+
+  /* Пояснение к слою и ссылки на разделы — на всю ширину полосы, под заголовком и чипами.
+     Добавлены 2026-09-30: без них карта читалась как список терминов «ни к чему». */
+  .layer__note,
+  .layer__where {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+  .layer__note {
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+  .layer__where {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+  .layer[data-ground='yes'] .layer__note {
+    color: var(--ink-prose);
+  }
+  .layer[data-ground='yes'] .layer__where {
+    color: var(--ink-prose);
+  }
+  .layer__note :global(code),
+  .layer__where :global(code) {
+    color: inherit;
+  }
+  .layer__where :global(a) {
+    color: var(--accent);
+  }
+  .layer[data-ground='yes'] .layer__where :global(a) {
+    color: var(--tone-info-on-ink);
+  }
+
+  .foot {
+    margin: 0;
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+  .foot :global(b) {
+    color: var(--ink);
+  }
+
+  @media (max-width: 640px) {
+    .layer {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,348 @@
+---
+title: "Контекст наложения, z-index и верхний слой"
+heading: "Контекст наложения, z-index и верхний слой: кто кого накрывает"
+headingWidth: 24
+order: 20
+kicker: браузер и рендеринг
+lead: "Модальное окно с `z-index: 9999` прячется под блоком с `z-index: 2` — и это не ошибка браузера. `z-index` сравнивают только внутри одной группы элементов, контекста наложения, а группу молча создают `opacity`, `transform`, `filter` и ещё два десятка свойств. Как браузер выбирает порядок отрисовки, кто создаёт контекст, почему `isolation: isolate` — лекарство и что такое верхний слой, куда не дотянется никакой `z-index`."
+leadWidth: 66
+summary: "Семь шагов отрисовки из CSS 2.1 (приложение E), float и `inline-block` как «почти контекст», полный список свойств, создающих контекст, ловушка `z-index: 9999` и `isolation: isolate`, верхний слой: `showModal()`, `popover`, полный экран, `::backdrop`, порядок внутри слоя, инертность страницы под модальным окном."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: список свойств, порядок отрисовки, верхний слой, модальность и дерево доступности сняты стендом и снимаются заново в tests/unit/stacking.test.ts; функция темы paintOrder сверена с elementsFromPoint на сценах демо и 300 случайных деревьях"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Семь шагов }
+  - { id: s2, label: Кто создаёт контекст }
+  - { id: s3, label: Ловушка 9999 }
+  - { id: s4, label: Верхний слой }
+  - { id: s5, label: Модальное окно }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import StackingLab from '@/widgets/stacking-lab/ui/StackingLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_CONTEXT,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_ORDER,
+  PAINT_STEPS,
+  STEP_LABELS,
+  STACKING_CODE,
+  STACKING_NOTE,
+  LAYERS_HTML,
+  LAYERS_NOTE,
+  ORDER_FACTS,
+  TRIGGER_ROWS,
+  TRIGGER_NOTE,
+  COMPOSITOR_NOTE,
+  TRAP_HTML,
+  TRAP_STEPS,
+  TRAP_FIXES,
+  LEAK_HTML,
+  LEAK_NOTE,
+  PLAIN_ISOLATE,
+  ISOLATE_ADVICE,
+  DEMO_SCENES,
+  DEMO_OPTIONS,
+  DEMO_CAPTION,
+  PLAIN_TOP,
+  TOP_HTML,
+  TOP_CODE,
+  TOP_FACTS,
+  TOP_ROWS,
+  ORDER_CODE,
+  ORDER_NOTE,
+  OVERLAY_NOTE,
+  PLAIN_INERT,
+  MODAL_ROWS,
+  MODAL_NOTE,
+  MODAL_FACTS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Кто кого накрывает" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    `z-index` — не место на общей шкале страницы, а номер **внутри группы**. Браузер рисует
+    страницу группами — контекстами наложения — и каждую кладёт в общую стопку целиком.
+    Число, которое не помогает, почти всегда стоит внутри группы, лежащей ниже.
+
+  </Callout>
+
+  Когда два блока перекрываются, браузер решает, какой нарисовать позже, — тот и окажется
+  сверху. Правило не сводится к `z-index` и порядку в HTML: у обычных блоков, float, текста
+  и позиционированных элементов свои шаги, а часть элементов собирает потомков в отдельную
+  группу со своими шагами внутри. Отсюда и ловушки: группу создаёт не только `z-index`,
+  но и `opacity`, `transform`, `filter`, `will-change`, — то есть свойства, которые ставят
+  совсем не ради порядка.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Семь шагов отрисовки"
+  lead="Внутри каждого контекста наложения браузер рисует в одном и том же порядке из семи шагов. Порядок записан в CSS 2.1, в приложении E, и с тех пор только дополнялся: flex- и grid-элементы встали на шаг строчных, новые свойства научились создавать контексты."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ORDER} />
+
+  <Card title="Шаги внутри одного контекста, снизу вверх" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <NumberedList items={PAINT_STEPS} size={15.5} />
+  </Card>
+
+  Шаги 4 и 5 устроены особо. Float и `inline-block` рисуются **целиком**, как будто это свой
+  контекст: фон, вложенные блоки, текст — всё сразу, одним куском. Но контекстом они не
+  являются: позиционированные потомки и настоящие контексты внутри них уходят наверх,
+  в шаги 2, 6 и 7 ближайшего настоящего контекста.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Шесть детей наоборот" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LAYERS_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LAYERS_NOTE} />
+  </CardGrid>
+
+  <Card title="`paintOrder`: дерево → контексты → порядок" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STACKING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={STACKING_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {ORDER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Кто создаёт контекст"
+  lead="Корень страницы — `<html>` — контекст всегда. Остальные элементы становятся контекстом по одной из причин ниже. Любое свойство можно проверить самому одним приёмом: положить внутрь элемента ребёнка с `position: relative; z-index: -1`. Если ребёнок виден над фоном родителя — родитель контекст; если ушёл под фон — нет."
+  leadWidth={72}
+>
+  <Table
+    head={['свойство', 'контекст', 'заметка']}
+    rows={TRIGGER_ROWS.map((r) => [
+      r.parent ? `\`${r.css}\` у ребёнка ${r.parent}` : `\`${r.css}\``,
+      r.sc ? 'да' : 'нет',
+      r.note,
+    ])}
+    tones={TRIGGER_ROWS.map((r) => (r.sc ? 'info' : undefined))}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(230px,1.2fr) minmax(80px,.35fr) minmax(250px,1.4fr)"
+    minWidth={600}
+  />
+
+  <Md text={TRIGGER_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={COMPOSITOR_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Ловушка 9999"
+  lead="Самая частая жалоба на `z-index` — «ставлю больше, а не помогает». Число не помогает, потому что сравнивается не с тем, с чем вы думаете."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Модальное окно внутри шапки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TRAP_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что видит браузер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <NumberedList items={TRAP_STEPS} size={15.5} />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={260} gap={14} align="start">
+    {TRAP_FIXES.map((fix) => (
+      <Card tone={fix.tone ?? 'neutral'} title={fix.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fix.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Протечка наружу и isolation
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ISOLATE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Значок поверх шапки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LEAK_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LEAK_NOTE} />
+  </CardGrid>
+
+  <Card tone="ok" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ISOLATE_ADVICE} />
+
+  ### Соберите дерево сами
+
+  <StackingLab
+    client:visible
+    code={STACKING_CODE}
+    scenes={DEMO_SCENES}
+    options={DEMO_OPTIONS}
+    stepLabels={STEP_LABELS}
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Верхний слой"
+  lead="Всё, что выше, — правила внутри страницы. Верхний слой лежит над ней: элементы туда переносит сам браузер, и ни один `z-index`, контекст или `overflow: hidden` на странице их не достанет."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOP} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Хуже места не придумать" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TOP_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="И всё равно поверх" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TOP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {TOP_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={['как открыт', 'что происходит']}
+    rows={TOP_ROWS.map((r) => [r.k, r.how])}
+    tones={TOP_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,.9fr) minmax(300px,1.6fr)"
+    minWidth={560}
+  />
+
+  ### Порядок внутри слоя
+
+  <Card title="Кто сверху — тот, кто открыт позже" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ORDER_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Md text={OVERLAY_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Модальное окно"
+  lead="`showModal()` не только поднимает диалог наверх. Всё, что вне диалога, становится инертным: не кликается, не получает фокус и исчезает для скринридера. Раньше это собирали из трёх приёмов и библиотеки ловушки фокуса — теперь это один вызов."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INERT} />
+
+  <Table
+    head={['что под открытым `showModal()`', 'что происходит']}
+    rows={MODAL_ROWS.map((r) => [r.k, r.v])}
+    tones={MODAL_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,.9fr) minmax(300px,1.6fr)"
+    minWidth={560}
+  />
+
+  <Md text={MODAL_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {MODAL_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Порядок решает место, а не число.** Внутри страницы — шаги отрисовки и контексты:
+      компонент со своими `z-index` закрывают `isolation: isolate`, а всплывающее выносят
+      из чужих контекстов. Поверх страницы — верхний слой: модальное окно, поповер и полный
+      экран кладёт туда браузер, порядок там — время открытия, а всё вне модального диалога
+      становится инертным само.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

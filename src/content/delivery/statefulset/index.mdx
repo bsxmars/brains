@@ -1,0 +1,551 @@
+---
+title: "StatefulSet, тома и данные"
+order: 10
+kicker: доставка
+lead: "Deployment считает поды одинаковыми и заменяемыми, а базе данных нужно обратное: чтобы вторая реплика после любого перезапуска оставалась второй — с тем же именем и тем же диском. StatefulSet даёт подам **номер, DNS-имя и собственный том**, PersistentVolumeClaim держит данные дольше пода. Платить за это приходится порядком и привязками: контроллер ждёт каждую реплику, диск не выходит из своей зоны, а после уменьшения числа реплик диски **не удаляются сами**."
+leadWidth: 68
+summary: "Почему Deployment не годится для базы; StatefulSet — имена по номерам, headless-сервис и DNS-имена подов, порядок создания и удаления, обновление с конца и partition; PV, PVC, StorageClass, режимы доступа, Retain и Delete, привязка к зоне; свой PVC на реплику и retention policy; emptyDir и hostPath; снапшоты, операторы и честный ответ, нужна ли база в кластере."
+verifiedOn: "Порядок действий контроллера, судьба PVC и DNS-имена — учебной моделью темы по документации Kubernetes (StatefulSets, StatefulSet Basics); её сверяет тест на случаях и таблицах из самой документации. Кластер не поднимался, kubectl не запускался: тома, классы хранения, снапшоты и операторы — по документации, сентябрь 2026, и помечены в тексте"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Имя и адрес }
+  - { id: s2, label: Тома }
+  - { id: s3, label: Диск на реплику }
+  - { id: s4, label: Порядок и обновление }
+  - { id: s5, label: Контроллер по шагам }
+  - { id: s6, label: 'Копии и операторы' }
+  - { id: s7, label: В кластере или снаружи }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import IdentityDiagram from '@/widgets/statefulset-identity-diagram/ui/IdentityDiagram.astro';
+import OrderDiagram from '@/widgets/statefulset-order-diagram/ui/OrderDiagram.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import StsController from '@/widgets/sts-controller/ui/StsController.vue';
+import {
+  ACCESS_MODES,
+  ACCESS_NOTE,
+  BACKUP_KINDS,
+  BACKUP_WHY,
+  BROKEN_ROLLOUT,
+  CLAIM_TABLE,
+  CLAIM_WHY,
+  DEMO_CAPTION,
+  DEMO_NOTE,
+  DEMO_SET,
+  DEPLOY_VS_STS,
+  DNS_NOTE,
+  DNS_TABLE,
+  DNS_WHY,
+  EPHEMERAL_WARN,
+  EPHEMERAL_WHY,
+  EXTERNAL_CODE,
+  EXTERNAL_NOTE,
+  EXTERNAL_WHY,
+  GLOSSARY,
+  INTRO_NOTE,
+  LEVELS_NOTE,
+  OPERATOR_CODE,
+  OPERATOR_FACTS,
+  OPERATOR_WHY,
+  ORDER_RULES,
+  ORDER_TABLE,
+  ORDER_TABLE_NOTE,
+  ORDER_WHY,
+  OUTSIDE_NOTE,
+  OUTSIDE_TABLE,
+  OUTSIDE_VERDICT,
+  OUTSIDE_WHY,
+  PARTITION_NOTE,
+  PITFALLS,
+  PLAIN_CLAIM,
+  PLAIN_HEADLESS,
+  PLAIN_IDENTITY,
+  PLAIN_PARTITION,
+  POLICIES,
+  POLICY_NOTE,
+  PREREQ,
+  PREREQ_NOTE,
+  PROVISION_STEPS,
+  RECLAIM,
+  RECLAIM_NOTE,
+  RELATED,
+  RETENTION_WHY,
+  SIM_CODE,
+  SIM_WHY,
+  SNAPSHOT_CODE,
+  SNAPSHOT_FACTS,
+  SOURCES,
+  STORAGECLASS_CODE,
+  STS_CODE,
+  STS_NOTES,
+  UPDATE_WHY,
+  VCT_TRAPS,
+  VCT_WHY,
+  VOLUME_KINDS,
+  WHY_NOT_DEPLOYMENT,
+  ZONE_NOTE,
+  VOLUME_SCENE,
+  VOLUME_WALK,
+  PLAIN_VOLUME_WALK,
+  SCALE_SCENE,
+  SCALE_WALK,
+  PLAIN_SCALE,
+  IDENTITY_DIAGRAM,
+  ORDER_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE} leadWidth={72}>
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Имя и адрес: номер вместо случайного хвоста"
+  lead="StatefulSet даёт каждому поду номер, и от номера зависит всё остальное: имя, DNS-адрес, заявка на диск и место в очереди при создании и обновлении."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={WHY_NOT_DEPLOYMENT} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IDENTITY} />
+
+  <Table
+    head={DEPLOY_VS_STS.head}
+    rows={DEPLOY_VS_STS.rows}
+    cols={DEPLOY_VS_STS.cols}
+    kinds={DEPLOY_VS_STS.kinds}
+    minWidth={DEPLOY_VS_STS.minWidth}
+  />
+
+  ### Сквозной пример: Postgres на трёх репликах
+
+  <CodeBlock code={STS_CODE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {STS_NOTES.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Имена подов в DNS
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HEADLESS} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={DNS_WHY} />
+  </Card>
+
+  <Table
+    head={DNS_TABLE.head}
+    rows={DNS_TABLE.rows}
+    cols={DNS_TABLE.cols}
+    kinds={DNS_TABLE.kinds}
+    minWidth={DNS_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text="Таблица — из раздела «Stable Network ID» документации StatefulSet, поэтому имена в ней не из сквозного примера, а из документации: сервис `nginx`, набор `web`. Для примера темы то же правило даёт `db-0.db.shop.svc.cluster.local`." />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DNS_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Тома: где живут данные и сколько"
+  lead="Каждый вид тома отвечает на один вопрос — до какого момента живут данные. У слоя контейнера это перезапуск, у `emptyDir` — жизнь пода, у `hostPath` — жизнь узла. Пережить под и узел может только заявка на диск."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={EPHEMERAL_WHY} />
+  </Card>
+
+  ### Один файл базы, четыре события
+
+  {VOLUME_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {VOLUME_WALK.map((v) => (
+      <Card title={v.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={v.fate} />
+        <Md text={`**Чем платит:** ${v.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VOLUME_WALK} />
+
+  Коротко, в одну таблицу — вместе с `emptyDir` в памяти и `local`-томом:
+
+  <Table
+    head={VOLUME_KINDS.head}
+    rows={VOLUME_KINDS.rows}
+    cols={VOLUME_KINDS.cols}
+    kinds={VOLUME_KINDS.kinds}
+    minWidth={VOLUME_KINDS.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={EPHEMERAL_WARN} />
+  </Card>
+
+  ### Заявка, том и класс
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLAIM} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={CLAIM_WHY} />
+  </Card>
+
+  <Card title="Как заявка становится диском" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={PROVISION_STEPS} size={15.5} />
+  </Card>
+
+  <CodeBlock code={STORAGECLASS_CODE} />
+
+  ### Режимы доступа
+
+  <Table
+    head={ACCESS_MODES.head}
+    rows={ACCESS_MODES.rows}
+    cols={ACCESS_MODES.cols}
+    kinds={ACCESS_MODES.kinds}
+    minWidth={ACCESS_MODES.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ACCESS_NOTE} />
+  </Card>
+
+  ### Что с диском, когда заявки больше нет
+
+  <Table
+    head={RECLAIM.head}
+    rows={RECLAIM.rows}
+    cols={RECLAIM.cols}
+    kinds={RECLAIM.kinds}
+    minWidth={RECLAIM.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={RECLAIM_NOTE} />
+  </Card>
+
+  ### Диск и зона
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={ZONE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Свой диск у каждой реплики"
+  lead="`volumeClaimTemplates` превращает один шаблон в заявку на каждый номер. Заявка переживает под, а при уменьшении числа реплик — и сам StatefulSet, если политика не сказала иначе."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={VCT_WHY} />
+  </Card>
+
+  <IdentityDiagram {...IDENTITY_DIAGRAM} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {VCT_TRAPS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Политика хранения заявок
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={RETENTION_WHY} />
+  </Card>
+
+  ### Уменьшили число реплик: три ступени удаления
+
+  {SCALE_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {SCALE_WALK.map((w) => (
+      <Card title={w.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Заявки:** ${w.claim}.`} />
+        <Md text={`**Диск:** ${w.disk}.`} />
+        <Md text={`**Вернули три реплики:** ${w.back}.`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCALE} />
+
+  Все сочетания политик — и для удаления самого StatefulSet — в одной таблице:
+
+  <Table
+    head={CLAIM_TABLE.head}
+    rows={CLAIM_TABLE.rows}
+    cols={CLAIM_TABLE.cols}
+    kinds={CLAIM_TABLE.kinds}
+    minWidth={CLAIM_TABLE.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={LEVELS_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Порядок и обновление"
+  lead="Контроллер StatefulSet идёт по номерам: создаёт снизу вверх, удаляет и обновляет сверху вниз и каждый раз ждёт, пока тронутый под станет готов."
+  leadWidth={72}
+>
+  <Card title="Четыре гарантии" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={ORDER_RULES} size={15.5} />
+  </Card>
+
+  <OrderDiagram {...ORDER_DIAGRAM} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={ORDER_WHY} />
+  </Card>
+
+  <Table
+    head={POLICIES.head}
+    rows={POLICIES.rows}
+    cols={POLICIES.cols}
+    kinds={POLICIES.kinds}
+    minWidth={POLICIES.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={POLICY_NOTE} />
+  </Card>
+
+  ### Обновление с конца и partition
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={UPDATE_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PARTITION} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={PARTITION_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={BROKEN_ROLLOUT} />
+  </Card>
+
+  ### Модель контроллера
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={SIM_WHY} />
+  </Card>
+
+  <CodeBlock code={SIM_CODE} />
+
+  ### Случаи из документации
+
+  <Table
+    head={ORDER_TABLE.head}
+    rows={ORDER_TABLE.rows}
+    cols={ORDER_TABLE.cols}
+    kinds={ORDER_TABLE.kinds}
+    minWidth={ORDER_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ORDER_TABLE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="Контроллер по шагам"
+  lead="Масштабируйте, меняйте образ, двигайте partition и роняйте поды — и смотрите, в каком порядке контроллер отвечает и какие заявки остаются без хозяина."
+  leadWidth={72}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEMO_NOTE} />
+  </Card>
+
+  <StsController client:visible code={SIM_CODE} spec={DEMO_SET} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Копии, снапшоты и операторы"
+  lead="Заявка с `Retain` спасает от случайного удаления объекта и ни от чего больше. От остального спасает копия в другом месте, а переключение реплик и расписание копий кто-то должен делать — сама база или оператор."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={BACKUP_WHY} />
+  </Card>
+
+  <CodeBlock code={SNAPSHOT_CODE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {SNAPSHOT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={BACKUP_KINDS.head}
+    rows={BACKUP_KINDS.rows}
+    cols={BACKUP_KINDS.cols}
+    kinds={BACKUP_KINDS.kinds}
+    minWidth={BACKUP_KINDS.minWidth}
+  />
+
+  ### Операторы
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={OPERATOR_WHY} />
+  </Card>
+
+  <CodeBlock code={OPERATOR_CODE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {OPERATOR_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="База в кластере или снаружи"
+  lead="Держать базу в Kubernetes можно. Вопрос в том, кто будет делать работу администратора — провайдер, оператор или вы."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={OUTSIDE_WHY} />
+  </Card>
+
+  <Table
+    head={OUTSIDE_TABLE.head}
+    rows={OUTSIDE_TABLE.rows}
+    cols={OUTSIDE_TABLE.cols}
+    kinds={OUTSIDE_TABLE.kinds}
+    minWidth={OUTSIDE_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={OUTSIDE_NOTE} />
+  </Card>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={OUTSIDE_VERDICT} />
+  </Callout>
+
+  ### Внешняя база под внутренним именем
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={EXTERNAL_WHY} />
+  </Card>
+
+  <CodeBlock code={EXTERNAL_CODE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={EXTERNAL_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Тонкие места"
+  lead="Большинство из них не выглядят как ошибка: объект принят, под ждёт, диск на месте — просто не тот, не там или уже не существует."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Источники"
+>
+  <Card title="Документация" titleSize={18} pad={22} gap={14}>
+
+    Порядок действий контроллера, судьба заявок и DNS-имена — из документации StatefulSet. Тома, классы хранения, снапшоты и операторы — из документации Kubernetes и самих проектов: в кластере это не проверялось, и в тексте такие места помечены.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,377 @@
+---
+title: "Шрифты и текст: от загрузки до пикселей"
+heading: "Шрифты и текст: от загрузки до пикселей"
+headingWidth: 22
+order: 12
+kicker: браузер и рендеринг
+lead: "Заголовок сначала пустой, потом появляется — и кнопка под ним прыгает вниз. Это не капризы: браузер качает шрифт позже, чем кажется, решает по `font-display`, что показать в ожидании, и раскладывает текст заново, когда файл приходит. Как это устроено по шагам и как сделать, чтобы подмена ничего не двигала."
+leadWidth: 66
+summary: "Когда браузер начинает качать шрифт, периоды блокировки и подмены и пять значений `font-display`, FOIT и FOUT, сдвиг при подмене и подгонка запасного шрифта `size-adjust` / `ascent-override` / `descent-override`, подмножества и `unicode-range`, `preload` с `crossorigin`, `document.fonts`, шейпинг: кернинг, лигатуры и `measureText`."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: запросы, фазы font-display, сдвиги и ширины сняты стендом со своим сервером и задержкой шрифта; функции темы сверены с замерами в tests/unit/fonts-text.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Когда шрифт качается }
+  - { id: s2, label: font-display }
+  - { id: s3, label: Сдвиг при подмене }
+  - { id: s4, label: Подмножества }
+  - { id: s5, label: preload и document.fonts }
+  - { id: s6, label: Ширина строки }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import FontDisplayLab from '@/widgets/font-display-lab/ui/FontDisplayLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_FONTS,
+  PREREQ,
+  PREREQ_NOTE,
+  LAZY_CODE,
+  PLAIN_LAZY,
+  TRIGGER_ROWS,
+  LAZY_NOTE,
+  COURSE_SENTENCE,
+  COURSE_GLYPHS,
+  COURSE_NOTE,
+  PLAIN_DISPLAY,
+  DISPLAY_ROWS,
+  FONT_DISPLAY_CODE,
+  STAND_RUNS,
+  DEMO_TEXT,
+  DEMO_CAPTION,
+  STAND_FACTS,
+  PLAIN_OVERRIDES,
+  CLS_ROWS,
+  CLS_NOTE,
+  OVERRIDES_CODE,
+  FALLBACK_FACE_CODE,
+  OPSZ_NOTE,
+  PLAIN_RANGE,
+  SUBSET_CODE,
+  RANGE_CODE,
+  RANGE_RUNS,
+  RANGE_NOTE,
+  PRELOAD_CODE,
+  PRELOAD_ROWS,
+  PRELOAD_WARNING,
+  PRELOAD_NOTE,
+  FONTS_API_CODE,
+  API_ROWS,
+  PLAIN_SHAPING,
+  MEASURE_CODE,
+  SHAPING_ROWS,
+  DOM_ROWS,
+  SHAPING_NOTE,
+  SHAPING_FACTS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Буквы приходят по сети" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Веб-шрифт — это файл, который приходит позже текста. Пока его нет, браузер либо прячет
+    буквы, либо рисует их другим шрифтом. Когда файл приходит, строки раскладываются заново:
+    у нового шрифта другие ширины букв и другая высота строки, и всё, что ниже, может уехать.
+
+  </Callout>
+
+  Текст на странице проходит длинный путь. Браузер должен узнать, какой шрифт нужен, скачать
+  файл, решить, что показывать до его прихода, разрезать строку на глифы и посчитать её
+  ширину. Каждый шаг виден читателю: пустым заголовком, сменой шрифта на глазах, прыжком
+  кнопки под пальцем. И почти каждый можно настроить, если знать, как он устроен.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FONTS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Когда браузер начинает качать шрифт"
+  lead="`@font-face` — объявление, а не команда. Браузер читает правило и ничего не качает, пока шрифт не понадобится, чтобы разложить настоящий текст."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAZY} />
+
+  <CodeBlock code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['случай', 'что на странице', 'запрос шрифта']}
+    rows={TRIGGER_ROWS.map((r) => [r.k, r.how, r.fetched])}
+    tones={TRIGGER_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.9fr) minmax(260px,1.7fr) minmax(120px,.7fr)"
+    minWidth={620}
+  />
+
+  <Md text={LAZY_NOTE} />
+
+  ### Шрифт выбирается для каждой буквы
+
+  Список в `font-family` — не «первый, который скачался». Браузер идёт по нему для каждого
+  символа отдельно и берёт первый шрифт, в котором этот символ есть. Фраза
+  «{COURSE_SENTENCE}» с тем же списком шрифтов и теми же файлами, что у этого сайта:
+
+  <Table
+    head={['шрифт', 'глифов', 'что нарисовал']}
+    rows={COURSE_GLYPHS.map((r) => [r.font, String(r.glyphs), r.what])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(70px,.3fr) minmax(240px,1.4fr)"
+    minWidth={520}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={COURSE_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="font-display: что видно, пока шрифт едет"
+  lead="С момента, когда загрузка началась, идут часы. Сначала период блокировки: текст не видно. Потом период подмены: виден запасной шрифт, и пришедший файл его заменит. Потом подмены больше не будет. `font-display` задаёт длину первых двух периодов."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISPLAY} />
+
+  <Table
+    head={['значение', 'блокировка', 'подмена', 'когда брать']}
+    rows={DISPLAY_ROWS.map((r) => [r.k, r.block, r.swap, r.when])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(100px,.5fr) minmax(110px,.6fr) minmax(100px,.5fr) minmax(280px,2fr)"
+    minWidth={640}
+  />
+
+  Пустой текст в период блокировки называют FOIT, смену запасного шрифта на веб-шрифт —
+  FOUT. `block` выбирает первое, `swap` — второе, `fallback` и `optional` ограничивают
+  время, после которого шрифт уже не нужен.
+
+  <Card title="Модель: что видно в момент t" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FONT_DISPLAY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Модель и Chromium на одной шкале
+
+  <FontDisplayLab client:visible code={FONT_DISPLAY_CODE} runs={STAND_RUNS} text={DEMO_TEXT} caption={DEMO_CAPTION} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {STAND_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Сдвиг при подмене и как его погасить"
+  lead="Колонка текста 360px, `font-display: swap`, шрифт приходит через 800 мс. Под абзацем — кнопка. Строки после подмены другие, и кнопка уезжает: это сдвиг, который попадает в CLS."
+  leadWidth={72}
+>
+  <Table
+    head={['вариант', 'что добавлено', 'высота абзаца, px', 'верх кнопки, px', 'CLS']}
+    rows={CLS_ROWS.map((r) => [r.k, r.css, r.pH, r.cta, r.cls])}
+    tones={CLS_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'mono', 'mono', 'mono']}
+    cols="minmax(150px,.8fr) minmax(220px,1.3fr) minmax(110px,.6fr) minmax(110px,.6fr) minmax(70px,.4fr)"
+    minWidth={720}
+  />
+
+  <Md text={CLS_NOTE} />
+
+  ### Запасной шрифт по мерке
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OVERRIDES} />
+
+  Запасной шрифт нельзя переделать, но можно объявить его заново, как отдельное семейство,
+  и переписать ему метрики. `size-adjust` масштабирует все буквы, а `ascent-override`,
+  `descent-override` и `line-gap-override` подменяют числа, из которых складывается высота
+  строки. Для их расчёта нужны метрики веб-шрифта из файла и одна ширина образца в обоих
+  шрифтах.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Расчёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OVERRIDES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что получилось для Newsreader и Georgia" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FALLBACK_FACE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={OPSZ_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Подмножества и unicode-range"
+  lead="Шрифт с латиницей, кириллицей и вьетнамским — сотни килобайт, а странице обычно нужна одна-две письменности. Поэтому шрифт режут на файлы-подмножества и каждому пишут `unicode-range`: какие символы в нём есть. Браузер качает только те файлы, чьи символы встречаются в тексте."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RANGE} />
+
+  <CodeBlock code={SUBSET_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Card title="Какие файлы скачать" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RANGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['текст абзаца', 'скачано', 'почему']}
+    rows={RANGE_RUNS.map((r) => [`\`${r.text}\``, r.fetched.map((f) => `\`${f}\``).join(', '), r.note])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(110px,.6fr) minmax(220px,1.2fr) minmax(220px,1.4fr)"
+    minWidth={600}
+  />
+
+  <Md text={RANGE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="preload и document.fonts"
+  lead="Браузер узнаёт о шрифте поздно, после HTML, CSS и стилей. `preload` называет файл прямо в HTML, и запрос уходит сразу. А `document.fonts` даёт скрипту увидеть и запустить загрузку самому."
+  leadWidth={72}
+>
+  <CodeBlock code={PRELOAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['страница', 'запросы по порядку', 'итог']}
+    rows={PRELOAD_ROWS.map((r) => [r.k, r.requests, r.note])}
+    tones={PRELOAD_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(160px,.8fr) minmax(260px,1.5fr) minmax(220px,1.2fr)"
+    minWidth={660}
+  />
+
+  <Md text={PRELOAD_NOTE} />
+
+  <Card title="Что написал Chromium в консоль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={PRELOAD_WARNING} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### document.fonts
+
+  <Card title="FontFaceSet в деле" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={FONTS_API_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['что', 'как ведёт себя']}
+    rows={API_ROWS.map((r) => [r.k, r.what])}
+    tones={API_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose']}
+    cols="minmax(150px,.6fr) minmax(320px,2fr)"
+    minWidth={540}
+  />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Ширина строки: почему не сумма букв"
+  lead="Шрифт пришёл — теперь строку надо измерить. Кажется, что ширина слова равна сумме ширин его букв. Для большинства шрифтов это не так, и разница — проценты."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHAPING} />
+
+  <CodeBlock code={MEASURE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['шрифт', 'кернинг', 'строка', 'целиком, px', 'сумма букв, px']}
+    rows={SHAPING_ROWS.map((r) => [r.font, `\`${r.kerning}\``, `\`${r.s}\``, r.whole.toFixed(2), r.sum.toFixed(2)])}
+    kinds={['prose', 'prose', 'prose', 'mono', 'mono']}
+    cols="minmax(110px,.7fr) minmax(80px,.5fr) minmax(90px,.6fr) minmax(100px,.6fr) minmax(110px,.6fr)"
+    minWidth={560}
+  />
+
+  <Table
+    head={['`<span>` 40px Newsreader', '`AVATAR`, px', '`office`, px']}
+    rows={DOM_ROWS.map((r) => [r.css, r.avatar.toFixed(2), r.office.toFixed(2)])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(220px,1.4fr) minmax(100px,.6fr) minmax(100px,.6fr)"
+    minWidth={460}
+  />
+
+  <Md text={SHAPING_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SHAPING_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Шрифт — часть раскладки, а не украшение поверх неё.** Пока файла нет, строки
+      разложены чужими метриками; когда он придёт, их разложат заново. Поэтому шрифт первого
+      экрана называют в `preload` с `crossorigin`, `font-display` выбирают под то, сколько
+      готовы ждать, а запасной шрифт подгоняют по метрикам — тогда подмена меняет буквы,
+      но не двигает ничего вокруг.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

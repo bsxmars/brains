@@ -1,0 +1,56 @@
+time="2026-09-15T15:54:58+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[i-skip/first] ⭐ Run Set up job
+[i-skip/first] 🚀  Start image=node:22-slim
+[i-skip/first]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[i-skip/first]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[i-skip/first]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[i-skip/first]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[i-skip/first]   ✅  Success - Set up job
+[i-skip/first] ⭐ Run Main exit 1
+[i-skip/first]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[i-skip/first]   ❌  Failure - Main exit 1 [94.406625ms]
+[i-skip/first] exitcode '1': failure
+[i-skip/first] ⭐ Run Complete job
+[i-skip/first]   ✅  Success - Complete job
+[i-skip/first] 🏁  Job failed
+[i-skip/reporter  ] ⭐ Run Set up job
+[i-skip/reporter  ] 🚀  Start image=node:22-slim
+[i-skip/reporter  ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[i-skip/reporter  ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[i-skip/reporter  ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[i-skip/reporter  ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[i-skip/reporter  ]   ✅  Success - Set up job
+[i-skip/reporter  ] ⭐ Run Main echo "needs.first.result=[failure]"
+echo "reporter ran anyway"
+[i-skip/reporter  ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[i-skip/reporter  ]   | needs.first.result=[failure]
+[i-skip/reporter  ]   | reporter ran anyway
+[i-skip/reporter  ]   ✅  Success - Main echo "needs.first.result=[failure]"
+echo "reporter ran anyway"
+ [103.279583ms]
+[i-skip/reporter  ] ⭐ Run Complete job
+[i-skip/reporter  ] Cleaning up container for job reporter
+[i-skip/reporter  ]   ✅  Success - Complete job
+[i-skip/reporter  ] 🏁  Job succeeded
+[i-skip/tail-end  ] ⭐ Run Set up job
+[i-skip/tail-end  ] 🚀  Start image=node:22-slim
+[i-skip/tail-end  ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[i-skip/tail-end  ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[i-skip/tail-end  ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[i-skip/tail-end  ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[i-skip/tail-end  ]   ✅  Success - Set up job
+[i-skip/tail-end  ] ⭐ Run Main echo "needs.downstream.result=[skipped]"
+echo "needs.reporter.result=[success]"
+[i-skip/tail-end  ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[i-skip/tail-end  ]   | needs.downstream.result=[skipped]
+[i-skip/tail-end  ]   | needs.reporter.result=[success]
+[i-skip/tail-end  ]   ✅  Success - Main echo "needs.downstream.result=[skipped]"
+echo "needs.reporter.result=[success]"
+ [106.137959ms]
+[i-skip/tail-end  ] ⭐ Run Complete job
+[i-skip/tail-end  ] Cleaning up container for job tail-end
+[i-skip/tail-end  ]   ✅  Success - Complete job
+[i-skip/tail-end  ] 🏁  Job succeeded
+Error: Job 'first' failed

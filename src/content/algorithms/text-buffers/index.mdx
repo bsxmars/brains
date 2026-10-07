@@ -1,0 +1,319 @@
+---
+title: "Как редактор хранит текст: строка, gap buffer, rope и piece table"
+heading: "Как редактор хранит текст: строка, gap buffer, rope и piece table"
+headingWidth: 24
+order: 3
+kicker: алгоритмы во фронтенде
+lead: "Вставить букву в середину строки в JS — значит собрать новую строку, а с ней переписать весь текст. Для поля ввода это незаметно, для редактора кода на сто тысяч строк — нет. Поэтому редакторы держат текст иначе: с пустым местом у курсора, деревом кусков или списком ссылок на неизменные буферы."
+leadWidth: 66
+summary: "Почему одна строка — плохой буфер и что с ней делает V8, gap buffer как в Emacs, rope со сбалансированным деревом и поиском по символу и по номеру строки, piece table и piece tree VS Code, отмена почти даром, связь с кусками CRDT — со счётчиками работы вместо секундомера."
+verifiedOn: "Node 24.11.0 (V8 13.6), vscode-languageserver-textdocument 1.0.14, yjs 13.6.33, октябрь 2026: четыре модели темы совпадают со строкой и split('\\n') на 3000 случайных последовательностях правок, счётчики работы и вывод V8 пересчитываются в tests/unit/text-buffers.test.ts; piece tree VS Code — по статье и исходникам, без запуска"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Одна строка }
+  - { id: s2, label: Gap buffer }
+  - { id: s3, label: Rope }
+  - { id: s4, label: Piece table }
+  - { id: s5, label: Сравнение }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import TextBufLab from '@/widgets/textbuf-lab/ui/TextBufLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_BUFFERS,
+  PREREQ,
+  PREREQ_NOTE,
+  STRING_CODE,
+  STRING_NOTE,
+  V8_CODE,
+  V8_NOTE,
+  STRING_FACTS,
+  PLAIN_GAP,
+  GAP_CODE,
+  GAP_FACTS,
+  GAP_GROW_NOTE,
+  PLAIN_ROPE,
+  ROPE_CODE,
+  ROPE_NOTE,
+  ROPE_FACTS,
+  ROPE_LEAF_ROWS,
+  ROPE_LEAF_NOTE,
+  PLAIN_PIECE,
+  PIECE_CODE,
+  PIECE_FACTS,
+  PIECE_NOTE,
+  PIECE_HISTORY,
+  VSCODE_FACTS,
+  CRDT_LINK,
+  DEMO,
+  DEMO_CAPTION,
+  SCALE_CAPTION,
+  SCENARIOS,
+  SIZES,
+  KIND_LABELS,
+  COST_ROWS,
+  GROWTH_ROWS,
+  GROWTH_NOTE,
+  SUMMARY,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Буфер текста" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Дорого не хранить текст, а **переписывать** его. Одна строка переписывает весь документ
+    на каждую букву. Gap buffer переписывает только то, что между старым и новым местом
+    курсора, rope — один короткий кусок, piece table — вообще ничего, кроме нового текста.
+
+  </Callout>
+
+  Поле ввода хранит текст одной строкой, и этого хватает: в нём сотни символов. Редактор
+  кода держит файлы на мегабайты, правит их на каждое нажатие клавиши и сотни раз в секунду
+  спрашивает «где начинается строка 1200» — для отрисовки, подсветки и ошибок. Если на каждую
+  букву переписывать весь файл, редактор начнёт отставать от пальцев. Структуры, которыми
+  это решают, придуманы десятки лет назад и стоят в Emacs, VS Code и совместных редакторах.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUFFERS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Одна строка: каждая правка переписывает весь текст"
+  lead="Самое простое — держать документ одной строкой и на каждую правку собирать новую: кусок до места правки, вставку, кусок после. У всех моделей темы одни и те же функции — создать, вставить, удалить, отдать текст, найти начало строки — и два счётчика работы: так их можно сравнить на одних и тех же правках."
+  leadWidth={72}
+>
+  <Card title="Модель «одна строка»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STRING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={STRING_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### А V8 разве не умнее?
+
+  <Card title="Вставка в середину в настоящем V8" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={V8_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={V8_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={290} gap={16} align="start">
+    {STRING_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Gap buffer: пустое место у курсора"
+  lead="Правки почти всегда идут подряд в одном месте: человек печатает слово, стирает пару букв, печатает дальше. Gap buffer пользуется этим. Текст лежит в массиве, а у курсора в массиве оставлена «дырка» — свободные ячейки. Так устроены буферы Emacs."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GAP} />
+
+  <Card title="Gap buffer" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {GAP_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={GAP_GROW_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Rope: дерево кусков"
+  lead="Rope режет текст на короткие куски и складывает их в листья двоичного дерева. Правка переписывает один лист, а найти нужный лист — значит спуститься от корня, глядя на числа в узлах. Если дерево сбалансировано, спуск занимает O(log n) шагов при любой длине документа."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROPE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {ROPE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Rope со сбалансированным деревом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ROPE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ROPE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Какой длины лист
+
+  <Md text={ROPE_LEAF_NOTE} />
+
+  <Table
+    head={['лист', 'переписано на правку', 'узлов на правку', 'узлов на поиск строки', 'высота']}
+    rows={ROPE_LEAF_ROWS}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(70px,.5fr) minmax(130px,1fr) minmax(120px,1fr) minmax(140px,1fr) minmax(70px,.5fr)"
+    minWidth={560}
+  />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Piece table: текст не трогается вовсе"
+  lead="Piece table не правит текст ни в каком виде. Исходный файл лежит в буфере, который не меняется никогда, всё напечатанное дописывается в конец второго буфера, а документ — это список кусков: из какого буфера, с какого места и сколько символов взять."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PIECE} />
+
+  <Card title="Piece table" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PIECE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={PIECE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {PIECE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Piece tree в VS Code
+
+  <Md text={PIECE_HISTORY} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {VSCODE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Те же куски в CRDT
+
+  <Md text={CRDT_LINK} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Сравнение: кто сколько переписывает"
+  lead="Четыре модели на одних и тех же правках. Секундомер здесь врёт — машина, прогрев, сборщик мусора. Счётчики не врут: сколько символов переписано и сколько символов, узлов или кусков просмотрено, пока искали место."
+  leadWidth={72}
+>
+  <TextBufLab
+    client:visible
+    codes={{ string: STRING_CODE, gap: GAP_CODE, rope: ROPE_CODE, piece: PIECE_CODE }}
+    demo={DEMO}
+    scenarios={SCENARIOS}
+    sizes={SIZES}
+    labels={KIND_LABELS}
+    caption={DEMO_CAPTION}
+    scaleCaption={SCALE_CAPTION}
+  />
+
+  ### Документ из 100 000 символов
+
+  <Table
+    head={['модель', 'печать: первая буква', 'печать: следующие', 'правка вразброс', 'вставка 10 000', 'поиск строки (просмотрено)']}
+    rows={COST_ROWS}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(110px,1fr) minmax(110px,1fr) minmax(110px,1fr) minmax(110px,1fr) minmax(110px,1fr) minmax(130px,1fr)"
+    minWidth={720}
+  />
+
+  ### Как цена растёт с документом
+
+  <Table
+    head={['модель', 'вразброс: переписано', 'вразброс: просмотрено', 'поиск строки']}
+    rows={GROWTH_ROWS}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(110px,.8fr) minmax(190px,1.2fr) minmax(170px,1.2fr) minmax(190px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Md text={GROWTH_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={SUMMARY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

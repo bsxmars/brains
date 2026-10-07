@@ -1,0 +1,77 @@
+time="2026-09-15T15:53:02+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[c-if/conditions   ] ⭐ Run Set up job
+[c-if/hard-fail    ] ⭐ Run Set up job
+[c-if/conditions   ] 🚀  Start image=node:22-slim
+[c-if/hard-fail    ] 🚀  Start image=node:22-slim
+[c-if/tolerated-job] ⭐ Run Set up job
+[c-if/tolerated-job] 🚀  Start image=node:22-slim
+[c-if/hard-fail    ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[c-if/tolerated-job]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[c-if/conditions   ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[c-if/conditions   ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[c-if/hard-fail    ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[c-if/tolerated-job]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[c-if/hard-fail    ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[c-if/tolerated-job]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[c-if/conditions   ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[c-if/conditions   ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[c-if/hard-fail    ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[c-if/tolerated-job]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[c-if/tolerated-job]   ✅  Success - Set up job
+[c-if/hard-fail    ]   ✅  Success - Set up job
+[c-if/conditions   ]   ✅  Success - Set up job
+[c-if/tolerated-job] ⭐ Run Main exit 7
+[c-if/hard-fail    ] ⭐ Run Main 1 real failure
+[c-if/conditions   ] ⭐ Run Main 1 ok
+[c-if/tolerated-job]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[c-if/hard-fail    ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[c-if/conditions   ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[c-if/tolerated-job]   ❌  Failure - Main exit 7 [156.495042ms]
+[c-if/hard-fail    ]   ❌  Failure - Main 1 real failure [128.95075ms]
+[c-if/conditions   ]   | first step fine
+[c-if/conditions   ]   ✅  Success - Main 1 ok [126.212417ms]
+[c-if/tolerated-job] exitcode '7': failure
+[c-if/tolerated-job] ⭐ Run Complete job
+[c-if/tolerated-job]   ✅  Success - Complete job
+[c-if/tolerated-job] 🏁  Job failed
+[c-if/hard-fail    ] exitcode '1': failure
+[c-if/conditions   ] ⭐ Run Main 2 fails but tolerated
+[c-if/hard-fail    ] ⭐ Run Main 3 but always still runs
+[c-if/conditions   ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/soft] user= workdir=
+[c-if/conditions   ]   | about to fail
+[c-if/hard-fail    ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/2] user= workdir=
+[c-if/conditions   ] Failed but continue next step
+[c-if/conditions   ]   ❌  Failure - Main 2 fails but tolerated [127.07825ms]
+[c-if/hard-fail    ]   | always() runs even after a hard failure
+[c-if/hard-fail    ]   ✅  Success - Main 3 but always still runs [152.257333ms]
+[c-if/conditions   ] ⭐ Run Main 3 outcome vs conclusion
+[c-if/hard-fail    ] ⭐ Run Main 4 failure() sees it
+[c-if/conditions   ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/2] user= workdir=
+[c-if/hard-fail    ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/3] user= workdir=
+[c-if/conditions   ]   | outcome=[failure]
+[c-if/conditions   ]   | conclusion=[success]
+[c-if/conditions   ]   ✅  Success - Main 3 outcome vs conclusion [117.51075ms]
+[c-if/hard-fail    ]   | failure() is TRUE here
+[c-if/hard-fail    ]   ✅  Success - Main 4 failure() sees it [110.167959ms]
+[c-if/hard-fail    ] ⭐ Run Complete job
+[c-if/hard-fail    ]   ✅  Success - Complete job
+[c-if/hard-fail    ] 🏁  Job failed
+[c-if/conditions   ] ⭐ Run Main 4 runs only on success()
+[c-if/conditions   ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/3] user= workdir=
+[c-if/conditions   ]   | success() is TRUE after a tolerated failure
+[c-if/conditions   ]   ✅  Success - Main 4 runs only on success() [81.69425ms]
+[c-if/conditions   ] ⭐ Run Main 6 always
+[c-if/conditions   ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/5] user= workdir=
+[c-if/conditions   ]   | always() prints
+[c-if/conditions   ]   ✅  Success - Main 6 always [100.320458ms]
+[c-if/conditions   ] ⭐ Run Main 7 compound condition
+[c-if/conditions   ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/6] user= workdir=
+[c-if/conditions   ]   | compound condition passed
+[c-if/conditions   ]   ✅  Success - Main 7 compound condition [87.024875ms]
+[c-if/conditions   ] ⭐ Run Complete job
+[c-if/conditions   ] Cleaning up container for job conditions
+[c-if/conditions   ]   ✅  Success - Complete job
+[c-if/conditions   ] 🏁  Job succeeded
+Error: Job 'hard-fail' failed

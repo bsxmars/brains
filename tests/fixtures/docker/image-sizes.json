@@ -1,0 +1,9 @@
+{
+  "node:22": 1131272297,
+  "node:22-slim": 247039869,
+  "node:22-alpine": 160879790,
+  "lesson-docker-size:full": 1166482660,
+  "lesson-docker-size:slim": 282250230,
+  "lesson-docker-size:alpine": 196090098,
+  "lesson-docker-size:multi": 165929240
+}

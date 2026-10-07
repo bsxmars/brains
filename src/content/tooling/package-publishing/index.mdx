@@ -1,0 +1,431 @@
+---
+title: Публикация npm-пакета
+heading: "Публикация npm-пакета: exports, ESM и CJS, типы"
+headingWidth: 24
+order: 15
+kicker: сборка и инструменты
+lead: "Код пакета может быть безупречным, а пакет — сломанным. `exports` отдал `require` не тот файл, TypeScript нашёл типы от другого формата, `dist` не попал в архив, а «минорное» обновление закрыло путь, которым пользовались все. Как Node, TypeScript и npm читают `package.json` — по шагам, на маленьких пакетах-фикстурах."
+leadWidth: 66
+summary: "Алгоритм `exports`: сокращения, точный ключ и шаблоны с `*`, условия по порядку, `null` и ошибки Node; кто какие условия включает и почему TypeScript возвращается из условия, а Node — нет; `type` и расширения, `require(esm)` в Node 24, двойной пакет и два экземпляра состояния; `.d.mts`/`.d.cts` и маскарад типов по attw и publint; что уезжает в тарбол; какие правки карты ломают версию."
+verifiedOn: "Node 24.11.0, npm 11.6.1, TypeScript 6.0.3, publint 0.3.25, @arethetypeswrong/core 0.18.5, октябрь 2026: четырнадцать пакетов-фикстур, ответы Node, TypeScript, publint, attw и npm pack --dry-run пересобираются tests/unit/package-publishing.test.ts; учебный резолвер exports совпадает с Node на всех спецификаторах в четырёх режимах. Ничего не публиковалось."
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Поле exports }
+  - { id: s2, label: Условия }
+  - { id: s3, label: ESM и CJS }
+  - { id: s4, label: Типы }
+  - { id: s5, label: Тарбол }
+  - { id: s6, label: Что ломает версию }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ExportsLab from '@/widgets/exports-lab/ui/ExportsLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_EXPORTS,
+  PREREQ,
+  PREREQ_NOTE,
+  PRICE_PKG_JSON,
+  RESOLVE_STEPS,
+  RESOLVE_CODE,
+  NODE_ROWS,
+  NODE_NOTE,
+  PRESETS,
+  ENVS,
+  CONDITION_KEYS,
+  DEMO_TEXT,
+  DEMO_CAPTION,
+  ENV_ROWS,
+  ENV_NOTE,
+  ORDER_PKG_JSON,
+  ORDER_NOTE,
+  GAP_PKG_JSON,
+  GAP_FACTS,
+  FORMAT_ROWS,
+  FORMAT_NOTE,
+  REQUIRE_ESM_CODE,
+  REQUIRE_ESM_OUT,
+  REQUIRE_DEFAULT_CODE,
+  REQUIRE_ESM_FACTS,
+  DUAL_PKG_JSON,
+  DUAL_MJS_CODE,
+  HAZARD_CODE,
+  HAZARD_OUT,
+  PLAIN_HAZARD,
+  HAZARD_NOTE,
+  DUAL_CHOICE,
+  TYPES_RULES,
+  TYPES_LAST_PKG_JSON,
+  TYPES_LAST_TRACE,
+  TS_ROWS,
+  PLAIN_MASQUERADE,
+  MASK_ROWS,
+  LINT_NOTE,
+  TS_REQUIRE_NOTE,
+  PACK_TREE,
+  PACK_ROWS,
+  PACK_CMD_CODE,
+  PACK_FACTS,
+  SIDE_EFFECTS_NOTE,
+  BREAK_ROWS,
+  BREAK_NOTE,
+  PEER_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Договор с пользователем" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    `package.json` пакета — договор с каждым, кто его подключит. Поле `exports` решает,
+    какой файл получит каждый импорт. Node, TypeScript и сборщик читают одну и ту же карту,
+    но с разными наборами условий. Поэтому ошибка в карте почти не видна автору: она видна
+    тому, кто подключил пакет в другой среде.
+
+  </Callout>
+
+  Пакет собран, тесты зелёные, публикация прошла. Через час приходят жалобы: «в CommonJS-проекте
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`», «TypeScript не видит типы», «у меня два экземпляра стора».
+  Код тут ни при чём. Это ошибки упаковки: какой файл кому достаётся, какой формат у него
+  на самом деле и что вообще лежит в архиве, который скачал пользователь.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EXPORTS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Поле `exports`: как Node выбирает файл"
+  lead="Спецификатор `price-kit/plugins/card` Node делит на имя пакета и подпуть `./plugins/card`, находит `package.json` пакета и спрашивает его карту. Алгоритм записан в документации Node по шагам и помещается в сотню строк кода."
+  leadWidth={72}
+>
+  <Card title="Сквозной пример: package.json пакета price-kit" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PRICE_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {RESOLVE_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Резолвер `exports` по алгоритму Node" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RESOLVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Что ответил Node на price-kit
+
+  <Table
+    head={['спецификатор', '`import`', '`require`', '`--conditions=browser`']}
+    rows={NODE_ROWS.map((r) => [r.spec, r.imp, r.req, r.br])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(230px,1.2fr) minmax(200px,1fr) minmax(200px,1fr) minmax(200px,1fr)"
+    minWidth={860}
+  />
+
+  <Md text={NODE_NOTE} />
+
+  ### Резолвер в работе
+
+  <ExportsLab
+    client:visible
+    resolveCode={RESOLVE_CODE}
+    presets={PRESETS}
+    envs={ENVS}
+    conditionKeys={CONDITION_KEYS}
+    texts={DEMO_TEXT}
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Условия: кто какие включает"
+  lead="Карта одна, а читают её разные программы, и каждая включает свой набор условий. Резолвер не выбирает «лучшее» условие — он берёт первое включённое сверху. Поэтому порядок ключей — часть смысла карты."
+  leadWidth={72}
+>
+  <Table
+    head={['кто читает', 'включённые условия']}
+    rows={ENV_ROWS.map((r) => [r.k, r.v])}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(320px,1.6fr)"
+    minWidth={560}
+  />
+
+  <Md text={ENV_NOTE} />
+
+  ### Порядок решает
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="order-kit" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ORDER_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ORDER_NOTE} />
+  </CardGrid>
+
+  ### Node не возвращается, TypeScript — да
+
+  <Card title="gap-kit" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={GAP_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {GAP_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="ESM и CommonJS в одном пакете"
+  lead="Формат файла Node определяет не по содержимому, а по расширению и полю `type`. А с тех пор как `require` умеет загружать ESM, у автора пакета появился выбор, которого раньше не было: публиковать один формат вместо двух."
+  leadWidth={72}
+>
+  <Table
+    head={['файл', 'формат']}
+    rows={FORMAT_ROWS.map((r) => [r.k, r.v])}
+    tones={FORMAT_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose']}
+    cols="minmax(200px,.8fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={FORMAT_NOTE} />
+
+  ### `require` и ESM в Node 24
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="CommonJS подключает ESM" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REQUIRE_ESM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REQUIRE_ESM_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {REQUIRE_ESM_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="`default` через `require`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={REQUIRE_DEFAULT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Двойной пакет: два экземпляра состояния
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HAZARD} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="dual-kit: карта" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DUAL_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="dual-kit: dist/index.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DUAL_MJS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Приложение подключает пакет дважды" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HAZARD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HAZARD_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={HAZARD_NOTE} />
+
+  <Card tone="ok" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DUAL_CHOICE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Типы: что видит TypeScript"
+  lead="TypeScript ищет типы по той же карте `exports`, но со своими условиями и своими правилами. Найти `.d.ts` мало: TypeScript должен понять, описывает файл ESM или CommonJS. Это решает расширение и поле `type`, а не содержимое файла."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {TYPES_RULES.map((rule) => (
+      <Card title={rule.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={rule.d} />
+    ))}
+
+  </CardGrid>
+
+  ### `types` последним: трассировка TypeScript
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="types-last" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TYPES_LAST_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="traceResolution, режим ESM" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TYPES_LAST_TRACE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['пакет', '`node16`, ESM', '`node16`, CJS', '`bundler`']}
+    rows={TS_ROWS.map((r) => [r.k, r.esm, r.cjs, r.bundler])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(130px,.7fr) minmax(170px,1fr) minmax(170px,1fr) minmax(170px,1fr)"
+    minWidth={680}
+  />
+
+  ### Маскарад: типы от другого формата
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MASQUERADE} />
+
+  <Table
+    head={['пакет', 'как устроен', 'что сказал attw']}
+    rows={MASK_ROWS.map((r) => [r.k, r.how, r.attw])}
+    tones={MASK_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(120px,.5fr) minmax(240px,1.3fr) minmax(280px,1.5fr)"
+    minWidth={680}
+  />
+
+  <Md text={LINT_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TS_REQUIRE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Что уедет в тарбол"
+  lead="Публикуется не папка, а архив. Что в него войдёт, решают поле `files`, файл `.npmignore` и — неожиданно — `.gitignore`. Посмотреть заранее можно без публикации: `npm pack --dry-run` печатает список файлов и ничего никуда не отправляет."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Проект" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PACK_TREE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Проверка без публикации" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PACK_CMD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['настройка', 'что попало в архив', 'итог']}
+    rows={PACK_ROWS.map((r) => [r.label, r.got, r.verdict])}
+    tones={PACK_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(180px,.8fr) minmax(280px,1.5fr) minmax(220px,1.1fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={260} gap={14} align="start">
+    {PACK_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={SIDE_EFFECTS_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Что ломает версию"
+  lead="Номер версии — обещание: патч чинит, минор добавляет, мажор ломает. Автору пакета важно, что считается API. Карта `exports` и условия — тоже API, и их правка ломает чужой код не хуже удалённой функции."
+  leadWidth={72}
+>
+  <Table
+    head={['правка', 'спецификатор', 'было', 'стало', 'версия']}
+    rows={BREAK_ROWS.map((r) => [r.change, r.spec, r.before, r.after, r.bump])}
+    tones={BREAK_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(190px,1fr) minmax(190px,1fr) minmax(140px,.8fr) minmax(180px,1fr) minmax(180px,1fr)"
+    minWidth={900}
+  />
+
+  <Md text={BREAK_NOTE} />
+
+  <Card titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PEER_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Пакет проверяют глазами того, кто его подключит.** `npm pack --dry-run` — что уедет
+      в архив. publint — что сломано в `package.json`. attw — что увидит TypeScript. И один
+      `import` и один `require` из чистого проекта в той версии Node, которую вы обещали
+      в `engines`: только Node скажет, что карта, понятная всем линтерам, на деле не работает.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

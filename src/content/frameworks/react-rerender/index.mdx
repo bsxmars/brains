@@ -1,0 +1,787 @@
+---
+title: Ре-рендеринг в React
+order: 2
+kicker: фреймворки изнутри
+lead: "Ре-рендер в React — это повторный вызов функции компонента, а не перерисовка страницы. Между «React пересчитал» и «браузер перерисовал» стоит сравнение старого результата с новым. Почти вся работа над скоростью React-приложения — это работа с этим сравнением, а не с числом вызовов."
+leadWidth: 66
+summary: "Почему ре-рендер не равен обновлению DOM, когда React пропускает компонент целиком (bailout) и что на самом деле делают `memo`, `key` и батчинг."
+verifiedOn: React 19.3 · Node 24.11
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Модель }
+  - { id: s2, label: Дерево }
+  - { id: s3, label: Ключи }
+  - { id: s4, label: Батчинг и нарезка }
+  - { id: s5, label: Мемоизация }
+  - { id: s6, label: Тонкости }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkCard from '@/shared/ui/DarkCard.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import Batching from '@/widgets/react-rerender/ui/Batching.tsx';
+import ListKeys from '@/widgets/react-rerender/ui/ListKeys.tsx';
+import MemoLab from '@/widgets/react-rerender/ui/MemoLab.tsx';
+import RenderTree from '@/widgets/react-rerender/ui/RenderTree.tsx';
+import {
+  BAILOUT_CODE,
+  BATCH_17,
+  CHILDREN_TRICK,
+  COMPILER_CODE,
+  CONSEQUENCES,
+  CONSEQUENCES_NOTE,
+  EFFECTS_NOTE,
+  EFFECTS_ORDER,
+  EFFECTS_TIMING,
+  FILTER_FIX,
+  FIRST_RENDER,
+  FIRST_RENDER_NOTE,
+  FLUSH_SYNC,
+  KEY_ID_STEPS,
+  KEY_INDEX_STEPS,
+  KEY_RESET,
+  MEMO_MATRIX,
+  MEMO_TRAP,
+  NESTED_COMPONENT,
+  PHASES,
+  PITFALLS,
+  QUEUE_CODE,
+  SSE_NOTE,
+  STRICT_MODE_NOTE,
+  TREE_MATRIX,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  SLICING,
+  SLICING_NOTE,
+  TRANSITIONS,
+  VUE_BATCH_NOTE,
+  SOURCES,
+  RELATED,
+  PLAIN_FIBER,
+  PLAIN_BAILOUT,
+  PLAIN_KEY,
+  PLAIN_BATCH,
+  PLAIN_SNAPSHOT,
+  TREE_DEMO_NOTE,
+  KEYS_DEMO_NOTE,
+  BATCH_DEMO_NOTE,
+  MEMO_DEMO_NOTE,
+  PROFILER_CODE,
+  PROFILER_LOG,
+  PROFILER_NOTE,
+  PROFILER_TRAP,
+  PROFILER_PROD,
+  BAILOUT_SCENE_CODE,
+  BAILOUT_SCENE_NOTE,
+  BAILOUT_SCENE_STEPS,
+  EFFECT_SCENE_CODE,
+  EFFECT_SCENE_NOTE,
+  EFFECT_SCENE_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Ре-рендер и правка DOM"
+  lead="«Компонент перерисовался» и «страница перерисовалась» — разные события, и путают их постоянно. Отсюда обе крайности: паника при виде мигающих рамок в профайлере и `memo` на каждом компоненте «на всякий случай». Оба лечения дороже болезни, потому что лечат не то."
+  leadWidth={70}
+>
+  <CardGrid min={240} gap={14}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="`UI = f(state)` — это не метафора"
+lead="**React отвечает на вопрос «что теперь должно быть»**, а не «что изменилось». Карты «какой компонент читает какие данные» у него нет. `setState` сообщает одно: «вот этот компонент устарел» — точнее, его фибер. Всё остальное React выясняет пересчётом и сравнением."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FIBER} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Что делает React после `setState`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+      Берёт помеченный фибер, вызывает функцию компонента заново, получает новое дерево
+      элементов, спускается вниз и по умолчанию **вызывает заново все функции компонентов
+      ниже по дереву**. Затем сравнивает получившееся с тем, что было, и трогает DOM только
+      там, где есть разница.
+
+      <CardNote tone="ok">
+
+        Функций вызвано много, правок в документе — столько, сколько изменилось на экране.
+        Поэтому число ре-рендеров само по себе ещё не проблема: дорого становится, когда
+        функции тяжёлые или их очень много.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="info" title="Почему экземпляр не переживает рендер" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+      В React на каждый рендер перезапускается **всё тело компонента**: заново создаются
+      локальные переменные, обработчики, объекты. (Во Vue, для сравнения, `setup()` выполняется
+      один раз за жизнь компонента.)
+
+      То, что должно пережить рендер, приходится хранить снаружи тела — в `useState`,
+      `useRef` или в мемоизации. Отсюда ощущение, что React-код борется сам с собой:
+      половина хуков нужна, чтобы объекты и функции оставались теми же самыми между
+      рендерами, — а модель по умолчанию создаёт их заново.
+
+    </Card>
+  </CardGrid>
+
+  ### Две фазы: сначала расчёт, потом правка DOM
+
+  <Table
+    head={PHASES.head}
+    rows={PHASES.rows}
+    cols="minmax(150px,.9fr) minmax(240px,1.4fr) minmax(220px,1.2fr)"
+    kinds={['prose', 'muted', 'muted']}
+    minWidth={640}
+  />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+
+    Чтобы работу можно было прервать и начать заново, снаружи не должно быть видно
+    промежуточных результатов. Вычисление можно повторять сколько угодно: при тех же данных
+    оно даёт тот же ответ. А DOM посреди работы менять нельзя: пользователь увидит половину
+    изменений — визуальный мусор.
+    <b>Отсюда требование чистоты: тело компонента физически может быть вызвано дважды,
+    трижды или ноль раз ради одного видимого результата.</b>
+
+  </Callout>
+
+  ### Когда выполняются эффекты
+
+  <Card title="Порядок на первом монтировании" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={EFFECTS_ORDER} />
+
+    <Md text={EFFECTS_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={EFFECTS_TIMING} />
+  </Card>
+
+  #### Одна подсказка, три способа появиться
+
+  <CodeBlock code={EFFECT_SCENE_CODE} />
+
+  <Md text={EFFECT_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {EFFECT_SCENE_STEPS.map((e) => (
+      <Card title={e.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={e.what} />
+        <Md text={`**Пользователь видит:** ${e.seen}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Чем платит эта модель
+
+  <Table
+    head={CONSEQUENCES.head}
+    rows={CONSEQUENCES.rows}
+    cols="minmax(230px,1fr) minmax(300px,1.7fr)"
+    kinds={['prose', 'muted']}
+    minWidth={620}
+  />
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CONSEQUENCES_NOTE} />
+
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Какое поддерево перерисовалось и почему"
+  lead="Ре-рендер — это **вызов функции компонента**, а правка документа — отдельное событие. В демо их считают разные приборы: вызовы — счётчик в теле функции, правки — `MutationObserver`. Сколько функций вызовет одно нажатие, зависит от того, в каком компоненте лежит состояние."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TREE_DEMO_NOTE} />
+  </Card>
+
+  <RenderTree client:visible />
+
+  <Table
+    head={TREE_MATRIX.head}
+    rows={TREE_MATRIX.rows}
+    cols={TREE_MATRIX.cols}
+    kinds={TREE_MATRIX.kinds}
+    minWidth={TREE_MATRIX.minWidth}
+  />
+
+  <CardGrid min={280} gap={14}>
+    <Card tone="ok" color="tone" pad={16} radius={4} size={15.5}>
+
+      **Правок DOM всегда одна.** Меняется одно число на экране — и неважно, была вызвана
+      одна функция или семь. Ре-рендер компонента, чей вывод не изменился, стоит вызова
+      функции плюс сравнения.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Поднятое состояние — это ре-рендер всего поддерева.** Опустите счётчик в `Counter` —
+      и из семи вызовов останется один. Самая дешёвая оптимизация в React делается не
+      `memo`, а переносом состояния вниз.
+
+    </Card>
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5}>
+
+      **`memo` не универсален.** С поднятым состоянием `Content` и `Counter` вызываются
+      всё равно: у них изменился проп `count`. `memo` на компоненте, чьи пропсы правда
+      меняются, — чистый расход на сравнение.
+
+    </Card>
+  </CardGrid>
+
+  ### Bailout — пропуск компонента: три условия, все обязательны
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BAILOUT} />
+
+  <Card title="Что React проверяет в начале `beginWork` — обработки фибера" titleSize={17} pad={20} gap={14}>
+    <CodeBlock code={BAILOUT_CODE} />
+
+    <NumberedList
+      items={[
+        '`oldProps === newProps` — не поверхностное сравнение, а **сравнение ссылок на объект пропсов целиком**. Тот же самый объект, а не эквивалентный.',
+        'Контекст, на который подписан компонент, не менялся.',
+        'У самого фибера нет запланированной работы нужного приоритета (в текущих полосах) — то есть на нём не звали `setState`.',
+      ]}
+      size={15.5}
+    />
+
+
+    Внутри `bailoutOnAlreadyFinishedWork` есть вторая проверка, покрупнее. Если в
+    `childLanes` нет работы текущего приоритета, функция возвращает `null`, и **React
+    пропускает всё поддерево** — за одно сравнение чисел. Отметки в `childLanes` ставит сам
+    `setState`: он поднимается от своего фибера к корню и помечает каждого предка.
+
+    <CardNote tone="warn">
+
+      Первое условие само по себе почти никогда не выполняется: родитель на каждом рендере
+      заново вычисляет JSX, и каждый раз получается **новый объект `props`**. `React.memo`
+      меняет именно эту проверку: сравнивает не объект целиком, а каждый проп по отдельности
+      через `Object.is`. Это и называют поверхностным сравнением.
+
+    </CardNote>
+  </Card>
+
+  #### Три условия на дереве из демо
+
+  <CodeBlock code={BAILOUT_SCENE_CODE} />
+
+  <Md text={BAILOUT_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {BAILOUT_SCENE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Вызваны:** ${b.calls}.`} />
+        <Md text={b.what} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Приём, о котором знают меньше: `children` как проп
+
+  <Card title="Пропуск компонента без `memo` и без затрат" titleSize={17} pad={20} gap={13}>
+    <CodeBlock code={CHILDREN_TRICK} />
+
+
+    В `Good` элемент `<Slow />` создаётся в `Good`, а не в `Wrapper`. Когда `Wrapper`
+    перерисовывается из-за своего `setN`, `Good` заново не вызывается — значит объект
+    элемента **тот же самый**: он проходит через `props.children` без изменений. React
+    доходит до фибера `Slow` и видит, что `oldProps === newProps` буквально, а работы на
+    фибере нет. Это bailout: функция `Slow` не вызывается.
+
+    <CardNote tone="ok">
+
+      В демо это четвёртая и пятая строки таблицы: состояние в `Content`, `Article` внутри —
+      вызван; `Article` через `children` из `App` — ноль вызовов, **без всякого `memo`**.
+      Так вручную получается то, что Vue делает по умолчанию для слотов со статическим
+      содержимым.
+
+    </CardNote>
+  </Card>
+
+  ### Контекст идёт мимо `memo`
+
+  Как провайдер находит читателей в обход `memo`, собрано своими руками в [«React изнутри: хуки и контекст», раздел «Контекст»](/frameworks/react-hooks-internals/#s5).
+
+  <DarkPanel eyebrow="Смена значения провайдера: две последние строки таблицы">
+    <CardGrid min={260} gap={14}>
+      <DarkCard title="memo выкл" titleTone="warn" foot="смена значения провайдера">
+
+        Перерисовалось **всё дерево** — семь вызовов из семи.
+
+      </DarkCard>
+      <DarkCard title="memo вкл" titleTone="info" foot="то же самое действие">
+
+        Вызваны **двое**: `App` и `ThemeLabel`. Промежуточный `Content` — ноль.
+
+      </DarkCard>
+    </CardGrid>
+
+    <DarkText>
+
+      Подписка на контекст — отдельный механизм. Когда значение провайдера меняется, React
+      проходит по поддереву и помечает работой каждый компонент, который читает этот
+      контекст, — потребителя. Пометка ставится мимо проверки пропсов, поэтому `memo` здесь
+      бессилен. Но компоненты **между** провайдером и потребителем всё равно могут быть
+      пропущены. React пройдёт через них вниз, потому что их `childLanes` не пуст, но их
+      функции не вызовет. Обход будет, вызовов — нет. Дёшево, но не бесплатно.
+
+    </DarkText>
+  </DarkPanel>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Практическое следствие: **любое изменение значения провайдера перерисовывает всех
+    потребителей**, какое бы поле они ни читали. React сравнивает значение целиком через
+    `Object.is`. Положили в один провайдер `{ user, theme, cart }` — изменение корзины
+    перерисует всех, кто читает тему. Рабочие приёмы: разделить контексты по тому, как
+    часто они меняются; держать состояние и функцию его изменения (`dispatch`) в разных
+    контекстах; обернуть значение провайдера в `useMemo`.
+
+  </Card>
+
+  ### Компонент, объявленный внутри компонента
+
+  <Card tone="err" title="Самая дорогая опечатка в React" titleSize={17} pad={20} gap={13}>
+    <CodeBlock code={NESTED_COMPONENT} />
+
+
+    При каждом вызове `Parent` создаётся новая функция `Row`, значит `oldType === newType`
+    ложно. Компоненты разных типов React не сопоставляет: старый фибер помечается на удаление
+    (`Deletion`), новый — на вставку (`Placement`). Всё поддерево сносится: теряются
+    состояние, фокус и позиция прокрутки, все эффекты запускаются заново. Симптом обычно
+    описывают как «инпут теряет фокус при вводе».
+
+    <CardNote tone="ok">
+
+      На React 19.3 — два монтирования на каждый ре-рендер родителя. Если объявить `Row`
+      на верхнем уровне модуля — ноль. Так и лечится.
+
+    </CardNote>
+  </Card>
+
+  ### Первый рендер: всё, что выше, ещё не работает
+
+  Весь раздел до этого места — про то, как **не** вызвать функцию компонента. Но есть вызов,
+  который не отменяют ни `memo`, ни приём с `children`, ни пустой `childLanes`: самый первый.
+  Проверка bailout начинается со строки `if (current !== null)`, а на первом рендере `current`
+  равен `null` — сравнивать не с чем, и React идёт вниз по всему дереву без единой развилки.
+
+  <Table
+    head={FIRST_RENDER.head}
+    rows={FIRST_RENDER.rows}
+    cols={FIRST_RENDER.cols}
+    kinds={FIRST_RENDER.kinds}
+    minWidth={FIRST_RENDER.minWidth}
+  />
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={FIRST_RENDER_NOTE} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="info" title="`StrictMode` на сервере не удваивает ничего" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <Md text={STRICT_MODE_NOTE} />
+    </Card>
+
+    <Card tone="warn" title="Хук, который на сервере не бездействует, а падает" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <Md text={SSE_NOTE} />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="`key={index}` против стабильного ключа"
+  lead="Удалили из списка первую задачу — а набранный в ней текст остался на месте и теперь стоит у следующей. Виноват ключ. Ключ — это обещание React'у: «элемент с этим ключом в этом списке — та же сущность, что и в прошлый раз». Индекс нарушает обещание при любой операции, меняющей порядок."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEY} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={KEYS_DEMO_NOTE} />
+  </Card>
+
+  <ListKeys client:visible />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="err" title="`key={i}`: было `[A, B, C]`, удалили `A`" titleSize={16.5} pad={18} gap={11}>
+      <Table
+        head={KEY_INDEX_STEPS.head}
+        rows={KEY_INDEX_STEPS.rows}
+        cols="minmax(150px,1.1fr) minmax(52px,.35fr) minmax(160px,1.2fr) minmax(180px,1.4fr)"
+        kinds={['mono', 'mono', 'muted', 'muted']}
+        minWidth={560}
+      />
+    </Card>
+
+    <Card tone="ok" title="`key={task.id}`: та же операция" titleSize={16.5} pad={18} gap={11}>
+      <Table
+        head={KEY_ID_STEPS.head}
+        rows={KEY_ID_STEPS.rows}
+        cols="minmax(150px,1.1fr) minmax(52px,.35fr) minmax(140px,1fr) minmax(160px,1.2fr)"
+        kinds={['mono', 'mono', 'muted', 'muted']}
+        minWidth={520}
+      />
+    </Card>
+  </CardGrid>
+
+  <Card title="Что именно сломалось" titleSize={17} pad={20} gap={13} size={16.5} lh={1.6}>
+
+    `TaskRow` **не размонтировался** — значит его `useState`, его `useRef`, текст
+    в неуправляемом `input` (его значение хранит браузер, а не React) и позиция прокрутки
+    остались от прежнего жильца. Строка «B» показывается с внутренним состоянием, набранным
+    для «A».
+
+    Наблюдаемый симптом ровно такой: **данные съехали на одну позицию, а всё остальное
+    осталось на месте.** Это не «React всё перемонтировал» — как раз наоборот, он ничего
+    не перемонтировал, и в этом проблема: он переиспользовал фиберы для не тех сущностей.
+
+    <CardNote tone="warn">
+
+      Номер фибера в демо выдаётся один раз при монтировании и доказывает переиспользование:
+      после удаления первой строки «Задача B» стоит на фибере `#1`.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5}>
+
+      **Когда `key={index}` безопасен.** Когда список не переупорядочивается и не удаляется
+      из середины: только чтение либо добавление в конец, и у элементов нет собственного
+      состояния. Условия выполнимые, но хрупкие: любая будущая сортировка ломает всё тихо,
+      без единой ошибки в консоли.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Ключ уникален среди соседей, а не глобально.** Два элемента с `key="1"` в разных
+      списках — норма. А `Math.random()` в ключе сносит элемент на каждом рендере: новый
+      ключ означает новую сущность.
+
+    </Card>
+    <Card tone="info" pad={16} radius={4} size={15.5}>
+
+      **Vue устроен здесь идентично.** Тот же смысл `key` в `v-for` и на компоненте, тот же
+      антипаттерн с индексом, тот же приём со сменой ключа. Одно из мест, где знание
+      переносится один в один.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="ok" title="Смена `key` как приём — работает в обратную сторону" titleSize={17} pad={20} gap={13}>
+    <CodeBlock code={KEY_RESET} />
+
+
+    Это лучше, чем `useEffect(() => resetEverything(), [userId])`: не нужно перечислять, что
+    именно сбрасывать, и нет промежуточного кадра со старыми данными. Но приём грубый —
+    сносится всё поддерево вместе с позицией скролла, фокусом и запросами всех дочерних
+    эффектов. Если сбросить нужно одно поле, `key` — избыточное лекарство.
+
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Батчинг: три `setState` — сколько ре-рендеров"
+  lead="Батчинг — объединение нескольких обновлений состояния в один рендер. В демо три поля меняются в любом режиме, а вот число рендеров, которыми за это платят, от режима зависит."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BATCH} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={BATCH_DEMO_NOTE} />
+  </Card>
+
+  <Batching client:visible />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="err" title="Как было до React 18" titleSize={16.5} pad={18} gap={11}>
+      <CodeBlock code={BATCH_17} />
+
+
+      Батчинг работал только внутри обработчиков событий, которые навешивал сам React
+      (синтетических). Всё остальное рендерилось сразу, по одному обновлению за раз. Со стороны
+      это выглядело как лишние рендеры и промежуточные состояния, где одно поле уже новое,
+      а другое ещё старое.
+
+    </Card>
+
+    <Card tone="ok" title="Как стало с React 18 и `createRoot`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+      Батчинг **автоматический везде**: в промисах, в `setTimeout`, в нативных слушателях,
+      где угодно. `setState` не рендерит сам. Он помечает корень дерева и вызывает
+      `ensureRootIsScheduled`. Для срочной полосы (`SyncLane`) та планирует **микрозадачу**
+      `flushSyncCallbacks`, для остальных — обычную задачу через Scheduler, планировщик React.
+
+      <CardNote tone="ok">
+
+        Проверено запуском на React 19.3: обработчик, промис и `setTimeout` дают ровно
+        **один** ре-рендер на три `setState`. `flushSync` — **три**.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" title="Почему именно микрозадача" titleSize={17} pad={20} gap={12} size={16.5} lh={1.6}>
+
+    Она гарантированно выполнится до отрисовки — значит промежуточное состояние на экран
+    не попадёт. И при этом позже всего синхронного кода текущей задачи — значит все
+    `setState` подряд успеют накопиться. Оба свойства нужны одновременно, и другого
+    механизма с такой парой свойств в платформе нет.
+
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+
+  <Card title="Очередь обновлений хука" titleSize={17} pad={20} gap={13}>
+    <CodeBlock code={QUEUE_CODE} />
+
+
+    Второй вариант даёт `1`: `count` — значение, захваченное замыканием **того рендера**,
+    и во всех трёх строках оно одно. Функциональная форма `c => c + 1` получает результат
+    предыдущего обновления из очереди хука.
+
+  </Card>
+
+  <Card tone="warn" title="`flushSync` — явный отказ от батчинга" titleSize={17} pad={20} gap={13}>
+    <CodeBlock code={FLUSH_SYNC} />
+
+
+    Нужен редко: когда надо прочитать или изменить DOM сразу после обновления состояния,
+    в том же обработчике. Цена — работа, которая гарантированно блокирует главный поток,
+    и потеря батчинга. В 99% случаев правильный ответ другой: перенести измерение
+    в `useLayoutEffect`. Он выполняется сразу после правки DOM, и зависеть от момента
+    коммита больше не нужно.
+
+  </Card>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={VUE_BATCH_NOTE} />
+  </Card>
+
+  ### Нарезка: как React прерывает долгий рендер
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SLICING_NOTE} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {SLICING.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  #### Как сделать обновление несрочным
+
+  <CardGrid min={280} gap={14} align="start">
+    {TRANSITIONS.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    **Отсюда же граница пользы.** Нарезка спасает от долгой render-фазы и не спасает ни от чего
+    другого: коммит идёт одной задачей, layout-эффекты внутри него — тоже, а обработчик события
+    целиком ваш. Пять тысяч вставок узлов останутся длинной задачей в любом режиме, и лечится
+    это виртуализацией списка, а не `startTransition`.
+
+  </Card>
+
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="`useMemo` и `useCallback`: когда они действительно помогают"
+  lead="Знакомая картина: после жалобы на тормоза компонент обвешан `useCallback`, а профайлер показывает те же вызовы, что и раньше. Дело в том, что `useMemo` и `useCallback` сами ничего не пропускают: они только возвращают тот же объект или ту же функцию, что и в прошлый рендер. Пользу из этого извлекает `memo` — и только когда не изменился ни один проп."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={MEMO_DEMO_NOTE} />
+  </Card>
+
+  <MemoLab client:visible />
+
+  <Table
+    head={MEMO_MATRIX.head}
+    rows={MEMO_MATRIX.rows}
+    cols={MEMO_MATRIX.cols}
+    kinds={MEMO_MATRIX.kinds}
+    minWidth={MEMO_MATRIX.minWidth}
+  />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+
+    Семь строк из восьми — это работа вхолостую. <b>Без `memo` сравнивать пропсы некому,
+    и `useMemo` с `useCallback` не дают ничего, кроме своей собственной стоимости.
+    С `memo`, но с одним нестабильным пропом — тоже ничего: одного отличия достаточно,
+    чтобы сравнение закончилось.</b>
+
+  </Callout>
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="err" title="Классическая ошибка" titleSize={16.5} pad={18} gap={11}>
+      <CodeBlock code={MEMO_TRAP} />
+
+
+      `memo` сравнивает пропсы как положено: `onClick` — новая функция, `Object.is` даёт
+      `false`, сравнение окончено. `memo` здесь **не «не сработал»** — он сработал как
+      задумано и потратил лишнее время на бесполезное сравнение.
+
+    </Card>
+
+    <Card tone="ok" title="И то же самое с данными" titleSize={16.5} pad={18} gap={11}>
+      <CodeBlock code={FILTER_FIX} />
+
+
+      `filter` вернёт новый массив, даже если в нём те же элементы в том же порядке:
+      `Object.is` сравнивает ссылки, а не содержимое. Это и есть вся разгадка задачи
+      «`memo` не сработал».
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" title="`useMemo` — подсказка, а не гарантия" titleSize={17} pad={20} gap={12} size={16.5} lh={1.6}>
+
+    В документации React прямо сказано: React вправе выбросить закэшированное значение
+    и пересчитать. Значит `useMemo` не годится, чтобы что-то случилось ровно один раз.
+    Классическая ошибка — `const socket = useMemo(() => new WebSocket(url), [url])`.
+    Что сокет создастся один раз, никто не обещает, но важнее другое: **создание сокета —
+    побочный эффект в render-фазе**. Сокет откроется, даже если рендер выбросят, и `close()` никто
+    не вызовет. Правильное место — `useEffect` с cleanup.
+
+  </Card>
+
+  <Card title="React Compiler забирает эту рутину в сборку" titleSize={17} pad={20} gap={13}>
+    <CodeBlock code={COMPILER_CODE} />
+
+
+    Идея: компилятор при сборке разбирает, какие данные откуда берутся внутри компонента.
+    Так он **заранее** узнаёт то, что Vue узнаёт **во время работы**, записывая чтения.
+    Запомненные значения хранятся в ячейках на том же фибере. Запоминаются не только
+    значения, но и сами JSX-элементы. А элемент, оставшийся тем же объектом, сам даёт
+    пропуск дочернему поддереву — как в приёме с `children`.
+
+    <CardNote tone="warn">
+
+      Условие работы: код должен соблюдать правила React (Rules of React). Компилятор
+      проверяет это при сборке и **отказывается оптимизировать компонент, за который не смог
+      поручиться**, — молча пропускает его. Отсюда порядок действий: сначала линтер и починка нарушений,
+      потом сам компилятор. Набор флагов меняется от версии к версии — сверяйтесь
+      с документацией компилятора.
+
+    </CardNote>
+  </Card>
+
+  ### Как мерить: `<Profiler>`
+
+  <Card title="Два участка под замером" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={PROFILER_CODE} />
+
+    <CodeBlock code={PROFILER_LOG.join('\n')} tone="ok" />
+
+    <Md text={PROFILER_NOTE} />
+  </Card>
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={PROFILER_TRAP} />
+    <Card tone="err" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={PROFILER_PROD} />
+  </CardGrid>
+
+  <CheckList
+    items={[
+      'Сначала профайлер, потом мемоизация: ре-рендер дешёвого компонента стоит микросекунды, а `memo` на нём — это сравнение пропсов на каждом рендере родителя.',
+      'Самая дешёвая оптимизация — опустить состояние вниз, а не обвесить дерево `memo`.',
+      'Приём с `children` не требует ни `memo`, ни `useCallback` и не ломается о нестабильные ссылки.',
+      'Мемоизировать имеет смысл **все** пропсы компонента разом либо ни одного: один нестабильный проп обнуляет пользу от остальных.',
+    ]}
+    size={15.5}
+  />
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="У React нет спецификации — есть документация и исходники. Поэтому там, где речь о внутренностях, ссылка ведёт прямо в код: он единственный отвечает на вопрос «а как на самом деле»."
+  leadWidth={70}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>
+

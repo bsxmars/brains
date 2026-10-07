@@ -1,0 +1,255 @@
+---
+/**
+ * Хост, сеть проекта и справочная имён — вложенными рамками.
+ *
+ * Раздел про имена держится на одной границе, которую словами приходится повторять трижды:
+ * что внутри сети проекта, а что на хосте. Отсюда и «`web:18080` не отвечает», и «`ports`
+ * базе не нужен», и «IP в конфиг не пишут». Схема рисует эту границу рамкой: снаружи — хост
+ * со своими портами, внутри — контейнеры, их адреса и справочная, которая есть в каждом.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Call {
+  t: string;
+  r: string;
+  ok: boolean;
+}
+
+interface Props {
+  title: string;
+  caption: string;
+  host: string;
+  hostCalls: Call[];
+  network: string;
+  containers: { k: string; addrs: string[]; port?: string }[];
+  innerCalls: Call[];
+  resolver: { t: string; rows: { q: string; a: string; ok: boolean }[] };
+}
+
+const { title, caption, host, hostCalls, network, containers, innerCalls, resolver } = Astro.props;
+---
+
+<figure class="cnd">
+  <div class="t-eyebrow t-eyebrow--panel">{title}</div>
+
+  <div class="cnd-host">
+    <div class="t-label">{host}</div>
+
+    <ul class="cnd-calls">
+      {
+        hostCalls.map((c) => (
+          <li class="cnd-call" data-ok={c.ok ? 'yes' : 'no'}>
+            <span class="cnd-mark" aria-hidden="true">{c.ok ? '✓' : '✗'}</span>
+            <span class="cnd-call-t" set:html={inlineMd(c.t)} />
+            <span class="cnd-call-r" set:html={inlineMd(c.r)} />
+          </li>
+        ))
+      }
+    </ul>
+
+    <div class="cnd-net">
+      <div class="cnd-net-k" set:html={inlineMd(network)} />
+
+      <div class="cnd-boxes">
+        {
+          containers.map((c) => (
+            <div class="cnd-box">
+              <div class="cnd-box-k">
+                {c.k}
+                {c.port && <span class="cnd-port">{c.port}</span>}
+              </div>
+              {c.addrs.map((a) => (
+                <span class="cnd-addr">{a}</span>
+              ))}
+            </div>
+          ))
+        }
+      </div>
+
+      <ul class="cnd-calls">
+        {
+          innerCalls.map((c) => (
+            <li class="cnd-call" data-ok={c.ok ? 'yes' : 'no'}>
+              <span class="cnd-mark" aria-hidden="true">{c.ok ? '✓' : '✗'}</span>
+              <span class="cnd-call-t" set:html={inlineMd(c.t)} />
+              <span class="cnd-call-r" set:html={inlineMd(c.r)} />
+            </li>
+          ))
+        }
+      </ul>
+
+      <div class="cnd-dns">
+        <div class="cnd-dns-t" set:html={inlineMd(resolver.t)} />
+        <dl class="cnd-dns-rows">
+          {
+            resolver.rows.map((r) => (
+              <div class="cnd-dns-row" data-ok={r.ok ? 'yes' : 'no'}>
+                <dt set:html={inlineMd(r.q)} />
+                <dd>
+                  <span class="cnd-arrow" aria-hidden="true">→</span>
+                  <span set:html={inlineMd(r.a)} />
+                </dd>
+              </div>
+            ))
+          }
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <figcaption class="t-note" set:html={inlineMd(caption)} />
+</figure>
+
+<style>
+  .cnd {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .cnd-host {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r3);
+    background: var(--surface-2);
+  }
+
+  .cnd-net {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r3);
+    background: var(--surface);
+  }
+  .cnd-net-k {
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .cnd-calls {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .cnd-call {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    font-size: var(--fs-4);
+  }
+  .cnd-mark {
+    font-weight: 700;
+  }
+  .cnd-call[data-ok='yes'] .cnd-mark {
+    color: var(--tone-ok-strong);
+  }
+  .cnd-call[data-ok='no'] .cnd-mark {
+    color: var(--tone-err-strong);
+  }
+  .cnd-call-t {
+    color: var(--text);
+  }
+  .cnd-call-r {
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+
+  .cnd-boxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .cnd-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 8px;
+    padding: 9px 12px;
+    border: 1px solid var(--tone-info-line);
+    border-radius: var(--r2);
+    background: var(--tone-info-bg);
+  }
+  .cnd-box-k {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--tone-info-strong);
+  }
+  .cnd-port {
+    font-weight: 400;
+  }
+  .cnd-addr {
+    padding: 2px 7px;
+    border-radius: var(--r1);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+
+  .cnd-dns {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px dashed var(--tone-warn-line);
+    border-radius: var(--r2);
+    background: var(--tone-warn-bg);
+  }
+  .cnd-dns-t {
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--tone-warn-strong);
+  }
+  .cnd-dns-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+  }
+  .cnd-dns-row {
+    display: grid;
+    grid-template-columns: 8rem minmax(0, 1fr);
+    gap: 8px;
+    font-size: var(--fs-3);
+    color: var(--text);
+  }
+  .cnd-dns-row dd {
+    display: flex;
+    gap: 6px;
+    margin: 0;
+  }
+  .cnd-dns-row[data-ok='no'] dd {
+    color: var(--tone-err-strong);
+  }
+  .cnd-arrow {
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 640px) {
+    .cnd,
+    .cnd-host,
+    .cnd-net {
+      padding: 12px;
+    }
+    .cnd-dns-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+    }
+  }
+</style>

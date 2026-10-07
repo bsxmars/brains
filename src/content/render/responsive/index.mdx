@@ -1,0 +1,405 @@
+---
+title: "Адаптивность изнутри"
+heading: "Адаптивность изнутри: медиазапросы, container queries, единицы вьюпорта"
+headingWidth: 24
+order: 22
+kicker: браузер и рендеринг
+lead: "Почему без одной строки в `<head>` телефон притворяется ноутбуком шириной 980px, почему `100vh` уходит под адресную строку, а `100vw` даёт горизонтальную прокрутку. От чего считается `em` в медиазапросе и в контейнерном запросе — и почему это разные вещи. Что ломает `container-type` и почему текст на `vw` не растёт при масштабе."
+leadWidth: 66
+summary: "`<meta viewport>` и 980px, layout и visual viewport, `visualViewport` при щипке и клавиатуре; `vh`/`svh`/`lvh`/`dvh` и `100vw` с полосой прокрутки; диапазоны в `@media`, `em` от шрифта браузера, `prefers-*` и `hover`; `container-type`, изоляция размера и что схлопывается, выбор контейнера по имени, `cqi`, style-запросы; вычислитель сработавших правил; `clamp()` и масштаб страницы по WCAG 1.4.4."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless; эмуляция Pixel 7), Node 24, октябрь 2026: вьюпорт, щипок, единицы, полоса прокрутки, медиазапросы, контейнеры и масштаб сняты стендом и снимаются заново в tests/unit/responsive.test.ts; учебный вычислитель правил сверен с getComputedStyle на сетке ширин окна и контейнеров. Разница svh/lvh/dvh и экранная клавиатура в эмуляции не воспроизводятся — взяты из CSS Values 4 и документации Chrome"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Вьюпорт }
+  - { id: s2, label: Единицы окна }
+  - { id: s3, label: Медиазапросы }
+  - { id: s4, label: Контейнеры }
+  - { id: s5, label: Что сработает }
+  - { id: s6, label: clamp и масштаб }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ResponsiveLab from '@/widgets/responsive-lab/ui/ResponsiveLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_RESPONSIVE,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_VIEWPORTS,
+  META_CODE,
+  META_ROWS,
+  META_NOTE,
+  PINCH_ROWS,
+  PINCH_NOTE,
+  VV_CODE,
+  KEYBOARD_NOTE,
+  ZOOM_LOCK_NOTE,
+  PLAIN_TOOLBAR,
+  UNITS_ROWS,
+  VH_CODE,
+  VH_NOTE,
+  VW_CODE,
+  VW_ROWS,
+  VW_NOTE,
+  RANGE_CODE,
+  RANGE_NOTE,
+  EM_CODE,
+  EM_ROWS,
+  EM_NOTE,
+  MQ_SCROLL_NOTE,
+  PREFERS_ROWS,
+  PREFERS_NOTE,
+  SRCSET_NOTE,
+  CQ_CODE,
+  CQ_LEAD_NOTE,
+  PLAIN_CONTAINMENT,
+  SHRINK_ROWS,
+  SHRINK_NOTE,
+  CQ_FACTS,
+  STYLE_ROWS,
+  PLAIN_RESOLVE,
+  RESOLVE_CODE,
+  RESOLVE_NOTE,
+  CARD_CSS,
+  FONT_CHOICES,
+  DEMO_CAPTION,
+  PLAIN_CLAMP,
+  FLUID_CODE,
+  FLUID_NOTE,
+  ZOOM_ROWS,
+  ZOOM_NOTE,
+  REFLOW_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Три вопроса к браузеру" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Адаптивная вёрстка держится на трёх вопросах. Какой ширины окно — на него отвечает
+    медиазапрос. Сколько места у компонента — на это отвечает контейнерный запрос. Сколько
+    пикселей в единице — `vw`, `cqi`, `em`. У каждого ответа своя точка отсчёта, и почти все
+    ошибки адаптивности — это вопрос, заданный не тому.
+
+  </Callout>
+
+  Слово «ширина экрана» в CSS означает несколько разных чисел. Ширина, на которую сверстана
+  страница, может быть больше экрана телефона. Видимая часть может быть меньше страницы, если
+  человек увеличил её пальцами. Ширина окна может включать полосу прокрутки или не включать.
+  А `40em` в медиазапросе и в контейнерном запросе может оказаться разным числом пикселей.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESPONSIVE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Вьюпорт: ширина вёрстки и видимая часть"
+  lead="Телефон шириной 412 CSS-пикселей по умолчанию верстает страницу на 980 и уменьшает её, чтобы влезла. Мета-тег `viewport` просит верстать по ширине экрана. А то, что видно сейчас, — отдельный прямоугольник, который двигают щипок и клавиатура."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VIEWPORTS} />
+
+  <CodeBlock code={META_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['мета-тег', 'ширина вёрстки', 'масштаб', 'что видно']}
+    rows={META_ROWS.map((r) => [r.k, r.layout, r.scale, r.note])}
+    tones={META_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'prose']}
+    cols="minmax(200px,1.2fr) minmax(90px,.5fr) minmax(80px,.4fr) minmax(240px,1.5fr)"
+    minWidth={680}
+  />
+
+  <Md text={META_NOTE} />
+
+  ### Щипок меняет только видимую часть
+
+  <Table
+    head={['что', 'до щипка', 'щипок ×2']}
+    rows={PINCH_ROWS.map((r) => [r.k, r.before, r.after])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(110px,.6fr) minmax(220px,1.2fr)"
+    minWidth={560}
+  />
+
+  <Md text={PINCH_NOTE} />
+
+  ### Клавиатура и `visualViewport`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Панель у края видимой части" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={KEYBOARD_NOTE} />
+  </CardGrid>
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ZOOM_LOCK_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Единицы окна: vh, svh, dvh и 100vw"
+  lead="Процент от окна — простая идея, пока окно не меняет размер само. На телефоне адресная строка выезжает и прячется, и «высота окна» становится тремя числами. А по ширине `vw` не знает о полосе прокрутки."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOOLBAR} />
+
+  <Table
+    head={['единица', 'от какого окна', 'что из этого следует']}
+    rows={UNITS_ROWS.map((r) => [r.k, r.what, r.when])}
+    tones={UNITS_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(200px,1fr) minmax(280px,1.6fr)"
+    minWidth={640}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Высота «на весь экран»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={VH_NOTE} />
+  </CardGrid>
+
+  ### `100vw` и полоса прокрутки
+
+  <CodeBlock code={VW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['страница', '100vw', 'clientWidth', 'scrollWidth']}
+    rows={VW_ROWS.map((r) => [r.k, String(r.vw), String(r.client), String(r.scroll)])}
+    tones={VW_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(240px,1.6fr) minmax(80px,.5fr) minmax(100px,.6fr) minmax(100px,.6fr)"
+    minWidth={560}
+  />
+
+  <Md text={VW_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Медиазапросы: диапазоны, em и prefers"
+  lead="Медиазапрос спрашивает про окно и устройство целиком. Условие проверяется до стилей страницы, и отсюда две его особенности: `em` в нём не зависит от ваших правил, а ширина окна в нём включает полосу прокрутки."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Диапазон вместо min и max" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RANGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={RANGE_NOTE} />
+  </CardGrid>
+
+  ### `em` в медиазапросе — от шрифта браузера
+
+  <CodeBlock code={EM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['условия', '40em', '40rem', '640px']}
+    rows={EM_ROWS.map((r) => [r.k, r.em, r.rem, r.px])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(260px,1.6fr) minmax(80px,.5fr) minmax(80px,.5fr) minmax(80px,.5fr)"
+    minWidth={540}
+  />
+
+  <Md text={EM_NOTE} />
+
+  <Md text={MQ_SCROLL_NOTE} />
+
+  ### Не размер, а человек и устройство
+
+  <Table
+    head={['условие', 'о чём', 'как проверить']}
+    rows={PREFERS_ROWS.map((r) => [r.k, r.what, r.how])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(200px,1fr) minmax(240px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Md text={PREFERS_NOTE} />
+
+  <Md text={SRCSET_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Контейнерные запросы: место, а не окно"
+  lead="Карточка в узкой боковой колонке и та же карточка в широкой ленте живут в одном окне. Медиазапрос их не различает, контейнерный — различает: он спрашивает ширину предка, которого объявили контейнером."
+  leadWidth={72}
+>
+  <CodeBlock code={CQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Md text={CQ_LEAD_NOTE} />
+
+  ### Что ломает изоляция размера
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTAINMENT} />
+
+  <Table
+    head={['контейнер', 'без container-type', 'с container-type: inline-size']}
+    rows={SHRINK_ROWS.map((r) => [r.k, r.plain, r.cq])}
+    tones={SHRINK_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(220px,1.3fr) minmax(130px,.7fr) minmax(220px,1.2fr)"
+    minWidth={600}
+  />
+
+  <Md text={SHRINK_NOTE} />
+
+  ### Какой контейнер спросят
+
+  <CardGrid min={280} gap={14} align="start">
+    {CQ_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Style-запросы в Chromium 153
+
+  <Table
+    head={['запись', 'что делает браузер']}
+    rows={STYLE_ROWS.map((r) => [r.k, r.v])}
+    tones={STYLE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(260px,1.3fr) minmax(260px,1.2fr)"
+    minWidth={560}
+  />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="Какое правило сработает и почему"
+  lead="Проверку условий и подсчёт единиц можно уложить в одну функцию. Она получает ширину окна, цепочку контейнеров и CSS, проверяет каждое условие с нужной точкой отсчёта и считает итоговые значения, включая `clamp`, `vw`, `cqi` и `em`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESOLVE} />
+
+  <Card title="Вычислитель правил" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RESOLVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={RESOLVE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Карточка в окне и в контейнере
+
+  <CodeBlock code={CARD_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <ResponsiveLab client:visible code={RESOLVE_CODE} css={CARD_CSS} fonts={FONT_CHOICES} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="clamp() и масштаб страницы"
+  lead="«Текучий» шрифт растёт вместе с окном между полом и потолком. Удобно, но у такого шрифта есть изъян: человек, который увеличил страницу, ждёт, что вырастет и текст."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLAMP} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Прямая через две точки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FLUID_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FLUID_NOTE} />
+  </CardGrid>
+
+  ### Что вырастет при масштабе
+
+  Окно ноутбука 1280 физических пикселей, в ячейках — физический размер шрифта в пикселях.
+
+  <Table
+    head={['font-size', '100%', '200%', '300%', '400%']}
+    rows={ZOOM_ROWS.map((r) => [r.k, String(r.z100), String(r.z200), String(r.z300), String(r.z400)])}
+    tones={ZOOM_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(250px,1.6fr) minmax(70px,.4fr) minmax(70px,.4fr) minmax(70px,.4fr) minmax(70px,.4fr)"
+    minWidth={600}
+  />
+
+  <Md text={ZOOM_NOTE} />
+
+  <Md text={REFLOW_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Каждая единица отвечает на свой вопрос.** Ширина окна — `@media` и `vw`, место
+      компонента — `@container` и `cqi`, настройка человека — `rem` и `em`. Шрифт, собранный
+      только из первых двух, перестаёт слушаться третьей: не растёт при масштабе и не замечает
+      крупного шрифта в настройках.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,102 @@
+---
+/**
+ * Путь сообщения и два места, где он обрывается.
+ *
+ * Ошибок у канала ровно две, и обе обычно путают в одну «сообщение не дошло». Разница
+ * принципиальная и видна прямо на схеме: **сериализация падает синхронно у отправителя**
+ * (обычное исключение, его ловит `try`), а **десериализация — асинхронно у получателя**
+ * (событие `messageerror`, и `try` вокруг `postMessage` про него не узнает никогда).
+ *
+ * Поэтому это не `FlowChips`: там цепочка без ветвлений, а здесь весь смысл в двух
+ * пунктирных отводах вниз.
+ */
+---
+
+<div class="frame">
+  <div class="t-eyebrow t-eyebrow--panel">Два места, где ломается — и ловить их надо по-разному</div>
+
+  <div class="scroll">
+    <div class="flow">
+      <div class="node node--ink">postMessage</div>
+      <span class="arrow">→</span>
+
+      <div class="stage">
+        <div class="node node--info">structured clone + transfer</div>
+        <div class="node node--fail">✗ DataCloneError — синхронно, у отправителя</div>
+      </div>
+      <span class="arrow">→</span>
+
+      <div class="node node--warn">очередь включена?</div>
+      <span class="arrow">→</span>
+
+      <div class="stage">
+        <div class="node node--ok">task → message event</div>
+        <div class="node node--fail">✗ messageerror — асинхронно, у получателя</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .frame {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 24px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .scroll {
+    overflow-x: auto;
+  }
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 640px;
+  }
+  .stage {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .arrow {
+    color: var(--text-faint);
+  }
+
+  .node {
+    padding: 12px 14px;
+    border-radius: var(--r2);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    white-space: nowrap;
+  }
+  .node--ink {
+    border: 1px solid var(--ink);
+    color: var(--ink);
+  }
+  .node--info {
+    border: 1px solid var(--tone-info-line);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-strong);
+  }
+  .node--warn {
+    border: 1px solid var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .node--ok {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  /* Отвод «сюда попадают, когда не получилось»: пунктир, потому что ветка необязательная. */
+  .node--fail {
+    padding: 7px 12px;
+    border: 1px dashed var(--tone-err-line);
+    font-size: var(--fs-2);
+    color: var(--tone-err-strong);
+  }
+</style>

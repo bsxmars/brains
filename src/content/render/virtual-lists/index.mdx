@@ -1,0 +1,302 @@
+---
+title: "Длинные списки: виртуализация"
+order: 5
+kicker: браузер и рендеринг
+lead: "Десять тысяч строк — это десятки тысяч узлов, и каждый браузер хранит, стилизует и раскладывает, хотя на экране их двадцать. Виртуальный список держит в DOM только видимое и за это расплачивается: поиск, фокус и программы экранного доступа перестают видеть остальное, пока о них не позаботиться явно."
+leadWidth: 66
+summary: "Окно видимых строк: расчёт по `scrollTop`, запас, распорки; разная высота — префиксные суммы, бинарный поиск, `ResizeObserver` и поправка прокрутки против якорения браузера; `content-visibility: auto` с замером цены; `aria-setsize`, Ctrl+F и фокус; липкие заголовки и подгрузка — Chromium 153."
+verifiedOn: Chromium 153
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Цена узла }
+  - { id: s2, label: Окно }
+  - { id: s3, label: Разная высота }
+  - { id: s4, label: content-visibility }
+  - { id: s5, label: Доступность и поиск }
+  - { id: s6, label: Заголовки и подгрузка }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import VlLab from '@/widgets/vlist-lab/ui/VlLab.vue';
+import {
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
+  COST_HEAD, COST_ROWS, COST_NOTE, COST_SCROLL_NOTE,
+  PLAIN_WINDOW, WINDOW_CODE, WINDOW_NOTE, LAYOUT_FACTS, DEMO_MODES, DEMO_TARGET, DEMO_FOOTER,
+  PLAIN_PREFIX, MEASURE_FACTS, JUMP_NOTE, ANCHOR_HEAD, ANCHOR_ROWS, ANCHOR_NOTE, DOUBLE_CODE, DOUBLE_NOTE,
+  CV_LEAD, CV_CODE, CV_HEAD, CV_ROWS, CV_FIRST_HEAD, CV_FIRST_ROWS, CV_FIRST_NOTE, CV_AUTO_NOTE, CV_JUMP_NOTE,
+  PLAIN_A11Y, A11Y_CODE, A11Y_FACTS, FOCUS_NOTE,
+  STICKY_NOTE, INFINITE_FACTS,
+  PITFALLS, SOURCES, RELATED,
+  JUMP_SCENE_CODE, JUMP_SCENE_NOTE, JUMP_STEPS, PLAIN_JUMP, CV_FIRST_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Идея"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  leadWidth={72}
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Цена узла: за что платит длинный список"
+  lead="Длинный список тормозит в трёх местах: когда строится, когда меняется ширина окна и когда его прокручивают. Три способа его показать платят в этих местах по-разному. Числа — во сколько раз дороже или дешевле, чем «всё в DOM» на 10 000 строк: миллисекунды зависят от машины, отношения — нет."
+  leadWidth={72}
+>
+  <Table
+    head={COST_HEAD}
+    rows={COST_ROWS}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(200px,1.2fr) minmax(110px,.7fr) minmax(150px,.9fr) minmax(120px,.7fr)"
+    minWidth={620}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={COST_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={COST_SCROLL_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Окно: какие строки нужны прямо сейчас"
+  lead="При одинаковой высоте строк окно — это арифметика: номер первой видимой строки — прокрутка, делённая на высоту строки, последней — то же для нижнего края. К ним добавляется запас, а место остальных строк занимают распорки."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WINDOW} />
+
+  <CodeBlock code={WINDOW_CODE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={WINDOW_NOTE} />
+
+  ### Распорки или `transform`
+
+  <CardGrid min={280} gap={14} align="start">
+    {LAYOUT_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Список вживую
+
+  <VlLab client:visible code={WINDOW_CODE} modes={DEMO_MODES} target={DEMO_TARGET} footer={DEMO_FOOTER} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Разная высота: смещения, поиск и прыжки"
+  lead="Когда строки разной высоты, деление не работает: верх строки — сумма высот всех строк до неё. Эти суммы считаются один раз в массив, а строка по координате ищется в нём делением пополам."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PREFIX} />
+
+  <CardGrid min={250} gap={14} align="start">
+    {MEASURE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Прыжок на четырёх строках
+
+  <CodeBlock code={JUMP_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={JUMP_SCENE_NOTE} />
+
+  Та же строка 1 — в трёх вариантах: выше окна, в окне и ниже оценки.
+
+  <CardGrid min={290} gap={14} align="start">
+    {JUMP_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_JUMP} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={JUMP_NOTE} />
+
+  ### Якорение браузера: когда оно помогает окну
+
+  <Table
+    head={ANCHOR_HEAD}
+    rows={ANCHOR_ROWS}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(220px,1.2fr) minmax(200px,1.1fr) minmax(170px,.9fr)"
+    minWidth={620}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={ANCHOR_NOTE} />
+
+  ### Две поправки вместо одной
+
+  <CodeBlock code={DOUBLE_CODE} />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DOUBLE_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="`content-visibility: auto`: окно без JS"
+  lead={CV_LEAD}
+  leadWidth={72}
+>
+  <CodeBlock code={CV_CODE} />
+
+  <Table
+    head={CV_HEAD}
+    rows={CV_ROWS}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(180px,.9fr) minmax(200px,1fr) minmax(220px,1.1fr)"
+    minWidth={600}
+  />
+
+  ### Первый кадр и запасной размер
+
+  Что браузер делает в первом кадре с десятью тысячами строк — без запасного размера и с ним.
+
+  <CardGrid min={290} gap={14} align="start">
+    {CV_FIRST_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Коротко, множителями против списка без `content-visibility`:
+
+  <Table
+    head={CV_FIRST_HEAD}
+    rows={CV_FIRST_ROWS}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(300px,1.6fr) minmax(110px,.6fr) minmax(110px,.6fr)"
+    minWidth={560}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CV_FIRST_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CV_AUTO_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CV_JUMP_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Доступность и поиск: чего нет в DOM, того нет ни для кого"
+  lead="Виртуальный список обманывает не только полосу прокрутки. Поиск браузера, программа экранного доступа и клавиатура работают с DOM, и каждой из них нужно отдельно рассказать, что строк больше, чем узлов."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_A11Y} />
+
+  <CodeBlock code={A11Y_CODE} />
+
+  <CardGrid min={250} gap={14} align="start">
+    {A11Y_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={FOCUS_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Липкие заголовки и бесконечная подгрузка"
+  lead="Обе задачи сводятся к одному: окно — не только видимые строки. В него добавляют то, что должно жить в DOM вне экрана, а конец окна служит сигналом, что пора грузить дальше."
+  leadWidth={72}
+>
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={STICKY_NOTE} />
+
+  <CardGrid min={250} gap={14} align="start">
+    {INFINITE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Тонкие места"
+  lead="Места, где виртуальный список ломается молча: страница не падает, а читатель теряет место, фокус или найденное."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+  lead="Спецификации — чтобы сверить, что браузер вправе пропускать и когда он сдвигает прокрутку сам; поведение конкретного движка — только запуском."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

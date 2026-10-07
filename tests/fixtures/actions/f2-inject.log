@@ -1,0 +1,33 @@
+time="2026-09-15T15:54:14+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[f2-inject/subst] ⭐ Run Set up job
+[f2-inject/subst] 🚀  Start image=node:22-slim
+[f2-inject/subst]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[f2-inject/subst]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[f2-inject/subst]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[f2-inject/subst]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[f2-inject/subst]   ✅  Success - Set up job
+[f2-inject/subst] ⭐ Run Main value pasted into the script text
+[f2-inject/subst]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[f2-inject/subst]   | title is x
+[f2-inject/subst]   | INJECTED-AND-EXECUTED
+[f2-inject/subst]   | 
+[f2-inject/subst]   ✅  Success - Main value pasted into the script text [109.279125ms]
+[f2-inject/subst] ⭐ Run Main same value read by bash from the environment
+[f2-inject/subst]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[f2-inject/subst]   | title is x"; echo INJECTED-AND-EXECUTED; echo "
+[f2-inject/subst]   ✅  Success - Main same value read by bash from the environment [102.497042ms]
+[f2-inject/subst] ⭐ Run Main dump both rendered scripts
+[f2-inject/subst]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/2] user= workdir=
+[f2-inject/subst]   | --- script 0 (expression) ---
+[f2-inject/subst]   | 
+[f2-inject/subst]   | echo "title is x"; echo INJECTED-AND-EXECUTED; echo ""
+[f2-inject/subst]   | --- script 1 (environment) ---
+[f2-inject/subst]   | 
+[f2-inject/subst]   | echo "title is $TITLE"
+[f2-inject/subst]   ✅  Success - Main dump both rendered scripts [96.119125ms]
+[f2-inject/subst] ⭐ Run Complete job
+[f2-inject/subst] Cleaning up container for job subst
+[f2-inject/subst]   ✅  Success - Complete job
+[f2-inject/subst] 🏁  Job succeeded

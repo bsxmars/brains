@@ -1,0 +1,636 @@
+---
+title: Критический путь и Web Vitals
+order: 3
+kicker: браузер и рендеринг
+lead: "Пока страница не показала первый пиксель, браузер в основном ждёт — сеть, стили, скрипты, — а не выполняет ваш код. Три метрики — LCP, INP и CLS — меряют три разных вещи: когда появилось главное, как быстро страница ответила на действие и насколько прыгало содержимое. И каждая ломается по-своему."
+leadWidth: 66
+summary: "Что останавливает разбор HTML, что задерживает первую отрисовку, как считаются LCP, INP и CLS — и почему зелёная оценка Lighthouse ничего не обещает."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), сентябрь 2026; пороги CWV — политика Google, сверяйте с web.dev"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Критический путь }
+  - { id: s2, label: LCP }
+  - { id: s3, label: CLS }
+  - { id: s4, label: INP }
+  - { id: s5, label: Чем это мерить }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ClsLive from '@/widgets/cls-live/ui/ClsLive.vue';
+import CrpTimeline from '@/widgets/crp-timeline/ui/CrpTimeline.vue';
+import InpBreakdown from '@/widgets/inp-breakdown/ui/InpBreakdown.vue';
+import {
+  BLOCKING_CONTROL_CODE,
+  BLOCKING_ROWS,
+  CLS_CASES,
+  CLS_FORMULA_CODE,
+  CLS_OBSERVER_CODE,
+  CLS_SESSION_CODE,
+  CLS_SESSION_NOTE,
+  CLS_SESSION_STEPS,
+  PLAIN_CLS_WINDOWS,
+  CLS_SOURCES,
+  CLS_WINDOW_RULES,
+  CRP_CASES,
+  CRP_LANES,
+  CRP_SCALE,
+  FIELD_LAB_ROWS,
+  INP_MODES,
+  INP_OBSERVER_CODE,
+  INP_PARTS,
+  INP_RULES,
+  LCP_CANDIDATES,
+  LCP_ELEMENT_CODE,
+  LCP_MEASURED,
+  LCP_OBSERVER_CODE,
+  LCP_PARTS,
+  LCP_RULES,
+  LCP_SCENE_CODE,
+  LCP_SCENE_NOTE,
+  LCP_SCENE_STEPS,
+  LOAF_ROWS,
+  PITFALLS,
+  PLAIN_BLOCKING,
+  PLAIN_CLS,
+  PLAIN_INP,
+  PLAIN_LCP_PARTS,
+  PLAIN_PRELOAD,
+  CRP_DEMO_NOTE,
+  CLS_DEMO_NOTE,
+  INP_DEMO_NOTE,
+  SCRIPT_TAGS_CODE,
+  THRESHOLDS,
+  WEB_VITALS_CODE,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  CRUX_LEAD,
+  PLAIN_CRUX,
+  CRUX_QUERY_CODE,
+  CRUX_FACTS,
+  CRUX_ACCESS_ROWS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Зачем мерить то, что и так видно" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Открыли страницу — полсекунды белый экран, потом текст, а картинка подъезжает ещё через
+    секунду и сталкивает кнопку из-под пальца. Нажали — интерфейс молчит. Каждая из трёх бед
+    меряется своим числом, и у каждой своя причина. Здесь — путь **до первого кадра** и после
+    него; из чего состоит сам кадр, разобрано в [«Кадре браузера»](/render/render-pipeline/).
+
+  </Callout>
+
+  <CardGrid min={270} gap={14}>
+    {THRESHOLDS.map((metric) => (
+      <Card tone={metric.tone} label={metric.k} labelTone="tone" labelSize={14} pad={18} gap={9} size={15.5} lh={1.6}>
+        <Md text={metric.q} />
+        <CardNote tone="prose" size={14.5}>
+
+          хорошо — {metric.good} · плохо — {metric.poor}
+
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" title="Одно правило, без которого все три числа бессмысленны" titleSize={17} pad={20} gap={11} size={16} lh={1.6}>
+
+    Порог Core Web Vitals (главных метрик Google) сверяют с **75-м перцентилем настоящих загрузок
+    настоящих пользователей** — отдельно для мобильных и десктопа, за последние 28 дней. Читать
+    это надо так: «у 75% посещений метрика не хуже порога». Значит, число из Lighthouse — вообще
+    не Core Web Vital: это одна загрузка на вашей машине, подсказка для диагностики.
+
+    <CardNote tone="warn">
+
+      Сами пороги и правила подсчёта — политика Google, а не поведение движка: они менялись
+      и будут меняться. **Сверяйтесь с web.dev на день чтения**, а не с этой страницей.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Критический путь: кто кого ждёт"
+  lead="Один и тот же документ, одни и те же ресурсы, два порядка их объявления. Из сотен миллисекунд до первого пикселя на работу уходят единицы — остальное ожидание."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BLOCKING} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PRELOAD} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CRP_DEMO_NOTE} />
+
+  <CrpTimeline client:visible cases={CRP_CASES} lanes={CRP_LANES} scale={CRP_SCALE} />
+
+  <Table
+    head={['что стоит в документе', 'FCP', 'что происходит']}
+    rows={BLOCKING_ROWS.map((r) => [r.k, r.fcp, r.what])}
+    tones={BLOCKING_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(230px,1.1fr) minmax(90px,.4fr) minmax(260px,1.6fr)"
+    minWidth={660}
+  />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Числа сняты в Chromium на локальном сервере, задержки ресурсов выставлены руками. Они
+    показывают **порядок ожиданий**, а не то, сколько стоит ваш CSS на настоящей сети.
+
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Четыре способа объявить скрипт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCRIPT_TAGS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+
+      Разница не в скорости загрузки — она у всех одна. Разница в том, **когда выполнится**:
+      синхронный останавливает разбор HTML, `async` выполняется в непредсказуемый момент и порядка
+      не держит, `defer` выполняется после разбора строго в порядке разметки. Поэтому по умолчанию
+      разумно брать `defer`, а `async` оставить для независимой аналитики.
+
+      <CardNote tone="prose">
+
+        Причина остановки историческая и жёсткая: скрипт вправе вызвать `document.write()`
+        и дописать что угодно прямо в это место документа. Продолжать разбор нельзя — неизвестно,
+        что там окажется.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Задержать первый кадр точечно, а не всем подряд" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={BLOCKING_CONTROL_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+
+      Когда сервер отдаёт HTML по частям (стриминг), появляется проблема: первый кадр может
+      застать документ с шапкой и без содержимого. `blocking="render"` говорит «подожди именно этого»,
+      а `link rel="expect"` — «не рисуй, пока в DOM не появится вот этот узел».
+
+      <CardNote tone="warn">
+
+        Поддержку проверяйте на день чтения: это молодая часть платформы, и она ещё меняется.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="LCP: когда появилось главное"
+  lead="Метрика отвечает на вопрос «когда я увидел то, ради чего пришёл». Считается она проще, чем кажется, и почти все ошибки в ней — не в оптимизации, а в чтении: люди чинят не ту часть."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Кто считается кандидатом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CheckList items={LCP_CANDIDATES} tone="ok" size={14.5} />
+
+      <CardNote tone="prose">
+
+        Кандидата ищут **только в видимой части окна** (вьюпорте): то, что ниже первого экрана,
+        метрику не определяет.
+        Градиент изображением не считается — только настоящий файл.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Как снять это руками" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={LCP_OBSERVER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+
+      Три строки — три отдельных способа потерять час: взять первую запись вместо последней,
+      забыть `buffered: true` и не знать про пропавший `renderTime`.
+
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14}>
+    {LCP_RULES.map((rule) => (
+      <Card tone={rule.tone ?? 'neutral'} title={rule.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={rule.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LCP_PARTS} />
+
+  ### Четыре части на одной картинке
+
+  <CodeBlock code={LCP_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={LCP_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {LCP_SCENE_STEPS.map((p) => (
+      <Card title={p.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Где:** ${p.where}.`} />
+        <Md text={p.what} />
+        <Md text={`**Не поможет:** ${p.notHelp}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Разложение, ради которого метрика и нужна" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['часть', 'что это', 'чем лечится']}
+      rows={LCP_PARTS.map((p) => [p.k, p.what, p.fix])}
+      kinds={['mono', 'prose', 'ok']}
+      cols="minmax(190px,.8fr) minmax(220px,1.2fr) minmax(240px,1.4fr)"
+      minWidth={700}
+    />
+
+    <CardNote tone="prose">
+
+      Части лечатся **по-разному**, и лечение не той части не даёт ничего. Больше всего времени
+      ушло на ответ сервера (TTFB) — формат картинки не поможет, чинить надо сервер. На задержку
+      старта загрузки (load delay) — адрес не увидел упреждающий парсер (preload scanner).
+      На задержку отрисовки (render delay) — был занят главный поток, как в
+      [разделе про INP](#s4).
+
+    </CardNote>
+  </Card>
+
+  <Card tone="err" title="Замер: один файл, два способа его показать" titleSize={17} pad={20} gap={12} size={15.5}>
+    <Table
+      head={['как объявлена картинка', 'LCP', 'почему']}
+      rows={LCP_MEASURED.map((r) => [r.k, r.lcp, r.why])}
+      tones={LCP_MEASURED.map((r) => r.tone)}
+      kinds={['mono', 'prose', 'muted']}
+      cols="minmax(220px,1fr) minmax(90px,.4fr) minmax(260px,1.5fr)"
+      minWidth={640}
+    />
+
+    <CodeBlock code={LCP_ELEMENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+
+      Chromium 153, один и тот же файл, одна и та же сеть: **144 мс разницы** ровно на том, что
+      в одном случае адрес виден в разметке, а в другом становится известен только после разбора
+      CSS (CSSOM). В коде при этом
+      всё выглядит нормально — поэтому такую причину плохого LCP и не находят глазами.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="CLS: насколько под руками прыгало"
+  lead="Единственная метрика из трёх, которая меряется не во времени, — и единственная, которую можно посчитать на бумаге."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLS} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CLS_DEMO_NOTE} />
+
+  <ClsLive client:visible cases={CLS_CASES} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Как считается один сдвиг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CLS_FORMULA_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Пример. Окно 800×600, блок 800×300 уехал вниз на 300px. До и после вместе он занял
+        весь экран — `impact` = 1.0. Уехал на 300px из 800 (берётся бо́льшая сторона окна) —
+        `distance` = 0.375. Итог **0.375**, и Chromium выдаёт ровно столько: формула не
+        приблизительная, а буквальная.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Сдвиги не суммируются — они группируются" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <NumberedList items={CLS_WINDOW_RULES} size={14.5} />
+
+      Так сделано ради долгих сессий: при простой сумме вкладка, открытая на весь день, была бы
+      обречена — каждый мелкий сдвиг копился бы вечно. Оконная схема меряет **худший момент**,
+      а не срок службы вкладки.
+
+      <CardNote tone="warn">
+
+        Отсюда практический вывод, обратный расхожему: оптимизировать надо не «все сдвиги»,
+        а **серию сдвигов подряд**, которая обычно и случается при загрузке.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Окна на одной сессии
+
+  <CodeBlock code={CLS_SESSION_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={CLS_SESSION_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {CLS_SESSION_STEPS.map((w) => (
+      <Card title={w.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={w.what} />
+        <Md text={`**Зачем так:** ${w.why}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLS_WINDOWS} />
+
+  <Card title="Что исключается — и почему это не поблажка" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    Сдвиги в течение **500 мс после пользовательского ввода** помечаются `hadRecentInput: true`
+    и не считаются. Логика простая: вы нажали «показать ещё», контент раздвинулся — это ожидаемое
+    поведение, а не сюрприз. Но сдвиг от ответа, пришедшего через полторы секунды, уже считается:
+    связь с действием потеряна.
+
+    <CodeBlock code={CLS_OBSERVER_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+
+    <CardNote tone="prose">
+
+      Один и тот же сдвиг величиной 0.35 через 200 мс после клика приходит с
+      `hadRecentInput: true`, а через 1500 мс — с `false`. Практически: всё, что подгружается
+      по клику дольше полсекунды, требует заранее зарезервированного места — скелетона
+      нужной высоты.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {CLS_SOURCES.map((source) => (
+      <Card tone={source.tone ?? 'neutral'} title={source.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={source.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Поле `sources` — самое ценное в этой метрике.** Браузер сам называет узлы, которые
+    сдвинулись: гадать не нужно, нужно открыть их и спросить, почему под них не зарезервировано
+    место. Причина почти всегда одна из пяти, перечисленных выше.
+
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="INP: сколько ждал отклик"
+  lead="Метрика меряет путь от нажатия до следующей отрисовки целиком — а не «как быстро вызвался обработчик»."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INP} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={INP_DEMO_NOTE} />
+
+  <InpBreakdown client:visible modes={INP_MODES} />
+
+  <Card title="Три слагаемых — три разных лечения" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['часть', 'что происходит', 'кто виноват и что делать']}
+      rows={INP_PARTS.map((p) => [p.k, p.what, p.fix])}
+      kinds={['mono', 'prose', 'ok']}
+      cols="minmax(180px,.8fr) minmax(220px,1.1fr) minmax(250px,1.5fr)"
+      minWidth={700}
+    />
+
+    <CardNote tone="prose">
+
+      Третье слагаемое — это style, layout и paint после вашего обработчика, то есть ровно то,
+      что разбирает [«Кадр браузера»](/render/render-pipeline/#s4). Поэтому «дешёвые» и «дорогие» свойства и принудительный пересчёт
+      геометрии попадают в метрику отзывчивости, хотя на первый взгляд к ней отношения не имеют.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {INP_RULES.map((rule) => (
+      <Card tone={rule.tone ?? 'neutral'} title={rule.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={rule.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" title="Свой `PerformanceObserver` — чтобы понимать, как считается метрика" titleSize={16.5} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INP_OBSERVER_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+
+
+    `durationThreshold` — порог, ниже которого записи не создаются: минимум по спецификации 16 мс,
+    библиотека `web-vitals` использует 40. Фильтр по `interactionId` обязателен, иначе в выборку
+    попадёт `mousemove` и прочий шум. И отдельно подписываются на `first-input`: самое первое
+    взаимодействие может не попасть в Event Timing, а оно часто худшее.
+
+    <CardNote tone="warn">
+
+      В рабочем проекте свой наблюдатель не нужен — нужна сборка `web-vitals/attribution`, которая уже умеет
+      и разложение, и правило «худшее из десяти». Этот код здесь затем, чтобы знать, что именно
+      она считает.
+
+    </CardNote>
+  </Card>
+
+  <DarkPanel eyebrow="Главный вывод раздела">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **INP измеряется до следующей отрисовки — значит, чинится он тем, что даёт кадру
+      случиться.** Не «ускорить обработчик», а «уступить поток»: сначала видимый отклик, потом
+      уступка, потом остальная работа.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Замер в Chromium: обработчик на 400 мс дал взаимодействие 424 мс; он же,
+      обёрнутый в `await Promise.resolve()`, — те же 424; та же работа кусками по 8 мс через
+      `scheduler.yield()` — 16 мс. Микрозадача поток не уступает, и метрика это показывает
+      с точностью до миллисекунды. Механика самой уступки разобрана в теме про
+      [кадр браузера](/render/render-pipeline/#s2): только между задачами браузер может
+      обработать ввод и нарисовать кадр.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Чем это мерить и чему верить"
+  lead="Измерения бывают двух видов, и их постоянно путают. Лабораторные — Lighthouse, DevTools — отвечают на вопрос «стало ли лучше после моей правки». Полевые — данные настоящих пользователей — на вопрос «есть ли проблема». Ответ одних на вопрос других ничего не стоит."
+  leadWidth={72}
+>
+  <Table
+    head={['', 'лаборатория', 'поле']}
+    rows={FIELD_LAB_ROWS.map((r) => [r.k, r.lab, r.field])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(150px,.6fr) minmax(230px,1.2fr) minmax(230px,1.2fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Lighthouse не измеряет INP" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Для INP нужны взаимодействия, а в лабораторном прогоне их нет: страница загрузилась,
+      инструмент ушёл. Вместо INP показывается **TBT** — сумма превышений над 50 мс по задачам
+      после FCP. Замена разумная: длинные задачи действительно портят INP.
+
+      <CardNote tone="err">
+
+        Но TBT считается только на загрузке и видит только input delay. Ни ваших обработчиков,
+        ни отрисовки после них, ни давно открытого одностраничного приложения (SPA) он не видит. **Зелёный TBT не гарантирует
+        зелёный INP** — и наоборот: в замере INP у нарезанного варианта длинных задач нет вовсе,
+        при том что работы ровно столько же.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="ok" title="LoAF: три числа про одно событие" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['источник', 'значение', 'что это']}
+        rows={LOAF_ROWS.map((r) => [r.k, r.v, r.what])}
+        kinds={['mono', 'prose', 'muted']}
+        cols="minmax(170px,.9fr) minmax(80px,.4fr) minmax(200px,1.3fr)"
+        minWidth={520}
+      />
+
+      <CardNote tone="prose">
+
+        Это один и тот же замер той самой длинной задачи из замера INP. `Long Tasks` сообщает,
+        что задача была, и в лучшем случае называет источником «same-origin script». **Long
+        Animation Frames** описывает кадр целиком: какие скрипты в нём выполнялись, откуда они
+        и сколько заняли стили и раскладка. Это единственный практичный способ доказать на рабочем сайте,
+        что INP съел конкретный сторонний виджет.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="В рабочем проекте — библиотека `web-vitals`, а не свой наблюдатель" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={WEB_VITALS_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+
+    <CardNote tone="prose">
+
+      `sendBeacon` здесь не случаен: он доставляет данные даже при уходе со страницы, в отличие
+      от `fetch`, который браузер вправе отменить при выгрузке документа. А `attribution` —
+      это то, ради чего библиотеку и берут: она отдаёт готовое разложение и селектор виновного
+      элемента, то есть избавляет от главной работы — поиска виноватого.
+
+    </CardNote>
+  </Card>
+
+  ### Откуда берётся поле: CrUX
+
+  <Md text={CRUX_LEAD} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CRUX} />
+
+  <Table
+    head={['как достать', 'что отдаёт', 'как часто и на какой срок']}
+    rows={CRUX_ACCESS_ROWS.map((r) => [r.k, r.what, r.when])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(170px,.8fr) minmax(240px,1.4fr) minmax(220px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Card title="Запрос к CrUX API" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={CRUX_QUERY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      Без ключа сервис отвечает `403 PERMISSION_DENIED`. Форма ответа и сроки — из документации
+      Chrome: это устройство сервиса Google, и сверять его надо на день чтения.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {CRUX_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="Спецификации API — чтобы проверить, как считается число. Документация Google — чтобы узнать текущие пороги: это политика, а не поведение движка, и она меняется чаще всего остального в этой теме."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>
+

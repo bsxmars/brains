@@ -1,0 +1,192 @@
+---
+/**
+ * Многоступенчатая сборка: две стопки и одна связь между ними.
+ *
+ * Листинг читается сверху вниз одним файлом, и из него не видно главного: у каждой ступени
+ * своя стопка слоёв, и первая целиком остаётся за бортом. Схема ставит ступени рядом,
+ * гасит первую и проводит между ними единственную связь — `COPY --from`.
+ *
+ * Шаг, из которого забирают результат, помечен `from`, шаг, куда он приезжает, — `to`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Step {
+  t: string;
+  s?: string;
+  size?: string;
+  from?: boolean;
+  to?: boolean;
+}
+
+interface Props {
+  title: string;
+  caption: string;
+  link: string;
+  stages: { k: string; note: string; out: boolean; steps: Step[] }[];
+}
+
+const { title, caption, link, stages } = Astro.props;
+---
+
+<figure class="dsd">
+  <div class="t-eyebrow t-eyebrow--panel">{title}</div>
+
+  <div class="dsd-body">
+    {
+      stages.map((stage, i) => (
+        <>
+          {i > 0 && (
+            <div class="dsd-link">
+              <span class="dsd-link-arrow" aria-hidden="true">→</span>
+              <span class="dsd-link-t" set:html={inlineMd(link)} />
+            </div>
+          )}
+          <div class="dsd-stage" data-out={stage.out ? 'yes' : 'no'}>
+            <div class="dsd-stage-head">
+              <span class="dsd-stage-k" set:html={inlineMd(`ступень ${stage.k}`)} />
+              <span class="dsd-stage-note">{stage.note}</span>
+            </div>
+            {stage.steps.map((step) => (
+              <div class="dsd-step" data-mark={step.from ? 'from' : step.to ? 'to' : 'none'}>
+                <div class="dsd-step-main">
+                  <span class="dsd-step-t" set:html={inlineMd(step.t)} />
+                  {step.s && <span class="dsd-step-s" set:html={inlineMd(step.s)} />}
+                </div>
+                {step.size && <span class="dsd-step-size">{step.size}</span>}
+              </div>
+            ))}
+          </div>
+        </>
+      ))
+    }
+  </div>
+
+  <figcaption class="t-note" set:html={inlineMd(caption)} />
+</figure>
+
+<style>
+  .dsd {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .dsd-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(90px, 0.32fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dsd-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 12px;
+    border-radius: var(--r2);
+  }
+  .dsd-stage[data-out='yes'] {
+    border: 1.5px dashed var(--border-strong);
+    background: var(--surface-2);
+  }
+  .dsd-stage[data-out='no'] {
+    border: 1px solid var(--ink);
+  }
+
+  .dsd-stage-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 10px;
+    padding-bottom: 4px;
+  }
+  .dsd-stage-k {
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .dsd-stage-note {
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+  .dsd-stage[data-out='no'] .dsd-stage-note {
+    color: var(--tone-ok-strong);
+    font-weight: 600;
+  }
+
+  .dsd-step {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r1);
+    background: var(--surface);
+    font-size: var(--fs-3);
+    color: var(--text);
+  }
+  .dsd-stage[data-out='yes'] .dsd-step {
+    color: var(--text-muted);
+  }
+  .dsd-step[data-mark='from'] {
+    border-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+  }
+  .dsd-stage .dsd-step[data-mark='from'] {
+    color: var(--tone-info-strong);
+  }
+  .dsd-step[data-mark='to'] {
+    border: 1.5px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  .dsd-step-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .dsd-step-s {
+    color: var(--text-muted);
+  }
+  .dsd-step-size {
+    flex: none;
+    font-family: var(--mono);
+    font-weight: 600;
+  }
+
+  .dsd-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+  }
+  .dsd-link-arrow {
+    font-size: var(--fs-7);
+    color: var(--tone-ok-strong);
+  }
+  .dsd-link-t {
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 760px) {
+    .dsd {
+      padding: 16px;
+    }
+    .dsd-body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .dsd-link-arrow {
+      transform: rotate(90deg);
+    }
+  }
+</style>

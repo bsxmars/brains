@@ -1,0 +1,37 @@
+time="2026-09-15T15:58:01+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[l-jobsoft/soft] ⭐ Run Set up job
+[l-jobsoft/soft] 🚀  Start image=node:22-slim
+[l-jobsoft/soft]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[l-jobsoft/soft]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[l-jobsoft/soft]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[l-jobsoft/soft]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[l-jobsoft/soft]   ✅  Success - Set up job
+[l-jobsoft/soft] ⭐ Run Main echo "this job is marked continue-on-error at JOB level"
+exit 7
+[l-jobsoft/soft]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[l-jobsoft/soft]   | this job is marked continue-on-error at JOB level
+[l-jobsoft/soft]   ❌  Failure - Main echo "this job is marked continue-on-error at JOB level"
+exit 7
+ [113.667083ms]
+[l-jobsoft/soft] exitcode '7': failure
+[l-jobsoft/soft] ⭐ Run Complete job
+[l-jobsoft/soft]   ✅  Success - Complete job
+[l-jobsoft/soft] 🏁  Job failed
+[l-jobsoft/after] ⭐ Run Set up job
+[l-jobsoft/after] 🚀  Start image=node:22-slim
+[l-jobsoft/after]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[l-jobsoft/after]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[l-jobsoft/after]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[l-jobsoft/after]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[l-jobsoft/after]   ✅  Success - Set up job
+[l-jobsoft/after] ⭐ Run Main echo "needs.soft.result=[failure]"
+[l-jobsoft/after]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[l-jobsoft/after]   | needs.soft.result=[failure]
+[l-jobsoft/after]   ✅  Success - Main echo "needs.soft.result=[failure]" [141.741042ms]
+[l-jobsoft/after] ⭐ Run Complete job
+[l-jobsoft/after] Cleaning up container for job after
+[l-jobsoft/after]   ✅  Success - Complete job
+[l-jobsoft/after] 🏁  Job succeeded
+Error: Job 'soft' failed

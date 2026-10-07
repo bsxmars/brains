@@ -1,0 +1,278 @@
+---
+title: "Поведение как значение: стратегия, команда, шаблонный метод, состояние"
+order: 4
+kicker: паттерны
+lead: "Четыре поведенческих паттерна вынимают действие из объекта и делают его отдельной вещью. В книге такой вещью может быть только объект класса, а в JavaScript функция — уже значение. Поэтому половина паттернов сводится к колбэку, а книжные версии ломаются на потерянном `this`, `void`, который пропускает промис, и общих объектах-состояниях."
+leadWidth: 66
+summary: "Стратегия как класс и как функция, `satisfies` для набора стратегий, компаратор `sort` и булев компаратор, который в V8 не сортирует, `this`-параметр, который не спасает без `this: void`; команда с историей и откатом, «как было» в момент выполнения, команда-данные для очереди и Redux; шаблонный метод, `async`-шаг под `void`, `override` и шаги объектом; состояние классами, общий объект-состояние, который публикует чужой документ, размеченное объединение с `assertNever` и таблица переходов."
+verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, Redux 5.0.1, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, пример с отказом промиса запущен отдельным процессом `node` — `tests/unit/patterns-behavior.test.ts`"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Зачем }
+  - { id: s2, label: Стратегия }
+  - { id: s3, label: Команда }
+  - { id: s4, label: Шаблонный метод }
+  - { id: s5, label: Состояние }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  PLAIN_BEHAVIOR,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PROBLEM_CODE,
+  PATTERN_ROWS,
+  PLAIN_STRATEGY,
+  STRATEGY_CLASSIC_CODE,
+  STRATEGY_FN_CODE,
+  STRATEGY_FN_NOTES,
+  SORT_CODE,
+  SORT_NOTES,
+  THIS_STRATEGY_CODE,
+  THIS_STRATEGY_NOTE,
+  PLAIN_COMMAND,
+  COMMAND_CLASSIC_CODE,
+  COMMAND_CAPTURE_CODE,
+  COMMAND_NOTES,
+  COMMAND_DATA_CODE,
+  COMMAND_DATA_NOTE,
+  PLAIN_TEMPLATE,
+  TM_CLASSIC_CODE,
+  TM_ASYNC_CODE,
+  TM_OVERRIDE_CODE,
+  TM_NOTES,
+  TM_HOOKS_CODE,
+  TM_HOOKS_NOTE,
+  PLAIN_STATE,
+  STATE_CLASS_CODE,
+  SHARED_STATE_CODE,
+  STATE_CLASS_NOTES,
+  STATE_UNION_CODE,
+  STATE_TABLE_CODE,
+  STATE_UNION_NOTES,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Поведение и язык" gap={24}>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BEHAVIOR} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Зачем: где живёт «как именно»"
+  lead="Сервис авторизации проверяет пользователя через JWT. Потом заказчик просит вход через GitHub, потом через Google. Каждый новый способ — ещё одна ветка `if` в каждом методе класса, и класс знает обо всех провайдерах сразу."
+  leadWidth={72}
+>
+  <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  Поведенческие паттерны выносят такое «как именно» в отдельную вещь, которую передают
+  и подменяют. В JavaScript у каждого из них есть встроенная форма попроще:
+
+  <Table
+    head={['паттерн', 'что решает', 'что уже есть в JS', 'когда нужна книжная версия']}
+    rows={PATTERN_ROWS.map((r) => [r.k, r.task, r.js, r.book])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(120px,.5fr) minmax(180px,.9fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={760}
+  />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Стратегия"
+  lead="Стратегия — сменный алгоритм за общим интерфейсом. Тот, кто его вызывает, знает только интерфейс: «дай пользователя — скажу, пускать ли». Какой провайдер стоит за ним, решают снаружи, и решение можно поменять на лету."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STRATEGY} />
+
+  ### Книжная версия
+
+  <CodeBlock code={STRATEGY_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  ### Стратегия — это функция
+
+  <CodeBlock code={STRATEGY_FN_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что осталось от классов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={STRATEGY_FN_NOTES} size={14.5} />
+  </Card>
+
+  ### Компаратор: стратегия, встроенная в язык
+
+  <CodeBlock code={SORT_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что требует sort от стратегии" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={SORT_NOTES} size={14.5} />
+  </Card>
+
+  ### Метод класса как стратегия
+
+  <CodeBlock code={THIS_STRATEGY_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card tone="err" title="`this`-параметр защищает не с той стороны" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <Md text={THIS_STRATEGY_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Команда"
+  lead="Команда превращает вызов в объект: что сделать, с чем и как отменить. Такой объект можно положить в очередь, выполнить позже, записать в журнал и откатить. Пример: добавление пользователя, которое можно отменить, — контроллер не зовёт сервис напрямую, а создаёт команду."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMMAND} />
+
+  ### Книжная версия
+
+  <CodeBlock code={COMMAND_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  ### Команда-замыкание и момент отката
+
+  <CodeBlock code={COMMAND_CAPTURE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что важно в команде с откатом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={COMMAND_NOTES} size={14.5} />
+  </Card>
+
+  ### Команда, которая уходит из процесса
+
+  <CodeBlock code={COMMAND_DATA_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={COMMAND_DATA_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Шаблонный метод"
+  lead="Шаблонный метод фиксирует порядок шагов в базовом классе, а сами шаги оставляет наследникам. Пример: анкету отправляют в несколько API. Путь у всех один — заполнить, залогировать, отправить, — а формат данных и адрес у каждого свой."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEMPLATE} />
+
+  ### Книжная версия
+
+  <CodeBlock code={TM_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  ### Где шаблон ломается
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card tone="err" title="Асинхронный шаг под `void`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TM_ASYNC_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" title="Переименованный шаг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TM_OVERRIDE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Что компилятор пропускает в наследниках" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={TM_NOTES} size={14.5} />
+  </Card>
+
+  ### Шаги объектом вместо наследников
+
+  <CodeBlock code={TM_HOOKS_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={TM_HOOKS_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Состояние"
+  lead="Паттерн «состояние» — не то состояние приложения, которым заняты стейт-менеджеры. Речь об одном объекте, который ведёт себя по-разному в зависимости от своего положения. Пример: статья в блоге. Черновик можно опубликовать, опубликованную — снять, а из черновика сразу в «опубликовано» пути нет."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STATE} />
+
+  ### Книжная версия: класс на состояние
+
+  <CodeBlock code={STATE_CLASS_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  ### Одно состояние на всех
+
+  <CodeBlock code={SHARED_STATE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Обратная ссылка и её цена" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={STATE_CLASS_NOTES} size={14.5} />
+  </Card>
+
+  ### Размеченное объединение
+
+  <CodeBlock code={STATE_UNION_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  ### Таблица переходов
+
+  <CodeBlock code={STATE_TABLE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что даёт состояние в типе" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={STATE_UNION_NOTES} size={14.5} />
+  </Card>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="Книга «банды четырёх» описывает эти паттерны через классы и наследование; источники ниже показывают, как те же идеи выглядят там, где функция — значение, и где у языка свои правила."
+  leadWidth={72}
+>
+  <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

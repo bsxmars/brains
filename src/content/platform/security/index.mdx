@@ -1,0 +1,1049 @@
+---
+title: Безопасность фронтенда
+order: 7
+kicker: сеть и безопасность
+lead: "Три механизма безопасности браузера постоянно путают друг с другом. **SOP — правило одного источника — запрещает чужому сайту читать ваши ответы, но не отправлять вам запросы. CORS не защищает ваш сервер, а разрешает чужому сайту читать ваши ответы. CSP не чинит XSS, а ограничивает, что внедрённый скрипт сможет сделать.** Почти вся путаница в теме — от незнания этих трёх фраз."
+leadWidth: 66
+summary: "Что такое источник и правило одного источника, когда браузер спрашивает разрешение перед запросом, как CSP отличает свои скрипты от внедрённых, как устроены XSS и CSRF, что фронт знает о куках и JWT — с демо, где политику применяет сам браузер, а не таблица на странице."
+verifiedOn: "Демо CSP — настоящий браузерный прогон: внутри страницы поднимается документ со своим Content-Security-Policy, и видно то, что решил браузер читателя. Проверено в Chromium 153.0.8010.12 (Playwright 1.63, headless) на Node 24.11, сентябрь 2026: семь наборов директив, шесть проб. Конструктор запроса — модель по WHATWG Fetch, закрытая tests/unit/preflight.test.ts, а не замер. Раздел «Куки и JWT» снят отдельным прогоном: разбор JWT — в Node 26.8 и в том же Chromium, невидимость httpOnly-куки и очередь navigator.locks — в Chromium через Playwright. Умолчание SameSite, префиксы __Host-/__Secure- и исключение «Lax + POST» сняты в том же Chromium на двух настоящих сайтах. CSRF в живой сессии, CDN-кеш и SRI запуском не проверялись; Trusted Types, COOP/COEP при переводе сайта на изоляцию и запросы в локальную сеть сняты отдельными прогонами в том же Chromium"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Origin и правило одного источника }
+  - { id: s2, label: CORS и preflight }
+  - { id: s3, label: CSP }
+  - { id: s4, label: XSS }
+  - { id: s5, label: CSRF и кликджекинг }
+  - { id: s6, label: Куки и JWT для фронта }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import CspSandbox from '@/widgets/csp-sandbox/ui/CspSandbox.vue';
+import CorsPreflight from '@/widgets/cors-preflight/ui/CorsPreflight.vue';
+import SecuritySequence from '@/widgets/security-sequence-diagram/ui/SecuritySequence.astro';
+import {
+  ALLOWLIST_FAILS,
+  AMBIENT_AUTHORITY,
+  AUTH_SCHEME_CODE,
+  AUTH_SCHEME_NOTES,
+  BASELINE_ROWS,
+  BEARER_TRADE,
+  BLIND_SPOTS,
+  BLIND_SPOT_RUN,
+  CLICKJACK_CODE,
+  CLICKJACK_NOTE,
+  COOKIE_FACTS,
+  CORS_TRUTHS,
+  CROSS_SITE_CODE,
+  CROSS_SITE_FACTS,
+  CSP_MECHANICS,
+  CSP_WHY,
+  CSRF_CODE,
+  CSRF_CORS_NOTE,
+  CSRF_DIAGRAM,
+  CSRF_STEPS,
+  DEBUG_SIGNS,
+  DOMAIN_GONE,
+  DOM_XSS_NOTE,
+  DOUBLE_SUBMIT_NOTE,
+  EXPOSE_CODE,
+  EXPOSE_NOTE,
+  EXP_NOTE,
+  FETCH_META_CODE,
+  FETCH_META_WHY,
+  HOST_COOKIE_CODE,
+  HTTPONLY_TRUTH,
+  INNERHTML_CODE,
+  INNERHTML_FIX,
+  INNERHTML_STEPS,
+  JWT_ANATOMY_CODE,
+  JWT_PARTS,
+  JWT_READ_CODE,
+  JWT_READ_TRAPS,
+  JWT_RUN_NOTE,
+  JWT_SIGNATURE_NOTE,
+  LEVELS_ROWS,
+  MUST_WRITE_ROWS,
+  NONCE_RULES,
+  ORIGIN_PARTS,
+  PITFALLS,
+  PREFLIGHT_CODE,
+  PREFLIGHT_DIAGRAM,
+  PREFLIGHT_FACTS,
+  REFRESH_LOCK_CODE,
+  REFRESH_LOCK_NOTE,
+  REFRESH_RACE_STEPS,
+  REPORT_FACTS,
+  REPORT_ONLY_CODE,
+  SAFE_URL_CODE,
+  SAFE_URL_WHY,
+  SAMESITE_NOTES,
+  SAMESITE_ROWS,
+  SANITIZER_GAPS,
+  SANITIZER_RULE,
+  SERVER_CODE,
+  SERVER_NOTES,
+  SIMPLE_IDEA,
+  SIMPLE_RULES,
+  SOP_ALLOWS,
+  SOP_FORBIDS,
+  LOCAL_NETWORK_NOTE,
+  LOCAL_NETWORK_FACTS,
+  LOCAL_NETWORK_SOURCE,
+  SOURCES,
+  STRICT_DYNAMIC_CODE,
+  STRICT_DYNAMIC_WHY,
+  STYLE_NOTE,
+  TARGET_POLICY_CODE,
+  TOKEN_PAIR_NOTE,
+  TOKEN_PAIR_ROWS,
+  TOKEN_STORAGE_ROWS,
+  TRUSTED_TYPES_CODE,
+  TRUSTED_TYPES_JS,
+  TRUSTED_TYPES_WHY,
+  VUE_STYLE_CODE,
+  VUE_STYLE_WHY,
+  XFO_NOTE,
+  XSS_DEF,
+  XSS_KINDS_ROWS,
+  XSS_ORDER,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_SOP,
+  PLAIN_PREFLIGHT,
+  PLAIN_SITE,
+  PLAIN_CSRF,
+  PLAIN_JWT,
+  CORS_DEMO_NOTE,
+  CSP_DEMO_NOTE,
+  SOP_SPECTRE,
+  SANITIZER_API,
+  UPLOAD_NOTE,
+  UPLOAD_RULES,
+  SAMESITE_SCENE_CODE,
+  SAMESITE_SCENE_NOTE,
+  SAMESITE_STEPS,
+  PLAIN_SAMESITE,
+  CSP_SCENE_CODE,
+  CSP_SCENE_NOTE,
+  CSP_STEPS,
+  CSP_SCENE_ROWS,
+  PLAIN_CSP_POLICIES,
+  STORAGE_SCENE_NOTE,
+  STORAGE_STEPS,
+  PLAIN_TOKEN_STORAGE,
+} from './data';
+
+<Section variant="intro" eyebrow="Откуда вообще берутся все эти механизмы" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    В браузере **одновременно работает код десятков сторон, которые не доверяют друг другу**:
+    ваша страница, реклама, аналитика, виджет поддержки, iframe платёжного провайдера, соседняя
+    вкладка с банком. И у всего этого — общий пользователь с общими учётными данными.
+
+  </Callout>
+
+  Если забыть об этом, SOP, CORS, CSP, `SameSite` и десяток заголовков выглядят случайной кучей
+  исторических заплаток. Отчасти это так и есть — но логика у неё понятная: **из такой среды
+  растут три проблемы, и каждый механизм отвечает на одну из них.**
+
+  <CardGrid min={280} gap={14}>
+    <Card tone="err" title="Проблема 1: чтение" titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+
+      Если бы `evil.com` мог сделать `fetch('https://mail.google.com/inbox')` и **прочитать
+      ответ**, весь веб закончился бы в тот же день: запрос уйдёт с куками пользователя, потому
+      что куки браузер прикрепляет автоматически. Отсюда правило: **скрипт одного сайта
+      не читает ответы другого**. Это SOP — правило одного источника. А CORS — официальный
+      способ сделать из него исключение.
+
+    </Card>
+
+    <Card tone="warn" title="Проблема 2: исполнение" titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+
+      Если на вашей странице как-то оказался чужой код — через дыру в шаблонизаторе, через
+      `innerHTML`, через взломанную зависимость, — SOP не поможет ничем: этот код **уже
+      внутри вашего источника (origin)**, для браузера он и есть вы. Нужен второй,
+      независимый механизм — CSP. А сама ситуация называется XSS.
+
+    </Card>
+
+    <Card tone="info" title="Проблема 3: куки прикладываются сами" titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+
+      Отправлять запрос на чужой сайт HTML разрешал с 1995 года, и запретить это задним
+      числом нельзя — сломается половина интернета. А куки к такому запросу браузер прикладывает
+      сам — это называют ambient authority, «полномочия из воздуха». Значит, любой сайт может
+      **заставить браузер пользователя выполнить действие** на другом сайте, с его куками. Ответ прочитать
+      не даст SOP, но действие-то уже произошло. Это CSRF.
+
+    </Card>
+  </CardGrid>
+
+  Где живёт сетевой процесс и почему браузер разводит по процессам сайты (site), а не отдельные
+  источники (origin), — в [«Устройстве браузера»](/js/browser-architecture/#s1). Изоляция
+  агентов и `crossOriginIsolated` — в [«Воркерах и параллелизме»](/js/workers/#s5). Почему
+  preflight — это **лишний поход на сервер и обратно** и как он кешируется — в [«Сети
+  и кешировании»](/platform/network/#s3).
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Origin и правило одного источника"
+  lead="Источник (origin) — это не URL и не домен, а три значения вместе: протокол, домен и порт. Все решения о доверии браузер принимает, сравнивая такие тройки. И каждая из трёх частей закрывает конкретную атаку, а не стоит для красоты."
+  leadWidth={72}
+>
+  <CodeBlock code={`origin  =  scheme  +  host             +  port
+           https      app.example.com     443     ← кортеж, а не строка URL`} size={12} lh={1.7} pad="16px 18px" />
+
+  <CardGrid min={300} gap={14} align="start">
+    {ORIGIN_PARTS.map((part) => (
+      <Card tone={part.tone ?? 'neutral'} title={part.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={part.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Что SOP запрещает — всё это про чтение" titleSize={16.5} pad={18} radius={5} gap={11}>
+      <CheckList items={SOP_FORBIDS} tone="err" size={14.5} />
+    </Card>
+
+    <Card tone="warn" title="Что SOP НЕ запрещает — про отправку" titleSize={16.5} pad={18} radius={5} gap={11}>
+      <CheckList items={SOP_ALLOWS} tone="ok" size={14.5} />
+    </Card>
+  </CardGrid>
+
+  <Callout size={18} pad="20px 22px" fg="on-ink">
+
+    **SOP — это политика чтения, а не отправки.** Всё, что интуитивно кажется «браузер не даст
+    этого сделать», на самом деле означает «браузер сделает, но не покажет результат».
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SOP} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SOP_SPECTRE} />
+
+  <Card title="SOP, CORS и CSP: кто решает и что будет при нарушении" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['', 'кто принимает решение', 'про что оно', 'что будет при нарушении']}
+      rows={LEVELS_ROWS.map((r) => [r.k, r.who, r.about, r.broken])}
+      kinds={['mono', 'prose', 'prose', 'muted']}
+      cols="minmax(110px,.5fr) minmax(200px,1fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+      minWidth={780}
+    />
+
+    <CardNote tone="prose">
+
+      Практический признак, по которому их различают за секунду:
+
+    </CardNote>
+
+    <CheckList items={DEBUG_SIGNS} tone="ok" size={14.5} />
+  </Card>
+
+  <Card tone="warn" title="Куки живут не по правилам источников — и это ломает интуицию" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Куки появились раньше SOP и устроены по-другому: их область видимости определяется
+    **доменом и путём**, порт **не учитывается вообще**, а схема — лишь частично.
+
+    <CardGrid min={260} gap={12}>
+      {COOKIE_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.55}>
+          <Md text={fact.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+    <CodeBlock code={HOST_COOKIE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="ok">
+
+      Практический вывод: сессионную куку называйте `__Host-session`, а не `session`. Браузер
+      отвергнет её молча, если забыть `Secure` или дописать `Domain`, — и ошибка всплывёт
+      на первом же входе, а не в отчёте о взломе.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={DOMAIN_GONE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="CORS и preflight"
+  lead="Одни запросы браузер отправляет сразу, другие — только после разрешения сервера. Граница выводится из одного вопроса: мог ли это отправить обычный <form> в 2005 году."
+  leadWidth={72}
+>
+  <Callout size={18} pad="20px 22px">
+    <Md text={SIMPLE_IDEA} />
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PREFLIGHT} />
+
+  <Card title="Точные условия «простого» запроса" titleSize={18} pad={22} gap={14}>
+
+    Fetch Standard называет это CORS-safelisted request. Все условия должны выполняться
+    одновременно — но заучивать список не надо, он выводится из вопроса про форму.
+
+    <NumberedList items={SIMPLE_RULES} size={15} />
+
+    <CardNote tone="err">
+
+      **Вывод неожиданный и опасный:** `POST` с `Content-Type: text/plain` и JSON-телом внутри —
+      **простой** запрос. Preflight не будет, куки уйдут. Полный разбор с починкой — тонкое
+      место «Простой POST в JSON-API», а увидеть это можно прямо в демо ниже.
+
+    </CardNote>
+  </Card>
+
+  ### Соберите запрос сами
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CORS_DEMO_NOTE} />
+
+  <CorsPreflight client:visible />
+
+  ### Что уходит по проводу
+
+  <SecuritySequence diagram={PREFLIGHT_DIAGRAM} />
+
+  <CodeBlock code={PREFLIGHT_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <CardGrid min={290} gap={14} align="start">
+    {PREFLIGHT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" title="Главная неожиданность CORS: разрешение проверяется дважды" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Заголовки `Access-Control-Allow-*` проверяются **ещё раз, независимо от preflight**. Успешный
+    preflight разрешил только **отправку**; разрешение **прочитать ответ** даёт
+    `Access-Control-Allow-Origin` **на самом ответе**.
+
+    <CardNote tone="err">
+
+      Отсюда возможна ситуация: preflight `204` со всеми заголовками, реальный `PATCH` уходит,
+      сервер его выполняет, возвращает `200` — и `fetch` всё равно отклоняется с `TypeError`,
+      потому что на `200` забыли поставить CORS-заголовки. Заказ оплачен, фронт об этом не узнал,
+      пользователь жмёт кнопку второй раз. Именно поэтому заголовки выставляются **на всех
+      ответах**, а не только в обработчике `OPTIONS`.
+
+    </CardNote>
+  </Card>
+
+  ### CORS — разрешение, а не защита
+
+  <DarkPanel eyebrow="Правильный вопрос к CORS">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **CORS ослабляет SOP, а не добавляет защиты.** Поэтому вопрос «как
+      настроить CORS, чтобы защитить API» задан неправильно. Правильный: **кому именно
+      я разрешаю читать ответы моего API от имени залогиненного пользователя?**
+
+    </DarkText>
+  </DarkPanel>
+
+  <CardGrid min={290} gap={14} align="start">
+    {CORS_TRUTHS.map((item) => (
+      <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Настройка на сервере
+
+  <Card title="Настройку описывайте заголовками HTTP, а не опциями фреймворка" titleSize={18} pad={22} gap={14}>
+
+    Сначала опишите нужное поведение **набором заголовков** и только потом переводите его
+    на свой стек: такую конфигурацию можно проверить `curl`-ом, не запуская браузер,
+    и она не зависит от версии библиотеки.
+
+    <CodeBlock code={SERVER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CheckList items={SERVER_NOTES} tone="ok" size={14.5} />
+  </Card>
+
+  <Card tone="info" title="Почему заголовок ответа «пропал»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={EXPOSE_NOTE} />
+
+    <CodeBlock code={EXPOSE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="info">
+
+      Хорошая привычка: если фронт читает какой-то заголовок ответа, он должен быть перечислен
+      в `Expose-Headers` **всегда**, даже когда сейчас всё на одном origin. Иначе это мина,
+      которая сработает при первом же выносе API на отдельный хост.
+
+    </CardNote>
+  </Card>
+
+  ### Запрос с публичного сайта в локальную сеть
+
+  <Card tone="warn" title="Разрешение спрашивают у пользователя, а не у сервера" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={LOCAL_NETWORK_NOTE} />
+
+    <CardGrid min={260} gap={12}>
+      {LOCAL_NETWORK_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.55}>
+          <Md text={fact.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="warn">
+      <Md text={LOCAL_NETWORK_SOURCE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="CSP"
+  lead="CSP (Content Security Policy) — заголовок, в котором сервер перечисляет, откуда странице можно брать скрипты и другие ресурсы. Применяет его сам браузер, ещё до сети, и о каждом отказе он умеет отчитаться именем нарушенной директивы."
+  leadWidth={72}
+>
+  <Callout size={18} pad="20px 22px">
+    <Md text={CSP_WHY} />
+  </Callout>
+
+  <CardGrid min={300} gap={14} align="start">
+    {CSP_MECHANICS.map((item) => (
+      <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Почему не список доменов
+
+  <Card tone="err" title="Почему список доменов не работает" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Долгое время образцом CSP считался список разрешённых доменов (allowlist) вида
+    `script-src 'self' https://cdn.example.com`. Исследование Google (Weichselbaum, Spagnuolo,
+    Lekies, Janc, ACM CCS 2016) проверило этот подход на выборке больше миллиарда хостов:
+    **около 95% реальных политик со списком доменов обходились тривиально.** Все способы
+    обхода сводятся к одному: «разрешить домен» значит «разрешить **всё** с этого домена,
+    включая то, о чём вы не думали».
+
+    <CardGrid min={260} gap={12}>
+      {ALLOWLIST_FAILS.map((item) => (
+        <Card tone="err" title={item.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.55}>
+          <Md text={item.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="err">
+
+      Вывод исследования с тех пор стал стандартом: **не перечисляйте домены,
+      используйте nonce плюс `'strict-dynamic'`**.
+
+    </CardNote>
+  </Card>
+
+  ### Nonce и `'strict-dynamic'`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Nonce: что это на самом деле" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Nonce — случайная строка, которую сервер заново создаёт для каждого ответа и ставит
+      и в заголовок CSP, и в атрибут своих `<script>`. Скрипт, внедрённый через XSS, этой строки
+      не знает: атакующий управляет содержимым — тем, что попало в HTML через уязвимость, —
+      но не заголовком ответа, и угадать 128 случайных бит не может. **Nonce — это не «пароль от скриптов», а разделение того,
+      что положил сервер, и того, что попало в разметку по дороге.**
+
+      <CardNote tone="prose">
+
+        Аналогия — одноразовая печать на конверте. Подделать её нельзя не потому,
+        что она сложная, а потому, что она новая на каждом письме, и злоумышленник видит письмо
+        уже после того, как печать поставлена.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Требования, каждое из которых обязательно" titleSize={16.5} pad={18} radius={5} gap={11}>
+      <CheckList items={NONCE_RULES} tone="ok" size={14.5} />
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" title="`'strict-dynamic'`: кому передаётся доверие, а кому нет" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Современное приложение — не один файл: главный скрипт сам, **из кода**, подгружает
+    остальные куски (чанки). Перечислить их в политике невозможно — в именах хеши, и они
+    меняются с каждой сборкой. `'strict-dynamic'` говорит браузеру: всё, что доверенный
+    скрипт загрузит сам, из кода, тоже доверенное.
+
+    <CodeBlock code={STRICT_DYNAMIC_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <Md text={STRICT_DYNAMIC_WHY} />
+
+    <CardNote tone="info">
+
+      **Побочный, очень важный эффект:** если в директиве есть `'strict-dynamic'`, в ней
+      **перестают действовать** списки хостов, схем и ключевое слово `'self'`. Это сделано
+      намеренно: раз списки доменов признаны ненадёжными, `'strict-dynamic'` их выключает,
+      чтобы они не создавали ложного чувства безопасности. Оставлять их можно только как
+      запасной вариант для очень старых браузеров.
+
+    </CardNote>
+  </Card>
+
+  ### Одна страница под тремя политиками
+
+  <CodeBlock code={CSP_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Md text={CSP_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {CSP_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Политика:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CSP_POLICIES} />
+
+  <Table
+    head={['политика', '(1) свой скрипт', '(2) свой чанк', '(3) чужой `<script>`', '(4) чужой `onerror`']}
+    rows={CSP_SCENE_ROWS}
+    kinds={['mono', 'muted', 'muted', 'muted', 'muted']}
+    cols="minmax(200px,1.3fr) minmax(90px,.5fr) minmax(90px,.5fr) minmax(170px,1fr) minmax(90px,.5fr)"
+    minWidth={700}
+  />
+
+  ### Проверьте в своём браузере
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CSP_DEMO_NOTE} />
+
+  <CspSandbox client:visible />
+
+  ### Целевая политика и как к ней прийти
+
+  <Card title="Политика, к которой стоит прийти, и что `default-src` не покрывает" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={TARGET_POLICY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+    <Table
+      head={['директива', 'что делает', 'почему её пишут явно']}
+      rows={MUST_WRITE_ROWS.map((r) => [r.k, r.what, r.why])}
+      kinds={['mono', 'prose', 'prose']}
+      cols="minmax(170px,.8fr) minmax(170px,.8fr) minmax(300px,1.8fr)"
+      minWidth={760}
+    />
+  </Card>
+
+  <Card tone="ok" title="Включать CSP — только через режим «только отчёты»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Включить строгий CSP сразу в боевом режиме на живом продукте — гарантированный белый экран
+    у части пользователей: вы не знаете полного списка того, что реально грузится. Старая
+    аналитика, тег менеджера, скрипт партнёра, вставленный маркетингом полгода назад.
+
+    <CodeBlock code={REPORT_ONLY_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+    Первый заголовок — политика, которую вы уже можете применять. Второй (report-only) —
+    та, к которой идёте: браузер её не применяет, а только присылает отчёты о нарушениях.
+    Читаете отчёты, чините то, что нарушает, ужесточаете первую политику, а в конце меняете
+    заголовки местами.
+
+    <CheckList items={REPORT_FACTS} tone="err" size={14.5} />
+  </Card>
+
+  <Card tone="warn" title="Стили: отдельный заход, и не первый" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={STYLE_NOTE} />
+
+    <CodeBlock code={VUE_STYLE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="warn">
+      <Md text={VUE_STYLE_WHY} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="XSS"
+  lead="Чужой код, попавший на вашу страницу, для браузера не «скрипт со стороны» — он и есть ваша страница, со всеми её правами. Поэтому вопрос не в том, как такой код отфильтровать, а в том, как не дать данным попасть туда, где браузер прочитает их как код."
+  leadWidth={72}
+>
+  <Callout size={18} pad="20px 22px">
+    <Md text={XSS_DEF} />
+  </Callout>
+
+  <Table
+    head={['вид', 'где лежит вредоносный код', 'кого задевает', 'видно ли на сервере']}
+    rows={XSS_KINDS_ROWS.map((r) => [r.k, r.where, r.who, r.seen])}
+    kinds={['mono', 'prose', 'prose', 'muted']}
+    cols="minmax(140px,.7fr) minmax(240px,1.4fr) minmax(170px,.9fr) minmax(140px,.7fr)"
+    minWidth={760}
+  />
+
+  <Card tone="err" title="Почему DOM-based важнее прочих именно в SPA" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={DOM_XSS_NOTE} />
+
+  ### Где данные становятся кодом
+
+  <Card title="`innerHTML` и `v-html`: где именно опасность" titleSize={18} pad={22} gap={14}>
+
+    Многие знают, что скрипт, вставленный через `innerHTML`, **не выполняется**, — и делают
+    неверный вывод, что `innerHTML` безопасен.
+
+    <CodeBlock code={INNERHTML_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <NumberedList items={INNERHTML_STEPS} size={15} />
+
+    <CardNote tone="err">
+      <Md text={INNERHTML_FIX} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="Где Vue не защищает, хотя кажется, что защищает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={SAFE_URL_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="warn">
+        <Md text={SAFE_URL_WHY} />
+      </CardNote>
+    </Card>
+
+    <Card title="Санитайзеры: что умеют и где не помогают" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      **DOMPurify** — правильный инструмент, если пользовательский HTML действительно нужен:
+      редактор, комментарии с форматированием. Он разбирает строку в DOM-дерево, обходит его
+      и вырезает всё, чего нет в белом списке, включая все атрибуты `on*`. Но у него есть три
+      слепые зоны.
+
+      {SANITIZER_GAPS.map((gap) => (
+        <Md text={`**${gap.t}.** ${gap.d}`} />
+      ))}
+
+      <Md text={SANITIZER_API} />
+
+      <CardNote tone="err">
+        <Md text={SANITIZER_RULE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" title="Загруженные файлы: XSS без единой строки вашего кода" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={UPLOAD_NOTE} />
+
+    <CheckList items={UPLOAD_RULES} tone="ok" size={14.5} />
+  </Card>
+
+  ### Закрыть класс целиком
+
+  <Card tone="ok" title="Trusted Types: закрыть проблему целиком, а не по одному месту" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TRUSTED_TYPES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock code={TRUSTED_TYPES_JS} size={11} lh={1.65} pad="14px 16px" />
+
+    <Md text={TRUSTED_TYPES_WHY} />
+
+    <CardNote tone="ok">
+
+      Внедрять по шагам. Включить `require-trusted-types-for 'script'` в режиме **report-only**.
+      Собрать список нарушений — это заодно полная карта мест, где ваш код пишет HTML в DOM,
+      полезная сама по себе. Завести политику, переписать эти места — и только потом включить
+      принудительный режим (enforce).
+
+    </CardNote>
+  </Card>
+
+  <Card title="Порядок работ по XSS" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={XSS_ORDER} size={15} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="CSRF и кликджекинг"
+  lead="Две атаки, в которых нет ни одной ошибки в вашем коде. Обе построены на том, что браузер по умолчанию готов действовать от имени пользователя на чужом сайте — и обе поэтому лечатся не исправлением бага, а явными заголовками."
+  leadWidth={72}
+>
+  <Callout size={18} pad="20px 22px">
+    <Md text={AMBIENT_AUTHORITY} />
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CSRF} />
+
+  ### Как проходит атака
+
+  <SecuritySequence diagram={CSRF_DIAGRAM} />
+
+  <Card tone="err" title="Как проходит атака, по шагам" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CSRF_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <NumberedList items={CSRF_STEPS} size={15} />
+
+    <CardNote tone="err">
+      <Md text={CSRF_CORS_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### `SameSite`: барьер на стороне браузера
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SITE} />
+
+  <CodeBlock code={SAMESITE_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Md text={SAMESITE_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {SAMESITE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SAMESITE} />
+
+  <Card title="`SameSite`: что именно делает каждое значение" titleSize={18} pad={22} gap={14}>
+
+    «Свой сайт» здесь считается по **site** — регистрируемому домену вроде `example.com`
+    (технически его зовут eTLD+1), а не по origin. Поэтому забытый поддомен с XSS пробивает
+    `SameSite`: для браузера это тот же сайт.
+
+    <Table
+      head={['сценарий', '`Strict`', '`Lax`', '`None`']}
+      rows={SAMESITE_ROWS.map((r) => [r.k, r.strict, r.lax, r.none])}
+      kinds={['prose', 'muted', 'muted', 'muted']}
+      cols="minmax(260px,1.6fr) minmax(90px,.4fr) minmax(90px,.4fr) minmax(90px,.4fr)"
+      minWidth={640}
+    />
+
+    <CardNote tone="prose">
+
+      \* Единственное исключение — Chromium и кука, получившая `Lax` **по умолчанию**: разбор
+      в карточке про звёздочку ниже.
+
+    </CardNote>
+
+    <CardGrid min={260} gap={12}>
+      {SAMESITE_NOTES.map((note) => (
+        <Card tone={note.tone ?? 'neutral'} title={note.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.55}>
+          <Md text={note.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+  </Card>
+
+  ### Барьеры на стороне сервера
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="info" title="Токены: синхронизирующий и double-submit" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DOUBLE_SUBMIT_NOTE} />
+
+    <Card tone="ok" title="Fetch Metadata — самый дешёвый современный слой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={FETCH_META_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="ok">
+        <Md text={FETCH_META_WHY} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Кликджекинг и базовые заголовки
+
+  <Card tone="err" title="Кликджекинг" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Md text={CLICKJACK_NOTE} />
+
+    <CodeBlock code={CLICKJACK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+      <Md text={XFO_NOTE} />
+
+      Критично: `frame-ancestors` **не работает в `<meta>`** — только в HTTP-заголовке.
+      Разбор причины — в тонком месте про `frame-ancestors`.
+
+    </CardNote>
+  </Card>
+
+  <Card title="Остальные заголовки, которые стоит поставить всегда" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['заголовок', 'что делает', 'зачем именно']}
+      rows={BASELINE_ROWS.map((r) => [r.k, r.what, r.why])}
+      kinds={['mono', 'prose', 'prose']}
+      cols="minmax(170px,.8fr) minmax(160px,.8fr) minmax(320px,1.9fr)"
+      minWidth={780}
+    />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Куки и JWT глазами фронтендера"
+  lead="Куки и токены со стороны того, кто пишет фронт: что у него в руках, чего он про куку не узнает никогда и во что это обходится в коде."
+  leadWidth={72}
+>
+  <Callout size={18} pad="20px 22px">
+
+    **Полезную нагрузку JWT читает кто угодно: вы, пользователь, расширение браузера и любой
+    скрипт на странице.** `base64url` — это кодировка, а не шифр. Всё остальное про токены
+    на фронте выводится отсюда.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_JWT} />
+
+  ### JWT: что в нём и кто его читает
+
+  <Card title="Устройство: три части через точку" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={JWT_ANATOMY_CODE} size={10} lh={1.7} pad="16px 18px" />
+
+    <CardGrid min={280} gap={14} align="start">
+      {JWT_PARTS.map((part) => (
+        <Card tone={part.tone ?? 'neutral'} title={part.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.55}>
+          <Md text={part.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+  </Card>
+
+  <Card tone="warn" title="Как прочитать нагрузку и две ловушки по дороге" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={JWT_READ_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CheckList items={JWT_READ_TRAPS} tone="err" size={14.5} />
+
+    <CardNote tone="warn">
+      <Md text={JWT_RUN_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Чего фронт не может: проверить подпись" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={JWT_SIGNATURE_NOTE} />
+
+    <Card tone="info" title="`exp` — для удобства, не для безопасности" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={EXP_NOTE} />
+  </CardGrid>
+
+  ### Где хранить токен
+
+  <Md text={STORAGE_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {STORAGE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Как устроено:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOKEN_STORAGE} />
+
+  <Card title="Где хранить токен: у каждого места своя цена" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['', '`httpOnly` cookie', '`localStorage`', 'память (переменная в JS)']}
+      rows={TOKEN_STORAGE_ROWS.map((r) => [r.k, r.cookie, r.ls, r.mem])}
+      kinds={['prose', 'muted', 'muted', 'muted']}
+      cols="minmax(230px,1.3fr) minmax(150px,.8fr) minmax(130px,.7fr) minmax(160px,.9fr)"
+      minWidth={720}
+    />
+
+    <CardNote tone="err">
+      <Md text={HTTPONLY_TRUTH} />
+    </CardNote>
+  </Card>
+
+  ### Кука или заголовок, и зачем два токена
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="SPA с Bearer-токеном: что меняется" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={BEARER_TRADE} />
+
+    <Card tone="ok" title="Рабочая схема" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={AUTH_SCHEME_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+      <CheckList items={AUTH_SCHEME_NOTES} tone="ok" size={14.5} />
+    </Card>
+  </CardGrid>
+
+  <Card title="Access и refresh: зачем их два" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['', 'access-токен', 'refresh-токен']}
+      rows={TOKEN_PAIR_ROWS.map((r) => [r.k, r.access, r.refresh])}
+      kinds={['prose', 'muted', 'muted']}
+      cols="minmax(200px,1fr) minmax(230px,1.3fr) minmax(250px,1.4fr)"
+      minWidth={740}
+    />
+
+    <CardNote tone="prose">
+      <Md text={TOKEN_PAIR_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Когда API на другом сайте
+
+  <Card title="Кросс-сайтовый запрос к своему API" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={CROSS_SITE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+    <CardGrid min={290} gap={14} align="start">
+      {CROSS_SITE_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.55}>
+          <Md text={fact.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+  </Card>
+
+  ### Гонка обновления и слепые зоны
+
+  <Card tone="err" title="Гонка обновления токена между вкладками" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Отдельный баг, который не воспроизводится на одной вкладке и поэтому доживает до пользователей:
+    пользователь жалуется, что его «иногда выкидывает», а в логах ровно один законный запрос
+    на обновление и один отказ.
+
+    <NumberedList items={REFRESH_RACE_STEPS} size={15} />
+
+    <CodeBlock code={REFRESH_LOCK_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="err">
+      <Md text={REFRESH_LOCK_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Чего фронт не видит в принципе" titleSize={18} pad={22} gap={14}>
+
+    Правильное хранение сессии — это `httpOnly`-кука, и платят за него тем, что фронт её
+    не видит. Три вещи, которые кажутся элементарными, фронту недоступны вовсе.
+
+    <CardGrid min={280} gap={14} align="start">
+      {BLIND_SPOTS.map((item) => (
+        <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15} lh={1.55}>
+          <Md text={item.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="prose">
+      <Md text={BLIND_SPOT_RUN} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+  lead="Спецификации меняются медленно, и в спорном вопросе последнее слово за ними. Статьи и инструменты устаревают быстро, зато объясняют, зачем что-то придумано, — в спецификации этого нет."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    {SOURCES.map((group) => (
+      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
+        {group.items.map((item) => (
+          <Md text={item} />
+        ))}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [безопасность бэкенда глазами фронтенда](/platform/backend-security/) —
+    чужой объект по id, запрос на адрес пользователя, инъекции и лишние поля в теле запроса.
+    [Встроенный контент без сторонних кук](/platform/third-party-cookies/) —
+    CHIPS, разделённое хранилище и Storage Access для виджетов на чужих сайтах.
+    [Сеть и кеширование](/platform/network/#s3) — preflight как лишний RTT
+    и его отдельный кеш, `Vary` и сжатие. [Воркеры и параллелизм](/js/workers/#s5) — изоляция
+    агентов и `crossOriginIsolated`. [Устройство браузера](/js/browser-architecture/#s1) — процессы,
+    Spectre, ORB и почему единица изоляции site, а не origin.
+    [Аутентификация](/platform/authentication/) — сессии и токены, OAuth с PKCE и OIDC
+    глазами фронтенда.
+    [CSP и Trusted Types](/platform/csp/) — строгая политика на nonce, отчёты и поэтапное внедрение.
+    [Загрузка файлов](/platform/uploads/) — проверка типа по первым байтам, лимиты и чистка имени файла.
+    [Цепочка поставок](/platform/supply-chain/) — SRI для скриптов с CDN и `integrity` в lock-файле.
+
+  </Card>
+</Section>

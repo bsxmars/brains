@@ -1,0 +1,233 @@
+---
+/**
+ * Способы «скопировать строку» — и сколько памяти каждый из них удерживает.
+ *
+ * Два отличия от оригинала. Первое: список отсортирован по удержанию, а не записан в том
+ * порядке, в каком приёмы вспомнились, — так работающие приёмы стоят вместе и видно, что
+ * их ровно половина. Второе: сверху стоит опорная линия контроля — прогон, в котором мы не
+ * держим ничего. Без неё 3.2 МБ выглядят как «мало», а не как «столько же, сколько если бы
+ * строки не было вовсе», а именно это и есть содержание замера.
+ */
+import { niceTicks } from '@/shared/lib/chart';
+import type { CopyWay } from '../model/types';
+
+interface Props {
+  ways: CopyWay[];
+  /** `heapUsed` в прогоне, где не держат ничего, МБ. */
+  control: number;
+  eyebrow?: string;
+  caption?: string;
+}
+
+const { ways, control, eyebrow, caption } = Astro.props;
+
+/** Сортируем по удержанию: сначала то, что родителя отпустило. Порядок внутри группы прежний. */
+const sorted = ways
+  .map((way, i) => ({ way, i }))
+  .sort((a, b) => a.way.mb - b.way.mb || a.i - b.i)
+  .map(({ way }) => way);
+
+const max = Math.max(control, ...ways.map((w) => w.mb));
+const width = (mb: number) => Math.max(2, (mb / max) * 100);
+
+/**
+ * Шкала снизу. Без неё длина полосы говорит только «больше-меньше», а весь смысл замера
+ * в том, во сколько раз: 3.2 МБ против 50 — это не «поменьше», это «не удерживает ничего».
+ * Деления круглые, и выбирает их шов к d3, а не глазомер.
+ */
+const ticks = niceTicks([0, max], 4).filter((value) => value <= max);
+---
+
+<figure class="panel">
+  {eyebrow && <figcaption class="t-eyebrow t-eyebrow--panel">{eyebrow}</figcaption>}
+
+  <div class="rows">
+    <div class="row row--control">
+      <span class="row__code">контроль · не держим ничего</span>
+      <div class="track">
+        <div class="fill fill--control" style={`width:${width(control)}%`}></div>
+      </div>
+      <span class="row__mb">{control.toFixed(1)} МБ</span>
+      <span class="row__verdict">опорная линия</span>
+    </div>
+
+    {
+      sorted.map((way) => (
+        <div class="row" data-ok={way.copies ? 'yes' : 'no'}>
+          <span class="row__code">
+            {way.code}
+            {way.note && <i class="row__note">{way.note}</i>}
+          </span>
+          <div class="track">
+            <div class="fill" data-ok={way.copies ? 'yes' : 'no'} style={`width:${width(way.mb)}%`} />
+          </div>
+          <span class="row__mb">{way.mb.toFixed(1)} МБ</span>
+          <span class="row__verdict">{way.copies ? '✓ копия' : '✗ тот же объект'}</span>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="axis">
+    <span aria-hidden="true"></span>
+    <div class="axis__track">
+      {
+        ticks.map((value) => (
+          <span class="axis__tick" style={`left:${(value / max) * 100}%`}>
+            {value}
+          </span>
+        ))
+      }
+    </div>
+    <span class="axis__unit">МБ</span>
+    <span aria-hidden="true"></span>
+  </div>
+
+  {caption && <div class="caption">{caption}</div>}
+</figure>
+
+<style>
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Дорожка — главная колонка, а не остаток от кода.
+     Раньше код забирал полторы доли, а полосе доставалось максимум 150px: разница между
+     3.2 МБ и 53.2 МБ вырождалась в точку рядом со штрихом, и диаграмма переставала быть
+     диаграммой. Код переносится — у него для этого есть `overflow-wrap`. */
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr) auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .row:last-child {
+    border-bottom: 0;
+  }
+  /* Контроль отбит снизу линией потемнее: всё, что ниже, сравнивается именно с ним. */
+  .row--control {
+    border-bottom: 1px dashed var(--border-strong);
+    padding-bottom: 11px;
+    margin-bottom: 3px;
+  }
+
+  .row__code {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    color: var(--ink);
+  }
+  .row[data-ok='no'] .row__code {
+    color: var(--tone-err-strong);
+  }
+  .row--control .row__code {
+    color: var(--text-faint);
+  }
+  .row__note {
+    font-style: normal;
+    font-size: var(--fs-2);
+    color: var(--text-faint);
+  }
+
+  /* `min-width: 0` — полоса обязана сжиматься вместе с колонкой, а не распирать сетку. */
+  .track {
+    min-width: 0;
+  }
+  .fill {
+    height: 14px;
+    border-radius: var(--r1);
+  }
+  .fill[data-ok='yes'] {
+    background: var(--bar-green);
+  }
+  .fill[data-ok='no'] {
+    background: var(--bar-red);
+  }
+  .fill--control {
+    background: var(--bar-neutral);
+  }
+
+  .row__mb,
+  .row__verdict {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    white-space: nowrap;
+    color: var(--tone-ok-strong);
+  }
+  .row[data-ok='no'] .row__mb,
+  .row[data-ok='no'] .row__verdict {
+    color: var(--tone-err-strong);
+  }
+  .row--control .row__mb,
+  .row--control .row__verdict {
+    color: var(--text-faint);
+  }
+
+  /* Ось повторяет сетку строки, чтобы деления встали ровно под дорожками. */
+  .axis {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr) auto auto;
+    gap: 12px;
+    align-items: start;
+    padding-top: 7px;
+  }
+  .axis__track {
+    position: relative;
+    min-width: 0;
+    height: 14px;
+  }
+  .axis__tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    white-space: nowrap;
+    color: var(--dim);
+  }
+  .axis__unit {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--dim);
+  }
+
+  .caption {
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+
+  /* На узком экране четыре колонки не живут: код занимает строку целиком, цифры уходят вниз. */
+  @media (max-width: 620px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      row-gap: 7px;
+    }
+    .row__code {
+      grid-column: 1 / span 2;
+    }
+    /* Шкала на телефоне бесполезна: колонки складываются, деления перестают стоять под
+       полосами, а число и так подписано у каждой строки. */
+    .axis {
+      display: none;
+    }
+  }
+</style>

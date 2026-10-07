@@ -1,0 +1,191 @@
+---
+/**
+ * Вариантность одной картинкой: колонки «про собак» и «про животных» стоят на месте,
+ * а между ними разворачивается стрелка присваивания. Ради этого разворота схема и нужна —
+ * в карточках раздела «Вариантность» те же четыре места описаны словами, и то, что стрелка
+ * у входа смотрит в обратную сторону, приходится собирать в голове.
+ *
+ * На узком экране колонки встают друг под друга, и стрелка поворачивается на четверть
+ * оборота: «вправо» становится «вниз», «влево» — «вверх». Смысл «X подходит туда, где ждут Y»
+ * при этом сохраняется, потому что порядок ячеек тот же.
+ *
+ * Строки — пропом из `data.ts` темы (`VARIANCE_DIAGRAM`), печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+type Dir = 'right' | 'left' | 'both';
+type Tone = 'neutral' | 'ok' | 'info' | 'warn' | 'err';
+
+interface Props {
+  diagram: {
+    title: string;
+    legend: string;
+    dogHead: string;
+    animalHead: string;
+    rows: { place: string; dog: string; animal: string; dir: Dir; tone: Tone; verdict: string }[];
+  };
+}
+
+const { diagram } = Astro.props;
+
+const ARROW: Record<Dir, string> = { right: '→', left: '←', both: '⇄' };
+---
+
+<figure class="tvd-frame">
+  <figcaption class="t-eyebrow t-eyebrow--panel">{diagram.title}</figcaption>
+  <div class="tvd-legend" set:html={inlineMd(diagram.legend)} />
+
+  <div class="tvd-heads" aria-hidden="true">
+    <span></span>
+    <span class="tvd-head">{diagram.dogHead}</span>
+    <span></span>
+    <span class="tvd-head">{diagram.animalHead}</span>
+  </div>
+
+  <ol class="tvd-rows">
+    {
+      diagram.rows.map((row) => (
+        <li class={`tvd-row tvd-row--${row.tone}`}>
+          <span class="tvd-place">{row.place}</span>
+          <span class="tvd-cell" data-head={diagram.dogHead} set:html={inlineMd(row.dog)} />
+          <span class="tvd-arrow" data-dir={row.dir} aria-label={ARROW[row.dir]}>
+            {ARROW[row.dir]}
+          </span>
+          <span class="tvd-cell" data-head={diagram.animalHead} set:html={inlineMd(row.animal)} />
+          <span class="tvd-verdict" set:html={inlineMd(row.verdict)} />
+        </li>
+      ))
+    }
+  </ol>
+
+</figure>
+
+<style>
+  .tvd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  /* Одна сетка на шапку и строки: место · про собак · стрелка · про животных. */
+  .tvd-heads,
+  .tvd-row {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr) 44px minmax(0, 1fr);
+    column-gap: 10px;
+    align-items: center;
+  }
+  .tvd-heads {
+    padding: 0 14px;
+  }
+  .tvd-head {
+    font-size: var(--fs-3);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .tvd-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .tvd-row {
+    row-gap: 8px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--border-strong);
+    border-radius: var(--r2);
+    background: var(--surface-2);
+  }
+  .tvd-row--ok {
+    border-left-color: var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+  }
+  .tvd-row--info {
+    border-left-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+  }
+  .tvd-row--warn {
+    border-left-color: var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+  }
+  .tvd-row--err {
+    border-left-color: var(--tone-err-line);
+    background: var(--tone-err-bg);
+  }
+
+  .tvd-place {
+    font-size: var(--fs-3);
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .tvd-cell {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r1);
+    background: var(--surface);
+    font-size: var(--fs-4);
+    overflow-wrap: anywhere;
+  }
+  .tvd-arrow {
+    justify-self: center;
+    font-size: var(--fs-7);
+    font-weight: 600;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .tvd-row--ok .tvd-arrow {
+    color: var(--tone-ok-strong);
+  }
+  .tvd-row--info .tvd-arrow {
+    color: var(--tone-info-strong);
+  }
+  .tvd-row--warn .tvd-arrow {
+    color: var(--tone-warn-strong);
+  }
+  .tvd-row--err .tvd-arrow {
+    color: var(--tone-err-strong);
+  }
+  .tvd-verdict {
+    grid-column: 2 / -1;
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--prose);
+  }
+
+  .tvd-legend {
+    margin-bottom: 4px;
+    font-size: var(--fs-4);
+    color: var(--text-muted);
+  }
+
+  /* Узкий экран: ячейки друг под другом, стрелка повёрнута — «вправо» читается «вниз». */
+  @media (max-width: 620px) {
+    .tvd-heads {
+      display: none;
+    }
+    .tvd-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .tvd-verdict {
+      grid-column: auto;
+    }
+    .tvd-cell::before {
+      content: attr(data-head) ': ';
+      font-size: var(--fs-3);
+      color: var(--text-muted);
+    }
+    .tvd-arrow {
+      transform: rotate(90deg);
+    }
+  }
+</style>

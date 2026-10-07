@@ -1,0 +1,390 @@
+---
+title: "Vue 3 изнутри: рендерер и patch"
+order: 12
+kicker: фреймворки изнутри
+lead: "Рендерер Vue помещается в несколько сотен строк: `patch` сравнивает два дерева обычных объектов и отдаёт хосту список работ, для списков с ключами ищет наибольшую возрастающую подпоследовательность, а флаги компилятора позволяют не смотреть на статику. Мини-версия ниже исполняется на странице, а тест сверяет её журнал операций с настоящим рендерером Vue 3.5."
+leadWidth: 66
+summary: "Свой `createRenderer` — VNode, `patch`, дети без ключей и с ключами, LIS, флаги патча и блоки, компонент как эффект — на журналирующем хосте, сверенный по операциям с `@vue/runtime-core` 3.5 в обеих сборках."
+verifiedOn: Vue 3.5.42 · Node 26.8.2
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: VNode }
+  - { id: s2, label: mount и patch }
+  - { id: s3, label: Без ключей }
+  - { id: s4, label: С ключами }
+  - { id: s5, label: Вживую }
+  - { id: s6, label: Флаги и блоки }
+  - { id: s7, label: Компонент }
+  - { id: s8, label: Vue иначе }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MiniPatch from '@/widgets/mini-patch/ui/MiniPatch.vue';
+import {
+  MINI_PATCH_CODE, STEP_VNODE, STEP_HOST, STEP_PATCH, STEP_CHILDREN, STEP_KEYED, STEP_LIS,
+  STEP_FLAGS, STEP_QUEUE, STEP_COMPONENT, RENDERER_SHAPE,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ, PREREQ_NOTE,
+  PLAIN_VNODE, VNODE_CODE, VNODE_LOG, SHAPE_NOTE, KEY_NOTE, EL_NOTE, BLOCK_TEASER,
+  PLAIN_HOST, HOST_NOTE, MOUNT_CODE, MOUNT_LOG, SAME_TYPE_NOTE, INSERT_LAST_NOTE, UNMOUNT_NOTE,
+  PLAIN_KEY, UNKEYED_CODE, UNKEYED_LOG, UNKEYED_NOTE, NOKEY_NOTE, INDEX_KEY_NOTE,
+  SYNC_NOTE, MAP_NOTE, KEYED_WALK, KEYED_LOG, PLAIN_LIS, LIS_NOTE, BACKWARD_NOTE,
+  MOVES_HEAD, MOVES_ROWS, MOVES_NOTE, REACT_NOTE,
+  DEMO_NOTE, PATCH_SCENARIOS,
+  PLAIN_FLAGS, TEMPLATE_SAMPLE, COMPILED_SAMPLE, COMPILED_NOTE, FLAGS_CODE, FLAGS_LOG, FLAGS_NOTE,
+  FLAG_OUTSIDE_NOTE, PLAIN_BLOCK, BLOCK_CODE, BLOCK_LOG, BLOCK_NOTE, CACHED_NOTE, FRAGMENT_NOTE, STATIC_NOTE,
+  COMPONENT_LEAD, COMPONENT_CODE, COMPONENT_LOG, UPDATE_NOTE, DIRTY_NOTE, PROPS_NOTE, SLOTS_NOTE,
+  REAL_HEAD, REAL_ROWS, REAL_NOTE,
+  PITFALLS, SOURCES, RELATED,
+  LIS_SCENE_CODE, LIS_SCENE_NOTE, LIS_STRATEGIES, LIS_TRACE, LIS_TRACE_NOTE, PLAIN_LIS_STRATEGIES,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Идея"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="VNode: объект, описывающий узел"
+  lead="Рендер компонента возвращает не DOM, а дерево обычных объектов. У каждого — тип, пропсы, дети и ключ, плюс два поля, которые считаются один раз при создании: `shapeFlag` — что это за узел, и `patchFlag` — что в нём может меняться."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VNODE} />
+
+  <CodeBlock code={STEP_VNODE} />
+
+  <Card title="Какой узел получается из `h`" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VNODE_CODE} />
+
+    <CodeBlock code={VNODE_LOG} />
+  </Card>
+
+  <CardGrid min={260} gap={16} align="start">
+    <Card title="`shapeFlag`: форма одним числом" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={SHAPE_NOTE} />
+
+    <Card title="`key` — не атрибут" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={KEY_NOTE} />
+
+    <Card title="`el`: мост к настоящему узлу" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={EL_NOTE} />
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55} text={BLOCK_TEASER} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Хост, `mount` и `patch`"
+  lead="Рендерер не знает, куда пишет: всё, что он умеет делать с настоящими узлами, приходит в `createRenderer` десятком функций. Здесь это хост, который вместо DOM ведёт журнал, — и тот же хост тест отдаёт настоящему рендереру Vue."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOST} />
+
+  <CodeBlock code={STEP_HOST} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={HOST_NOTE} />
+
+  ### `patch`: тот же узел или другой
+
+  <CodeBlock code={RENDERER_SHAPE} />
+
+  <CodeBlock code={STEP_PATCH} />
+
+  <Card title="Тот же тип — сверить, другой — заменить" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MOUNT_CODE} />
+
+    <CodeBlock code={MOUNT_LOG} />
+
+    <Md text={SAME_TYPE_NOTE} />
+  </Card>
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Вставка — последней" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={INSERT_LAST_NOTE} />
+
+    <Card title="Снять поддерево — одна операция" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={UNMOUNT_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Дети без ключей: сверка по позиции"
+  lead="`patchChildren` решает, как сравнивать детей: текст с текстом, массив с массивом, одно на другое. Для массивов без ключей всё просто — общая длина патчится попарно, лишние старые удаляются, лишние новые добавляются."
+  leadWidth={72}
+>
+  <CodeBlock code={STEP_CHILDREN} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEY} />
+
+  <Card title="`[A, B, C] → [C, A, B]` без ключей" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={UNKEYED_CODE} />
+
+    <CodeBlock code={UNKEYED_LOG} />
+
+    <Md text={UNKEYED_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={NOKEY_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={INDEX_KEY_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Дети с ключами: края, карта, LIS"
+  lead="С ключами узел узнаётся где угодно, и задача меняется: не «что поменялось на позиции», а «как переставить старые узлы в новый порядок за наименьшее число операций». Vue решает её в пять шагов, и три из них — дешёвые проходы с краёв."
+  leadWidth={72}
+>
+  <CodeBlock code={STEP_KEYED} />
+
+  ### Синхронизация с начала и с конца
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={SYNC_NOTE} />
+
+  ### Середина: карта ключей и `newIndexToOldIndex`
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={MAP_NOTE} />
+
+  <Card title="Разбор: `ABCDEFG → ABECDHFG`" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={KEYED_WALK} />
+
+    <CodeBlock code={KEYED_LOG} />
+  </Card>
+
+  ### LIS: кого не двигать
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIS} />
+
+  <CodeBlock code={STEP_LIS} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Почему LIS — это минимум перемещений" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={LIS_NOTE} />
+
+    <Card tone="warn" title="Справа налево" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={BACKWARD_NOTE} />
+  </CardGrid>
+
+  ### Три способа переставить одну середину
+
+  <CodeBlock code={LIS_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={LIS_SCENE_NOTE} />
+
+  Та же середина — под каждой из трёх стратегий.
+
+  <CardGrid min={290} gap={14} align="start">
+    {LIS_STRATEGIES.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="`getSequence([5, 3, 4, 0])` по шагам" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LIS_TRACE} />
+
+    <Md text={LIS_TRACE_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIS_STRATEGIES} />
+
+  ### Сколько это экономит
+
+  <Table
+    head={MOVES_HEAD}
+    rows={MOVES_ROWS}
+    kinds={['prose', 'muted', 'muted', 'muted']}
+    cols="minmax(260px,1.8fr) minmax(90px,.6fr) minmax(90px,.6fr) minmax(110px,.7fr)"
+    minWidth={600}
+  />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55} text={MOVES_NOTE} />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={REACT_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="`patchKeyedChildren` по шагам"
+  lead="Выберите сценарий и идите по шагам: края, карта ключей, `newIndexToOldIndex`, LIS и проход справа налево. Внизу — операции, которые рендерер отдал хосту, и ряд «хост сейчас» — порядок узлов после шага."
+  leadWidth={72}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEMO_NOTE} />
+
+  <MiniPatch client:visible code={MINI_PATCH_CODE} scenarios={PATCH_SCENARIOS} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Флаги патча и блоки: не сравнивать статику"
+  lead="Функция рендера, написанная руками через `h`, может вернуть что угодно, и `patch` вынужден сравнивать всё. Шаблон — нет: компилятор видит, где выражения, а где буквы, и оставляет рендереру две подсказки — флаг на узле и плоский список динамических узлов на блоке."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLAGS} />
+
+  <Card title="Что выдаёт компилятор 3.5.42" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TEMPLATE_SAMPLE} />
+
+    <CodeBlock code={COMPILED_SAMPLE} />
+
+    <Md text={COMPILED_NOTE} />
+  </Card>
+
+  <CodeBlock code={STEP_FLAGS} />
+
+  ### Флаг — обещание
+
+  <Card title="`TEXT` и сменившийся класс" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FLAGS_CODE} />
+
+    <CodeBlock code={FLAGS_LOG} />
+
+    <Md text={FLAGS_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={FLAG_OUTSIDE_NOTE} />
+
+  ### Блок: плоский список динамики
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BLOCK} />
+
+  <Card title="Статика внутри блока не сравнивается" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BLOCK_CODE} />
+
+    <CodeBlock code={BLOCK_LOG} />
+
+    <Md text={BLOCK_NOTE} />
+  </Card>
+
+  ### Кеш статики, фрагмент, статика одной строкой
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="`_cache` вместо `_hoisted`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={CACHED_NOTE} />
+
+    <Card title="Фрагмент у `v-for`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={FRAGMENT_NOTE} />
+
+    <Card title="`createStaticVNode`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={STATIC_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Компонент: эффект, который патчит своё поддерево"
+  lead={COMPONENT_LEAD}
+  leadWidth={72}
+>
+  <CodeBlock code={STEP_QUEUE} />
+
+  <CodeBlock code={STEP_COMPONENT} />
+
+  <Card title="Три записи, пропс, два компонента" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={COMPONENT_CODE} />
+
+    <CodeBlock code={COMPONENT_LOG} />
+
+    <Md text={UPDATE_NOTE} />
+  </Card>
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="warn" title="`dirty` против двойного рендера" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={DIRTY_NOTE} />
+
+    <Card title="Пропсы" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={PROPS_NOTE} />
+
+    <Card title="Слоты" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={SLOTS_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Что в Vue 3.5 иначе"
+  lead="Мини-версия повторяет форму рендерера 3.5 и его журнал операций на всём, что умеет. Отличаются охват и страховки настоящей реализации."
+  leadWidth={72}
+>
+  <Table
+    head={REAL_HEAD}
+    rows={REAL_ROWS}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(170px,.8fr) minmax(190px,.9fr) minmax(300px,1.7fr)"
+    minWidth={720}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={REAL_NOTE} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Тонкие места"
+  lead="Места, где рендерер ошибается молча: дерево собирается, исключений нет, а в DOM лишний узел, старый класс или чужое состояние."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Источники"
+  lead="Каждая функция мини-версии названа так же, как в исходниках Vue, — по имени её и искать."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

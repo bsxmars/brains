@@ -1,0 +1,249 @@
+---
+/**
+ * Стадия как барьер: метки одного прогона на общей шкале времени.
+ *
+ * Лог прогона даёт те же числа столбиком, но главное в нём — **пустота**: шесть секунд,
+ * когда `test:unit` мог бы работать и не работал. В столбике чисел пустоту не видно,
+ * на шкале она занимает больше половины ширины.
+ *
+ * Ширина полос пропорциональна времени. Вертикальные пунктиры — моменты, когда стадия
+ * закрылась: джобы следующей стадии стартуют ровно на них, а не раньше.
+ *
+ * Шкала — не текст, её нельзя сложить в колонку без потери смысла. Поэтому на узком
+ * экране она прокручивается внутри своей рамки (`min-width` + `overflow-x: auto`),
+ * а страница вбок не едет.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Job {
+  name: string;
+  from: number;
+  to: number;
+  note?: string;
+  wait?: { from: number; label: string };
+}
+
+interface Props {
+  data: {
+    title: string;
+    total: number;
+    stages: { name: string; jobs: Job[] }[];
+    barriers: { at: number; label: string }[];
+    axis: { at: number; label: string }[];
+    caption: string;
+  };
+}
+
+const { data } = Astro.props;
+const pct = (t: number) => `${((t / data.total) * 100).toFixed(3)}%`;
+---
+
+<figure class="glsd-frame">
+  <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
+
+  <div class="glsd-scroll">
+    <div class="glsd-chart">
+      {
+        data.barriers.map((b) => (
+          <div class="glsd-row glsd-row--mark">
+            <span />
+            <div class="glsd-track">
+              <span class="glsd-mark" style={`width:${pct(b.at)}`} set:html={inlineMd(b.label)} />
+            </div>
+          </div>
+        ))
+      }
+
+      {
+        data.stages.map((stage) => (
+          <div class="glsd-stage">
+            <div class="glsd-stage__name">{stage.name}</div>
+            {stage.jobs.map((job) => (
+              <div class="glsd-row">
+                <span class="glsd-job">{job.name}</span>
+                <div class="glsd-track">
+                  <span class="glsd-gap" style={`width:${pct(job.wait ? job.wait.from : job.from)}`} />
+                  {job.wait && (
+                    <span
+                      class="glsd-wait"
+                      style={`width:${pct(job.from - job.wait.from)}`}
+                      set:html={inlineMd(job.wait.label)}
+                    />
+                  )}
+                  <span class="glsd-bar" data-stage={stage.name} style={`width:${pct(job.to - job.from)}`} />
+                  {job.note && <span class="glsd-note" set:html={inlineMd(job.note)} />}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))
+      }
+
+      <div class="glsd-row glsd-row--axis">
+        <span />
+        <div class="glsd-axis">
+          {
+            data.axis.map((a) => (
+              <span class="glsd-tick" style={`left:${pct(a.at)}`}>
+                {a.label}
+              </span>
+            ))
+          }
+        </div>
+      </div>
+
+      {data.barriers.map((b) => <span class="glsd-line" style={`--at:${b.at / data.total}`} aria-hidden="true" />)}
+    </div>
+  </div>
+
+  <figcaption class="glsd-caption" set:html={inlineMd(data.caption)} />
+</figure>
+
+<style>
+  .glsd-frame {
+    --glsd-label: 104px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 24px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    line-height: 1.45;
+  }
+  .glsd-frame :global(code) {
+    font-size: 1em;
+  }
+
+  .glsd-scroll {
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .glsd-chart {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 580px;
+    padding-bottom: 4px;
+  }
+
+  .glsd-row {
+    display: grid;
+    grid-template-columns: var(--glsd-label) 1fr;
+    align-items: center;
+  }
+  .glsd-track {
+    display: flex;
+    align-items: center;
+    min-height: 30px;
+  }
+
+  /* Подпись барьера кончается ровно на его линии: текст выровнен вправо внутри ширины `at`. */
+  .glsd-row--mark .glsd-track {
+    min-height: 0;
+  }
+  .glsd-mark {
+    flex: none;
+    padding-right: 6px;
+    text-align: right;
+    font-size: var(--fs-3);
+    color: var(--tone-warn-strong);
+  }
+
+  .glsd-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 6px;
+    border-top: 1px solid var(--rule);
+  }
+  .glsd-stage__name {
+    font-size: var(--fs-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .glsd-job {
+    font-weight: 600;
+  }
+
+  .glsd-gap,
+  .glsd-bar,
+  .glsd-wait {
+    flex: none;
+  }
+  .glsd-bar {
+    align-self: stretch;
+    min-height: 26px;
+    border-radius: var(--r1);
+  }
+  .glsd-bar[data-stage='build'] {
+    background: var(--bar-violet);
+  }
+  .glsd-bar[data-stage='test'] {
+    background: var(--bar-green);
+  }
+  .glsd-bar[data-stage='deploy'] {
+    background: var(--bar-amber);
+  }
+
+  /* Ожидание — пунктир без заливки: джоб «есть», но машина ещё не выделена. */
+  .glsd-wait {
+    box-sizing: border-box;
+    padding: 4px 8px;
+    border: 1.5px dashed var(--tone-err-line);
+    border-radius: var(--r1);
+    background: var(--tone-err-bg);
+    font-size: var(--fs-3);
+    color: var(--tone-err-text);
+  }
+  .glsd-note {
+    padding-left: 8px;
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .glsd-axis {
+    position: relative;
+    height: 1.6em;
+    border-top: 1px solid var(--border-strong);
+  }
+  .glsd-tick {
+    position: absolute;
+    top: 4px;
+    transform: translateX(-50%);
+    font-size: var(--fs-3);
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+  .glsd-tick:first-child {
+    transform: none;
+  }
+  .glsd-tick:last-child {
+    transform: translateX(-100%);
+  }
+
+  /* Линия барьера: через все строки, от подписи до оси — не заходя на подписи оси.
+     `bottom` = высота строки оси (`1.6em`) + нижнее поле графика (`4px`). */
+  .glsd-line {
+    position: absolute;
+    top: 0;
+    bottom: calc(1.6em + 4px);
+    left: calc(var(--glsd-label) + (100% - var(--glsd-label)) * var(--at));
+    border-left: 1.5px dashed var(--tone-warn-strong);
+    pointer-events: none;
+  }
+
+  .glsd-caption {
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    color: var(--text-muted);
+  }
+</style>

@@ -1,0 +1,201 @@
+---
+/**
+ * Копия против переноса — статичная схема к разделу «Передача владения».
+ *
+ * Две панели рядом, один и тот же буфер: сверху отправитель, снизу воркер, между ними путь
+ * сообщения. Главное на схеме — плашка данных у каждой стороны: у копии их две, у переноса
+ * одна, а у отправителя вместо неё пустое место. Словами (`CLONE_STEPS`, `TRANSFER_STEPS`)
+ * это рассказано в двух разных разделах, и сопоставить их приходится в голове.
+ *
+ * Строки — пропом из `data.ts` темы (`OWNERSHIP_DIAGRAM`), печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Side {
+  lane: string;
+  obj: string;
+  data: string;
+  kind: 'own' | 'same' | 'empty';
+}
+
+interface Props {
+  diagram: {
+    title: string;
+    panels: { tone: 'warn' | 'ok'; head: string; code: string; from: Side; path: string[]; to: Side; verdict: string }[];
+  };
+}
+
+const { diagram } = Astro.props;
+---
+
+<figure class="wtd-frame">
+  <figcaption class="t-eyebrow t-eyebrow--panel">{diagram.title}</figcaption>
+
+  <div class="wtd-panels">
+    {
+      diagram.panels.map((panel) => (
+        <div class={`wtd-panel wtd-panel--${panel.tone}`}>
+          <div class="wtd-head">
+            <span class="wtd-title">{panel.head}</span>
+            <code class="wtd-code">{panel.code}</code>
+          </div>
+
+          {[panel.from, panel.to].map((side, i) => (
+            <>
+              {i === 1 && (
+                <ol class="wtd-path">
+                  {panel.path.map((step) => (
+                    <li class="wtd-step">
+                      <span class="wtd-step__arrow" aria-hidden="true">↓</span>
+                      <span set:html={inlineMd(step)} />
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <div class="wtd-side">
+                <span class="wtd-lane">{side.lane}</span>
+                <div class="wtd-refs">
+                  <span class="wtd-obj" set:html={inlineMd(side.obj)} />
+                  <span class="wtd-ptr" aria-hidden="true">{side.kind === 'empty' ? '→ ∅' : '→'}</span>
+                  <span class={`wtd-data wtd-data--${side.kind}`} set:html={inlineMd(side.data)} />
+                </div>
+              </div>
+            </>
+          ))}
+
+          <div class="wtd-verdict" set:html={inlineMd(panel.verdict)} />
+        </div>
+      ))
+    }
+  </div>
+</figure>
+
+<style>
+  .wtd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .wtd-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    gap: 14px;
+  }
+  .wtd-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-top: 3px solid var(--border-strong);
+    border-radius: var(--r3);
+    background: var(--surface-2);
+  }
+  .wtd-panel--warn {
+    border-top-color: var(--tone-warn-line);
+  }
+  .wtd-panel--ok {
+    border-top-color: var(--tone-ok-line);
+  }
+
+  .wtd-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .wtd-title {
+    font-size: var(--fs-5);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .wtd-code {
+    font-size: var(--fs-3);
+    overflow-wrap: anywhere;
+  }
+
+  .wtd-side {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    background: var(--surface);
+  }
+  .wtd-lane {
+    font-size: var(--fs-3);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .wtd-refs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+  }
+  .wtd-obj {
+    font-size: var(--fs-4);
+    color: var(--ink);
+  }
+  .wtd-ptr {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    color: var(--ghost);
+  }
+
+  /* Плашка данных: своя — тоном панели, общая — зелёная с двойной рамкой, пустая — штрих. */
+  .wtd-data {
+    padding: 5px 10px;
+    border-radius: var(--r1);
+    font-size: var(--fs-4);
+  }
+  .wtd-data--own {
+    border: 1px solid var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .wtd-data--same {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  .wtd-data--empty {
+    border: 1px dashed var(--border-strong);
+    color: var(--text-muted);
+  }
+
+  .wtd-path {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0 0 0 6px;
+    list-style: none;
+  }
+  .wtd-step {
+    display: flex;
+    gap: 8px;
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    color: var(--prose);
+  }
+  .wtd-step__arrow {
+    flex: none;
+    color: var(--ghost);
+  }
+
+  .wtd-verdict {
+    padding-top: 8px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--prose);
+  }
+</style>

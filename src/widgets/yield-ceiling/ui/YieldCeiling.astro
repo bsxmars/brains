@@ -1,0 +1,172 @@
+---
+/**
+ * Потолок «отдал управление и вернулся» — три инструмента на одной шкале.
+ *
+ * Числа тут не главное; главное — что полоса микрозадачи нарисована штриховкой. Она длинная
+ * (микрозадач в секунду сколько угодно), но кадра между ними не будет ни одного: браузер
+ * обязан осушить очередь микрозадач до рендера. Сплошная полоса означала бы «работает»,
+ * а инструмент для этой задачи не годится вовсе.
+ *
+ * Ширины — иллюстрация порядков, а не замер: ~250 против тысяч.
+ */
+const LANES = [
+  {
+    name: 'setTimeout(f, 0)',
+    tone: 'err' as const,
+    width: 6,
+    note: '~250 · кламп 4 мс',
+    striped: false,
+  },
+  {
+    name: 'MessageChannel',
+    tone: 'info' as const,
+    width: 100,
+    note: 'тысячи',
+    striped: false,
+  },
+  {
+    name: 'queueMicrotask',
+    tone: 'warn' as const,
+    width: 100,
+    note: '∞ — но кадр не отрисуется никогда',
+    striped: true,
+  },
+];
+---
+
+<div class="frame">
+  <div class="t-eyebrow t-eyebrow--panel">Потолок итераций в секунду</div>
+
+  <div class="lanes">
+    {
+      LANES.map((lane) => (
+        <div class="lane">
+          <span class="lane__name" data-tone={lane.tone}>
+            {lane.name}
+          </span>
+          <div class="track">
+            <div
+              class="bar"
+              data-tone={lane.tone}
+              data-striped={lane.striped ? 'yes' : 'no'}
+              style={`width:${lane.width}%`}
+            />
+          </div>
+          <span class="lane__note" data-tone={lane.tone}>
+            {lane.note}
+          </span>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="note">
+    Браузер обязан осушить очередь микрозадач до рендера — поэтому <code>queueMicrotask</code>{' '}
+    быстрее обоих и не годится вовсе. Задача из порта приходит из другого источника задач,
+    и правило о вложенных таймерах её не касается.
+  </p>
+</div>
+
+<style>
+  .frame {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+  }
+
+  .lanes {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .lane {
+    display: grid;
+    grid-template-columns: minmax(120px, 160px) minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+  }
+  .lane__name {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    text-align: end;
+  }
+  .lane__note {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    white-space: nowrap;
+  }
+  /* На телефоне три колонки не помещаются: подпись справа не переносится, и дорожка
+     утаскивала страницу вбок. Здесь имя, полоса и подпись идут друг под другом. */
+  @media (max-width: 520px) {
+    .lane {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 4px;
+    }
+    .lane__name {
+      text-align: start;
+    }
+    .lane__note {
+      white-space: normal;
+    }
+  }
+  .lane__name[data-tone='err'],
+  .lane__note[data-tone='err'] {
+    color: var(--tone-err-strong);
+  }
+  .lane__name[data-tone='info'],
+  .lane__note[data-tone='info'] {
+    color: var(--tone-info-strong);
+  }
+  .lane__name[data-tone='warn'],
+  .lane__note[data-tone='warn'] {
+    color: var(--tone-warn-strong);
+  }
+
+  .track {
+    min-width: 0;
+  }
+  .bar {
+    height: 18px;
+    border-radius: var(--r1);
+  }
+  .bar[data-tone='err'] {
+    background: var(--bar-red);
+  }
+  .bar[data-tone='info'] {
+    background: var(--bar-violet);
+  }
+  .bar[data-tone='warn'] {
+    background: var(--tone-warn-on-ink);
+  }
+  /* Штриховка = «идёт без остановки, но кадра в промежутках нет». */
+  .bar[data-striped='yes'] {
+    background: repeating-linear-gradient(
+      90deg,
+      var(--tone-warn-on-ink) 0 8px,
+      var(--tone-warn-bg) 8px 12px
+    );
+  }
+
+  .note {
+    margin: 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-7);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+
+  @media (max-width: 620px) {
+    .lane {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+    .lane__name {
+      text-align: start;
+    }
+  }
+</style>

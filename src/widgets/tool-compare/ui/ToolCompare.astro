@@ -1,0 +1,118 @@
+---
+/**
+ * Таблица сравнения, где цвет ячейки — это вердикт.
+ *
+ * Общий `shared/ui/Table.astro` красит колонку целиком (и первую колонку построчно), а здесь
+ * оценка живёт в каждой ячейке отдельно: «даёт браузеру отрисовать кадр» — у таймера да
+ * (зелёное), у микрозадачи НЕТ (красное), и это ровно тот факт, ради которого строка есть.
+ * Обесцветить её — значит выкинуть содержание, поэтому таблица своя.
+ *
+ * Разметка настоящая, `table`: строки, колонки и связь ячейки с заголовком у скринридера
+ * остаются, как в общем компоненте. Широкая таблица прокручивается сама, а не тащит вбок
+ * страницу.
+ */
+import type { CompareRow } from '../model/types';
+
+interface Props {
+  /** Заголовки колонок; первая — пустая, это колонка признаков. */
+  head: string[];
+  rows: CompareRow[];
+  cols?: string;
+  minWidth?: number;
+  /** Колонка-герой: её заголовок акцентом. Индекс с нуля, считая колонку признаков. */
+  hero?: number;
+}
+
+const { head, rows, cols, minWidth = 640, hero } = Astro.props;
+
+const template = cols ?? head.map((_, i) => (i === 0 ? 'minmax(210px,1.5fr)' : 'minmax(130px,1fr)')).join(' ');
+---
+
+<div class="wrap">
+  <table style={`--cmp-cols:${template};--cmp-min:${minWidth}px`}>
+    <thead>
+      <tr>
+        {head.map((title, i) => <th data-hero={i === hero ? 'yes' : 'no'}>{title}</th>)}
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row) => (
+          <tr>
+            <td class="key">{row.k}</td>
+            {row.cells.map((cell) => (
+              <td class="cell" data-tone={cell.tone ?? 'none'}>
+                {cell.v}
+              </td>
+            ))}
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .wrap {
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    min-width: var(--cmp-min);
+    border-collapse: collapse;
+  }
+  tr {
+    display: grid;
+    grid-template-columns: var(--cmp-cols);
+  }
+  thead tr {
+    background: var(--ink);
+    color: var(--on-ink);
+  }
+  th {
+    padding: 11px 14px;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-align: start;
+  }
+  th[data-hero='yes'] {
+    color: var(--tone-info-on-ink);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .key {
+    padding: 12px 14px;
+    font-size: var(--fs-6);
+    line-height: 1.45;
+    color: var(--ink);
+  }
+  .cell {
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.45;
+  }
+  .cell[data-tone='none'] {
+    color: var(--text-muted);
+  }
+  .cell[data-tone='ok'] {
+    color: var(--tone-ok-strong);
+  }
+  .cell[data-tone='warn'] {
+    color: var(--tone-warn-strong);
+  }
+  .cell[data-tone='err'] {
+    color: var(--tone-err-strong);
+  }
+</style>

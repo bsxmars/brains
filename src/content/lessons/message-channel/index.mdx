@@ -1,0 +1,740 @@
+---
+title: MessageChannel
+order: 5
+lead: "`MessageChannel` — труба с двумя концами-портами, и любой конец можно отдать в воркер, iframe или другую вкладку. Поэтому порт — не просто канал, а **переносимое право на разговор**: кто держит конец, тот и общается. Очередь порта по умолчанию выключена, в браузере сообщение приходит отдельной задачей, а `postMessage` в мёртвый конец не выдаёт ошибки."
+leadWidth: 66
+summary: "Порт как переносимое полномочие — буферизация до start(), правила transfer-списка, планировщик без клампа и утечка на незакрытом канале."
+verifiedOn: Node 24.11 и 26.8
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Цикл порта }
+  - { id: s2, label: Тайминг }
+  - { id: s3, label: Transfer }
+  - { id: s4, label: Применение }
+  - { id: s5, label: Тонкости }
+  - { id: s6, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import MessagePath from '@/widgets/message-path/ui/MessagePath.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ToolCompare from '@/widgets/tool-compare/ui/ToolCompare.astro';
+import PortLifecycle from '@/widgets/port-lifecycle/ui/PortLifecycle.vue';
+import TransferRules from '@/widgets/transfer-rules/ui/TransferRules.vue';
+import {
+  PORT_LINES,
+  TRANSFER,
+  NODE_HEAD,
+  NODE_ROWS,
+  PITFALLS,
+  SNAPSHOT_CODE,
+  SIZE_NOTE,
+  SIZE_ADVICE,
+  SHARED_WORKER_CODE,
+  SHARED_PAGE_CODE,
+  SHARED_FACTS,
+  SOURCES,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PATH_DEMO_NOTE,
+  APPLY_LEAD,
+  COST_ROWS,
+  COST_NOTE,
+  TRANSFER_COST_NOTE,
+  YIELD_RUNS,
+  YIELD_NOTE,
+  PORT_DEMO_NOTE,
+  TRANSFER_DEMO_NOTE,
+  PLAIN_CAPABILITY,
+  PLAIN_QUEUE,
+  PLAIN_YIELD,
+  PLAIN_TRANSFER,
+  PLAIN_GC_ROOT,
+  PUMP_CODE,
+  PUMP_NOTE,
+  PUMP_ROWS,
+  SYNC_STEPS,
+  SYNC_WRONG_NOTE,
+  PLAIN_SYNC_CALL,
+} from './data';
+import Table from '@/shared/ui/Table.astro';
+
+<Section variant="intro" eyebrow="Три факта, из которых выводится всё остальное">
+
+  Главный поток отдаёт расчёт воркеру и ждёт ответа именно на этот запрос, а не на соседний.
+  Виджет в iframe должен говорить только с вашей страницей, а не с любым, кто дотянулся
+  до окна. Планировщику нужно отпустить поток на кадр и сразу вернуться к работе. Все три
+  задачи решает одна маленькая вещь — пара связанных портов.
+
+  <CardGrid min={270} gap={14}>
+    <Card tone="info" index="1" title="Порт можно передать (Transferable)" titleSize={17} pad={20} gap={11}>
+
+      Его можно отправить в другой realm — отдельный мир JS: воркер, iframe, ServiceWorker,
+      другую вкладку через SW. После передачи ваша ссылка на порт перестаёт работать, а связь
+      с напарником сохраняется. Порт — это **capability**, полномочие: кто им владеет, тот
+      и может говорить.
+
+    </Card>
+    <Card tone="warn" index="2" title="Очередь изначально выключена" titleSize={17} pad={20} gap={11}>
+
+      Пока порт не запущен, сообщения копятся, но не доставляются. Ничего не теряется, и это
+      не баг, а удобный приём.
+
+    </Card>
+    <Card tone="ok" index="3" title="В браузере доставка — отдельная задача (макрозадача)" titleSize={17} pad={20} gap={11}>
+
+      В браузере сообщение приходит обычной задачей из собственного источника задач (task
+      source) — не микрозадачей и не таймером. Отсюда главный практический сценарий —
+      планировщик. В Node это не так: там канал доставляет внутри того же оборота цикла (замер —
+      в разделе про планировщик React). Что такое источник задач и как цикл выбирает между ними —
+      в [теме про цикл событий](/js/event-loop/).
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CAPABILITY} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PATH_DEMO_NOTE} />
+  </Card>
+
+  <MessagePath />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Жизненный цикл порта"
+  lead="Три свойства порта видны только в работе: до `start()` сообщения копятся, включение нельзя отменить, а после `close()` или передачи порта вместо ошибки — тишина."
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PORT_DEMO_NOTE} />
+  </Card>
+
+  <PortLifecycle client:visible lines={PORT_LINES} />
+
+  <CardGrid min={280} gap={14}>
+    <Card tone="err" pad={16} radius={4} size={15.5}>
+
+      **Включение очереди необратимо** (`disabled → enabled`). Выключить её обратно нечем.
+      Чтобы остановить поток сообщений, остаётся только `close()`.
+
+    </Card>
+    <Card tone="err" pad={16} radius={4} size={15.5}>
+
+      **`close()` разрывает связь с обеих сторон.** После этого `postMessage` с другой стороны
+      молча ничего не делает — без исключения. Сообщения «канал закрыт» не будет.
+
+    </Card>
+    <Card tone="err" pad={16} radius={4} size={15.5}>
+
+      **После передачи ваш объект порта становится пустым (detached).** `postMessage` в такой
+      порт тоже не бросает ошибку. Эта тихая потеря сообщений — частая причина жалобы
+      «половина событий не доходит».
+
+    </Card>
+    <Card tone="ok" color="tone" pad={16} radius={4} size={15.5}>
+
+      **Накопление до передачи — полезный приём.** Можно писать в порт до того, как второй конец
+      кто-то получил. Ничего не потеряется, порядок сохранится. Это убирает целый класс гонок
+      вида «воркер ещё не подписался, а мы уже шлём».
+
+    </Card>
+  </CardGrid>
+
+  <Card
+    tone="warn"
+    title="Частая ошибка: `addEventListener` не запускает порт, а `onmessage` запускает"
+    titleSize={17}
+    pad={20}
+    radius={5}
+    gap={13}
+  >
+    ```js
+    port.addEventListener('message', fn);   // сообщения копятся, но не приходят
+    port.start();                           // ← без этой строки тишина
+
+    port.onmessage = fn;                    // а вот это стартует порт неявно
+    ```
+
+    По спецификации очередь включается, когда `onmessage` присваивают в первый раз.
+    У `addEventListener` такого побочного эффекта нет. Отсюда классический баг: «переписал
+    на `addEventListener` ради `{ once: true }` — и всё молча сломалось».
+
+    <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+      **В Node поведение другое:** `addEventListener('message')` сам стартует порт, и сообщение
+      приходит без единого вызова `start()`. Значит, код, который проходит тесты в Node, может
+      молча не работать в браузере. Вызывайте `start()` всегда: повторный вызов безвреден.
+
+    </Card>
+  </Card>
+
+  ### `close()` и сборка мусора
+
+  <Card tone="err" title="Незакрытый порт — это утечка, и немаленькая" titleSize={18} pad={22} radius={5} gap={14}>
+
+    Спецификация прямо запрещает сборщику мусора удалять порт, у которого включена очередь
+    и есть слушатель: иначе сообщение было бы некому доставить. Значит, **живой слушающий
+    порт — это корень для сборщика (GC root)**: он держит в памяти замыкание обработчика и всё,
+    что оно захватило.
+
+    <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GC_ROOT} />
+
+    <FlowChips
+      minWidth={0}
+      chips={[
+        { label: 'port1 (root)' },
+        { label: 'замыкание onmessage' },
+        { label: 'setState / cb' },
+        { label: 'компонент и всё дерево', tone: 'info' },
+      ]}
+    />
+
+
+    Лечится вызовом `close()`, и он должен стоять на **каждом** пути выхода: успех, ошибка,
+    таймаут, `abort`, размонтирование компонента, `pagehide`. `WeakRef` и `FinalizationRegistry`
+    не помогают: порт — корень, а не слабая ссылка. Почему корень держит под собой всё поддерево
+    и как такую утечку находят в снимке кучи — в [теме про память и сборщик](/js/memory-gc/).
+
+    <Card tone="err" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+
+      **Отсюда старая жалоба Jest «did not exit» в связке с jsdom.** React Scheduler создаёт
+      `MessageChannel` и никогда его не закрывает. В React 18+ он сначала пробует `setImmediate`,
+      а `jest-environment-jsdom` его даёт, так что канал там обычно не создаётся. Если жалоба
+      у вас всё же есть — проверьте на своей паре версий: `--detectOpenHandles` покажет, что
+      держит процесс.
+
+    </Card>
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Почему планировщик React построен не на `setTimeout`"
+  lead="Планировщику нужно «дай браузеру нарисовать кадр и сразу вернись к работе». А `setTimeout`, вызванный из `setTimeout` глубже пяти уровней, превращается в паузу 4 мс. Это правило HTML Standard: если уровень вложенности `nesting level > 5` и запрошенный `timeout < 4`, задержка становится 4 мс."
+>
+
+  Допустим, список из десяти тысяч строк строится одной задачей за 200 мс — и все 200 мс
+  клик по кнопке ждёт. Лечение — резать работу на порции по несколько миллисекунд и между порциями отдавать
+  поток. Весь вопрос в том, чем отдавать.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_YIELD} />
+
+  <Card title="Планировщик на 12 строк" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    ```js
+    const channel = new MessageChannel();
+    const queue = []; let scheduled = false;
+
+    channel.port1.onmessage = () => {
+      scheduled = false;
+      const deadline = performance.now() + 5;  // frameYieldMs
+      while (queue.length && performance.now() < deadline)
+        queue.shift()();
+      if (queue.length) schedule();
+    };
+
+    function schedule() {
+      if (scheduled) return;
+      scheduled = true;
+      channel.port2.postMessage(null);
+    }
+    ```
+
+    Это сокращённая версия `scheduler/src/forks/Scheduler.js` из React: 5 мс работы, потом
+    уступить браузеру кадр. Каждое сообщение — отдельная задача, поэтому между двумя порциями
+    браузер успевает обработать клик и нарисовать кадр. Зачем React это делает и что он режет
+    на куски — в [теме про ре-рендеринг](/frameworks/react-rerender/#s4).
+
+    **Флаг `scheduled` склеивает повторные вызовы.** Пока сообщение уже в пути, новый
+    `schedule()` ничего не отправляет: работа лежит в `queue`, и её заберёт та же задача.
+    Без флага десять вызовов подряд дали бы десять сообщений. Девять из них пришли бы
+    к пустой или почти пустой очереди и потратили оборот цикла впустую. Флаг сбрасывается
+    в начале обработчика: если за время порции кто-то добавил работу, следующий
+    `schedule()` снова отправит сообщение.
+
+  </Card>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Канал — не единственный способ уступить, и уже не лучший.** Микрозадача поток
+    не отпускает вовсе, `setTimeout` отпускает, но платит клампом. А `scheduler.yield()`
+    и `scheduler.postTask` дают то, чего у канала нет, — приоритет и отмену. Канал остаётся
+    запасным путём там, где планировщика нет. Сравнение всех способов, их потолки и запасной
+    путь через `globalThis` — в теме про планирование задач, раздел
+    [«Чем возвращать управление циклу»](/js/task-scheduling/#s1).
+
+  </Card>
+
+  ### А вот и замер — и он говорит про Node кое-что неожиданное
+
+  Цена уступки сама по себе ничего не говорит: дешёвая уступка может просто не уступать.
+  Поэтому рядом с замером работает прибор — посторонняя работа, которая сдвигается, только
+  когда оборот цикла действительно отдан.
+
+  <CodeBlock code={PUMP_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={PUMP_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PUMP_ROWS.map((row) => (
+      <Card tone={row.tone} color="tone" label={row.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={row.what} />
+        <Md text={`**Чем платит:** ${row.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Те же четыре способа одной таблицей:
+
+  <Table
+    head={YIELD_RUNS.head}
+    rows={YIELD_RUNS.rows}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(190px,.9fr) minmax(140px,.6fr) minmax(150px,.7fr) minmax(230px,1.3fr)"
+    minWidth={740}
+  />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={YIELD_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Правила transfer-списка"
+  lead="Transfer-список — второй аргумент `postMessage`: в нём перечисляют объекты, которые надо не скопировать, а отдать. Transfer — не копия и не ссылка, а **смена владельца**: у отправителя `byteLength` обнуляется в тот же момент. Ошибки в списке ведут себя по-разному: одни падают громко, а одна молча портит ваш буфер."
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSFER} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TRANSFER_DEMO_NOTE} />
+  </Card>
+
+  <TransferRules client:visible initial="ok" />
+
+  <CardGrid min={280} gap={14}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **`SharedArrayBuffer` не передаётся, а клонируется** — и обе стороны получают доступ
+      к одной и той же памяти. Но отправить его можно только со страницы с изоляцией источника
+      (cross-origin isolated: заголовки `COOP` + `COEP`), иначе `DataCloneError`. Как ждать
+      и будить друг друга через `Atomics` — [«Воркеры и параллелизм», раздел «Разделяемая
+      память и Atomics»](/js/workers/#s5).
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Клон — тот же алгоритм, что у `structuredClone`.** Проходят `Date`, `RegExp`, `Map`,
+      `Set`, TypedArray, `Error`, `BigInt`, циклы. Не проходят функции, DOM-узлы, символьные
+      ключи, прототипы, `#`-поля, геттеры — и `Proxy`: прокси бросает `DataCloneError`, сколько
+      бы обычных полей ни было у цели. Отсюда «обычный объект уходит, а состояние падает»:
+      `reactive()` во Vue — это прокси, и перед отправкой ему нужен `toRaw()`. Без канала тот же
+      клон делает `structuredClone(value)`, а с `{ transfer: [buf] }` — и перенос. Что именно
+      теряется на клонировании — [«Воркеры и параллелизм», раздел «Что можно
+      передать»](/js/workers/#s2); почему прототип,
+      приватные поля и геттеры ведут себя именно так — в [объектной модели](/js/object-model/).
+
+    </Card>
+  </CardGrid>
+
+  ### Во что обходится сообщение — замер, а не ощущение
+
+  <Table
+    head={COST_ROWS.head}
+    rows={COST_ROWS.rows}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(200px,.9fr) minmax(150px,.7fr) minmax(250px,1.5fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={COST_NOTE} />
+  </Card>
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={TRANSFER_COST_NOTE} />
+  </Card>
+
+  <Card title="Сколько можно послать за раз" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={SNAPSHOT_CODE} size={12} />
+
+    <Md text={SIZE_NOTE} />
+
+    <CardNote tone="ok">
+      <Md text={SIZE_ADVICE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Почему циклические ссылки не ломают клонирование" titleSize={17} pad={20} radius={5} gap={13}>
+
+    «Циклы проходят» — за этой строчкой стоит механизм. Алгоритм обходит граф объектов
+    не наивно: он ведёт **карту уже склонированных объектов**. Встретив ссылку, он сначала смотрит в карту,
+    и если объект там уже есть — подставляет готовый клон вместо того, чтобы делать второй.
+
+    Отсюда два следствия. `a.self = a` не уводит обход в бесконечность: на втором заходе `a`
+    уже в карте. И идентичность внутри одного сообщения сохраняется — если один и тот же объект
+    лежит в двух полях, на той стороне это снова будет **один** объект, а не две копии.
+    `JSON.parse(JSON.stringify(x))` не умеет ни первого, ни второго: на цикле он падает,
+    а общий объект раздваивает.
+
+    <CardNote tone="prose">
+
+      Карта живёт ровно одно сообщение. Два `postMessage` подряд с одним и тем же объектом
+      дадут на приёме два независимых объекта — между сообщениями идентичность не переносится.
+
+    </CardNote>
+  </Card>
+
+  <Card title="Переносится — это не то же самое, что клонируется" titleSize={17} pad={20} radius={5} gap={13}>
+
+    Два независимых свойства, и объект может иметь любое из них, оба или ни одного. `ImageBitmap`
+    и **клонируется**, и переносится. `OffscreenCanvas` — только переносится: холст один, копии
+    у него быть не может по смыслу. В Node так же устроен `FileHandle`.
+
+    <CardNote tone="prose">
+
+      Переносятся в браузере: `ArrayBuffer`, `MessagePort`, `ReadableStream` / `WritableStream` /
+      `TransformStream`, `ImageBitmap`, `OffscreenCanvas`, `RTCDataChannel`, `AudioData` /
+      `VideoFrame`, `MediaSourceHandle`.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section id="s4" eyebrow="Раздел 4" title="Применение" lead={APPLY_LEAD} leadWidth={72}>
+  <Card title="Приватный канал с iframe: владение портом вместо проверки origin" titleSize={18} pad={22} radius={5} gap={16}>
+    <CardGrid min={270} gap={16}>
+      <Card tone="err" label="window.postMessage" labelTone="tone" labelSize={11} pad={16} radius={5} gap={9}>
+
+        На **каждом** сообщении надо проверять `event.origin` и `event.source`, иначе любой, кто
+        добрался до ссылки на окно, шлёт вам что хочет.
+
+      </Card>
+      <Card tone="ok" color="tone" label="порт" labelTone="tone" labelSize={11} pad={16} radius={5} gap={9}>
+
+        Origin проверяется **один раз, в рукопожатии**. Дальше сам канал и есть право на общение.
+
+      </Card>
+    </CardGrid>
+
+    ```js
+    // parent
+    const { port1, port2 } = new MessageChannel();
+    port1.onmessage = ({ data }) => handle(data);      // origin проверять уже не нужно
+    iframe.contentWindow.postMessage({ type: 'init' }, 'https://widget.example', [port2]);
+
+    // iframe
+    addEventListener('message', (e) => {
+      if (e.origin !== 'https://app.example') return;   // ← единственная проверка
+      if (e.data?.type !== 'init') return;
+      const port = e.ports[0];
+      port.onmessage = ({ data }) => port.postMessage(process(data));
+    }, { once: true });
+    ```
+
+    <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+      Точный целевой origin (не `'*'`) обязателен: звёздочка отдаст порт любому, кто успел
+      загрузиться в этот фрейм. **Порт — это передача полномочия, отдавать его вслепую нельзя.**
+
+    </Card>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="RPC: одноразовый порт на вызов" titleSize={16.5} pad={18} radius={5} gap={11}>
+
+      Проще, чем сопоставлять ответы с запросами по id, и не нужно чистить таблицу ожидающих
+      вызовов (`pending`).
+
+      ```js
+      function call(port, method, args) {
+        const { port1, port2 } = new MessageChannel();
+        const answer = new Promise((resolve, reject) => {
+          port1.onmessage = ({ data }) => {
+            port1.close();
+            data.ok ? resolve(data.value) : reject(data.value);
+          };
+          setTimeout(() => {          // ← обязательно
+            port1.close();
+            reject(new Error('rpc timeout'));
+          }, 5000);
+        });
+        port.postMessage({ method, args, reply: port2 }, [port2]);
+        return answer;
+      }
+      ```
+
+      `close()` в обеих ветках — не аккуратность, а обязательное условие: слушающий порт —
+      корень для сборщика мусора (см. «`close()` и сборка мусора»), и без закрытия канал
+      останется в памяти вместе со всем, что захватил обработчик.
+
+    </Card>
+
+    <Card title="Один воркер — много независимых каналов" titleSize={16.5} pad={18} radius={5} gap={11}>
+      ```js
+      function openChannel(name) {
+        const { port1, port2 } = new MessageChannel();
+        worker.postMessage({ open: name, port: port2 }, [port2]);
+        return port1;      // своя фича — свой порт и свой протокол
+      }
+      const search = openChannel('search');
+      const parse  = openChannel('parse');
+      ```
+
+      Вместо одного `switch` по `data.type` на всё приложение. Плюс изоляция: чтобы закрыть
+      одну фичу, хватит `close()` её порта, остальные не пострадают.
+
+    </Card>
+
+    <Card tone="warn" title="ServiceWorker: запрос-ответ вместо «крикнул в пустоту»" titleSize={16.5} pad={18} radius={5} gap={11}>
+      ```js
+      function ask(msg) {
+        const { port1, port2 } = new MessageChannel();
+        return new Promise((resolve, reject) => {
+          port1.onmessage = ({ data }) => { port1.close(); resolve(data); };
+          setTimeout(() => { port1.close(); reject(new Error('sw timeout')); }, 3000);
+          navigator.serviceWorker.controller?.postMessage(msg, [port2]);
+        });
+      }
+      ```
+
+      Здесь таймаут обязателен: `controller` может быть `null`, а сам ServiceWorker браузер
+      может остановить между вызовами. Тогда ответа не будет никогда, и никакого события об этом
+      тоже.
+
+    </Card>
+
+    <Card tone="info" title="Node: синхронный вызов в воркер" titleSize={16.5} pad={18} radius={5} gap={11}>
+
+      Node умеет то, чего браузер на главном потоке не умеет принципиально, — **синхронно** снять
+      сообщение с порта. На этом построены библиотеки синхронного RPC и синхронные хуки
+      загрузчика ES-модулей (ESM loader hooks).
+
+      ```js
+      function syncCall(payload) {
+        Atomics.store(shared, 0, 0);
+        port1.postMessage(payload);
+        Atomics.wait(shared, 0, 0);       // блокируем поток
+        return receiveMessageOnPort(port1).message;
+      }
+      ```
+
+      ```js
+      // воркер: port — второй конец канала, shared — тот же Int32Array
+      port.on('message', (payload) => {
+        port.postMessage(handle(payload));   // 1) сначала ответ в порт
+        Atomics.store(shared, 0, 1);         // 2) потом флаг
+        Atomics.notify(shared, 0);           // 3) и только теперь будим
+      });
+      ```
+
+      Порядок в воркере важен: сначала `postMessage`, потом `notify`. Иначе главный поток
+      проснётся раньше, чем сообщение попадёт в очередь, и `receiveMessageOnPort` вернёт
+      `undefined`. В браузере это не повторить: `Atomics.wait` на главном потоке запрещён,
+      а `receiveMessageOnPort` там просто нет.
+
+    </Card>
+  </CardGrid>
+
+  ### Синхронный вызов в воркер по шагам
+
+  Код из карточки «Node: синхронный вызов в воркер» держится на порядке семи действий
+  в двух потоках. Вот они по очереди.
+
+  <CardGrid min={260} gap={12} align="start">
+    {SYNC_STEPS.map((step) => (
+      <Card label={step.side} labelSize={12} pad={16} radius={5} gap={8} size={15} lh={1.6}>
+        <Md text={step.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SYNC_WRONG_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYNC_CALL} />
+
+  ### `SharedWorker`: порт — единственный вход
+
+  Выделенный воркер принадлежит одной вкладке, `SharedWorker` — всем вкладкам одного
+  источника сразу. Своего `postMessage` у него нет: вкладка получает порт `worker.port`,
+  а воркер на каждое подключение получает событие `connect` с другим концом в `e.ports[0]`.
+  Всё, что тема говорит о портах, здесь работает без поправок. Чем такой агент отличается
+  от выделенного воркера — [«Воркеры и параллелизм», раздел «Агент и его изоляция»](/js/workers/#s1).
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card label="воркер" labelSize={12} pad={18} radius={5} gap={11}>
+      <CodeBlock code={SHARED_WORKER_CODE} size={11.5} />
+    </Card>
+    <Card label="каждая вкладка" labelSize={12} pad={18} radius={5} gap={11}>
+      <CodeBlock code={SHARED_PAGE_CODE} size={11.5} />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14}>
+    {SHARED_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={16} radius={4} gap={8} size={15}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### `BroadcastChannel`: тот же обмен, но без портов
+
+  Ближайший сосед `MessageChannel` устроен иначе. Пары концов здесь нет. В каждой вкладке,
+  окне или воркере одного источника создают `new BroadcastChannel(имя)` с одним и тем же
+  именем. Сообщение получают **все** объекты с этим именем, кроме того, через который его
+  отправили.
+
+  ```js
+  // в каждой вкладке
+  const bc = new BroadcastChannel('auth');
+  bc.onmessage = ({ data }) => {
+    if (data.type === 'logout') location.assign('/login');
+  };
+
+  // во вкладке, где нажали «выйти»
+  bc.postMessage({ type: 'logout' });   // придёт всем, кроме себя
+  ```
+
+  <CardGrid min={280} gap={14}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Полномочия нет.** Порт — ключ, который отдают одному адресату. Имя канала знает любой
+      код того же источника, и подписаться может любой. Граница здесь — источник, а не владение.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Transfer-списка нет.** `postMessage` принимает один аргумент, остальное молча
+      игнорируется: буфер уедет копией, а у отправителя останется целым. Функция в сообщении
+      бросает `DataCloneError` сразу, у отправителя (Node 26.8.2).
+
+    </Card>
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5}>
+
+      **Ни адресата, ни ответа.** Выбрать, кому писать, нельзя, и ответа не дождаться. Поэтому
+      запрос-ответ на нём не строят. Его берут там, где нужно «сообщить всем вкладкам». Если
+      нужно, чтобы работу сделала **одна** вкладка, короче взять замок Web Locks, чем выбирать
+      лидера через канал вручную.
+
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section id="s5" eyebrow="Раздел 5" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  <Callout size={18.5} pad="22px 24px">
+
+    Отсутствие ошибки ничего не доказывает. <b>Молчат все три случая</b>: закрытый канал,
+    переданный (detached) порт и живой порт, у которого на том конце уже никого нет.
+
+  </Callout>
+
+  ### Node против браузера
+
+  <ToolCompare
+    head={NODE_HEAD}
+    rows={NODE_ROWS}
+    cols="minmax(210px,1.4fr) minmax(170px,1.1fr) minmax(200px,1.3fr)"
+    minWidth={620}
+  />
+
+  <CardGrid min={290} gap={14}>
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5}>
+
+      Строка про `unref()` объясняет жалобу «Node не завершается»: один слушающий порт держит
+      процесс. Скрипт с единственным `port.on('message')` сам не выходит, а после
+      `port.unref()` выходит сразу.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      `OffscreenCanvas` и `FileHandle` легко принять за клонируемые, но оба только
+      переносятся. `FileHandle` обычным сообщением уходить отказывается (`DataCloneError`),
+      а в transfer-списке уходит.
+
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Источники и смежные темы"
+>
+  <Card title="Источники" titleSize={17} pad={20} gap={12}>
+
+    У спецификации и справочников разный срок годности. Спецификация меняется медленно,
+    и последнее слово за ней. MDN и документация Node устаревают быстрее, зато показывают,
+    как это выглядит в коде, — в спецификации этого нет.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [воркеры и параллелизм](/js/workers/) — что переживает структурное
+    клонирование, с живым демо. [Цикл событий](/js/event-loop/) — источники задач и порядок
+    между ними. [Планирование работы](/js/task-scheduling/) — во что обходится уступка потока.
+    [Память и сборщик](/js/memory-gc/) — почему живой порт держит поддерево.
+    [Объектная модель](/js/object-model/) — прототипы, приватные поля и геттеры, которых клон
+    не увидит.
+    [Копирование и сериализация](/js/serialization/) — алгоритм `structuredClone` по шагам
+    и чем он отличается от JSON.
+
+  </Card>
+</Section>

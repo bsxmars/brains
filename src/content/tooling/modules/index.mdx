@@ -1,0 +1,1022 @@
+---
+title: Модули и сборка
+order: 1
+kicker: сборка и инструменты
+lead: "Браузер узнаёт, от чего зависит модуль, **ещё до того, как выполнит хоть одну его строку**. Из этого следует почти всё остальное: зависимости качаются заранее, опечатка в имени импорта ловится до запуска, импорт видит свежее значение переменной, а сборщик может выбросить неиспользуемый код. Отсюда же — почему цикл между модулями падает не там, где вы думали."
+leadWidth: 66
+summary: "Как модуль загружается в три шага, почему импорт видит свежее значение, как браузер разрешает голые имена по import maps и грузит WebAssembly, как стыкуются CommonJS и ESM и откуда берутся фантомные зависимости, почему сборщик выбрасывает только то, в чём уверен, как он режет код на чанки — и почему dev-сервер ведёт себя не так, как рабочая сборка."
+verifiedOn: "Node 24.11 и Chromium 153.0.8010.12 (Playwright 1.63), сентябрь 2026; резолвинг, условия exports и интероп с CommonJS — Node 26.8.2, условия Vite прочитаны у Vite 8.3.0; конвейеры Vite 8, раскладка чанков и карты исходников — сборкой фикстур на Vite 8.3.0 (Rolldown 1.2.8); размеры сборки — rolldown 1.2.8 и esbuild 0.28.2 на синтетических фикстурах. import maps, `nomodule` и WebAssembly — Chromium 153.0.8010.12 и Node 26.8.2, раскладки `node_modules` и кеш предбандла — Node 26.8.2 и Vite 8.3.0, закреплено `tests/unit/modules.test.ts`. Поведение webpack (включая его кеш на диске), плагин легаси-сборки, предбандлинг Vite при новой зависимости на лету и цикл между чанками от manualChunks замером не закрыты и помечены в тексте"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Три фазы }
+  - { id: s2, label: Привязки и циклы }
+  - { id: s3, label: CommonJS против ESM }
+  - { id: s4, label: Tree shaking }
+  - { id: s5, label: Чанки и кеш }
+  - { id: s6, label: Dev не равен prod }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import CycleLab from '@/widgets/cycle-lab/ui/CycleLab.vue';
+import LiveBinding from '@/widgets/live-binding/ui/LiveBinding.vue';
+import ChunkDiagram from '@/widgets/modules-chunk-diagram/ui/ChunkDiagram.astro';
+import {
+  CACHE_FACTS,
+  CJS_CODE,
+  CJS_GETTER_CODE,
+  CJS_MYTH,
+  COLORING_FACTS,
+  COND_NOTE,
+  COND_ROWS,
+  CONSERVATIVE_NOTE,
+  CYCLE_FACTS,
+  CYCLE_FIX,
+  CYCLE_STEPS,
+  DEFAULT_CODE,
+  DIST_FACTS,
+  DIST_TREE,
+  DEV_PROD_BUGS,
+  DEV_PROD_ROWS,
+  DISCIPLINE_NOTE,
+  DUAL_HAZARD,
+  DYNAMIC_CODE,
+  EXPORTS_CODE,
+  EXPORTS_RULES,
+  GLOB_ROWS,
+  HOIST_CODE,
+  HOIST_NOTE,
+  HOIST_OUT,
+  INTEROP_CODE,
+  INTEROP_FIX_CODE,
+  INTEROP_NOTE,
+  INTEROP_PROBLEM,
+  INTEROP_SYMPTOM_CODE,
+  LEGACY_FIELDS,
+  LEXER_NOTE,
+  LEXER_ROWS,
+  LINK_ERRORS,
+  LIVE_ADVICE,
+  LIVE_RULES,
+  LOAD_STEPS,
+  MANUAL_CHUNKS_CODE,
+  MEASURED,
+  MODULE_FACTS,
+  NO_STATIC_CODE,
+  ORDER_NOTE,
+  PHASE_CARDS,
+  PITFALLS,
+  PREBUNDLE_NOTE,
+  PURE_CODE,
+  PURE_NOTE,
+  REQUIRE_CODE,
+  REQUIRE_ESM_NOTE,
+  REQUIRE_ESM_RUN,
+  REQUIRE_STEPS,
+  RESOLVE_FENCE_ROWS,
+  RETRY_CODE,
+  RETRY_NOTE,
+  SHAKE_DEFINITION,
+  SHAKE_MEASURE,
+  SHAKE_VS_DCE,
+  SIDE_EFFECTS_FIELD,
+  SIDE_EFFECT_CODE,
+  SIDE_EFFECT_DEFINITION,
+  SOURCES,
+  SPLIT_POINTS,
+  STATIC_BUYS,
+  SYNC_CONSEQUENCES,
+  TLA_CODE,
+  TLA_NOTE,
+  TLA_OUT,
+  TLA_STEPS,
+  URL_FACTS,
+  VENDOR_NOTE,
+  VITE_COND_NOTE,
+  VITE_COND_ROWS,
+  VITE_DEV_STEPS,
+  WHY_NOT_SHAKEN,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  RELATED,
+  PLAIN_PHASES,
+  PLAIN_LIVE,
+  PLAIN_CYCLE,
+  PLAIN_INTEROP,
+  PLAIN_SHAKE,
+  LIVE_DEMO_NOTE,
+  CYCLE_DEMO_NOTE,
+  IMPORTMAP_CODE,
+  IMPORTMAP_OUT,
+  IMPORTMAP_LATE_CODE,
+  IMPORTMAP_LATE_NOTE,
+  IMPORTMAP_FACTS,
+  EXTERNAL_CODE,
+  EXTERNAL_NOTE,
+  PLAIN_IMPORTMAP,
+  WASM_CODE,
+  WASM_ROWS,
+  WASM_NOTE,
+  PHANTOM_APP,
+  PHANTOM_LAYOUTS,
+  PHANTOM_FACTS,
+  PLAIN_PHANTOM,
+  BUILD_CACHE_FACTS,
+  NOMODULE_HTML,
+  LEGACY_FACTS,
+  INTEROP_SCENE_CODE,
+  INTEROP_SCENE_NOTE,
+  INTEROP_STEPS,
+  CHUNK_DIAGRAM,
+  CHUNK_SCENE_CODE,
+  CHUNK_SCENE_NOTE,
+  CHUNK_STEPS,
+  PLAIN_CHUNKS,
+} from './data';
+
+<Section variant="intro" eyebrow="Зависимости известны до запуска" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    `import` и `export` нельзя поставить куда угодно: только на верхний уровень файла и только
+    с путём, записанным строкой в кавычках. Похоже на прихоть, но из этого запрета следует всё
+    остальное: <b>все зависимости модуля известны ещё до того, как выполнится хоть одна строка
+    его кода.</b>
+
+  </Callout>
+
+  До 2015 года в браузере не было модулей вовсе. Зависимости задавались порядком тегов
+  `<script>` в HTML, и по самому файлу нельзя было понять, от чего он зависит. Значит, нельзя
+  было ни проверить связи между файлами, ни выбросить неиспользуемое, ни загрузить часть кода
+  позже, когда она понадобится. ESM — стандартные модули с `import` и `export` — решил все три
+  проблемы разом. И главным в нём оказался не новый синтаксис, а запрет на динамику.
+
+  <CodeBlock code={NO_STATIC_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  ### Что покупает запрет на динамику
+
+  <CardGrid min={270} gap={14}>
+    {STATIC_BUYS.map((item) => (
+      <Card title={item.t} titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6} text={item.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Модуль — не обычный скрипт
+
+  <Card title="Чем модуль отличается от обычного скрипта — каждое отличие видно в коде" titleSize={18} pad={22} gap={14}>
+    <CardGrid min={260} gap={14}>
+      {MODULE_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} radius={4} title={fact.t} titleSize={16} pad={17} gap={9} size={15.5} lh={1.6}>
+          <Md text={fact.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+  </Card>
+
+  ### Слова, которые встретятся раньше, чем их объяснят
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Три фазы: разбор, связывание, исполнение"
+  lead="Браузер обрабатывает модули в три захода. Сначала скачивает и читает все файлы, потом связывает имена импортов с экспортами, и только потом выполняет код. Почти любую странность модулей объясняет вопрос «на каком из трёх шагов это случилось». В спецификации шаги называются `LoadRequestedModules`, `Link` и `Evaluate`, в статьях — construction, instantiation, evaluation."
+  leadWidth={72}
+>
+  <FlowChips
+    minWidth={620}
+    chips={[
+      { label: 'поиск и загрузка' },
+      { label: 'связывание', tone: 'info' },
+      { label: 'исполнение', tone: 'ok' },
+      { label: 'бандлер работает после первой', tone: 'warn' },
+    ]}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PHASES} />
+
+  <CardGrid min={280} gap={14}>
+    {PHASE_CARDS.map((phase) => (
+      <Card tone={phase.tone ?? 'neutral'} title={phase.t} titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+        <Md text={phase.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Фаза 1 по шагам: построить граф, ничего не выполняя" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <NumberedList items={LOAD_STEPS} size={14.5} />
+
+      <CardNote tone="prose">
+
+        Бандлер (Vite, Rollup, webpack) работает как раз после этого шага. Граф уже известен,
+        и вместо связывания и исполнения бандлер делает своё: выбрасывает неиспользуемое,
+        раскладывает модули по файлам-чанкам, сжимает код, считает хеши для имён файлов.
+        После сборки второй и третий шаг всё равно выполняет браузер — но уже над горсткой чанков,
+        а не над тысячей модулей.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Что ловится на связывании — и только здесь" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <NumberedList items={LINK_ERRORS} size={14.5} />
+
+      <CardNote tone="warn">
+
+        Ошибка при выполнении кода ведёт себя иначе: браузер её **запоминает**. Модуль
+        помечается как упавший, и повторный `import()` того же адреса не запустит его заново —
+        промис сразу отклонится той же ошибкой. Поэтому простой повтор загрузки «ещё раз,
+        вдруг получится» здесь не помогает. Что делать вместо него — в разделе «Чанки и кеш».
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="«Импорты поднимаются наверх файла» — но поднимается не строка" titleSize={18} pad={22} gap={14}>
+    <CardGrid min={280} gap={14} align="start">
+      <Card radius={0} pad={0} gap={9} size={15.5}>
+        <CodeBlock code={HOIST_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      </Card>
+      <Card radius={0} pad={0} gap={9} size={15.5}>
+        <CodeBlock code={HOIST_OUT} size={11.5} lh={1.7} pad="14px 16px" tone="ok" />
+      </Card>
+    </CardGrid>
+
+    <Md text={HOIST_NOTE} />
+
+    <CardNote tone="prose">
+      <Md text={ORDER_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### `await` на верхнем уровне: кто ждёт, а кто нет
+
+  Модуль может ждать прямо в своём теле, вне всякой функции: `const config = await
+  fetch(…)`. Такой модуль заканчивает третью фазу не сразу. Правило простое: ждут его только
+  те, кто от него зависит, а остальной граф продолжает выполняться.
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card radius={0} pad={0} gap={9} size={15.5}>
+      <CodeBlock code={TLA_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+    <Card radius={0} pad={0} gap={9} size={15.5}>
+      <CodeBlock code={TLA_OUT} size={11.5} lh={1.7} pad="14px 16px" tone="ok" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Что произошло, по шагам (Node 26.8.2)" titleSize={16.5} pad={18} gap={11} size={15.5}>
+    <NumberedList items={TLA_STEPS} size={14.5} />
+
+    <CardNote tone="prose">
+      <Md text={TLA_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Браузер различает модули по полному адресу — и из этого много следствий" titleSize={18} pad={22} gap={14}>
+    <CardGrid min={270} gap={14}>
+      {URL_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} radius={4} title={fact.t} titleSize={16} pad={17} gap={9} size={15.5} lh={1.6}>
+          <Md text={fact.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="prose">
+
+      Отсюда же ответ на редкий вопрос: кто держит все эти модули в памяти. Карта модулей
+      живёт, пока открыта страница, и сборщик мусора считает её корнем — отправной точкой,
+      от которой он ищет живые объекты. Значит, модуль держит всё, что в нём объявлено,
+      до закрытия страницы. Что такое корень и почему объект, до которого можно дойти
+      от корня, не освобождается никогда, — в теме [про память и сборку мусора](/js/memory-gc/).
+
+    </CardNote>
+  </Card>
+
+  ### Import maps: карта имён для браузера
+
+  У браузера нет `node_modules`, и `import "vue"` без подсказки он не разрешит. Подсказка —
+  тег `<script type="importmap">`: JSON, в котором голому имени сопоставлен адрес. Разрешение
+  имени происходит на первой фазе, при построении графа, — до выполнения чего бы то ни было.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IMPORTMAP} />
+
+  <Card title="Одна карта, три правила" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={IMPORTMAP_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CodeBlock code={IMPORTMAP_OUT} size={11.5} lh={1.7} pad="12px 16px" tone="ok" />
+
+    <CardNote tone="prose">
+
+      Одно и то же имя `vue` дало два разных файла — в зависимости от того, где лежит
+      импортирующий модуль. Так на одной странице уживаются две версии библиотеки: старый
+      раздел сайта получает свою, новый — свою.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {IMPORTMAP_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" title="Вторая карта после первого импорта" titleSize={16.5} pad={18} gap={11} size={15.5}>
+    <CodeBlock code={IMPORTMAP_LATE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="warn">
+      <Md text={IMPORTMAP_LATE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Сборка плюс карта: зависимость на CDN" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={EXTERNAL_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={EXTERNAL_NOTE} />
+  </Card>
+
+  ### WebAssembly: модуль, которого браузер пока не импортирует
+
+  Модуль WebAssembly (`.wasm`) — скомпилированный двоичный код со своими импортами
+  и экспортами. У него есть предложение стандарта на ESM-интеграцию: импортировать `.wasm`
+  так же, как `.js`. Ниже один и тот же модуль из 70 байт загружен тремя способами в трёх
+  средах.
+
+  <CodeBlock code={WASM_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={['способ', 'Node 26.8.2', 'Chromium 153', '`vite build` 8.3.0']}
+    rows={WASM_ROWS.map((r) => [r.k, r.node, r.chrome, r.vite])}
+    tones={WASM_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(210px,1fr) minmax(200px,1fr) minmax(220px,1.1fr) minmax(220px,1.1fr)"
+    minWidth={860}
+  />
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={WASM_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Живые привязки и циклы"
+  lead="Импортированное имя — не копия значения, а ссылка на саму переменную в чужом модуле. Модуль поменял свою переменную — импортёр сразу видит новое значение. Оба демо ниже грузят настоящие модули настоящим `import()` в вашем браузере."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIVE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={LIVE_DEMO_NOTE} />
+
+  <LiveBinding client:visible />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Четыре чтения из демо: где живое значение, а где снимок" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <NumberedList items={LIVE_RULES} size={14.5} />
+    </Card>
+
+    <Card tone="warn" title="`export default` — выражение или имя" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <CodeBlock code={DEFAULT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="warn">
+
+        `export default` после себя **вычисляет выражение** один раз и кладёт результат в скрытую
+        переменную модуля. Поэтому `export default count` — снимок, как и объект из демо.
+        Живым `default` бывает только в форме с именем: `export { count as default }`.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={LIVE_ADVICE} />
+
+  <Card title="Цикл: что произойдёт, по шагам" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={CYCLE_STEPS} size={14.5} />
+
+    <CardNote tone="prose">
+
+      Цикл — это когда A импортирует B, а B (напрямую или через другие модули) импортирует A.
+      В большом приложении циклы появляются сами. Чаще всего через «бочки» — файлы `index.js`,
+      которые реэкспортируют всю папку. Ещё — через общие типы и через «утилиты», которые
+      берут константы из модуля, а тот сам импортирует утилиты.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CYCLE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CYCLE_DEMO_NOTE} />
+
+  <CycleLab client:visible />
+
+  <CardGrid min={280} gap={14}>
+    {CYCLE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Как чинить циклы, в порядке предпочтения" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={CYCLE_FIX} size={14.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="CommonJS против ESM и цена их стыковки"
+  lead="Фронтенд пишется на ESM, но CommonJS — старая система модулей Node с `require` и `module.exports` — никуда не делся. На нём написана половина зависимостей и почти все конфиги инструментов. Разбираться в нём нужно потому, что от стыковки двух систем (её называют интероп) зависит, какой файл вашей зависимости окажется в бандле."
+  leadWidth={72}
+>
+  ### `require` изнутри
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`require` — обычная функция, а не синтаксис" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <CodeBlock code={REQUIRE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card title="Алгоритм `require`, из которого следуют циклы" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <NumberedList items={REQUIRE_STEPS} size={14.5} />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={270} gap={14}>
+    {SYNC_CONSEQUENCES.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" title="Частая ошибка: «CommonJS копирует значения»" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={CJS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={CJS_MYTH} />
+
+    <CodeBlock code={CJS_GETTER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="warn">
+
+      Отсюда следствие, которое кусает на практике. **Если модуль заменит `module.exports`
+      целиком уже после `require`, этого никто не увидит:** импортёр получил объект раньше
+      и держит старый.
+
+    </CardNote>
+  </Card>
+
+  ### Стыковка: откуда берётся двойной `default`
+
+  <DarkPanel eyebrow="Почему с default из CommonJS столько проблем">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={INTEROP_PROBLEM} />
+    </DarkText>
+
+    <CodeBlock code={INTEROP_CODE} size={11.5} lh={1.7} pad="14px 16px" tone="deep" />
+
+    <DarkText size={16} lh={1.6}>
+
+      Задачу решали трижды, и все три решения живут одновременно. Node делает `module.exports`
+      экспортом по умолчанию, а именованные экспорты угадывает, читая текст файла.
+      Транспиляторы (Babel, TypeScript) ставят в свой вывод метку `__esModule` и проверяют её
+      при импорте. Бандлеры делают своё преобразование — похожее, но не такое же.
+
+    </DarkText>
+  </DarkPanel>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTEROP} />
+
+  ### Три правила на одном пакете
+
+  Разницу между тремя решениями проще всего увидеть на одном пакете — библиотеке, которую
+  автор написал на ESM, а опубликовал собранной в CommonJS.
+
+  <CodeBlock code={INTEROP_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={INTEROP_SCENE_NOTE} />
+
+  Теперь тот же `import pkg from 'some-cjs-lib'` — под каждым из трёх правил.
+
+  <CardGrid min={290} gap={14} align="start">
+    {INTEROP_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Симптом: `default` завернули дважды" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <CodeBlock code={INTEROP_SYMPTOM_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Обход, который работает всегда" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <CodeBlock code={INTEROP_FIX_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="ok">
+        <Md text={REQUIRE_ESM_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={INTEROP_NOTE} />
+  </Card>
+
+  ### Поле `exports`: карта пакета и забор вокруг него
+
+  <Card title="Как выглядит карта" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={EXPORTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <NumberedList items={EXPORTS_RULES} size={14.5} />
+
+    <CardNote tone="prose">
+      <Md text={LEGACY_FIELDS} />
+    </CardNote>
+  </Card>
+
+  Какой файл пакета вы получите, зависит от того, **кто спрашивает**: Node и Vite включают
+  разные наборы условий, и различаются они не там, где ожидаешь. Ниже — ответ Node 26.8.2
+  на маленьких пакетах, у каждого из которых одно условие.
+
+  <Table
+    head={['условие', 'на `import`', 'на `require`']}
+    rows={COND_ROWS.map((r) => [r.k, r.imp, r.req])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(300px,1.4fr) minmax(150px,.7fr) minmax(150px,.7fr)"
+    minWidth={640}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={COND_NOTE} />
+  </Card>
+
+  <Card title="Какие условия включает Vite 8.3.0 — списки из её собственного кода" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['список', 'значение']}
+      rows={VITE_COND_ROWS.map((r) => [r.k, r.v])}
+      kinds={['prose', 'mono']}
+      cols="minmax(250px,1fr) minmax(320px,1.6fr)"
+      minWidth={620}
+    />
+
+    <CardNote tone="prose">
+      <Md text={VITE_COND_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Карта, забор и порядок условий: что ответил Node на тестовом пакете" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['что спросили', 'что ответил Node 26.8.2']}
+      rows={RESOLVE_FENCE_ROWS.map((r) => [r.k, r.v])}
+      kinds={['mono', 'prose']}
+      cols="minmax(260px,1.1fr) minmax(300px,1.5fr)"
+      minWidth={640}
+    />
+
+    <CardNote tone="warn">
+
+      Порядок ключей в карте — часть её смысла. Если `default` объявлен **перед** `node`,
+      Node берёт файл из `default` — и на `import`, и на `require`, хотя условие `node`
+      в карте есть и Node его поддерживает. Выигрывает первое совпадение сверху вниз, поэтому
+      `default` в карте всегда пишут последним.
+
+    </CardNote>
+  </Card>
+
+  ### Поиск вверх по `node_modules` и фантомные зависимости
+
+  Правило поиска одно у Node и у сборщиков: имя пакета ищется в `node_modules` **рядом с
+  файлом, который импортирует**, потом в `node_modules` папкой выше — и так до корня диска.
+  Список `dependencies` в `package.json` приложения при этом **не смотрится вовсе**: он нужен
+  менеджеру пакетов, чтобы разложить файлы, а загрузчик видит только то, что лежит на диске.
+  Поэтому всё решает раскладка.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PHANTOM} />
+
+  <Card title="Один и тот же код приложения в трёх раскладках" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={PHANTOM_APP} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardGrid min={260} gap={14} align="start">
+      {PHANTOM_LAYOUTS.map((layout) => (
+        <Card tone={layout.tone} radius={4} title={layout.t} titleSize={15.5} pad={16} gap={9} size={15} lh={1.55}>
+          <CodeBlock code={layout.tree} size={10.5} lh={1.65} pad="12px 14px" />
+          <CodeBlock code={layout.out.join('\n')} size={10.5} lh={1.65} pad="10px 14px" tone="ok" />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="prose">
+
+      Код приложения во всех трёх случаях один и тот же, менеджер пакетов не участвовал:
+      папки разложены руками. Результат импорта решило только то, где лежат файлы.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={270} gap={14}>
+    {PHANTOM_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} radius={4} title={fact.t} titleSize={16} pad={17} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Один пакет в двух форматах — два независимых состояния
+
+  Когда часть кода дошла до пакета через `require`, а часть через `import`, условия
+  в `exports` выбирают **разные файлы**. Это называют dual package hazard: получается два
+  экземпляра одного пакета, у каждого своё состояние.
+
+  <CardGrid min={270} gap={14}>
+    {DUAL_HAZARD.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} radius={4} title={fact.t} titleSize={16} pad={17} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Именованный импорт из CommonJS: какие записи Node узнаёт, а какие нет
+
+  Чтобы узнать имена экспортов CommonJS-файла, Node его не выполняет. Он быстро просматривает
+  текст (этим занят разборщик `cjs-module-lexer`, в Node 26 — его преемник `merve`) и ищет знакомые образцы записи. Что не похоже
+  на образец, то для `import { … }` не существует.
+
+  <Table
+    head={['как написан CommonJS-модуль', 'что видно снаружи', 'почему']}
+    rows={LEXER_ROWS.map((r) => [r.k, r.v, r.why])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(260px,1.2fr) minmax(140px,.6fr) minmax(280px,1.6fr)"
+    minWidth={760}
+  />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={LEXER_NOTE} />
+  </Card>
+
+  ### `require(esm)` и `await` на верхнем уровне
+
+  <CardGrid min={280} gap={14}>
+    {REQUIRE_ESM_RUN.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Tree shaking и побочные эффекты"
+  lead="Tree shaking — это когда бандлер не кладёт в сборку код, который никто не использует. Но выбрасывает он только то, в чём уверен: что это никому не нужно и само по себе ничего не делает. Поэтому его нельзя «включить сильнее» — можно только писать код, про который это легко доказать. Числа ниже сняты на тестовых проектах. Они показывают не «сколько вы сэкономите», а во сколько обходится каждый способ помешать бандлеру."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Бандлер не удаляет лишнее, а собирает нужное" titleSize={16.5} pad={18} gap={11} size={15.5} text={SHAKE_DEFINITION} />
+    <Card title="Tree shaking — не то же, что удаление мёртвого кода" titleSize={16.5} pad={18} gap={11} size={15.5} text={SHAKE_VS_DCE} />
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHAKE} />
+
+  <Table
+    head={['что собирали', 'размер', 'почему так']}
+    rows={SHAKE_MEASURE.map((m) => [m.k, m.v, m.what])}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(260px,1.4fr) minmax(140px,.7fr) minmax(280px,1.7fr)"
+    minWidth={780}
+  />
+
+  <Card tone="err" title="Что бандлер считает побочным эффектом" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <Md text={SIDE_EFFECT_DEFINITION} />
+
+    <CodeBlock code={SIDE_EFFECT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+      <Md text={CONSERVATIVE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {SIDE_EFFECTS_FIELD.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Зачем существует `/*#__PURE__*/`" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={PURE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    Без пометки вызов функции-фабрики на верхнем уровне модуля — побочный эффект. Бандлер
+    не знает, что делает функция, и оставляет вызов в бандле — вместе с самой фабрикой
+    и всем, что она импортирует. С пометкой начинается цепная реакция: результат не нужен —
+    выбрасывается вызов, за ним фабрика, за ней её зависимости.
+
+    <CardNote tone="prose">
+      <Md text={PURE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Почему код не выбросился: восемь причин, от частых к редким" titleSize={18} pad={22} gap={14}>
+    <Pitfalls items={WHY_NOT_SHAKEN} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Чанки и кеш"
+  lead="Бандлер не только выбрасывает лишнее, но и решает, какие модули лягут в один файл. Файл, который получился из группы модулей, называют чанком. От раскладки зависят три вещи: сколько запросов сделает браузер, сколько перекачает пользователь после деплоя и что сломается, если старая вкладка попросит новый файл."
+  leadWidth={72}
+>
+  <Card title="Где сборка режет код на отдельные файлы" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={SPLIT_POINTS} size={14.5} />
+
+    <CodeBlock code={DYNAMIC_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Table
+      head={['форма динамического импорта', 'что будет', 'почему']}
+      rows={GLOB_ROWS.map((r) => [r.k, r.v, r.why])}
+      kinds={['mono', 'prose', 'muted']}
+      cols="minmax(250px,1.2fr) minmax(130px,.6fr) minmax(280px,1.7fr)"
+      minWidth={760}
+    />
+
+    <CardNote tone="prose">
+
+      Бандлер не знает, чему будет равна переменная в пути. Поэтому он превращает шаблон
+      в маску (например, `./locales/*.json`), кладёт в сборку **все** подходящие файлы
+      отдельными чанками и строит таблицу «значение → файл». Отсюда требования к шаблону:
+      неизменное начало пути, неизменный конец, а переменная — ровно в одном сегменте пути.
+
+    </CardNote>
+  </Card>
+
+  ### Раскраска на одном графе
+
+  Как сборка решает, какой модуль в какой файл положить, проще всего посчитать руками
+  на маленьком приложении: вход и два ленивых маршрута с одним общим модулем.
+
+  <CodeBlock code={CHUNK_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={CHUNK_SCENE_NOTE} />
+
+  На схеме — тот же граф, разложенный по файлам: модули одного цвета лежат вместе, а `format.js` стоит между маршрутами в единственном экземпляре.
+
+  <ChunkDiagram diagram={CHUNK_DIAGRAM} />
+
+  <Card title="Тот же граф по шагам" titleSize={16.5} pad={18} gap={11} size={15.5}>
+    <NumberedList items={CHUNK_STEPS} size={14.5} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHUNKS} />
+
+  <CardGrid min={280} gap={14}>
+    {COLORING_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" title="Vendor-чанк (всё из `node_modules` в один файл) работает, но уже не лучший выбор" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <Md text={VENDOR_NOTE} />
+
+    <CodeBlock code={MANUAL_CHUNKS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="warn">
+
+      Разумная позиция сегодня — сначала ничего не трогать. Автоматическая раскладка обычно
+      даёт хороший результат, а ручную группировку применяют точечно и после замера.
+      Плагин, который складывал «всё в vendor», в своё время объявили устаревшим: сами авторы
+      признали, что этот приём годится не везде.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {CACHE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" title="Повтор `import()`, который не помогает" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={RETRY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+      <Md text={RETRY_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что лежит в `dist` после сборки — и карты исходников
+
+  Ниже — что выдал `vite build` 8.3.0 на маленьком проекте: вход, файл стилей, воркер
+  и один ленивый маршрут. Это ровно то, что копируют в образ контейнера или объявляют
+  артефактом конвейера.
+
+  <CodeBlock code={DIST_TREE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {DIST_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Dev не равен prod"
+  lead="Под одним конфигом Vite работают два разных конвейера. В разработке браузер сам грузит модули по одному, а dev-сервер лишь переводит каждый файл на лету. Для рабочей сборки сборщик склеивает всё в несколько чанков. В Vite 8 в обоих местах работает один сборщик, Rolldown, но конвейеры от этого одинаковыми не стали — и целый класс багов в разработке не виден вообще."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Как dev-сервер обходится без сборки" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <NumberedList items={VITE_DEV_STEPS} size={14.5} />
+    </Card>
+
+    <Card tone="info" title="Почему зависимости всё-таки собираются заранее" titleSize={16.5} pad={18} gap={11} size={15.5}>
+      <Md text={PREBUNDLE_NOTE} />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['что', 'в dev', 'в prod']}
+    rows={DEV_PROD_ROWS.map((r) => [r.k, r.dev, r.prod])}
+    kinds={['prose', 'muted', 'prose']}
+    cols="minmax(200px,1fr) minmax(200px,1.1fr) minmax(220px,1.2fr)"
+    minWidth={640}
+  />
+
+  <Card title="Каждая строка таблицы — источник настоящего бага" titleSize={18} pad={22} gap={14}>
+    <Pitfalls items={DEV_PROD_BUGS} />
+
+    <CardNote tone="prose">
+      <Md text={DISCIPLINE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Легаси-сборка: второй бандл для старых браузеров
+
+  `build.target` понижает синтаксис, но не добавляет недостающих методов. Если старые браузеры
+  нужно поддерживать всерьёз, собирают **второй** бандл и отдают его только им. Выбирает
+  бандл сам браузер — по двум атрибутам.
+
+  <CodeBlock code={NOMODULE_HTML} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {LEGACY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Что сборка помнит между запусками
+
+  <CardGrid min={280} gap={14}>
+    {BUILD_CACHE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  <Card title="Сводка чисел и ответов движка" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['утверждение', 'результат', 'где']}
+      rows={MEASURED.map((m) => [m.k, m.v, m.where])}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(260px,1.5fr) minmax(190px,1fr) minmax(130px,.6fr)"
+      minWidth={700}
+    />
+
+    <CardNote tone="prose">
+
+      Поведение модулей в Node и в Chromium совпало до строки. Размеры сборки сняты на
+      **маленьких тестовых проектах**: сравнивать их между собой можно, переносить абсолютные
+      числа на своё приложение — нет.
+
+    </CardNote>
+
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    Как эти файлы едут по сети и чем определяется их приоритет — в теме
+    [про сеть и кеширование](/platform/network/).
+
+    <SourceList items={SOURCES} />
+
+    <CardNote tone="prose">
+
+      Документация инструментов живёт быстрее спецификаций: условия выбора файлов пакета, дефолты
+      минификатора и поведение раскраски чанков меняются от версии к версии. Сверяйте со своей
+      версией на день чтения, а не с этой страницей.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

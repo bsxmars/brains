@@ -1,0 +1,406 @@
+---
+title: Стейт-менеджеры изнутри
+heading: "Стейт-менеджеры изнутри: кого будит изменение"
+headingWidth: 24
+order: 15
+kicker: фреймворки изнутри
+lead: "Redux, Zustand и Pinia выглядят по-разному, а внутри у всех одно и то же: состояние и список тех, кому сообщить об изменении. Разница — в том, как подписчик узнаёт, касается ли его изменение. Redux зовёт всех, Zustand спрашивает селектор и сравнивает ссылки, Pinia не спрашивает ничего: Vue сам помнит, кто что читал."
+leadWidth: 66
+summary: "Стор как «состояние + подписчики», reducer и неизменяемость в Redux, селектор в `useSyncExternalStore` у Zustand — откуда лишний рендер и бесконечный цикл, `useShallow`, Pinia на реактивности Vue. Мини-реализация в демо сверена тестом с redux 5, zustand 5 и pinia 4."
+verifiedOn: "redux 5.0.1, @reduxjs/toolkit 2.13.0 (immer 11.1.18), reselect 5.3.0, zustand 5.0.15, pinia 4.0.3, React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, октябрь 2026: вызовы подписчиков и селекторов и рендеры компонентов сняты стендом и повторяются tests/unit/state-managers.test.ts; мини-реализация темы сверена с библиотеками на той же последовательности действий"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Стор }
+  - { id: s2, label: Redux }
+  - { id: s3, label: Селектор }
+  - { id: s4, label: Zustand }
+  - { id: s5, label: Pinia }
+  - { id: s6, label: Все вместе }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import StoreLab from '@/widgets/store-lab/ui/StoreLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_STORE,
+  PREREQ,
+  PREREQ_NOTE,
+  STORE_CODE,
+  USAGE_CODE,
+  USAGE_OUT,
+  USAGE_NOTE,
+  REDUX_CODE,
+  REDUCER_CODE,
+  PLAIN_ACTION,
+  NOTIFY_ROWS,
+  REDUX_NOTE,
+  PLAIN_IMMUTABLE,
+  MUTATE_CODE,
+  MUTATE_NOTE,
+  IMMER_CODE,
+  IMMER_OUT,
+  IMMER_NOTE,
+  RTK_FACTS,
+  SELECTOR_CODE,
+  PLAIN_SELECTOR,
+  SELECTOR_ROWS,
+  SELECTOR_NOTE,
+  CREATE_CODE,
+  HOOK_CODE,
+  HOOK_NOTE,
+  REACT_COMPONENTS,
+  REACT_RENDERS,
+  REACT_NOTE,
+  LOOP_CODE,
+  LOOP_NOTE,
+  LOOP_V4_NOTE,
+  SHALLOW_NOTE,
+  PINIA_CODE,
+  PINIA_USAGE_CODE,
+  PINIA_NOTE,
+  PINIA_COMPONENTS,
+  PINIA_RENDERS,
+  PINIA_FACTS,
+  LAB_MODES,
+  LAB_ACTIONS,
+  LAB_COMPONENTS_TEXT,
+  LAB_LOOP_NOTE,
+  DEMO_CAPTION,
+  COMPARE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Состояние и подписчики" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Стор — это переменная с состоянием и набор функций, которые надо позвать, когда состояние
+    изменится. Всё остальное в Redux, Zustand и Pinia — ответ на один вопрос: **как подписчик
+    узнаёт, что изменение касается именно его**, и сколько стоит это узнать.
+
+  </Callout>
+
+  Компоненту нужны данные, которые меняются где-то ещё: счётчик в корзине, имя пользователя,
+  список дел. Передавать их пропсами через десять уровней неудобно, поэтому данные выносят
+  в отдельный объект — стор. Компоненты читают из него и просят сообщить, когда данные
+  изменятся. Дальше начинается главное: изменений много, компонентов много, и перерисовывать
+  все на каждое изменение — дорого.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STORE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Стор: состояние и подписчики"
+  lead="Двадцать строк ниже — почти дословно стор Zustand: переменная `state`, набор `listeners` и три функции. Читать, менять, подписаться. Компонентов, React и Vue здесь нет — стор о них ничего не знает."
+  leadWidth={72}
+>
+  <Card title="createStore" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STORE_CODE} />
+  </Card>
+
+  ### Сквозной пример
+
+  Одно и то же состояние — число, пользователь и список дел — проходит через всю тему.
+  Вызовы `setState` в примере отличаются только тем, что возвращает функция.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Код" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={USAGE_CODE} />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={USAGE_OUT} tone="ok" />
+    </Card>
+  </CardGrid>
+
+  <Md text={USAGE_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Redux: reducer, dispatch и неизменяемость"
+  lead="В Redux состояние меняет одна функция — reducer. Она получает старое состояние и действие и возвращает новое состояние. Стор хранит результат и после каждого `dispatch` зовёт всех подписчиков, не проверяя, изменилось ли хоть что-то."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTION} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Стор Redux" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REDUX_CODE} />
+    </Card>
+
+    <Card title="Reducer сквозного примера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REDUCER_CODE} />
+    </Card>
+  </CardGrid>
+
+  ### Кого зовёт стор
+
+  <Table
+    head={['что вернуло обновление', 'Zustand: `setState`', 'Redux: `dispatch`']}
+    rows={NOTIFY_ROWS.map((r) => [r.k, r.zustand, r.redux])}
+    tones={NOTIFY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(260px,1.6fr) minmax(160px,1fr) minmax(160px,1fr)"
+    minWidth={620}
+  />
+
+  <Md text={REDUX_NOTE} />
+
+  ### Почему нельзя мутировать
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IMMUTABLE} />
+
+  <Card tone="err" title="Мутация в reducer" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={MUTATE_CODE} />
+
+    <Md text={MUTATE_NOTE} />
+  </Card>
+
+  ### Redux Toolkit: мутация, которая не мутирует
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Код" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={IMMER_CODE} />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={IMMER_OUT} tone="ok" />
+
+      <Md text={IMMER_NOTE} />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={260} gap={14} align="start">
+    {RTK_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Селектор: подписка на свой кусок"
+  lead="Селектор выбирает из состояния то, что нужно одному компоненту. Стор по-прежнему зовёт всех, но каждый подписчик сначала вызывает свой селектор и сравнивает ответ с прошлым через `Object.is`. Совпало — рендера нет."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SELECTOR} />
+
+  <Card title="subscribeSelector и shallow" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SELECTOR_CODE} />
+  </Card>
+
+  ### Пять действий сквозного примера — четыре селектора
+
+  <Table
+    head={['селектор', 'вызовов селектора', 'вызовов слушателя', 'почему']}
+    rows={SELECTOR_ROWS.map((r) => [r.sel, String(r.calls), String(r.renders), r.why])}
+    tones={SELECTOR_ROWS.map((r) => r.tone ?? 'info')}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(250px,1.6fr) minmax(90px,.5fr) minmax(90px,.5fr) minmax(220px,1.3fr)"
+    minWidth={700}
+  />
+
+  <Md text={SELECTOR_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Zustand: селектор внутри `useSyncExternalStore`"
+  lead="`create` в Zustand — это стор из раздела «Стор» плюс хук. Хук ничего не сравнивает сам: он отдаёт селектор в `useSyncExternalStore` как `getSnapshot`, а сравнивает React."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Как пишут" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CREATE_CODE} />
+    </Card>
+
+    <Card title="Что внутри хука" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HOOK_CODE} />
+    </Card>
+  </CardGrid>
+
+  <Md text={HOOK_NOTE} />
+
+  ### Рендеры четырёх компонентов
+
+  <Table
+    head={['компонент', 'чем читает стор']}
+    rows={REACT_COMPONENTS.map((c) => [c.k, c.sel])}
+    kinds={['mono', 'prose']}
+    cols="minmax(110px,.5fr) minmax(320px,2fr)"
+    minWidth={520}
+  />
+
+  <Table
+    head={['действие', '`Counter`', '`Name`', '`Whole`', '`Summary`']}
+    rows={REACT_RENDERS.map((r) => [r.action, ...r.renders.map(String)])}
+    kinds={['mono', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1.6fr) repeat(4, minmax(80px,.5fr))"
+    minWidth={600}
+  />
+
+  <Md text={REACT_NOTE} />
+
+  ### Селектор, который возвращает новый объект
+
+  <Card tone="err" title="Бесконечный цикл при монтировании" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={LOOP_CODE} />
+
+    <Md text={LOOP_NOTE} />
+  </Card>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={LOOP_V4_NOTE} />
+
+  <Card tone="ok" title="`useShallow`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={SHALLOW_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Pinia: подписка не нужна"
+  lead="В Pinia у компонента нет ни селектора, ни подписки. Стор — `reactive`-объект Vue, и рендер компонента сам запоминает, какие поля стора прочитал. Изменение будит ровно тех, кто читал изменённое поле."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Мини-Pinia" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PINIA_CODE} />
+    </Card>
+
+    <Card title="Как пишут" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PINIA_USAGE_CODE} />
+    </Card>
+  </CardGrid>
+
+  <Md text={PINIA_NOTE} />
+
+  ### Рендеры четырёх компонентов
+
+  <Table
+    head={['компонент', 'что читает']}
+    rows={PINIA_COMPONENTS.map((c) => [c.k, c.sel])}
+    kinds={['mono', 'prose']}
+    cols="minmax(110px,.5fr) minmax(320px,2fr)"
+    minWidth={480}
+  />
+
+  <Table
+    head={['действие', '`Counter`', '`Name`', '`Summary`', '`Todos`']}
+    rows={PINIA_RENDERS.map((r) => [r.action, ...r.renders.map(String)])}
+    kinds={['mono', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(240px,1.6fr) repeat(4, minmax(80px,.5fr))"
+    minWidth={620}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PINIA_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Один стор — четыре способа подписки"
+  lead="Три компонента читают одно и то же состояние сквозного примера. Меняется только то, как каждый из них узнаёт об изменении."
+  leadWidth={72}
+>
+  <StoreLab
+    client:visible
+    codes={{ store: STORE_CODE, selector: SELECTOR_CODE, pinia: PINIA_CODE }}
+    modes={LAB_MODES}
+    actions={LAB_ACTIONS}
+    components={LAB_COMPONENTS_TEXT}
+    loopNote={LAB_LOOP_NOTE}
+    caption={DEMO_CAPTION}
+  />
+
+  ### Три библиотеки рядом
+
+  <Table
+    head={COMPARE.head}
+    rows={COMPARE.rows}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(200px,1fr) minmax(200px,1fr) minmax(200px,1fr)"
+    minWidth={780}
+  />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Стейт-менеджер решает, кого будить, — а платите вы за то, как он это решает.** Redux
+      и Zustand сравнивают ссылки, поэтому требуют неизменяемых обновлений и селекторов, которые
+      возвращают тот же объект, пока данные те же. Pinia знает о чтениях заранее и прощает
+      мутации, но не прощает значение, оторванное от стора деструктуризацией.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

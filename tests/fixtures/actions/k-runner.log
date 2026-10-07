@@ -1,0 +1,31 @@
+time="2026-09-15T15:56:15+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[k-runner/identity] ⭐ Run Set up job
+[k-runner/identity] 🚀  Start image=node:22-slim
+[k-runner/identity]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[k-runner/identity]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[k-runner/identity]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[k-runner/identity]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[k-runner/identity]   ✅  Success - Set up job
+[k-runner/identity] ⭐ Run Main what machine is behind the label
+[k-runner/identity]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[k-runner/identity]   | label-said: ubuntu-latest
+[k-runner/identity]   | PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+[k-runner/identity]   | NAME="Debian GNU/Linux"
+[k-runner/identity]   | VERSION_ID="12"
+[k-runner/identity]   | node=v22.23.2
+[k-runner/identity]   | arch=aarch64
+[k-runner/identity]   | kernel=6.10.14-linuxkit
+[k-runner/identity]   | user=root uid=0
+[k-runner/identity]   | docker-cli=ABSENT
+[k-runner/identity]   | git=ABSENT
+[k-runner/identity]   | sudo=ABSENT
+[k-runner/identity]   | RUNNER_OS=Linux RUNNER_ARCH=ARM64 RUNNER_TEMP=/tmp
+[k-runner/identity]   | CI=true GITHUB_ACTIONS=true
+[k-runner/identity]   | workspace-writable=yes
+[k-runner/identity]   ✅  Success - Main what machine is behind the label [100.547208ms]
+[k-runner/identity] ⭐ Run Complete job
+[k-runner/identity] Cleaning up container for job identity
+[k-runner/identity]   ✅  Success - Complete job
+[k-runner/identity] 🏁  Job succeeded

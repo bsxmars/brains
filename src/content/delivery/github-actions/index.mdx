@@ -1,0 +1,751 @@
+---
+title: 'GitHub Actions: конвейер'
+order: 4
+kicker: доставка
+lead: "Файл конвейера похож на скрипт, но работает иначе. Его запускает **событие в репозитории**, а выполняют **несколько отдельных машин, которые ничего не знают друг о друге**. Отсюда почти все сюрпризы: переменная пропадает между шагами, файл не доезжает до соседней машины, кеш промахивается, а конвейер, зелёный локально, краснеет в облаке."
+leadWidth: 68
+summary: "Что запускает конвейер; чем различаются джоб, шаг и раннер; что переносится между шагами и между джобами; как кеш ищет запись по ключу; матрицы, права и секреты. Всё проверено прогонами на своей машине через act."
+verifiedOn: "act 0.2.89 · Docker 27.4.0 · образ node:22-slim вместо раннера (Debian 12 bookworm, Node 22.23.2, arm64), сентябрь 2026. Раннеры GitHub, actions/cache, сервисные контейнеры, права GITHUB_TOKEN, окружения, матрица по нескольким ОС и отмена соседей по fail-fast замером не закрыты и помечены в тексте"
+nav:
+  - { id: s0, label: 'Перед началом' }
+  - { id: s1, label: 'Событие и триггер' }
+  - { id: s2, label: 'Джоб, шаг, раннер' }
+  - { id: s3, label: 'Что переживает границу' }
+  - { id: s4, label: 'Выражения и условия' }
+  - { id: s5, label: 'Кеш и промахи' }
+  - { id: s6, label: 'Матрицы' }
+  - { id: s7, label: 'Права и секреты' }
+  - { id: s8, label: 'Тонкие места' }
+  - { id: s9, label: 'Источники' }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import PipelineTimeline from '@/widgets/pipeline-timeline/ui/PipelineTimeline.vue';
+import BoundaryDiagram from '@/widgets/github-actions-boundary-diagram/ui/BoundaryDiagram.astro';
+import CacheLookupDiagram from '@/widgets/github-actions-cache-diagram/ui/CacheLookupDiagram.astro';
+import {
+  ARTIFACT_CODE,
+  ARTIFACT_FACTS,
+  BOUNDARY_NUMBERS,
+  CACHE_CODE,
+  CACHE_FACTS,
+  CACHE_MISS,
+  CALL_CODE,
+  COMPOSITE_CODE,
+  CARRY_ROWS,
+  CONDITION_ROWS,
+  ENV_CODE,
+  ENVIRONMENT_CODE,
+  ENVIRONMENT_FACTS,
+  EVENT_FACTS,
+  EXPR_ROWS,
+  HASH_ROWS,
+  INJECT_CODE,
+  INJECT_RENDERED,
+  MATRIX_CODE,
+  MATRIX_FACTS,
+  MATRIX_ROWS,
+  MEASURED,
+  NEEDS_CODE,
+  NEEDS_FACTS,
+  NOT_REPRODUCED,
+  OUTPUT_CODE,
+  PERM_FACTS,
+  PITFALLS,
+  REUSE_FACTS,
+  RUNNER_FACTS,
+  RUNNER_PROBE,
+  SCENARIOS,
+  SECRET_CODE,
+  SECRET_ROWS,
+  SELF_HOSTED_CODE,
+  SELF_HOSTED_FACTS,
+  SOURCES,
+  STATE_FACTS,
+  SUMMARY_CODE,
+  SUMMARY_NOTE,
+  SUBST_ROWS,
+  TRIGGER_CODE,
+  TRIGGER_ROWS,
+  UNIT_ROWS,
+  VERSIONS,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  RELATED,
+  PIPELINE_DEMO_NOTE,
+  PLAIN_CACHE_KEY,
+  PLAIN_EXPR,
+  PLAIN_JOB_STEP,
+  PLAIN_MASK,
+  PLAIN_ENVIRONMENT,
+  FAILURE_SCENE,
+  FAILURE_STEPS,
+  PLAIN_FAILURE,
+  CACHE_SCENE,
+  CACHE_RUNS,
+  PLAIN_CACHE_RUNS,
+  BOUNDARY_DIAGRAM,
+  CACHE_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Зачем отдельная тема" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Конвейер привычно читать как скрипт: сверху вниз, команда за командой. Файл этому потакает —
+    шаги идут списком, отступы намекают на вложенность. Но выполняется он иначе. Каждый **джоб**
+    (задание) получает свою машину, и машины друг о друге ничего не знают. Каждый **шаг** внутри
+    джоба — отдельный запуск оболочки, и переменные в нём живут только до его конца. Поэтому почти
+    любой вопрос «почему в конвейере не работает то, что работает у меня» сводится к одному:
+    <b>что переходит через границу между шагами и между джобами</b>.
+
+  </Callout>
+
+  Числа в теме сняты программой `act`: она выполняет тот же файл конвейера на своей машине,
+  поверх Docker. Это **не настоящая машина GitHub**, и где `act` ведёт себя иначе, сказано
+  по месту.
+
+  <CardGrid min={270} gap={14}>
+    <Card title="Запускает событие, а не человек" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Прогон — один запуск конвейера. Он начинается, когда в репозитории что-то происходит,
+      например push, и это событие перечислено в `on:`. Нет события в списке — нет и прогона:
+      на событие `release` локальный `act` ответил «нечего запускать».
+
+    </Card>
+    <Card tone="err" emphasis title="Между джобами не переходит ничего" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Ни файлы, ни переменные. В замере переменная, записанная в `$GITHUB_ENV` в одном джобе,
+      в соседнем оказалась пустой, а файл из рабочей папки там просто не нашёлся.
+
+    </Card>
+    <Card tone="warn" title="Между шагами переходит только часть" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Файлы остаются. Переменные из `export` и смена папки через `cd` — нет. Запись
+      в `$GITHUB_ENV` доходит, но только до следующего шага. Эта половинчатость и путает
+      больше всего.
+
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Событие и триггер"
+  lead="Конвейер не запускается сам. Он ждёт событий в репозитории — push, пул-реквест, нажатие кнопки, — и только список в `on:` решает, начнётся прогон или нет."
+  leadWidth={72}
+>
+  <CodeBlock code={TRIGGER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={['чем запускали', 'что увидел конвейер', 'о чём это']}
+    rows={TRIGGER_ROWS.map((r) => [r.k, r.v, r.why])}
+    tones={TRIGGER_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'muted']}
+    cols="minmax(170px,.9fr) minmax(220px,1.3fr) minmax(230px,1.5fr)"
+    minWidth={700}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {EVENT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" title="Фильтры решают, будет ли прогон вообще" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    `branches` и `paths` отвечают на вопрос «создавать ли прогон», а не «пропускать ли шаги».
+    Если условие не совпало, вы не увидите ни красного, ни зелёного значка, ни логов — прогона
+    просто **не будет**. Это самый частый ответ на «почему конвейер не запустился».
+
+    <CardNote tone="warn">
+
+      Проверить фильтр локально не выйдет: `act` их не применяет и запустил конвейер
+      с `paths: ['src/**']`, хотя папка `src/` была пуста. Поэтому работа фильтров описана
+      **по документации**; прогоном проверено одно — событие, которого нет в `on:`, не запускает
+      ничего.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Джоб, шаг, раннер: где проходят границы"
+  lead="Эти три слова из документации легко спутать, а путаница между ними обходится дороже всего остального. Граница шага и граница джоба — две разные границы, и на каждой теряется своё."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_JOB_STEP} />
+
+  <Table
+    head={['единица', 'что это', 'что у неё общего']}
+    rows={UNIT_ROWS.map((r) => [r.k, r.what, r.share])}
+    tones={UNIT_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(150px,.7fr) minmax(230px,1.2fr) minmax(260px,1.5fr)"
+    minWidth={680}
+  />
+
+  <Card pad={22} radius={5} gap={16}>
+    <div class="t-eyebrow t-eyebrow--panel">От события до шага</div>
+
+    <FlowChips
+      minWidth={680}
+      chips={[
+        { label: 'событие' },
+        { label: 'прогон', tone: 'info' },
+        { label: 'джоб = машина', tone: 'warn' },
+        { label: 'шаг = процесс', tone: 'ok' },
+      ]}
+    />
+
+    Каждая стрелка — граница, и на каждой часть состояния теряется.
+
+  </Card>
+
+  <Card title="Что стоит за меткой `runs-on`" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={RUNNER_PROBE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="warn">
+
+      В этом прогоне метку `ubuntu-latest` намеренно подменили образом `node:22-slim`.
+      Конвейер подмены не заметил, пока шаг не попросил `git`. На настоящих машинах GitHub
+      за той же меткой стоит образ с десятками заранее установленных инструментов, и его состав
+      со временем меняется. Что лежит внутри образа и почему он столько весит — в теме
+      [про образ и слои](/delivery/docker/).
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {RUNNER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Свои раннеры
+
+  <CodeBlock code={SELF_HOSTED_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {SELF_HOSTED_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Порядок джобов: `needs`
+
+  <CodeBlock code={NEEDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {NEEDS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Переиспользование: составное действие и вызываемый конвейер
+
+  «Поставить Node, восстановить кеш, `npm ci`» повторяется в каждом джобе и в каждом
+  репозитории. Поправили в одном месте — забыли в пяти других. Вынести повтор можно на двух
+  уровнях: шаги — в составное действие, джобы целиком — в вызываемый конвейер.
+
+  <CodeBlock code={COMPOSITE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CodeBlock code={CALL_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {REUSE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Что переживает границу"
+  lead={PIPELINE_DEMO_NOTE}
+  leadWidth={72}
+>
+  <PipelineTimeline client:visible scenarios={SCENARIOS} versions={VERSIONS} />
+
+  <Table
+    head={['что меряли', 'сколько вышло', 'о чём это']}
+    rows={BOUNDARY_NUMBERS.map((r) => [r.k, r.v, r.what])}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(220px,1.2fr) minmax(140px,.7fr) minmax(240px,1.5fr)"
+    minWidth={720}
+  />
+
+  <DarkPanel eyebrow="Во что обходится лишний джоб">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      Одна и та же работа заняла **802 мс** одним джобом и **8433 мс** пятью. Полезной работы
+      в обоих случаях столько же. Вся разница ушла на границы: поднять новую машину, скачать
+      код действия, скачать обратно артефакт.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Отсюда правило, которого нет в документации, но которое видно по шкале времени. Отдельный
+      джоб заводят ради двух вещей: чтобы работа шла параллельно и чтобы падение одной части
+      не роняло остальные. Если делить конвейер на джобы «для порядка», каждая граница стоит
+      секунды, и на каждой теряется всё состояние.
+
+    </DarkText>
+  </DarkPanel>
+
+  <BoundaryDiagram data={BOUNDARY_DIAGRAM} />
+
+  <Card title="Что переходит между шагами и между джобами" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['что', 'через границу шага', 'через границу джоба', 'почему']}
+      rows={CARRY_ROWS.map((r) => [r.k, r.step, r.job, r.why])}
+      tones={CARRY_ROWS.map((r) => r.tone)}
+      kinds={['mono', 'mono', 'mono', 'muted']}
+      cols="minmax(180px,.9fr) minmax(120px,.6fr) minmax(170px,.9fr) minmax(230px,1.5fr)"
+      minWidth={780}
+    />
+
+    <CardNote tone="warn">
+
+      Самая коварная строка — «файлы вне рабочей директории». Текущая папка не переживает смену
+      шага, **а файл, созданный вне рабочей папки, переживает**: в замере файл в `/tmp` спокойно
+      дождался следующего шага. Граница шага завершает процесс, но не трогает диск. Поэтому
+      половина состояния проходит сквозь неё — и кажется, что проходит всё.
+
+    </CardNote>
+  </Card>
+
+  <CodeBlock code={ENV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {STATE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" title="Выход джоба надо объявить, иначе он пуст" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={OUTPUT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+
+      Ни одна из трёх пустых строк не вызывает ошибку: конвейер поедет дальше и, скорее всего,
+      выкатит что-нибудь не то. Значения переезжают через `outputs`, а **файлы** — только
+      артефактом.
+
+    </CardNote>
+  </Card>
+
+  ### Артефакт: как файлы переезжают на другую машину
+
+  <CodeBlock code={ARTIFACT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {ARTIFACT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Ещё два служебных канала: сводка и пометки" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={SUMMARY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={SUMMARY_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Выражения и условия"
+  lead="`${{ … }}` выглядит как переменная, но работает иначе. GitHub вычисляет выражение **до** запуска шага и вклеивает результат прямо в текст скрипта. Отсюда и самая частая уязвимость конвейеров, и половина странностей с `if`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EXPR} />
+
+  <Table
+    head={['что', 'когда вычисляется', 'что происходит']}
+    rows={SUBST_ROWS.map((r) => [r.k, r.when, r.what])}
+    tones={SUBST_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(230px,1.1fr) minmax(160px,.8fr) minmax(250px,1.5fr)"
+    minWidth={700}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Как это выглядит в файле" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={INJECT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" emphasis title="И что из этого получилось на раннере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={INJECT_RENDERED} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Это проверено прогоном, и получившийся скрипт сохранён целиком: значение закрыло кавычку,
+    и команда внутри него выполнилась. Теперь представьте на этом месте
+    `github.event.pull_request.title` — заголовок пул-реквеста, который может написать кто угодно.
+    Чужой код выполнится на вашей машине, рядом с вашими секретами. Лечение простое: данные
+    из события передавайте через `env:`, а в скрипте читайте как `$VAR`.
+
+  </Card>
+
+  <Card title="Выражения считают не так, как кажется" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['выражение', 'результат', 'почему']}
+      rows={EXPR_ROWS.map((r) => [r.k, r.v, r.why])}
+      kinds={['mono', 'mono', 'muted']}
+      cols="minmax(230px,1.1fr) minmax(110px,.5fr) minmax(240px,1.4fr)"
+      minWidth={660}
+    />
+
+    <CardNote tone="warn">
+
+      Запомните строку про `'false'`: строка `'false'` — **истина**, потому что она непустая.
+      Если условие собрано из текстового вывода шага, оно срабатывает всегда — даже когда шаг
+      написал `false`.
+
+    </CardNote>
+  </Card>
+
+  ### Один джоб после падения шага
+
+  {FAILURE_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {FAILURE_STEPS.map((f) => (
+      <Card title={f.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={f.what} />
+        <Md text={`**Чем платит:** ${f.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FAILURE} />
+
+  <Card title="Что происходит после падения" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['случай', 'что видно', 'следствие']}
+      rows={CONDITION_ROWS.map((r) => [r.k, r.v, r.why])}
+      tones={CONDITION_ROWS.map((r) => r.tone)}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(220px,1.1fr) minmax(190px,1fr) minmax(240px,1.4fr)"
+      minWidth={720}
+    />
+
+    <CardNote tone="err">
+
+      Сильнее всего интуиция подводит на паре `outcome` и `conclusion`. `outcome` — чем шаг
+      закончился на самом деле, `conclusion` — какой итог видят все следующие шаги.
+      `continue-on-error` не «помечает шаг жёлтым»: он делает итог шага **успешным** для всех,
+      кто спросит дальше. `success()` после такого шага истинно, джоб зелёный,
+      и о падении знает только тот, кто открыл лог.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Кеш и почему он промахивается"
+  lead="Кеш ищет сохранённую запись по строке-ключу, которую вы составляете сами. Всё, что в ключ не попало, кеш считает неважным. Почти все беды с кешем растут отсюда."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE_KEY} />
+
+  <CodeBlock code={CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  ### Один ключ на четырёх прогонах
+
+  {CACHE_SCENE.map((t) => <Md text={t} />)}
+
+  <CacheLookupDiagram data={CACHE_DIAGRAM} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {CACHE_RUNS.map((r) => (
+      <Card title={r.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={r.what} />
+        <Md text={`**Чем платит:** ${r.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE_RUNS} />
+
+  <Card title="`hashFiles()` считает не хеш файла" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['что считали', 'что вышло', 'о чём это']}
+      rows={HASH_ROWS.map((r) => [r.k, r.v, r.why])}
+      tones={HASH_ROWS.map((r) => r.tone)}
+      kinds={['mono', 'mono', 'muted']}
+      cols="minmax(230px,1.1fr) minmax(150px,.7fr) minmax(230px,1.4fr)"
+      minWidth={720}
+    />
+
+    <CardNote tone="prose">
+
+      Практический вывод: сверять ключ кеша с `sha256sum package-lock.json` бесполезно — числа
+      не совпадут и не должны. Проверять стоит другое: нашёл ли `hashFiles` файл вообще.
+      Опечатка в пути не даёт ошибки, а даёт пустую строку, и ключ становится общим для всех
+      прогонов — последняя строка таблицы.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {CACHE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" title="Шесть способов промахнуться" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={CACHE_MISS} size={14.5} />
+
+    <CardNote tone="warn">
+
+      Полезен только первый промах: ради него кеш и заведён. Остальные пять значат, что ключ
+      описывает не то, от чего на самом деле зависит содержимое. Отсюда правило составления
+      ключа: в него входит всё, от чего зависит содержимое папки, — лок-файл, операционная
+      система, версия среды выполнения.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Матрицы и параллелизм"
+  lead="Матрица выглядит как цикл: «повтори для Node 20 и Node 22». Но GitHub превращает её в набор отдельных джобов, по одному на каждое сочетание значений, и каждый платит полную цену: своя машина, свои границы. Поэтому на долгой работе матрица очень выгодна, а на короткой бессмысленна."
+  leadWidth={72}
+>
+  <CodeBlock code={MATRIX_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={['что написано', 'что вышло', 'почему']}
+    rows={MATRIX_ROWS.map((r) => [r.k, r.v, r.why])}
+    tones={MATRIX_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'muted']}
+    cols="minmax(240px,1.2fr) minmax(140px,.6fr) minmax(240px,1.4fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {MATRIX_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Для `needs` вся матрица — **один** джоб с одним результатом. Джоб, стоящий после неё, не может
+    узнать, какое именно сочетание упало, и не может дождаться одного конкретного. Если такое различение
+    нужно — это не матрица, а разные джобы.
+
+  </Card>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Права и секреты"
+  lead="Секреты — пароли и токены из настроек репозитория. Если секрет попадает в лог, GitHub заменяет его звёздочками; это называется маскированием. Защитой оно не является: звёздочки ставятся только на точное совпадение строки."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MASK} />
+
+  <CodeBlock code={SECRET_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={['что напечатали', 'что в логе', 'почему']}
+    rows={SECRET_ROWS.map((r) => [r.k, r.v, r.why])}
+    tones={SECRET_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(210px,1fr) minmax(200px,1fr) minmax(240px,1.4fr)"
+    minWidth={720}
+  />
+
+  <Card tone="err" title="Что из этого следует" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    Маскирование — последняя линия защиты, а не первая. Оно не узнаёт секрет в base64,
+    по частям или задом наперёд: в замере всё это напечаталось открытым текстом. Настоящая
+    защита одна — не давать секрету попадать туда, откуда его могут напечатать.
+
+    <CardNote tone="ok">
+
+      Есть и хорошая новость, тоже проверенная прогоном: секрет **не становится** переменной окружения
+      сам по себе. `${MY_TOKEN:-NO}` вернул `NO` — в шаг попадает только то, что передали явно
+      через `env:` или `with:`. Значит, шаг, которому секрет не нужен, его и не увидит.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {PERM_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Окружения и одобрения
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENVIRONMENT} />
+
+  <CodeBlock code={ENVIRONMENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {ENVIRONMENT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  <Card title="Что из этого снято прогоном" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['утверждение', 'замер', 'запись']}
+      rows={MEASURED.map((m) => [m.k, m.v, m.where])}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(240px,1.4fr) minmax(200px,1fr) minmax(150px,.7fr)"
+      minWidth={720}
+    />
+  </Card>
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Источники"
+>
+  <Card tone="warn" title="Чего локальный прогон не воспроизводит" titleSize={18} pad={22} gap={14}>
+
+    `act` запускает контейнеры на вашей машине, а половина механики Actions работает
+    на серверах GitHub. Всё, что ниже, взято из документации, а не проверено запуском.
+
+    <CardGrid min={290} gap={14}>
+      {NOT_REPRODUCED.map((item) => (
+        <Card tone="warn" title={item.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+      ))}
+
+    </CardGrid>
+
+  </Card>
+
+  <Card title="Документация" titleSize={18} pad={22} gap={14}>
+
+    Правила — из документации, числа — из прогонов.
+
+    <SourceList items={SOURCES} />
+
+    <CardNote tone="prose">
+
+      Actions меняется, и документация меняется вместе с ним: версии действий (`@v4`), состав
+      образов раннеров и лимиты кеша живут своей жизнью. Сверяйте с вашей версией — и,
+      если можете, с прогоном: локальный `act` за секунды и без единого коммита покажет,
+      что переходит через границу.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

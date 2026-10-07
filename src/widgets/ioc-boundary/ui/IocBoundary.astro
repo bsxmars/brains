@@ -1,0 +1,169 @@
+---
+/**
+ * Граница: что именно вы отдаёте вместе со ссылкой на функцию.
+ *
+ * Две половины блока — не украшение, а сама мысль. Слева, на светлой стороне, остаётся
+ * значение; справа, на чернилах, — список решений, которые с этого момента принимает чужой
+ * код. Шесть строк справа — это шесть категорий багов, и урок разбирает их по очереди.
+ */
+import type { IocRow } from '../model/types';
+
+interface Props {
+  rows: IocRow[];
+}
+
+const { rows } = Astro.props;
+---
+
+<div class="boundary">
+  <div class="side">
+    <div class="t-eyebrow t-eyebrow--panel side__title">ваша сторона</div>
+
+    <div class="value">
+      <div class="value__sig">function cb(...)</div>
+      <div class="value__text">Замкнула ваше лексическое окружение — и тащит его с собой.</div>
+    </div>
+
+    <div class="arrow">
+      <span class="arrow__line"></span>
+      <span class="arrow__text">передали значение</span>
+      <span class="arrow__head">▶</span>
+    </div>
+
+    <div class="aside">Не вызов. Ссылку. Дальше её кладут в чужую структуру данных.</div>
+  </div>
+
+  <div class="side side--ink">
+    <div class="t-eyebrow t-eyebrow--on-ink">чужая сторона · и теперь он решает</div>
+
+    <div class="rows">
+      {
+        rows.map((row) => (
+          <div class="row">
+            <span class="row__k">{row.k}</span>
+            <span class="row__v">{row.v}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</div>
+
+<style>
+  .boundary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: stretch;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    overflow: hidden;
+  }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 22px;
+    background: var(--surface);
+  }
+  /* Пунктир, а не сплошная: граница проницаема — через неё как раз и передают ссылку. */
+  .side:first-child {
+    border-right: 1px dashed var(--ghost);
+  }
+  .side--ink {
+    background: var(--ink);
+    color: var(--code-fg);
+  }
+  .side__title {
+    color: var(--accent);
+  }
+
+  .value {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 14px 16px;
+    border: 1px solid var(--tone-info-line);
+    border-radius: var(--r3);
+    background: var(--tone-info-bg);
+  }
+  .value__sig {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--tone-info-strong);
+  }
+  .value__text {
+    font-size: var(--fs-6);
+    line-height: 1.5;
+    color: var(--prose);
+  }
+
+  .arrow {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--accent);
+  }
+  .arrow__line {
+    flex: 1;
+    height: 0;
+    border-top: 2px solid var(--accent);
+  }
+  .arrow__text {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    white-space: nowrap;
+  }
+  .arrow__head {
+    font-size: var(--fs-4);
+  }
+
+  .aside {
+    font-size: var(--fs-6);
+    font-style: italic;
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--ink-chip);
+  }
+  .row:last-child {
+    border-bottom: 0;
+  }
+  .row__k {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--tone-warn-accent);
+  }
+  .row__v {
+    font-size: var(--fs-6);
+    line-height: 1.45;
+    color: var(--ink-prose);
+  }
+
+  @media (max-width: 720px) {
+    .boundary {
+      grid-template-columns: 1fr;
+    }
+    .side:first-child {
+      border-right: 0;
+      border-bottom: 1px dashed var(--ghost);
+    }
+    .row {
+      grid-template-columns: 1fr;
+      gap: 3px;
+    }
+  }
+</style>

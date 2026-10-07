@@ -1,0 +1,666 @@
+---
+title: Профилирование памяти
+order: 12
+lead: "Снимок памяти среднего одностраничного приложения (SPA) — это сотни тысяч объектов, и большая часть из них принадлежит самому движку. Если просто листать этот список, утечку не найти. Её находит порядок действий: один сценарий много раз подряд, три снимка, сравнение двух последних и панель, которая показывает, кто держит найденный объект."
+leadWidth: 66
+summary: "Семь шагов поиска утечки, два веса объекта — собственный и удерживаемый — и цепочка «кто держит»: как от строки в снимке дойти до строки в коде."
+verifiedOn: "Node 24.11 и 26.8 · DevTools Chrome 153"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: График }
+  - { id: s2, label: Процедура }
+  - { id: s3, label: Comparison }
+  - { id: s4, label: Retained }
+  - { id: s5, label: Retainers }
+  - { id: s6, label: Профили }
+  - { id: s7, label: Снимок из Node }
+  - { id: s8, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import ComparisonTable from '@/widgets/comparison-table/ui/ComparisonTable.vue';
+import HeapGraph from '@/widgets/heap-graph/ui/HeapGraph.vue';
+import MemoryMonitor from '@/widgets/memory-monitor/ui/MemoryMonitor.vue';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import Procedure from '@/widgets/procedure/ui/Procedure.vue';
+import RetainGraph from '@/widgets/retain-graph/ui/RetainGraph.vue';
+import RetainerChain from '@/widgets/retainer-chain/ui/RetainerChain.vue';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  MODEL_CARDS,
+  SYNTHETIC,
+  STEPS,
+  PREP,
+  CMP_ROWS,
+  CMP_RUNS,
+  CMP_CAVEAT,
+  SORT_NOTES,
+  HEAP_NODES,
+  HEAP_VARIANTS,
+  DISTANCE_CAVEAT,
+  LADDER_TITLE,
+  LADDER_TEXT,
+  LADDER_FORK,
+  RETAINED_SUM_TEXT,
+  CHAINS,
+  DETACHED_FACTS,
+  METRICS,
+  MONITOR_COMBOS,
+  PROFILES,
+  TOOLS,
+  PITFALLS,
+  DOMINATOR_DIAMOND,
+  NODE_SNAPSHOT_CODE,
+  NODE_SNAPSHOT_READ,
+  SNAPSHOT_FACTS,
+  NODE_FLAGS,
+  QUERY_OBJECTS_CODE,
+  SOURCES,
+  GLOSSARY_CARDS,
+  PREREQ,
+  PREREQ_NOTE,
+  HEAP_GRAPH_DEMO_NOTE,
+  RETAIN_GRAPH_DEMO_NOTE,
+  PROCEDURE_DEMO_NOTE,
+  CMP_DEMO_NOTE,
+  RETAINER_DEMO_NOTE,
+  MONITOR_DEMO_NOTE,
+  PLAIN_RETAINED,
+  PLAIN_DOMINATOR,
+  PLAIN_THREE_SNAPSHOTS,
+  PLAIN_RETAINERS,
+  DOMINATOR_SCENE_NOTE,
+  DOMINATOR_STEPS,
+  SNAPSHOTS_SCENE_CODE,
+  SNAPSHOTS_SCENE_NOTE,
+  SNAPSHOTS_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Снимок — не список объектов, а граф"
+  lead="Снимок кучи — это все живые объекты (узлы графа) и ссылки между ними (рёбра), записанные в один момент. Все режимы панели Memory — разные способы показать этот граф."
+  leadWidth={72}
+  gap={24}
+>
+  <CardGrid min={280} gap={14}>
+    {MODEL_CARDS.map((card) => (
+      <Card tone={card.tone} label={card.n} labelTone="tone" labelSize={11} title={card.t} titleSize={17} pad={20} gap={10} size={15.5} lh={1.6}>
+        <Md text={card.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY_CARDS.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RETAINED} />
+
+  ### Доминатор решает, кому достаются байты
+
+  **Доминатор** объекта — ближайший к нему узел, через который проходят **все** пути
+  от корней. Корни — то, что живо всегда: глобальный объект, текущий стек вызовов.
+  Retained size узла — это вес всех объектов, до которых можно дойти только через него
+  (их называют поддеревом доминирования).
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DOMINATOR} />
+
+  Доминатор — не то же самое, что «тот, кто ссылается». Наименьший пример — ромб:
+
+  <CodeBlock code={DOMINATOR_DIAMOND} size={11.5} />
+
+  <Md text={DOMINATOR_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {DOMINATOR_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Отсюда главное ограничение панели: **если до объекта ведут два независимых пути,
+    он не принадлежит ни одному из них.** Панель припишет его общему доминатору обоих
+    путей — иногда самому корню. Поэтому retained size разных строк нельзя складывать.
+    И поэтому бывает так: вы разорвали одну ссылку, а утечка осталась.
+
+  </Card>
+
+  ### Записи в скобках — это не классы
+
+  Половина списка конструкторов выглядит как `(string)`, `(array)`, `(system)`. Таких
+  классов в JavaScript нет: **скобки означают сводную категорию, а не конструктор.**
+  Панель собирает в такую запись то, у чего имени конструктора не бывает вообще:
+  примитивы, внутренние структуры движка, хранилища элементов массивов.
+
+  <Table
+    head={['запись', 'что это на самом деле']}
+    rows={SYNTHETIC}
+    kinds={['mono', 'prose']}
+    cols="minmax(170px,.9fr) minmax(0,2fr)"
+    minWidth={540}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Что из этого следует: `(compiled code)` и `(system)` растут вместе с размером
+    приложения, а не от утечки. В списке они почти всегда наверху. Искать утечку
+    среди них — верный способ потерять час.
+
+  </Card>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Performance monitor: есть ли вообще утечка"
+  lead="Прежде чем снимать снимки, надо убедиться, что утечка вообще есть. На это отвечает график, который пишется непрерывно. На нём три линии, и по тому, какие из них растут **вместе**, вид утечки понятен ещё до первого снимка."
+  leadWidth={72}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={MONITOR_DEMO_NOTE} />
+  </Card>
+
+  <MemoryMonitor client:visible combos={MONITOR_COMBOS} metrics={METRICS} />
+
+  <CardGrid min={290} gap={16}>
+    <Card tone="info" title="Смотрите не на пики, а на минимумы" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+      Пила на линии JS heap size — это нормально: так работает сборщик мусора. Смотреть надо,
+      возвращается ли **минимум** после каждой сборки к прежнему уровню (подробно — в теме
+      «Память и GC», раздел [«Пилообразный график — это норма»](/js/memory-gc/#s6)).
+
+      <CardNote tone="info">
+
+        Как проверить, что минимум настоящий. Пройдите сценарий, нажмите кнопку
+        принудительной сборки мусора на вкладке Memory и запишите значение. Пройдите сценарий
+        ещё раз и снова нажмите кнопку. **Если число после принудительной сборки растёт
+        от серии к серии, это утечка, а не отложенная сборка.**
+
+      </CardNote>
+    </Card>
+
+    <Card title="Вкладка Performance с чекбоксом Memory" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+      Картина та же, но записанная: её смотрят после, на одной шкале времени с задачами
+      страницы. Заодно видны отрезки, где работал сборщик мусора. Это удобно, когда рост
+      памяти надо связать с конкретным действием пользователя.
+
+    </Card>
+
+    <Card tone="ok" title="Из самой страницы, без DevTools" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={'await performance\n  .measureUserAgentSpecificMemory();'} />
+
+
+      Единственный правильный способ померить память из кода самой страницы. Ему нужна
+      изоляция источника (cross-origin isolation, см. словарь), поэтому на этом сайте его
+      не увидеть. Результат — оценка, и приходит она с задержкой, зато годится для сбора
+      метрик у настоящих пользователей.
+
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Семь шагов, а не «посмотреть снимок»"
+  lead="Порядок здесь не пожелание. Каждый шаг отсекает свой вид ложных находок: пропустите шаг — и будете искать утечку там, где её нет."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PROCEDURE_DEMO_NOTE} />
+  </Card>
+
+  <Procedure client:visible steps={STEPS} prep={PREP} prepTitle="подготовка · она решает половину проблем с шумом" />
+
+  ### Почему именно три снимка, а не два
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THREE_SNAPSHOTS} />
+
+  <FlowChips
+    minWidth={640}
+    chips={[
+      { label: 'Snapshot 1', tone: 'info' },
+      { label: 'серия ×N', tone: 'dashed' },
+      { label: 'Snapshot 2', tone: 'info' },
+      { label: 'та же серия ×N', tone: 'dashed' },
+      { label: 'Snapshot 3' },
+      { label: 'сравниваем 3 с 2', tone: 'warn' },
+    ]}
+  />
+
+  <CodeBlock code={SNAPSHOTS_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={SNAPSHOTS_SCENE_NOTE} />
+
+  Те же двадцать прогонов — по трём родам объектов, которые создаёт сценарий.
+
+  <CardGrid min={290} gap={14} align="start">
+    {SNAPSHOTS_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Callout size={17.5} pad="16px 18px">
+
+    Правило простое: <b>утечка растёт пропорционально числу повторов сценария.</b>
+    Прошли сценарий 20 раз — и число в <code>#Delta</code> (сколько объектов прибавилось)
+    будет кратно 20 или близко к этому. Это самая надёжная подсказка.
+
+  </Callout>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Как читать режим Comparison"
+  lead="Этот режим отвечает на один вопрос: **каких объектов между двумя снимками стало больше**. Колонок семь, и почти каждая по отдельности может ввести в заблуждение."
+  leadWidth={72}
+>
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CMP_CAVEAT} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CMP_DEMO_NOTE} />
+  </Card>
+
+  <ComparisonTable client:visible rows={CMP_ROWS} runs={CMP_RUNS} notes={SORT_NOTES} initial={2} />
+
+  <CardGrid min={280} gap={14}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **`# New` и `# Deleted` показывают оборот, `# Delta` — остаток.** Оборот — сколько
+      объектов создано и сколько удалено, остаток — разница между ними. Расследовать надо остаток:
+      приложение вправе создавать миллионы объектов, если само же их и отпускает. Три
+      последние колонки — то же самое в байтах. По ним видно, что перед вами: много мелких
+      утечек или одна тяжёлая.
+
+    </Card>
+    <Card tone="err" color="tone" pad={16} radius={4} size={15.5}>
+
+      **В Comparison НЕТ retained size** — только shallow, собственный вес объекта. Поэтому
+      режимы идут в одном порядке: Comparison отвечает «что накапливается» — подозреваемого
+      находят по `#Delta`; Summary отвечает «сколько это стоит и кто держит» — там смотрят
+      retained size и Retainers. Начнёте с Summary — и час будете разглядывать самые тяжёлые
+      объекты приложения, которые лежат там законно.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Отрицательный `#Delta`** тоже о чём-то говорит: между снимками что-то освободилось.
+    Обычно это значит, что первый снимок сняли раньше, чем приложение прогрелось. Серию надо
+    переснять.
+
+  </Card>
+
+  ### Ещё два режима: Containment и Statistics
+
+  **Containment** — тот же граф, но сверху вниз: от корня снимка к объектам. Retainers
+  идут в обратную сторону — от объекта к корню. Корень синтетический, в самом приложении его
+  нет. В файле снимка Chrome 153 у него ровно один потомок, `(GC roots)`; у Node 26.8
+  к нему добавляются `Node / Environment` и группы `C++ … roots`. Режим нужен редко, но
+  только в нём видно, что висит на корне целиком.
+
+  **Statistics** — круговая диаграмма кучи по крупным группам: код, строки, массивы, объекты,
+  системное. Отвечает сразу на один вопрос: «у меня растут данные или код». Похожую раскладку
+  даёт и скрипт из раздела [«Снимок из Node»](#s7), если сложить `self_size` узлов по их типу:
+  список типов лежит в `meta.node_types` — `code`, `string`, `array`, `object`, `closure` и другие.
+
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Shallow против retained — на числах"
+  lead="Shallow — вес самого объекта. Retained — сколько памяти освободится, если объект выбросить. Главное в определении retained — слово «только»: байты, до которых есть второй путь, объекту уже не принадлежат."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={20} align="start">
+    <Card title="Пример, на котором считаем" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock
+        code={`function makeHandler() {
+  const rows = Array.from(
+    { length: 500_000 },
+    (_, i) => ({ id: i }),   // 500 000 РАЗНЫХ объектов
+  );
+  return function held() {   // shallow 64 байта
+    return rows.length;
+  };
+}
+window.h = makeHandler();`}
+      />
+
+
+      Сама функция весит 64 байта. Но только через неё можно дойти до её контекста —
+      объекта, где V8 хранит захваченные переменные, здесь `rows`. Только через контекст —
+      до массива, только через массив — до его содержимого. Удалите `window.h` —
+      освободятся все 19 МБ.
+
+    </Card>
+
+    <Card tone="err" title="Ловушка: fill кладёт один объект, а не полмиллиона" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={'new Array(500_000).fill({ id: 0 })'} />
+
+
+      `fill` вычисляет аргумент **один раз** и кладёт в массив 500 000 ссылок на **один и тот
+      же** объект. Поэтому retained size здесь около 4 МБ, и это почти целиком сам массив
+      ссылок. У `Array.from` — 19 МБ.
+
+      <CardNote tone="err">
+
+        В настоящем снимке (Node 24.11) среди 500 000 элементов массива от `fill` —
+        **1** различный объект, у `Array.from` — 500 000. Итог: 4 000 184 Б против
+        20 000 152 Б. Воспроизводя утечку через `fill`, вы получите в пять раз меньше, чем хотели.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={HEAP_GRAPH_DEMO_NOTE} />
+  </Card>
+
+  <HeapGraph client:visible nodes={HEAP_NODES} variants={HEAP_VARIANTS} />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DISTANCE_CAVEAT} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={RETAIN_GRAPH_DEMO_NOTE} />
+  </Card>
+
+  <RetainGraph client:visible />
+
+  <CardGrid min={290} gap={16}>
+    <Card title={LADDER_TITLE} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <Md text={LADDER_TEXT} />
+      <CardNote tone="warn"><Md text={LADDER_FORK} /></CardNote>
+    </Card>
+
+    <Card tone="err" title="Сумма retained size ничего не значит" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <Md text={RETAINED_SUM_TEXT} />
+
+      <CardNote tone="err">
+
+        Retained size **можно сравнивать между строками, но нельзя складывать**: сумма
+        по списку почти всегда больше настоящего размера кучи.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="ok" title="Обратная сторона — полезный признак" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+      Retained size подозрительного объекта неожиданно **мал**, хотя под ним точно висят
+      мегабайты? Так выглядит второе состояние демо: у замыкания 104 байта, а массив жив.
+      Значит, эти мегабайты держит кто-то ещё, и чинить надо не здесь.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Про платформу.** Все числа выше сняты на Node 24.11 (macOS arm64), где V8 собран **без
+    сжатия указателей**. В Chrome сжатие включено, и те же структуры весят примерно вдвое
+    меньше. Соотношения и арифметика лестницы от платформы не зависят. Сжатие выбирают
+    **при сборке движка**, и из JavaScript его не включить и не выключить.
+
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="Retainers: от строки в снимке до строки в коде"
+  lead="Сравнение показало, что копятся объекты `Chart`, — но создают их в десяти местах кода. Какое из них виновато, говорит не сам объект, а тот, кто его держит. Панель Retainers показывает граф наоборот: не «на что ссылается объект», а «кто ссылается на него»."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RETAINERS} />
+
+  <CardGrid min={280} gap={14}>
+    {DETACHED_FACTS.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={RETAINER_DEMO_NOTE} />
+  </Card>
+
+  <RetainerChain client:visible chains={CHAINS} />
+
+  <CardGrid min={280} gap={14}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Имя ребра говорит, что это за ссылка.** `el in Chart` — поле `el` объекта `Chart`.
+      `context in ()` — ссылка функции на своё замыкание. `3 in (array)` — элемент массива
+      с индексом 3. `key in Map` — содержимое коллекции `Map`.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Имя функции в скобках** — так её видит движок. Анонимная стрелка даёт пустые
+      скобки, именованная функция — своё имя. Ещё одна причина давать обработчикам имена:
+      в снимке их легко узнать.
+
+    </Card>
+  </CardGrid>
+
+  <Callout size={17.5} pad="22px 24px">
+    <b>Практический маршрут целиком, в одну строку:</b> Comparison → <code>#Delta</code> →
+    подозрительный конструктор → Summary → сортировка по Retained size → раскрыть экземпляр →
+    Retainers → звено вашего кода, ближайшее к корню → строка кода.
+
+  </Callout>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    **Держателем бывает сама консоль.** Она удерживает любой объект, который вы в неё
+    напечатали, — чтобы его можно было развернуть. Один `console.log(bigArray)` — и в
+    Retainers у массива появляется ребро от консоли, а не от вашего кода. Лечение —
+    `console.clear()` (или кнопка очистки) перед снимком. Как именно подписано это ребро,
+    зависит от версии DevTools.
+
+  </Card>
+
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Где снимок молчит: соседние профили"
+  lead="Снимок показывает, что живо сейчас. Он не скажет, когда объект создан и какой код его выделил. На эти вопросы отвечают другие профили той же вкладки."
+  leadWidth={72}
+>
+  ### Профили вкладки Memory — разные вопросы
+
+  Профиль выбирают по **вопросу**. Аллокация — это выделение памяти под новый объект.
+  Снимок не знает, когда объект появился. Запись аллокаций знает и момент, и держателей,
+  но дорога. Выборка дешёвая, зато видит не каждый объект, а статистику по стекам вызовов.
+
+  <CardGrid min={260} gap={12}>
+    {PROFILES.map((profile) => (
+      <Card tone={profile.tone} label={profile.q} labelSize={12} labelTone="tone" title={profile.t} titleSize={16} pad={17} radius={4} gap={9} size={15} lh={1.55} text={profile.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Без профиля: `queryObjects` в консоли
+
+  <CardGrid min={300} gap={16} align="start">
+    {TOOLS.map((tool) => (
+      <Card title={tool.label} titleSize={16.5} label={tool.tag} labelSize={11} pad={18} gap={11} size={15.5} lh={1.6}>
+        {tool.code && <CodeBlock code={tool.code} size={11.5} />}
+        <Md text={tool.what} />
+        <CardNote tone="prose"><Md text={tool.note} /></CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Тот же вопрос из кода: протокол отладчика
+
+  `queryObjects`, `$0`, `getEventListeners` и `monitorEvents` подставляет сама консоль, когда
+  вычисляет введённое выражение, — в коде страницы их нет, и тест на утечку вида «вызвать
+  `queryObjects` и сравнить длину» так не написать. Но консоль ничего не делает сама: она
+  отправляет движку запрос по протоколу отладчика (Chrome DevTools Protocol, CDP), и
+  `queryObjects(Chart)` — это метод `Runtime.queryObjects` с прототипом конструктора.
+  Протокол доступен и из кода: в Node — модулем `node:inspector`, в браузере — через
+  Playwright или Puppeteer (`page.context().newCDPSession(page)`).
+
+  <CodeBlock code={QUERY_OBJECTS_CODE} size={11.5} />
+
+  Из сорока созданных объектов живы двадцать — те, что остались в `leaked`. Сборку перед
+  выборкой метод запустил сам. Так проверка из процедуры — «двадцать прогонов, и `#Delta`
+  кратна двадцати» — становится тестом, который падает, когда утечка вернулась. Тем же
+  протоколом снимается и снимок целиком (`HeapProfiler.takeHeapSnapshot`).
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Считать надо после того, как **завершилась функция**, создававшая объекты. Поставьте цикл
+    прямо в тело модуля и сохраните брошенный объект в переменную (`const temp = new Chart()`) —
+    ответ выйдет 21, а не 20 (Node 24.11 и 26.8): последнее значение `temp` остаётся в кадре
+    модуля, который стоит на `await`. Это не утечка, а ещё не законченная функция.
+
+  </Card>
+
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Снимок из Node: одна строка и файл на диске"
+  lead="Панель Memory меняется от версии к версии, а `v8.writeHeapSnapshot()` — нет. Снимок из Node — это файл: его можно разобрать скриптом, сравнить с прошлым и проверить своё подозрение за минуту."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={20} align="start">
+    <Card title="Снять" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={NODE_SNAPSHOT_CODE} size={11.5} />
+
+    </Card>
+
+    <Card title="Прочитать скриптом" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={NODE_SNAPSHOT_READ} size={11} />
+
+
+      `nodes` — плоский массив чисел, а не массив объектов. Сколько чисел занимает один
+      узел, говорит `meta.node_fields`. Имена лежат отдельно, в массиве `strings`, а в узле
+      хранится только **номер** строки в нём. Отсюда и шаг цикла, и вес файла. Рёбра
+      (`edges`) лежат так же, плоским массивом, — на этом формате построены и готовые
+      разборщики, которые считают доминаторы и ищут `Detached` прямо в CI.
+
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14}>
+    {SNAPSHOT_FACTS.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+
+  ### На боевом сервере — те же снимки, но флагами
+
+  Сколько стоит каждый приём, как он ведёт себя в контейнере и чем снятие снимка может
+  уронить процесс — всё это измерено в теме «Память в Node», раздел
+  [«Снимок с живого процесса»](/js/node-memory/#s5). Там же правило: когда куча подходит
+  к пределу, снимок снимает не человек, а флаг запуска.
+
+  <Table
+    head={['флаг', 'что даёт', 'чем платите']}
+    rows={NODE_FLAGS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(210px,1fr) minmax(0,1.3fr) minmax(0,1fr)"
+    minWidth={640}
+  />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+  <Card pad={20} gap={12}>
+
+    Источники стареют с разной скоростью. Документация DevTools описывает интерфейс
+    и устаревает быстрее всего: жёлтые и красные строки из её старых страниц в Chrome 153
+    уже не встречаются. Документация Node и спецификация живут дольше: они о том, что такое
+    снимок, а не о том, как он выглядит.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [«Память и GC»](/js/memory-gc/) — что делает сборщик в момент, когда
+    вы нажимаете «снять снимок», и шесть видов утечек, у каждого свой след в списке
+    конструкторов. [«Память в Node»](/js/node-memory/) — та же работа без браузера:
+    как понять, растёт куча или всё остальное, как снять снимок с живого процесса и сколько
+    это стоит. [«Строки в V8»](/js/v8-strings/) — почему `(string)` ведёт себя не как
+    остальные записи: срез строки удерживает исходную строку целиком, а типов узлов у строк
+    в снимке ровно три.
+
+  </Card>
+</Section>

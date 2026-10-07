@@ -1,0 +1,234 @@
+---
+/**
+ * Две границы конвейера GitHub Actions: шага и джоба.
+ *
+ * Таблица «что переходит» отвечает на вопрос по механизму («что будет с `export`»), а схема —
+ * по месту: где стоит граница и что через неё просачивается. Главное, что видно только
+ * на картинке: граница шага лежит **внутри** одной машины, а граница джоба — **между**
+ * машинами. Поэтому первая пропускает всё дисковое, а вторая — только то, что везут явно.
+ *
+ * Раскладка вертикальная на любой ширине: конвейер читается сверху вниз, и на узком экране
+ * схема не требует прокрутки вбок.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Crossing {
+  label: string;
+  pass: string[];
+  lost: string[];
+}
+
+interface Props {
+  data: {
+    title: string;
+    passHead: string;
+    lostHead: string;
+    jobA: { name: string; where: string };
+    jobB: { name: string; where: string };
+    step1: string;
+    step2: string;
+    stepB: string;
+    step: Crossing;
+    job: Crossing;
+    caption: string;
+  };
+}
+
+const { data } = Astro.props;
+---
+
+<figure class="gabd-frame">
+  <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
+
+  <div class="gabd-machine">
+    <div class="gabd-machine__head">
+      <span set:html={inlineMd(data.jobA.name)} />
+      <span class="gabd-machine__where">{data.jobA.where}</span>
+    </div>
+
+    <div class="gabd-step" set:html={inlineMd(data.step1)} />
+
+    <div class="gabd-cross gabd-cross--step">
+      <div class="gabd-cross__label" set:html={inlineMd(data.step.label)} />
+      <div class="gabd-cross__cols">
+        <div class="gabd-col">
+          <div class="gabd-col__head gabd-col__head--pass">{data.passHead}</div>
+          <ul class="gabd-list gabd-list--pass">
+            {data.step.pass.map((item) => <li set:html={inlineMd(item)} />)}
+          </ul>
+        </div>
+        <div class="gabd-col">
+          <div class="gabd-col__head gabd-col__head--lost">{data.lostHead}</div>
+          <ul class="gabd-list gabd-list--lost">
+            {data.step.lost.map((item) => <li set:html={inlineMd(item)} />)}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="gabd-step" set:html={inlineMd(data.step2)} />
+  </div>
+
+  <div class="gabd-cross gabd-cross--job">
+    <div class="gabd-cross__label" set:html={inlineMd(data.job.label)} />
+    <div class="gabd-cross__cols">
+      <div class="gabd-col">
+        <div class="gabd-col__head gabd-col__head--pass">{data.passHead}</div>
+        <ul class="gabd-list gabd-list--pass">
+          {data.job.pass.map((item) => <li set:html={inlineMd(item)} />)}
+        </ul>
+      </div>
+      <div class="gabd-col">
+        <div class="gabd-col__head gabd-col__head--lost">{data.lostHead}</div>
+        <ul class="gabd-list gabd-list--lost">
+          {data.job.lost.map((item) => <li set:html={inlineMd(item)} />)}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="gabd-machine">
+    <div class="gabd-machine__head">
+      <span set:html={inlineMd(data.jobB.name)} />
+      <span class="gabd-machine__where">{data.jobB.where}</span>
+    </div>
+    <div class="gabd-step" set:html={inlineMd(data.stepB)} />
+  </div>
+
+  <figcaption class="gabd-caption" set:html={inlineMd(data.caption)} />
+</figure>
+
+<style>
+  .gabd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+    padding: 24px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+  }
+  .gabd-frame > .t-eyebrow {
+    margin-bottom: 18px;
+  }
+  .gabd-frame :global(code) {
+    font-size: 1em;
+  }
+
+  /* Машина — рамка уровня чернил: это граница, внутри которой общий диск. */
+  .gabd-machine {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--ink);
+    border-radius: var(--r3);
+  }
+  .gabd-machine__head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 12px;
+    font-weight: 600;
+  }
+  .gabd-machine__where {
+    font-weight: 400;
+    color: var(--text-faint);
+  }
+
+  .gabd-step {
+    padding: 10px 14px;
+    border-radius: var(--r2);
+    background: var(--surface-2);
+    color: var(--prose);
+  }
+
+  /* Граница: пунктир у шага (внутри машины), сплошная полоса у джоба (между машинами). */
+  .gabd-cross {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .gabd-cross--step {
+    border-top: 2px dashed var(--tone-warn-line);
+    border-bottom: 2px dashed var(--tone-warn-line);
+  }
+  .gabd-cross--job {
+    margin: 14px 0;
+    border-radius: var(--r2);
+    border: 1px solid var(--tone-err-line);
+    background: var(--tone-err-bg);
+  }
+  .gabd-cross__label {
+    font-weight: 600;
+  }
+  .gabd-cross--step .gabd-cross__label {
+    color: var(--tone-warn-strong);
+  }
+  .gabd-cross--job .gabd-cross__label {
+    color: var(--tone-err-strong);
+  }
+  .gabd-cross__cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+    gap: 8px 18px;
+  }
+
+  .gabd-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .gabd-col__head {
+    font-size: var(--fs-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .gabd-col__head--pass {
+    color: var(--tone-ok-strong);
+  }
+  .gabd-col__head--lost {
+    color: var(--tone-err-strong);
+  }
+
+  .gabd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .gabd-list li {
+    position: relative;
+    padding-left: 1.5em;
+    color: var(--prose);
+  }
+  .gabd-list li::before {
+    position: absolute;
+    left: 0;
+    font-weight: 700;
+  }
+  .gabd-list--pass li::before {
+    content: '✓';
+    color: var(--tone-ok-strong);
+  }
+  .gabd-list--lost li::before {
+    content: '✗';
+    color: var(--tone-err-strong);
+  }
+
+  .gabd-caption {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    color: var(--text-muted);
+    font-size: var(--fs-4);
+  }
+</style>

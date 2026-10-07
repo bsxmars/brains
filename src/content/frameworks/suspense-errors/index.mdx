@@ -1,0 +1,451 @@
+---
+title: Suspense и границы ошибок
+heading: "Suspense и границы ошибок: кто ловит брошенное из рендера"
+headingWidth: 22
+order: 23
+kicker: фреймворки изнутри
+lead: "Компонент, которому не хватает данных, бросает промис. Компонент, который сломался, бросает ошибку. И то и другое летит вверх по дереву до ближайшей границы, которая умеет это ловить, — `<Suspense>` или границы ошибок. Как React и Vue выбирают границу, почему промис обязан быть стабильным, откуда берётся водопад запросов и что не ловит ни одна граница."
+leadWidth: 66
+summary: "`use(promise)` и бросок до ближайшего `<Suspense>`, повтор рендера с начала и прогрев соседей, стабильный промис и вечная заглушка, водопад вложенных границ, переходы без заглушки, классовая граница ошибок и чего она не ловит, `onCaughtError`/`onUncaughtError` у корня React 19, `<Suspense>` с `async setup`, `onErrorCaptured` и `app.config.errorHandler` во Vue, учебная модель, сверенная с обоими фреймворками."
+verifiedOn: "React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, октябрь 2026: все примеры кода темы исполняются в настоящих React и Vue тестом tests/unit/suspense-errors.test.ts; учебная модель сверена с обоими фреймворками на всех 243 сочетаниях демо-дерева и в режиме загрузки волнами. Задержка заглушки 300 мс и обработчики корня по умолчанию — по исходникам React 19.3"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Бросок }
+  - { id: s2, label: Стабильный промис }
+  - { id: s3, label: Водопад }
+  - { id: s4, label: Переходы }
+  - { id: s5, label: Граница ошибок }
+  - { id: s6, label: Ошибки у корня }
+  - { id: s7, label: Vue }
+  - { id: s8, label: Дерево границ }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import BoundaryLab from '@/widgets/boundary-lab/ui/BoundaryLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_THROW,
+  PREREQ,
+  PREREQ_NOTE,
+  S1_LEAD,
+  USE_CODE,
+  USE_ROWS,
+  USE_NOTE,
+  PLAIN_RETRY,
+  S1_INTERNALS,
+  S1_FACTS,
+  S2_LEAD,
+  UNSTABLE_CODE,
+  CACHED_CODE,
+  UNSTABLE_ROWS,
+  UNSTABLE_NOTE,
+  UNCACHED_WARNING,
+  PLAIN_CACHE,
+  CACHE_WHERE,
+  S3_LEAD,
+  WATERFALL_CODE,
+  PREFETCH_CODE,
+  WATERFALL_ROWS,
+  WATERFALL_NOTE,
+  WATERFALL_FIX,
+  S4_LEAD,
+  TRANSITION_CODE,
+  TRANSITION_ROWS,
+  TRANSITION_NOTE,
+  TRANSITION_WHEN,
+  S5_LEAD,
+  BOUNDARY_CLASS_CODE,
+  BOUNDARY_USE_CODE,
+  PLAIN_BOUNDARY,
+  ERROR_ORDER_CHIPS,
+  ERROR_ORDER_NOTE,
+  NOT_CAUGHT_ROWS,
+  NOT_CAUGHT_NOTE,
+  FORWARD_CODE,
+  FORWARD_NOTE,
+  S6_LEAD,
+  ROOT_CODE,
+  ROOT_ROWS,
+  ROOT_NOTE,
+  ROOT_DEFAULTS,
+  S7_LEAD,
+  VUE_PROFILE_SFC,
+  VUE_PAGE_SFC,
+  VUE_BOUNDARY_SFC,
+  VUE_APP_CODE,
+  VUE_PROPAGATION,
+  VUE_ROWS,
+  VUE_DEV_PROD,
+  VUE_SUSPENSE_FACTS,
+  S8_LEAD,
+  BOUNDARY_CODE,
+  MODEL_NOTE,
+  DEMO_TREE_JSX,
+  DEMO_TREE,
+  DEMO_NAMES,
+  DEMO_PRESETS,
+  DEMO_CAPTION,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Бросок вверх" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Рендер не умеет ждать и не умеет сообщать об ошибке иначе, чем броском. Поэтому
+    и «данных ещё нет», и «всё сломалось» — это `throw` из функции компонента. Разница
+    только в том, **что** брошено и **кто** это ловит: промис ловит `<Suspense>`, ошибку —
+    граница ошибок. Всё, что брошено не из рендера, не ловит ни та, ни другая.
+
+  </Callout>
+
+  Обычный `try/catch` вокруг компонента не поможет: компонент не вызывают из вашего кода,
+  его вызывает фреймворк, и вызывает когда захочет — иногда несколько раз. Поэтому `catch`
+  живёт внутри фреймворка, а вы только расставляете по дереву границы — места, где бросок
+  можно остановить и показать что-то вместо упавшего или ждущего поддерева.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THROW} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Бросок и ближайшая граница"
+  lead={S1_LEAD}
+  leadWidth={72}
+>
+  <Card title="Профиль с данными" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['шаг', 'вызваны', 'на экране', 'что произошло']}
+    rows={USE_ROWS.map((r) => [r.step, r.calls, r.screen, r.what])}
+    kinds={['prose', 'mono', 'prose', 'prose']}
+    cols="minmax(130px,.6fr) minmax(140px,.6fr) minmax(150px,.7fr) minmax(300px,1.8fr)"
+    minWidth={760}
+  />
+
+  <Md text={USE_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RETRY} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {S1_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={S1_INTERNALS} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Стабильный промис"
+  lead={S2_LEAD}
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Промис в рендере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={UNSTABLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Промис из кеша" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CACHED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['момент', 'промис в рендере', 'промис из кеша']}
+    rows={UNSTABLE_ROWS.map((r) => [r.k, r.bad, r.good])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(180px,.8fr) minmax(230px,1fr) minmax(230px,1fr)"
+    minWidth={660}
+  />
+
+  <Md text={UNSTABLE_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={UNCACHED_WARNING} />
+
+  ### Где держать промис
+
+  <CardGrid min={260} gap={14} align="start">
+    {CACHE_WHERE.map((item) => (
+      <Card title={item.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Водопад вложенных границ"
+  lead={S3_LEAD}
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="Посты ждут профиль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={WATERFALL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Оба запроса — заранее" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PREFETCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['что рендерим', '1-я волна', '2-я волна', 'что видно', 'ожиданий']}
+    rows={WATERFALL_ROWS.map((r) => [r.k, r.w1, r.w2, r.screen, r.trips])}
+    kinds={['prose', 'mono', 'mono', 'prose', 'prose']}
+    cols="minmax(170px,1fr) minmax(110px,.6fr) minmax(90px,.5fr) minmax(220px,1.3fr) minmax(80px,.4fr)"
+    minWidth={720}
+  />
+
+  <Md text={WATERFALL_NOTE} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={WATERFALL_FIX} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Переходы: без заглушки"
+  lead={S4_LEAD}
+  leadWidth={72}
+>
+  <Card title="Две кнопки — два обновления" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TRANSITION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['момент', '«Обычно»', '«Переходом»']}
+    rows={TRANSITION_ROWS.map((r) => [r.k, r.plain, r.trans])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(260px,1.4fr) minmax(200px,1fr)"
+    minWidth={640}
+  />
+
+  <Md text={TRANSITION_NOTE} />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={TRANSITION_WHEN} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Граница ошибок"
+  lead={S5_LEAD}
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Граница — класс" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BOUNDARY_CLASS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Использование" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BOUNDARY_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BOUNDARY} />
+
+  ### Что и в каком порядке вызывается
+
+  <Card title="`Feed` бросил ошибку в рендере" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={700} chips={ERROR_ORDER_CHIPS} />
+  </Card>
+
+  <Md text={ERROR_ORDER_NOTE} />
+
+  ### Чего граница не ловит
+
+  <Table
+    head={['где брошено', 'граница', 'что происходит']}
+    rows={NOT_CAUGHT_ROWS.map((r) => [r.k, r.res, r.how])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(80px,.4fr) minmax(320px,2fr)"
+    minWidth={680}
+  />
+
+  <Md text={NOT_CAUGHT_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Принести ошибку в рендер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FORWARD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FORWARD_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Ошибки у корня React 19"
+  lead={S6_LEAD}
+  leadWidth={72}
+>
+  <Card title="Три колбэка `createRoot`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ROOT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['колбэк', 'когда', 'второй аргумент', 'по умолчанию']}
+    rows={ROOT_ROWS.map((r) => [r.k, r.when, r.arg, r.def])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(160px,.7fr) minmax(240px,1.3fr) minmax(220px,1.1fr) minmax(170px,.8fr)"
+    minWidth={780}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ROOT_NOTE} />
+
+  <Md text={ROOT_DEFAULTS} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Vue: async setup и перехват ошибок"
+  lead={S7_LEAD}
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Компонент, который ждёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_PROFILE_SFC} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Граница ожидания" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_PAGE_SFC} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {VUE_SUSPENSE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Граница ошибок во Vue
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Граница — обычный компонент" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_BOUNDARY_SFC} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Последний обработчик" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_APP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={VUE_PROPAGATION} />
+
+  <Table
+    head={['где брошено', 'React', 'Vue']}
+    rows={VUE_ROWS.map((r) => [r.k, r.react, r.vue])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(190px,1fr) minmax(260px,1.4fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={VUE_DEV_PROD} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Дерево границ: модель"
+  lead={S8_LEAD}
+  leadWidth={72}
+>
+  <Card title="Учебная модель: кто что ловит" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BOUNDARY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={MODEL_NOTE} />
+
+  ### Демо-дерево
+
+  <Card title="Страница из шести компонентов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DEMO_TREE_JSX} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <BoundaryLab client:visible code={BOUNDARY_CODE} tree={DEMO_TREE} names={DEMO_NAMES} presets={DEMO_PRESETS} caption={DEMO_CAPTION} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Граница — это решение о том, что пользователь увидит, пока часть страницы ждёт или
+      сломана.** Ставьте её вокруг каждого блока, который имеет смысл сам по себе: ленты,
+      сайдбара, виджета. Тогда ожидание одного не прячет остальное, а поломка одного
+      не снимает страницу целиком.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

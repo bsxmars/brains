@@ -1,0 +1,441 @@
+---
+title: HTTP/2 и HTTP/3
+heading: "HTTP/2 и HTTP/3: потоки, кадры и QUIC"
+headingWidth: 24
+order: 14
+kicker: сеть и безопасность
+lead: "HTTP/1.1 везёт по соединению один запрос за раз, и браузер держит шесть соединений на сервер. HTTP/2 гонит всё по одному: режет запросы на кадры с номером потока и сжимает заголовки так, что повторный `user-agent` занимает один байт. HTTP/3 переносит те же потоки в QUIC поверх UDP — и потеря пакета наконец перестаёт держать соседние файлы."
+leadWidth: 66
+summary: "Шесть соединений против одного; 9-байтовый заголовок кадра, типы кадров, номера потоков, SETTINGS трёх браузеров; окно 65 535 и WINDOW_UPDATE; HPACK по битам — статическая и динамическая таблицы, целые с префиксом, Хаффман; почему HTTP/2 не спасает от потерь TCP и куда делся server push; HTTP/3: кадры в QUIC, первый пакет Initial, 1-RTT и 0-RTT, миграция, QPACK, `Alt-Svc`."
+verifiedOn: "Node 24.11.0 (nghttp2 1.66.0), Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: байты кадров сняты прокси между клиентом и сервером node:http2 (для браузеров — с расшифровкой TLS); разбор кадров и HPACK сверен tests/unit/http2-http3.test.ts с nghttp2 и векторами RFC 7541. QUIC-сервера на стенде нет — HTTP/3 разобран по RFC 9000, 9114 и 9204, кроме заголовка первого пакета Chromium"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Шесть соединений и одно }
+  - { id: s2, label: Кадры }
+  - { id: s3, label: Потоки и окно }
+  - { id: s4, label: HPACK }
+  - { id: s5, label: Пределы HTTP/2 }
+  - { id: s6, label: HTTP/3 и QUIC }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import FrameLab from '@/widgets/h2-frame-lab/ui/FrameLab.vue';
+import IntLab from '@/widgets/h2-frame-lab/ui/IntLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_H2,
+  PREREQ,
+  PREREQ_NOTE,
+  CONN_LEAD,
+  CONN_ROWS,
+  CONN_NOTE,
+  PLAIN_FRAME,
+  FRAME_BYTES_ROWS,
+  FRAME_TYPE_ROWS,
+  PREFACE_NOTE,
+  FRAME_CODE,
+  STREAM_IDS_NOTE,
+  ENGINE_ROWS,
+  ENGINE_NOTE,
+  LIFECYCLE_FACTS,
+  MUX_NOTE,
+  PLAIN_WINDOW,
+  FLOW_ROWS,
+  FLOW_NOTE,
+  FLOW_WHY,
+  PLAIN_HPACK,
+  HPACK_SIZE_LEAD,
+  HPACK_SIZE_ROWS,
+  HPACK_SIZE_NOTE,
+  HPACK_TABLE_CODE,
+  STATIC_NOTE,
+  REPRESENTATION_ROWS,
+  DYNAMIC_NOTE,
+  PLAIN_PREFIX_INT,
+  HPACK_INT_CODE,
+  INT_ROWS,
+  INT_DEMO_CAPTION,
+  HPACK_DECODE_CODE,
+  HUFFMAN_NOTE,
+  DEMO_CAPTURES,
+  DEMO_CAPTION,
+  NEVER_INDEXED_NOTE,
+  DESYNC_NOTE,
+  TCP_HOL_NOTE,
+  PUSH_FACTS,
+  PRIORITY_NOTE,
+  H3_LEAD,
+  H3_FRAME_ROWS,
+  QUIC_PACKET_LEAD,
+  QUIC_CODE,
+  QUIC_ROWS,
+  QUIC_SIZE_NOTE,
+  VARINT_NOTE,
+  HANDSHAKE_FACTS,
+  QPACK_LEAD,
+  QPACK_FACTS,
+  DISCOVERY_FACTS,
+  TAKEAWAY,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Одно соединение на всё" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Смысл HTTP — методы, статусы, заголовки — один на все три версии. Меняется только то,
+    **как байты едут по проводу**. HTTP/2 режет запросы на пронумерованные кадры и шлёт их вперемешку
+    по одному TCP-соединению. HTTP/3 делает то же поверх QUIC — транспорта, в котором потоки
+    независимы друг от друга.
+
+  </Callout>
+
+  Поэтому переход на HTTP/2 или HTTP/3 не требует менять ни строчки в приложении: `fetch`,
+  заголовки и коды ответа остаются прежними. Меняется число соединений, размер заголовков
+  на проводе и то, что происходит, когда сеть теряет пакет.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_H2} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Шесть соединений и одно"
+  lead={CONN_LEAD}
+  leadWidth={72}
+>
+  <Table
+    head={['', 'HTTP/1.1', 'HTTP/2']}
+    rows={CONN_ROWS.map((r) => [r.k, r.h1, r.h2])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1.3fr) minmax(140px,1fr) minmax(120px,.8fr)"
+    minWidth={520}
+  />
+
+  <Md text={CONN_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Кадры: девять байт заголовка"
+  lead="Всё, что идёт по соединению HTTP/2, — кадры. У каждого одинаковый заголовок из 9 байт, а дальше полезная нагрузка той длины, что указана в заголовке. Получатель не разбирает текст, как в HTTP/1.1: он читает 9 байт, узнаёт длину и тип и сразу знает, где кончается этот кадр и начинается следующий."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FRAME} />
+
+  ### Первый кадр Chromium по байтам
+
+  <Table
+    head={['байты', 'поле', 'значение', 'что это']}
+    rows={FRAME_BYTES_ROWS.map((r) => [r.bytes, r.field, r.value, r.note])}
+    kinds={['mono', 'prose', 'mono', 'prose']}
+    cols="minmax(110px,.6fr) minmax(80px,.4fr) minmax(90px,.5fr) minmax(280px,2fr)"
+    minWidth={620}
+  />
+
+  <Md text={PREFACE_NOTE} />
+
+  <Card title="Кадры из байтов — функции, которыми разобрана вся запись стенда" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FRAME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['код', 'тип', 'зачем']}
+    rows={FRAME_TYPE_ROWS.map((r) => [r.code, r.k, r.d])}
+    tones={FRAME_TYPE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(60px,.3fr) minmax(140px,.7fr) minmax(320px,2.4fr)"
+    minWidth={560}
+  />
+
+  ### Номера потоков
+
+  <Md text={STREAM_IDS_NOTE} />
+
+  ### SETTINGS: с чем приходит каждый браузер
+
+  <Table
+    head={['клиент', 'первый SETTINGS', 'окно соединения', 'первый запрос']}
+    rows={ENGINE_ROWS.map((r) => [r.k, r.settings, r.conn, r.first])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(130px,.7fr) minmax(280px,2fr) minmax(150px,.9fr) minmax(150px,.9fr)"
+    minWidth={760}
+  />
+
+  <Md text={ENGINE_NOTE} />
+
+  ### Обрыв, закрытие, проверка связи
+
+  <CardGrid min={260} gap={14} align="start">
+    {LIFECYCLE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Потоки вперемешку и окно приёма"
+  lead="Номер потока в каждом кадре позволяет слать кадры разных запросов вперемешку: получатель разложит их обратно. Но вперемешку — значит и наперегонки за одну полосу. Чтобы один поток не забил соединение, у каждого есть окно: сколько байт получатель готов принять."
+  leadWidth={72}
+>
+  <Md text={MUX_NOTE} />
+
+  ### Окно
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WINDOW} />
+
+  <Table
+    head={['сценарий', 'байт DATA дошло', 'WINDOW_UPDATE от клиента']}
+    rows={FLOW_ROWS.map((r) => [r.k, r.data, r.wu])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(260px,1.8fr) minmax(120px,.7fr) minmax(200px,1.2fr)"
+    minWidth={600}
+  />
+
+  <Md text={FLOW_NOTE} />
+
+  <Card title="Зачем окно поверх TCP" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FLOW_WHY} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="HPACK: заголовок одним байтом"
+  lead="Заголовки запросов почти не меняются от запроса к запросу: тот же `user-agent`, тот же `accept`, те же куки. HTTP/1.1 отправлял их текстом каждый раз. HPACK запоминает уже отправленное в таблице, общей для обеих сторон, и дальше передаёт номер."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HPACK} />
+
+  <Md text={HPACK_SIZE_LEAD} />
+
+  <Table
+    head={['запрос', 'полей', 'блок HPACK, байт', 'текстом, байт', 'как записано']}
+    rows={HPACK_SIZE_ROWS.map((r) => [r.k, r.fields, r.block, r.text, r.how])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(200px,1.3fr) minmax(60px,.3fr) minmax(100px,.5fr) minmax(90px,.4fr) minmax(240px,1.6fr)"
+    minWidth={760}
+  />
+
+  <Md text={HPACK_SIZE_NOTE} />
+
+  ### Две таблицы
+
+  <Card title="Статическая таблица, динамическая таблица" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HPACK_TABLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={STATIC_NOTE} />
+
+  <Md text={DYNAMIC_NOTE} />
+
+  ### Целые с префиксом
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PREFIX_INT} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="RFC 7541, §5.1" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HPACK_INT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Table
+      head={['число', 'префикс', 'байты', 'почему']}
+      rows={INT_ROWS.map((r) => [r.value, r.prefix, r.bytes, r.d])}
+      kinds={['mono', 'mono', 'prose', 'prose']}
+      cols="minmax(60px,.4fr) minmax(60px,.4fr) minmax(90px,.6fr) minmax(200px,1.6fr)"
+      minWidth={460}
+    />
+  </CardGrid>
+
+  <IntLab client:visible frameCode={FRAME_CODE} intCode={HPACK_INT_CODE} tableCode={HPACK_TABLE_CODE} decodeCode={HPACK_DECODE_CODE} caption={INT_DEMO_CAPTION} />
+
+  ### Что за запись — по первым битам
+
+  <Table
+    head={['первый байт', 'запись', 'что делает']}
+    rows={REPRESENTATION_ROWS.map((r) => [r.bits, r.k, r.d])}
+    tones={REPRESENTATION_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(110px,.6fr) minmax(180px,1fr) minmax(300px,2.2fr)"
+    minWidth={620}
+  />
+
+  <Card title="Декодер блока заголовков" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HPACK_DECODE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={HUFFMAN_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Соединение по кадрам
+
+  <FrameLab client:visible frameCode={FRAME_CODE} intCode={HPACK_INT_CODE} tableCode={HPACK_TABLE_CODE} decodeCode={HPACK_DECODE_CODE} captures={DEMO_CAPTURES} caption={DEMO_CAPTION} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="«Никогда не запоминать»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NEVER_INDEXED_NOTE} />
+
+    <Card tone="err" title="Пропустил блок — номера врут" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DESYNC_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Пределы HTTP/2: TCP, push и приоритеты"
+  lead="HTTP/2 решил проблему очереди запросов, но не мог решить проблему транспорта: под ним всё тот же TCP. А две его задумки — сервер, присылающий файлы без спроса, и дерево приоритетов — на практике не прижились."
+  leadWidth={72}
+>
+  <Card tone="err" title="Одна лента байтов на все потоки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={TCP_HOL_NOTE} />
+
+  ### Server push
+
+  <CardGrid min={260} gap={14} align="start">
+    {PUSH_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Приоритеты
+
+  <Md text={PRIORITY_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="HTTP/3: те же потоки, но в QUIC"
+  lead={H3_LEAD}
+  leadWidth={72}
+>
+  ### Куда переехали кадры
+
+  <Table
+    head={['в HTTP/2', 'в HTTP/3', 'что изменилось']}
+    rows={H3_FRAME_ROWS.map((r) => [r.h2, r.h3, r.d])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(220px,1.2fr) minmax(280px,1.8fr)"
+    minWidth={680}
+  />
+
+  ### Первый пакет QUIC
+
+  <Md text={QUIC_PACKET_LEAD} />
+
+  <Card title="Длинный заголовок QUIC" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={QUIC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VARINT_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['байты', 'поле', 'значение', 'смысл']}
+    rows={QUIC_ROWS.map((r) => [r.bytes, r.k, r.v, r.d])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(100px,.5fr) minmax(150px,.8fr) minmax(170px,1fr) minmax(260px,1.6fr)"
+    minWidth={700}
+  />
+
+  <Md text={QUIC_SIZE_NOTE} />
+
+  ### Рукопожатие, 0-RTT и переезд
+
+  <CardGrid min={280} gap={14} align="start">
+    {HANDSHAKE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### QPACK вместо HPACK
+
+  <Md text={QPACK_LEAD} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {QPACK_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Как браузер узнаёт про HTTP/3
+
+  <CardGrid min={280} gap={14} align="start">
+    {DISCOVERY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={TAKEAWAY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,360 @@
+---
+title: "Vapor Mode во Vue"
+order: 14
+kicker: фреймворки изнутри
+lead: "Тот же однофайловый компонент, но без виртуального DOM: компилятор выдаёт строку HTML для клонирования и эффекты, которые пишут прямо в узлы. DOM-операций от этого почти не убавляется — убавляется работа JS до них: ни вызова render, ни дерева VNode на каждое изменение."
+leadWidth: 66
+summary: "Что выдаёт компилятор Vapor вместо render-функции, как устроены `template`, `renderEffect`, `createFor` и `createIf`, сколько работы уходит на одно изменение у VDOM и у Vapor, как включить и смешать режимы и чего в релиз-кандидате 3.6 ещё нет."
+verifiedOn: Vue 3.6.0-rc.9 и 3.5.42 · Node 26.8.2 · happy-dom 20.14.5
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Два вывода }
+  - { id: s2, label: Рантайм }
+  - { id: s3, label: Списки и условия }
+  - { id: s4, label: Мини-vapor }
+  - { id: s5, label: Одна запись }
+  - { id: s6, label: Включение }
+  - { id: s7, label: Чего нет в rc.9 }
+  - { id: s8, label: Вес }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import VaporLab from '@/widgets/vapor-lab/ui/VaporLab.vue';
+import {
+  CART_SFC, CART_TEMPLATE, CART_INITIAL, VAPOR_CODE, VDOM_CODE,
+  STEP_SIGNALS, STEP_DOM, STEP_BLOCKS, STEP_COMPILER, MINI_VAPOR_CODE, MINI_OUT,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
+  PLAIN_TEMPLATE, OUTPUT_NOTE, OUTPUT_FACTS,
+  RUNTIME_HEAD, RUNTIME_ROWS, SETTEXT_SOURCE, BLOCK_EFFECT_NOTE, PLAIN_MEMO,
+  FOR_NOTE, IF_NOTE, FAST_REMOVE_NOTE,
+  MINI_LEAD, PLAIN_COMPILE, MINI_NOTE, MINI_VS_REAL_HEAD, MINI_VS_REAL_ROWS, MINI_VS_REAL_NOTE,
+  SCENARIOS, MEASURED_HEAD, MEASURED_ROWS, PLAIN_MEASURE, MEASURE_NOTE, DEMO_NOTE,
+  ENABLE_CODE, ENABLE_FACTS, APPS_HEAD, APPS_ROWS, APPS_NOTE,
+  LIMITS,
+  WEIGHT_HEAD, WEIGHT_ROWS, BUNDLE_APP, BUNDLE_HEAD, BUNDLE_ROWS, BUNDLE_NOTE,
+  PITFALLS, SOURCES, RELATED,
+  INC_SCENE_CODE, INC_SCENE_NOTE, INC_STEPS, PLAIN_INC, RENAME_SCENE_CODE, RENAME_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Идея"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  leadWidth={72}
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Один компонент — два вывода"
+  lead="Компонент `Cart` — заголовок, счётчик с классом, список с ключами, условный абзац и кнопка. Отличается от обычного одним словом — `vapor` в теге `<script setup>`."
+  leadWidth={72}
+>
+  <CodeBlock code={CART_SFC} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEMPLATE} />
+
+  ### Обычный вывод: render-функция
+
+  <CodeBlock code={VDOM_CODE} />
+
+  ### Vapor-вывод: шаблон и эффекты
+
+  <CodeBlock code={VAPOR_CODE} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={OUTPUT_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {OUTPUT_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Рантайм: `template`, `renderEffect`, `setText`"
+  lead="Рантайм Vapor — набор маленьких функций, которые вызывает сгенерированный код. Половина работает только при создании компонента, другая половина — при каждом изменении, и у этой половины есть память: она пишет в DOM, только если значение отличается от записанного."
+  leadWidth={72}
+>
+  <Table
+    head={RUNTIME_HEAD}
+    rows={RUNTIME_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(170px,.8fr) minmax(280px,1.8fr) minmax(130px,.6fr)"
+    minWidth={680}
+  />
+
+  ### Эффект на блок, память на узле
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MEMO} />
+
+  <Card title="`setText` в `runtime-vapor` 3.6.0-rc.9, без ветки гидратации" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SETTEXT_SOURCE} />
+
+    <Md text={BLOCK_EFFECT_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Списки и условия: `createFor` и `createIf`"
+  lead="`v-for` и `v-if` не помещаются в один эффект с остальными привязками: они создают и снимают целые куски DOM. У каждого — свой эффект, который читает только список или только условие, и свои блоки внутри."
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="`createFor`" titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={FOR_NOTE} />
+
+    <Card title="`createIf`" titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={IF_NOTE} />
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={FAST_REMOVE_NOTE} />
+
+  ### Одна строка поменялась — кто просыпается
+
+  <CodeBlock code={RENAME_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={290} gap={14} align="start">
+    {RENAME_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Мини-vapor: компилятор и рантайм"
+  lead={MINI_LEAD}
+  leadWidth={72}
+>
+  ### Ячейки, эффекты, блоки
+
+  <CodeBlock code={STEP_SIGNALS} />
+
+  ### Запись в DOM с памятью
+
+  <CodeBlock code={STEP_DOM} />
+
+  ### `createIf` и `createFor`
+
+  <CodeBlock code={STEP_BLOCKS} />
+
+  ### Компилятор
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPILE} />
+
+  <CodeBlock code={STEP_COMPILER} />
+
+  <Card title="Что мини-компилятор выдаёт для `Cart`" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MINI_OUT} />
+
+    <Md text={MINI_NOTE} />
+  </Card>
+
+  <Table
+    head={MINI_VS_REAL_HEAD}
+    rows={MINI_VS_REAL_ROWS}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(150px,.7fr) minmax(220px,1.1fr) minmax(260px,1.4fr)"
+    minWidth={680}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={MINI_VS_REAL_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Одна запись: сколько работы у VDOM и у Vapor"
+  lead="Десять действий подряд над только что смонтированным `Cart`. Для VDOM считаются вызовы render-функции и созданные VNode, для Vapor — прогоны эффектов, для обоих — DOM-операции одним и тем же щупом. Это счёт, а не время: числа не зависят от машины."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MEASURE} />
+
+  ### `count++` по шагам
+
+  <CodeBlock code={INC_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={INC_SCENE_NOTE} />
+
+  Одно и то же действие — с каждой стороны.
+
+  <CardGrid min={290} gap={14} align="start">
+    {INC_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INC} />
+
+  ### Все десять действий
+
+  <Table
+    head={MEASURED_HEAD}
+    rows={MEASURED_ROWS}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(260px,2.4fr) repeat(5,minmax(70px,.5fr))"
+    minWidth={760}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={MEASURE_NOTE} />
+
+  ### Вживую
+
+  <VaporLab client:visible vdomCode={VDOM_CODE} template={CART_TEMPLATE} initial={CART_INITIAL} miniCode={MINI_VAPOR_CODE} scenarios={SCENARIOS} note={DEMO_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Как включить и смешать"
+  lead="Режим выбирается на уровне компонента, приложение — на уровне точки входа. Смешивать можно в обе стороны, но только через плагин."
+  leadWidth={72}
+>
+  <CodeBlock code={ENABLE_CODE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {ENABLE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={APPS_HEAD}
+    rows={APPS_ROWS}
+    kinds={['mono', 'muted', 'prose', 'muted']}
+    cols="minmax(130px,.6fr) minmax(130px,.6fr) minmax(260px,1.6fr) minmax(130px,.7fr)"
+    minWidth={680}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={APPS_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Чего нет в rc.9"
+  lead="Vapor-компонент пишется только на Composition API, и часть привычных точек входа в экземпляр компонента в нём пуста."
+  leadWidth={72}
+>
+  <CardGrid min={270} gap={14} align="start">
+    {LIMITS.map((item) => (
+      <Card tone={item.tone} color={item.tone ? 'tone' : undefined} title={item.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Вес рантайма"
+  lead="Размер считается байтами файлов, а не временем загрузки. Готовые файлы `dist` показывают, сколько весит всё сразу; сборка настоящего приложения — сколько остаётся после отбрасывания неиспользуемого."
+  leadWidth={72}
+>
+  <Table
+    head={WEIGHT_HEAD}
+    rows={WEIGHT_ROWS}
+    kinds={['mono', 'mono', 'muted']}
+    cols="minmax(300px,1.6fr) minmax(90px,.4fr) minmax(200px,1fr)"
+    minWidth={640}
+  />
+
+  <Card title="Приложение для замера сборки" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BUNDLE_APP} />
+  </Card>
+
+  <Table
+    head={BUNDLE_HEAD}
+    rows={BUNDLE_ROWS}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(300px,1.8fr) minmax(120px,.6fr) minmax(90px,.4fr)"
+    minWidth={600}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={BUNDLE_NOTE} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Тонкие места"
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Источники"
+  lead="Исходники `runtime-vapor` и `compiler-vapor` в репозитории Vue; здесь они читались по собранным файлам 3.6.0-rc.9 из `node_modules`."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

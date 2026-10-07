@@ -1,0 +1,527 @@
+---
+title: "Прогрессивная доставка: сине-зелёный выкат, канарейка и флаги"
+order: 9
+kicker: доставка
+lead: "Выкат всем сразу проверяет новую версию на всех пользователях одновременно. Прогрессивная доставка показывает её сначала немногим, сравнивает их числа со старой версией и расширяет круг, только если сравнение в её пользу. Главная трудность — статистика: **1% трафика на 5 минут** часто не даёт данных ни для «хуже», ни для «не хуже», а ноль ошибок на сотне запросов — ещё не ноль процентов."
+leadWidth: 68
+summary: "Чем плох выкат всем сразу; сине-зелёный выкат и цена двух копий; миграции «расширяй, потом сужай» и когда откат перестаёт быть бесплатным; канарейка — доли, липкость, хеш от id; анализ по интервалу Уилсона и p95 на малых выборках; автоматический откат в Argo Rollouts и Flagger; флаги функций, выключатель и флаги-долг; две версии бандла, кеш CDN и совместимость API."
+verifiedOn: "Назначение по хешу, интервалы, решение анализа, план выката и совместимость схемы — учебной моделью темы; её сверяет тест на таблицах случаев, на ста тысячах синтетических id и моделированием с сидом. Кластера, Argo Rollouts, Flagger и Prometheus не было: их поведение — по документации, сентябрь 2026, и помечено в тексте"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Выкат всем сразу }
+  - { id: s2, label: Сине-зелёный }
+  - { id: s3, label: Канарейка }
+  - { id: s4, label: Анализ }
+  - { id: s5, label: Автоматический откат }
+  - { id: s6, label: Флаги функций }
+  - { id: s7, label: Канарейка по шагам }
+  - { id: s8, label: 'Фронтенд: статика и API' }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import PdCanary from '@/widgets/pd-canary/ui/PdCanary.vue';
+import BlueGreenDiagram from '@/widgets/progressive-delivery-bluegreen-diagram/ui/BlueGreenDiagram.astro';
+import BundleDiagram from '@/widgets/progressive-delivery-bundle-diagram/ui/BundleDiagram.astro';
+import {
+  ALL_AT_ONCE_WHY,
+  ANALYSIS_CODE,
+  ANALYSIS_WHY,
+  API_NOTE,
+  ARGO_FACTS,
+  AUTO_WHY,
+  BG_COST_NOTE,
+  BG_FACTS,
+  BG_WHY,
+  BLUEGREEN_CODE,
+  BUCKET_CODE,
+  CANARY_SALT,
+  CANARY_WHY,
+  COMPARE,
+  DECISION_STEPS,
+  DEMO_CAPTION,
+  DEMO_NOTE,
+  DEMO_WHY,
+  EXPAND_STEPS,
+  EXPAND_WHY,
+  FLAG_DEBT_NOTE,
+  FLAG_KEY,
+  FLAG_KINDS,
+  FLAGGER_CODE,
+  FLAGGER_FACTS,
+  FLAGS_WHY,
+  FRONT_STEPS,
+  FRONT_WHY,
+  GLOSSARY,
+  HASH_NOTE,
+  HASH_WHY,
+  INTRO_NOTE,
+  KILL_SWITCH_NOTE,
+  LOW_TRAFFIC_NOTE,
+  LOW_TRAFFIC_TABLE,
+  MODEL_PARTS,
+  PITFALLS,
+  PLAIN_CANARY,
+  PLAIN_EXPAND,
+  PLAIN_FLAG,
+  PLAIN_HASH,
+  PLAIN_INTERVAL,
+  PLAN_CODE,
+  PLAN_NOTE,
+  PLAN_STEPS,
+  PLAN_TABLE,
+  PLAN_WHY,
+  POINT_NOTE,
+  PREREQ,
+  PREREQ_NOTE,
+  RELATED,
+  ROLLBACK_NOTE,
+  ROLLOUT_CODE,
+  RULE_OF_THREE,
+  SCENARIOS,
+  SCHEMA_CODE,
+  SCHEMA_NOTE,
+  SCHEMA_TABLE,
+  SOURCES,
+  SSR_FLAG_NOTE,
+  STATS_CODE,
+  STATS_NOTE,
+  STICKY,
+  STICKY_WHY,
+  VERDICT_LABEL,
+  WEIGHTS_NOTE,
+  VERDICT_SCENE,
+  VERDICT_WALK,
+  PLAIN_VERDICT,
+  FRONT_SCENE,
+  FRONT_WALK,
+  PLAIN_FRONT,
+  BG_DIAGRAM,
+  BUNDLE_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE} leadWidth={72}>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANARY} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Чем плох выкат всем сразу"
+  lead="Ошибку, которую пропустили тесты, находят пользователи — вопрос только в том, сколько их и как долго. Постепенный выкат уменьшает оба числа, но лишь если следующий шаг разрешает что-то умнее пробы готовности."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={ALL_AT_ONCE_WHY} />
+  </Card>
+
+  <Table
+    head={COMPARE.head}
+    rows={COMPARE.rows}
+    cols={COMPARE.cols}
+    kinds={COMPARE.kinds}
+    minWidth={COMPARE.minWidth}
+  />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Сине-зелёный выкат: две копии и переключатель"
+  lead="Новая версия поднимается целиком рядом со старой, проверяется и получает весь трафик разом. Откат — обратное переключение за секунды, пока старая копия жива. Не откатывается только одно: база данных, общая для обеих копий."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={BG_WHY} />
+  </Card>
+
+  <BlueGreenDiagram data={BG_DIAGRAM} />
+
+  <CodeBlock code={BLUEGREEN_CODE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {BG_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={BG_COST_NOTE} />
+  </Card>
+
+  ### База данных: расширяй, потом сужай
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EXPAND} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={EXPAND_WHY} />
+  </Card>
+
+  <Card title="Пять шагов вместо одного" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={EXPAND_STEPS} size={15.5} />
+  </Card>
+
+  <CodeBlock code={SCHEMA_CODE} />
+
+  <Table
+    head={SCHEMA_TABLE.head}
+    rows={SCHEMA_TABLE.rows}
+    cols={SCHEMA_TABLE.cols}
+    kinds={SCHEMA_TABLE.kinds}
+    minWidth={SCHEMA_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SCHEMA_NOTE} />
+  </Card>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={ROLLBACK_NOTE} />
+  </Callout>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Канарейка: доля трафика по шагам"
+  lead="Новая версия получает малую долю, и доля растёт, пока числа не хуже базы. Делить можно запросы или людей — и для сайта это не одно и то же."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={CANARY_WHY} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={WEIGHTS_NOTE} />
+  </Card>
+
+  ### Липкость: запросы или люди
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={STICKY_WHY} />
+  </Card>
+
+  <Table
+    head={STICKY.head}
+    rows={STICKY.rows}
+    cols={STICKY.cols}
+    kinds={STICKY.kinds}
+    minWidth={STICKY.minWidth}
+  />
+
+  ### Хеш от id: кто внутри
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HASH} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={HASH_WHY} />
+  </Card>
+
+  <CodeBlock code={BUCKET_CODE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={HASH_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Анализ канарейки: хуже, не хуже или рано судить"
+  lead="Канарейку сравнивают с базой в то же время, по доле ошибок и по p95. Ответов три, а не два: когда данных мало, честный ответ — «ждать данных»."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={ANALYSIS_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTERVAL} />
+
+  <Card title="Как принимается решение" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={DECISION_STEPS} size={15.5} />
+  </Card>
+
+  ### Одна канарейка, три базы
+
+  {VERDICT_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {VERDICT_WALK.map((v) => (
+      <Card title={v.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Предел:** ${v.limit}.`} />
+        <Md text={`**Решение:** ${v.verdict}.`} />
+        <Md text={`**Почему:** ${v.why}.`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VERDICT} />
+
+  <CodeBlock code={STATS_CODE} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={STATS_NOTE} />
+  </Card>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={RULE_OF_THREE} />
+  </Callout>
+
+  ### Почему «1% на 5 минут» может не показать ничего
+
+  <Table
+    head={LOW_TRAFFIC_TABLE.head}
+    rows={LOW_TRAFFIC_TABLE.rows}
+    cols={LOW_TRAFFIC_TABLE.cols}
+    kinds={LOW_TRAFFIC_TABLE.kinds}
+    minWidth={LOW_TRAFFIC_TABLE.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={LOW_TRAFFIC_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Автоматический откат: Argo Rollouts и Flagger"
+  lead="Контроллер выката двигает долю по плану, спрашивает метрики и откатывает, когда условие провалено. Само условие пишете вы, и в нём легко забыть про объём выборки."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={AUTO_WHY} />
+  </Card>
+
+  ### Argo Rollouts
+
+  <CodeBlock code={ROLLOUT_CODE} />
+
+  <CodeBlock code={ANALYSIS_CODE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {ARGO_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={POINT_NOTE} />
+  </Card>
+
+  ### Flagger
+
+  <CodeBlock code={FLAGGER_CODE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {FLAGGER_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### План по шагам: функция
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={PLAN_WHY} />
+  </Card>
+
+  <CodeBlock code={PLAN_CODE} />
+
+  <Table
+    head={PLAN_TABLE.head}
+    rows={PLAN_TABLE.rows}
+    cols={PLAN_TABLE.cols}
+    kinds={PLAN_TABLE.kinds}
+    minWidth={PLAN_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={PLAN_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Флаги функций: выкатить и включить — разные события"
+  lead="Код приезжает ко всем, функция включается части пользователей, а выключается одним щелчком, без выката. За это платят долгом: каждый забытый флаг удваивает число вариантов поведения."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={FLAGS_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLAG} />
+
+  <Table
+    head={FLAG_KINDS.head}
+    rows={FLAG_KINDS.rows}
+    cols={FLAG_KINDS.cols}
+    kinds={FLAG_KINDS.kinds}
+    minWidth={FLAG_KINDS.minWidth}
+  />
+
+  ### Выключатель
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={KILL_SWITCH_NOTE} />
+  </Card>
+
+  ### Флаги-долг
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={FLAG_DEBT_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7 · демо"
+  eyebrowTone="demo"
+  title="Канарейка по шагам"
+  lead="Доля, сценарий и поток виртуальных пользователей. Кто в какой версии, накопленные числа и решение анализа считает модель из этой темы."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={DEMO_WHY} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEMO_NOTE} />
+  </Card>
+
+  <PdCanary
+    client:visible
+    parts={MODEL_PARTS}
+    scenarios={SCENARIOS}
+    steps={PLAN_STEPS}
+    salt={CANARY_SALT}
+    flagKey={FLAG_KEY}
+    labels={VERDICT_LABEL}
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Фронтенд: две версии бандла и совместимость API"
+  lead="Во время выката у пользователей живут обе версии фронтенда, а открытые вкладки — ещё дольше. Статику выкатывают так, чтобы любой HTML находил свои файлы, а API меняют так, чтобы его понимали оба клиента."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={FRONT_WHY} />
+  </Card>
+
+  <BundleDiagram data={BUNDLE_DIAGRAM} />
+
+  ### Одна открытая вкладка во время выката
+
+  {FRONT_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {FRONT_WALK.map((f) => (
+      <Card title={f.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Как ломается:** ${f.broken}.`} />
+        <Md text={`**Что спасает:** ${f.fixed}.`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FRONT} />
+
+  <Card title="Порядок выката статики" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={FRONT_STEPS} size={15.5} />
+  </Card>
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={API_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={SSR_FLAG_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Тонкие места"
+  lead="Почти все они молчат: выкат прошёл зелёным, анализ ответил «продолжить», а пострадали те, кого он не видел."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Источники"
+>
+  <Card title="Документация и статьи" titleSize={18} pad={22} gap={14}>
+
+    Формулы интервалов — из статей. Поведение Argo Rollouts, Flagger и сервисов флагов — из их документации: оно меняется от версии к версии.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

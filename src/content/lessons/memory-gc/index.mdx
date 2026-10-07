@@ -1,0 +1,919 @@
+---
+title: Память и GC
+order: 11
+lead: "Объект живёт, пока до него можно дойти по ссылкам от корней — глобального объекта, стека, активных таймеров. Сборщик проверяет, достижим ли объект, а не нужен ли он, — и в этой разнице живут все утечки."
+leadWidth: 64
+summary: "Как объект переезжает по куче, шесть типовых утечек, почему замыкание держит больше, чем использует, как WeakMap отпускает записи и как читать график памяти."
+verifiedOn: "Node 24.11 и 26.8 · V8 13.6 и 14.6 · arm64 без pointer compression"
+nav:
+  - { id: s0, label: Что наблюдаемо }
+  - { id: s1, label: Путь объекта }
+  - { id: s2, label: Утечки }
+  - { id: s3, label: Замыкания }
+  - { id: s4, label: Слабые ссылки }
+  - { id: s5, label: using }
+  - { id: s6, label: Диагностика }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Table from '@/shared/ui/Table.astro';
+import ContextSlots from '@/widgets/context-slots/ui/ContextSlots.astro';
+import EphemeronSim from '@/widgets/ephemeron-sim/ui/EphemeronSim.vue';
+import GenerationCopy from '@/widgets/generation-copy/ui/GenerationCopy.vue';
+import HeapChart from '@/widgets/heap-chart/ui/HeapChart.vue';
+import LeakAnatomy from '@/widgets/leak-anatomy/ui/LeakAnatomy.vue';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import ReachabilityLab from '@/widgets/reachability-lab/ui/ReachabilityLab.vue';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import { HEAP_PRESETS } from '@/widgets/heap-chart/model/presets';
+import {
+  OBSERVABLE_NODE,
+  GC_YIELD_PROBE,
+  GC_YIELD_PROBE_OUT,
+  GC_KEPT_PROBE,
+  GC_KEPT_PROBE_OUT,
+  EXPOSE_GC_CODE,
+  GC_STEPS,
+  HEAP_CAPACITY,
+  ROOTS,
+  ORINOCO,
+  TRICOLOR,
+  PRESSURE,
+  SPACES_ROWS,
+  YOUNG_PROBE,
+  YOUNG_PROBE_OUT,
+  LOS_PROBE,
+  LOS_PROBE_OUT,
+  LEAKS,
+  ABORT_CODE,
+  CONTEXT_CODE,
+  CONTEXT_SLOTS,
+  CONTEXT_USERS,
+  CONTEXT_PROBE,
+  CONTEXT_PROBE_OUT,
+  CONTEXT_FACTS,
+  WEAK_TOOLS,
+  WEAK_TOOLS_TONES,
+  WEAKREF_CACHE_CODE,
+  WM_SIZE_CODE,
+  EPHEMERON_SCENARIOS,
+  EPHEMERON_PROBE,
+  EPHEMERON_PROBE_OUT,
+  EPHEMERON_RULES_CODE,
+  WEAK_VS_MAP,
+  FR_CAVEATS,
+  USING_CODE,
+  PLAIN_USING,
+  USING_WORK_STEPS,
+  USING_DESUGAR_CODE,
+  USING_DESUGAR_NOTE,
+  USING_LINES_STEPS,
+  USING_FACTS,
+  USING_STACK_CODE,
+  USING_STACK_NOTE,
+  USING_BROWSER_NOTE,
+  USING_BROWSER_CODE,
+  USING_COMPONENT_CODE,
+  USING_COMPONENT_NOTE,
+  USING_NODE_ROWS,
+  USING_NODE_NOTE,
+  USING_NODE_CODE,
+  USING_SUPPORT,
+  PITFALLS,
+  SOURCES,
+  GLOSSARY,
+  EPHEMERON_DEMO_NOTE,
+  REACHABILITY_DEMO_NOTE,
+  GC_DEMO_NOTE,
+  LEAKS_DEMO_NOTE,
+  HEAP_DEMO_NOTE,
+  PLAIN_REACHABILITY,
+  PLAIN_SCAVENGE,
+  PLAIN_BARRIER,
+  PLAIN_CONTEXT,
+  PLAIN_EPHEMERON,
+  BARRIER_ROWS,
+  BARRIER_SCENE_CODE,
+  BARRIER_SCENE_NOTE,
+  BARRIER_STEPS,
+  PLAIN_THREE_BARRIERS,
+  ORINOCO_SCENE_NOTE,
+  ORINOCO_STEPS,
+  PLAIN_FOUR_MODES,
+  PRESSURE_SCENE_CODE,
+  PRESSURE_SCENE_NOTE,
+  PRESSURE_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Откуда вообще берутся утечки"
+  lead="Движок не может знать, понадобится ли объект программе дальше: в общем виде это неразрешимая задача, родственная вопросу «остановится ли программа». Поэтому он проверяет условие попроще — можно ли до объекта дойти по ссылкам — и не трогает всё, до чего дойти можно."
+  leadWidth={72}
+  gap={24}
+>
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={260} gap={14}>
+    <Card tone="ok" color="tone" label="что движок умеет доказать" labelTone="tone" labelSize={11} pad={20} gap={10} size={17} lh={1.35}>
+
+      Если до объекта нельзя дойти по ссылкам — он точно не понадобится.
+
+    </Card>
+
+    <Card tone="err" color="tone" emphasis label="где прячутся утечки" labelTone="tone" labelSize={11} pad={20} gap={10} size={17} lh={1.35}>
+
+      Обратное неверно: объект может быть достижим и при этом навсегда бесполезен.
+
+      <CardNote tone="prose" size={15} lh={1.55}>
+
+        Вот эта щель между «достижим» и «нужен» — и есть всё пространство утечек в JS.
+
+      </CardNote>
+    </Card>
+
+    <Callout size={17} lh={1.45} pad="20px">
+
+      Вопрос при отладке звучит не «почему GC не собрал», а <b>«кто на это ссылается и по какой цепочке»</b>.
+
+    </Callout>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REACHABILITY} />
+
+  <CardGrid min={250} gap={12}>
+    {ROOTS.map((root) => (
+      <Card label={root.k} labelSize={12} pad={16} radius={4} gap={8} size={15} lh={1.55}>
+        <Md text={root.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card pad={0} radius={0} gap={0} size={16} lh={1.6}>
+
+    Если цепочка ссылок начинается в одном из этих корней, объект в её конце не соберётся
+    никогда. **Счётчиков ссылок (reference counting) в V8 нет**: такой подсчёт не справляется
+    с циклами. Вместо этого сборщик помечает всё, до чего дошёл от корней, и убирает остальное
+    (mark-and-sweep). Поэтому пара `a.b = b; b.a = a` спокойно собирается, если снаружи на неё
+    никто не ссылается.
+
+  </Card>
+
+  ### Проверьте в своём браузере
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={REACHABILITY_DEMO_NOTE} />
+  </Card>
+
+  <ReachabilityLab client:visible />
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Граница наблюдаемого"
+  lead="Сборщик работает молча: о сборке узнают только задним числом, а спросить у объекта, где он лежит, нельзя. Видно немногое — и почти всё только в Node."
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="err" title="Не наблюдаемо из JS вообще" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+      **Момент сборки.** Ни события, ни обратного вызова в сам момент. Узнать можно только
+      задним числом: в Node запись `gc` приходит в `PerformanceObserver` после уступки потоку
+      (разобрано в [«Непрерывном профилировании памяти»](/js/continuous-profiling/)).
+
+      **Поколение объекта.** У значения нет свойства «в какой части кучи я лежу».
+
+      **Переезд в старое поколение.** Для языка не меняется ничего — тот же объект, те же поля,
+      тот же результат любой операции.
+
+      **Состояние молодого поколения.** Какая из двух его половин сейчас рабочая и сколько
+      в ней занято, наружу не выводится вовсе.
+
+    </Card>
+
+    <Card tone="warn" color="tone" title="Наблюдаемо в Node" titleSize={16.5} pad={18} gap={11} size={15} lh={1.55}>
+
+      Node умеет мерить кучу своего процесса: `process.memoryUsage()` и модуль `v8` показывают,
+      сколько занято, где потолок, как куча разложена по пространствам, и умеют снять её
+      снимок. Это API **процесса Node**, а не языка, — на веб-странице ничего из этого нет.
+
+      <CardNote tone="ok">
+
+        Отсюда практическое: тест «объект собран» не написать в обычном тестовом процессе —
+        он запущен без флага `--expose-gc`, и `globalThis.gc` там `undefined`. Такой тест
+        запускает отдельный процесс Node с этим флагом.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="ok" color="tone" title="Со страницы сборку видно только по двум сигналам" titleSize={16.5} pad={18} gap={11} size={15} lh={1.55}>
+
+      Первый — `WeakRef.deref()` вернул `undefined`. Второй — сработал колбэк
+      `FinalizationRegistry`. Других способов увидеть сборку из браузера нет. Освобождать
+      через них ресурсы не стоит (почему — в разделе «Слабые ссылки»), но как сигнал другого ничего нет.
+
+      <CardNote tone="err">
+
+        `performance.measureUserAgentSpecificMemory()` сюда не относится. Он показывает не
+        сборку, а суммарный вес вкладки. Работает он только на изолированной странице
+        (cross-origin isolation — особые заголовки, отделяющие страницу от чужих ресурсов),
+        **а в Node его нет вовсе**.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Что именно можно спросить у Node
+
+  <Table
+    head={['что видно', 'чем', 'оговорка']}
+    rows={OBSERVABLE_NODE}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(0,1.1fr) minmax(0,1.1fr) minmax(0,1.5fr)"
+    minWidth={640}
+  />
+
+  Список короткий. Всё остальное в теме — поколения, полупространства, переезд
+  в старое поколение, remembered set, цвета пометки — взято из документации
+  и исходников движка. У самой программы это не спросить.
+
+  ### `gc()` собирает — но цель `WeakRef` доживает до конца задачи
+
+  Это ловушка для того, кто хочет доказать тестом, что утечки нет: «создал объект, отпустил,
+  вызвал `gc()`, проверил `WeakRef`» — и тест краснеет на исправном коде.
+
+  Под флагом `--expose-gc` вызов `gc()` запускает полную сборку. Но объект, на который
+  смотрит `WeakRef`, после неё остаётся жив, сколько раз ни зови (Node 24.11 и 26.8):
+
+  <CodeBlock code={GC_YIELD_PROBE} size={11.5} />
+  <CodeBlock code={GC_YIELD_PROBE_OUT} size={11.5} tone="ok" />
+
+  Виноват сам наблюдатель. По спецификации `new WeakRef(obj)` и каждый `deref()` кладут
+  объект в список KeptObjects. Движок чистит этот список только **после задачи** — так язык
+  обещает, что объект не исчезнет между двумя строками синхронного кода. Объект, за которым
+  следит только `FinalizationRegistry`, тот же вызов `gc()` собирает сразу:
+
+  <CodeBlock code={GC_KEPT_PROBE} size={11.5} />
+  <CodeBlock code={GC_KEPT_PROBE_OUT} size={11.5} tone="ok" />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Отсюда рецепт: **сначала отдать управление, потом звать сборку**. Нужна именно новая
+    задача — `setTimeout` или `setImmediate`. Микрозадача не годится: `await Promise.resolve()`
+    остаётся в той же задаче, и список ещё не очищен.
+
+  </Card>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Вторая половина рецепта: объект надо создавать **внутри функции**. Если он останется
+    в переменной вызывающего кода, эта переменная держит его сама — и не собирается ничего,
+    сколько ни уступай поток. Выглядит это как «`gc()` не работает».
+
+  </Card>
+
+  ### Что делает `--expose-gc` и почему им не лечат утечку
+
+  <CodeBlock code={EXPOSE_GC_CODE} size={11.5} />
+
+  Флаг делает одно: кладёт в глобальный объект функцию `gc`. Вызов `gc()` сразу запускает
+  полную сборку всей кучи (по умолчанию Mark-Compact — пометить живое и уплотнить)
+  и останавливает главный поток на всё её время. Правила, пороги и лимиты сборки флаг
+  не меняет. Это не режим экономии памяти, а кнопка «собери сейчас».
+
+  <Card tone="err" color="tone" pad={16} radius={4} size={16} lh={1.6}>
+
+    **Утечку им не вылечить в принципе.** Сборка убирает недостижимое, а утечка — это
+    достижимое, но ненужное. Вызов `gc()` при утечке заново **пометит живым** то, что вы
+    хотели убрать. Вызов по таймеру не поможет и тут: после каждого `gc()` в куче остаётся ровно
+    достижимое, и утечка видна даже яснее: минимум растёт ступенями, на каждом цикле примерно на то,
+    что цикл оставил. Платите вы за это полной паузой на каждом вызове.
+
+  </Card>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Путь объекта: от создания до вечной жизни в куче"
+  lead="Большинство объектов умирает вскоре после создания — это наблюдение называют гипотезой поколений. Поэтому V8 делит кучу на две части и убирает их по-разному: молодую — часто и дёшево, старую — редко и дорого."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCAVENGE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={GC_DEMO_NOTE} />
+  </Card>
+
+  <GenerationCopy client:visible steps={GC_STEPS} capacity={HEAP_CAPACITY} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="ok" color="tone" emphasis pad={20} radius={5} size={19} lh={1.45}>
+
+      Практический вывод, который стоит помнить дословно: **в V8 дорого не создать объект,
+      а не дать ему умереть.**
+
+    </Card>
+
+    <Card pad={16} radius={4} size={15.5} lh={1.55}>
+
+      **Это противоположно интуиции** из языков с ручным управлением памятью. Создавать много
+      короткоживущих объектов в V8 дёшево, а держать много объектов живыми — дорого. Сборка
+      молодого поколения (Scavenge) тратит время на **выживших**, а не на мусор: мусор она
+      не обходит и не считает вовсе.
+
+    </Card>
+  </CardGrid>
+
+  ### Большой объект не копируют вовсе
+
+  Объект крупнее порога сразу получает собственные страницы — в пространстве больших
+  объектов. Порог около 128 КБ (Node 24.11 и 26.8): массив из 15 000 чисел (117 КБ) лёг
+  в обычное молодое пространство, из 16 500 (129 КБ) — уже в пространство больших. Scavenge
+  такой объект не копирует, при переезде в старое поколение переносится страница целиком,
+  а уплотнение такие страницы не двигает. Это видно по адресу:
+
+  <CodeBlock code={LOS_PROBE} size={11.5} />
+  <CodeBlock code={LOS_PROBE_OUT} size={11.5} tone="ok" />
+
+  <Card tone="warn" color="tone" pad={16} radius={4} size={15.5} lh={1.55}>
+
+    **Отсюда неочевидное:** один большой массив, созданный один раз, обходится сборщику
+    дешевле тысячи мелких объектов, доживших до старого поколения (old space). Его не копируют,
+    а при пометке это один объект, а не тысяча. Если во вкладке Performance видна длинная
+    жёлтая полоса GC, почти всегда дело не в «медленном GC»: код создал слишком много
+    **выживающих** объектов.
+
+  </Card>
+
+  ### Где лежат объекты: пространства кучи
+
+  <Table
+    head={['пространство', 'что в нём лежит', 'замер']}
+    rows={SPACES_ROWS}
+    kinds={['mono', 'prose', 'mono']}
+    cols="minmax(0,1.1fr) minmax(0,1.4fr) minmax(0,1fr)"
+    minWidth={520}
+  />
+
+  Всего пространств у V8 тринадцать, но для памяти вашего кода важны эти четыре. Размер
+  молодого поколения не постоянен: V8 вычисляет его сам и растит полупространство, когда
+  растёт доля выживших. Потолок — **умолчание версии**, а не свойство движка: 64 МБ
+  на полупространство у Node 24.11 и 32 МБ у Node 26.8 (обе сборки без сжатия указателей,
+  со сжатием — вдвое меньше). Расхожая подпись «1–8 МБ» устарела.
+
+  <CodeBlock code={YOUNG_PROBE} size={11.5} />
+  <CodeBlock code={YOUNG_PROBE_OUT} size={11.5} tone="ok" />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Почему `heap_size_limit` больше `--max-old-space-size` ровно на три полупространства,
+    какими флагами задают размер молодого поколения и как всё это согласовать с лимитом
+    контейнера — в теме «Память в Node», раздел [«Лимиты и контейнеры»](/js/node-memory/#s4).
+
+  </Card>
+
+  ### Orinoco: почему паузы перестали быть проблемой
+
+  Orinoco — так V8 называет свой нынешний сборщик. С 2016 года большая сборка (Major GC)
+  почти целиком идёт в фоновых потоках, а не в главном.
+
+  <CardGrid min={250} gap={12}>
+    {ORINOCO.map((item) => (
+      <Card tone="dim" label={item.k} labelSize={12} pad={15} radius={4} gap={8} size={15} lh={1.55} color="prose">
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Четыре слова на одной сборке
+
+  <Md text={ORINOCO_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {ORINOCO_STEPS.map((m) => (
+      <Card title={m.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Как:** ${m.when}.`} />
+        <Md text={m.what} />
+        <Md text={`**Чем платит:** ${m.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FOUR_MODES} />
+
+  Orinoco сочетает их: большую пометку V8 ведёт в фоне и по частям, сборку молодых и уплотнение —
+  в несколько потоков внутри паузы.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BARRIER} />
+
+  <Card tone="warn" color="tone" pad={16} radius={4} size={16} lh={1.6}>
+
+    **У барьера записи (write barrier) две работы — и обе в одной короткой проверке при каждой
+    записи ссылки в поле.** Первая: если старый объект получил ссылку на молодой, барьер
+    записывает это поле в remembered set, иначе сборка молодых его бы не увидела. Вторая:
+    пока идёт пометка по частям, барьер не даёт потерять объект, который JS записал в уже
+    проверенный. Поэтому **записать в поле ссылку дороже, чем небольшое целое (Smi)**:
+    для `Smi` проверка не нужна.
+
+  </Card>
+
+  ### У этого инварианта есть имя: трёхцветная пометка
+
+  Write barrier — часть классического алгоритма пометки. Пока идёт пометка, у каждого
+  объекта один из трёх цветов. По этим словам алгоритм и ищут в документации.
+
+  <CardGrid min={250} gap={12}>
+    {TRICOLOR.map((item) => (
+      <Card tone="dim" label={item.k} labelSize={12} pad={15} radius={4} gap={8} size={15} lh={1.55} color="prose">
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Отсюда же видно, **почему пауза в конце всё-таки нужна**. Фоновый сборщик красит граф
+    объектов, пока JS его меняет. В финальной остановке сборщик разбирает рабочий список
+    до конца, и дописать в него новое уже некому. Пауза становится короткой, но не исчезает.
+
+  </Card>
+
+  ### Три способа сторожить правило — три движка
+
+  Барьер, покрасивший записанный объект в серый, — лишь один из способов не нарушить главное
+  правило. Классических способов три, и все три перехватывают запись ссылки в поле, пока идёт
+  пометка. Разница в том, **какой объект** барьер отдаёт сборщику на проверку. Проще всего
+  увидеть это на одном примере — двух записях, которые JS делает между шагами пометки.
+
+  <CodeBlock code={BARRIER_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={BARRIER_SCENE_NOTE} />
+
+  Теперь те же две записи — под каждым из трёх барьеров.
+
+  <CardGrid min={290} gap={14} align="start">
+    {BARRIER_STEPS.map((b) => (
+      <Card title={`Барьер ${b.k}`} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THREE_BARRIERS} />
+
+  Коротко, в одну таблицу:
+
+  <Table
+    head={['барьер', 'что делает при `obj.field = value`', 'кто так делает']}
+    rows={BARRIER_ROWS}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(0,1fr) minmax(0,1.6fr) minmax(0,.8fr)"
+    minWidth={520}
+  />
+
+  Все три гарантируют одно: живой объект не будет собран. Различаются они тем, **сколько
+  лишнего** доживёт до следующей сборки и сколько работы придётся сделать повторно.
+
+  У V8 барьер Дейкстры, и в фоновой пометке он сделан ещё осторожнее: цвет держателя `obj`
+  не проверяется вовсе, серым становится любой записанный белый объект — так не нужна дорогая
+  синхронизация потоков на каждой записи.
+
+  <Card tone="warn" color="tone" title="Поколения, полупространства и promotion — это V8, а не JavaScript" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+    Сборщик JavaScriptCore (Safari), Riptide, **не перемещает объекты** вообще: молодые
+    от старых он отличает не адресом, а «липкими» битами пометки — бит у пережившего сборку
+    не сбрасывают, и он считается старым. SpiderMonkey (Firefox) ближе к V8: молодая область
+    (nursery) и старая куча (tenured), пометка срезами между кусками работы JS, а уплотнение
+    кучи — редкое и одним куском. Куча там ещё и поделена на зоны, которые собираются
+    по отдельности.
+
+    <CardNote tone="ok">
+
+      Одинаково во всех движках только то, что записано в спецификации: достижимость решает,
+      жив ли объект, `WeakMap` — это эфемерон, у `WeakRef` и финализатора нет гарантий момента.
+      Всё остальное в этой теме — полупространства, remembered set, promotion, пространства
+      кучи — устройство одного V8. Описание других движков здесь — по их документации
+      (ссылки в «Источниках»): из JS оно не наблюдаемо так же, как и у V8.
+
+    </CardNote>
+  </Card>
+
+  ### Два давления, которые обычно называют одним словом
+
+  Фраза «давление на сборщик» склеивает две разные величины. В профайлере они выглядят
+  одинаково, а лечатся противоположными действиями.
+
+  <CardGrid min={260} gap={12}>
+    {PRESSURE.map((item) => (
+      <Card label={item.k} labelSize={12} pad={16} radius={4} gap={8} size={15} lh={1.55}>
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Разница видна на одном цикле в двух вариантах.
+
+  <CodeBlock code={PRESSURE_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={PRESSURE_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {PRESSURE_STEPS.map((v) => (
+      <Card title={v.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Ситуация:** ${v.when}.`} />
+        <Md text={v.what} />
+        <Md text={`**Чем платит:** ${v.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Отсюда точная форма вывода «дорого не создать, а не дать умереть»: **снижать почти
+    всегда надо давление на сборщик (долю выживших), а не на аллокатор (скорость создания)**.
+
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Шесть классов утечек"
+  lead="Любая утечка — это цепочка ссылок от корня до ненужного объекта. Поэтому у каждого случая три части: **как течёт → по какой цепочке ссылок → как чинится**. Чинит не удаление строки, а разрыв одного конкретного звена цепочки."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={LEAKS_DEMO_NOTE} />
+  </Card>
+
+  <LeakAnatomy client:visible cases={LEAKS} />
+
+  ### Слушатели и таймеры снимает одно правило
+
+  <CodeBlock code={ABORT_CODE} size={12.5} />
+
+  Компонент, который создал подписку или таймер, обязан снять их при размонтировании
+  (unmount). Типовая ошибка «мы же снимаем слушатель, а утечка есть» —
+  `removeEventListener('resize', this.redraw.bind(this))`. `bind` каждый раз создаёт
+  новую функцию, а слушатель ищется по точному совпадению функции — и молча не находится.
+
+  <Card tone="err" color="tone" pad={16} radius={4} size={16} lh={1.6}>
+
+    **Седьмой класс — незакрытый `MessagePort`.** Пока порт связан со вторым концом и у него
+    есть слушатель, спецификация считает его живым: корнем становится ваш собственный объект,
+    а с ним обработчик и всё, что тот захватил. Обнуление переменной и `WeakRef` здесь
+    бесполезны, помогает только `close()`. Разбор — в теме [«MessageChannel»](/js/message-channel/),
+    раздел «Жизненный цикл порта».
+
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Замыкание держит не переменную, а весь Context"
+  lead="Самое частое заблуждение: «функция удерживает только то, что использует». Но V8 создаёт **один Context на скоуп** — объект с захваченными переменными, — и все функции, созданные в этом скоупе, ссылаются на него целиком."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+
+  <CardGrid min={300} gap={20} align="start">
+    <Card pad={0} radius={0} gap={14} size={16} lh={1.6}>
+      <CodeBlock code={CONTEXT_CODE} />
+
+
+      `useHuge` выброшен, но слот `huge` в Context остался: состав Context решён ещё при
+      разборе кода. Пока жив `keepSmall`, массив не собирается; потеряли `keepSmall` —
+      собирается сразу (Node 24.11 и 26.8). **Надёжный выход: не создавать безобидные колбэки
+      в скоупе с тяжёлыми данными или обнулять эти данные перед возвратом.**
+
+    </Card>
+
+    <ContextSlots
+      slots={CONTEXT_SLOTS}
+      users={CONTEXT_USERS}
+      probe={CONTEXT_PROBE}
+      probeOut={CONTEXT_PROBE_OUT}
+    />
+
+  </CardGrid>
+
+  <CardGrid min={270} gap={14}>
+    {CONTEXT_FACTS.map((fact) => (
+      <Card index={fact.n} title={fact.t} titleSize={16} pad={17} radius={4} gap={9} size={15} lh={1.55}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Как Context выглядит в снимке кучи
+
+  В снимке кучи контексты видны строкой `system / Context` — часто одной из самых
+  многочисленных. Главное: **слоты контекста подписаны именами переменных из исходника**.
+  Вы видите `huge`, `rows`, `state` внутри служебного объекта и сразу понимаете, из какой
+  функции этот Context.
+
+  <Card tone="warn" color="tone" pad={16} radius={4} size={16} lh={1.6}>
+
+    **Чем утечка через замыкание отличается от прочих:** в снимке растёт не ваш класс,
+    а служебные строки `(closure)` + `system / Context` + `(array)`. Имени вашего
+    конструктора там может не быть вовсе — поэтому такую утечку легко пропустить, если искать
+    только по знакомым именам.
+
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Слабые ссылки"
+  lead="Обычная ссылка говорит: «этот объект нужен мне, держите его». Иногда это неправда: вы хотите **привязать данные к объекту, временем жизни которого управляет кто-то другой**. Слабая ссылка говорит: «этот объект мне интересен, но удерживать его я не буду»."
+  leadWidth={72}
+>
+  <Table
+    head={['инструмент', 'держит', 'видна ли сборка', 'когда брать']}
+    rows={WEAK_TOOLS}
+    kinds={['mono', 'prose', 'mono', 'muted']}
+    tones={WEAK_TOOLS_TONES}
+    cols="minmax(150px,1fr) minmax(160px,1.1fr) minmax(130px,.9fr) minmax(210px,1.4fr)"
+    minWidth={660}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EPHEMERON} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={EPHEMERON_DEMO_NOTE} />
+  </Card>
+
+  <EphemeronSim
+    client:visible
+    scenarios={EPHEMERON_SCENARIOS}
+    probe={EPHEMERON_PROBE}
+    probeOut={EPHEMERON_PROBE_OUT}
+  />
+
+  ### Ссылка из значения на ключ — не утечка
+
+  Интуиция подсказывает: «значение содержит ключ — значит, это цикл, и слабая ссылка его
+  не разорвёт». **Это неверно.** Записи WeakMap устроены как эфемероны: запись живёт тогда
+  и только тогда, когда до ключа можно дойти **другим путём**, не через саму эту запись.
+
+  <CodeBlock code={EPHEMERON_RULES_CODE} size={11.5} />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Поэтому вопрос на ревью меняется. Спрашивать надо не «нет ли внутри значения пути
+    к ключу», а **«не держит ли кто-нибудь это значение снаружи»** — или то, через что
+    из значения можно дойти до ключа. Длина пути не важна: значение `{ parent }`, где
+    `parent.children[0]` — сам ключ, собирается так же, а если `parent` держат снаружи, запись живёт.
+
+  </Card>
+
+  ### Почему у WeakMap нет `size`, `clear` и перебора
+
+  Это не недоделка. Любой перебор сделал бы момент сборки **видимым** для программы,
+  и её поведение зависело бы от того, когда сработал GC. Отсутствие перебора и есть
+  гарантия предсказуемости: через WeakMap момент сборки не увидеть никак.
+
+  <CodeBlock code={WM_SIZE_CODE} size={11.5} />
+
+  ### WeakMap против Map с ручной очисткой
+
+  Соблазн выбрать WeakMap всегда — ошибка. Граница проходит по одному вопросу: **кто решает,
+  когда данные больше не нужны?** WeakMap убирает целый класс ошибок ценой потери контроля.
+  Там, где контроль нужен, его отсутствие — скрытая проблема, которую тесты не покажут.
+
+  <Table
+    head={['', 'WeakMap', 'Map + явное удаление']}
+    rows={WEAK_VS_MAP}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(210px,1.3fr) minmax(180px,1.1fr) minmax(180px,1.1fr)"
+    minWidth={600}
+  />
+
+  ### Кеш на `WeakRef`: промах = пересчёт
+
+  У `WeakRef` в таблице инструментов записано «кеш, где промах = пересчёт». Выглядит такой
+  кеш так:
+
+  <CodeBlock code={WEAKREF_CACHE_CODE} size={11.5} />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    **Условие, без которого приём бессмыслен:** значение должен держать кто-то ещё. Если
+    на `view` не ссылается ничего, кроме слабой ссылки, он может исчезнуть уже к следующему
+    обращению, и вместо кеша выйдет пересчёт с лишними расходами сверху. Пока представление смонтировано
+    и его держит кто-то другой, попадание бесплатно; размонтировали — запись опустела.
+    А сама `Map` при этом не худеет: ключи с пустыми `WeakRef` остаются, это маленькая утечка
+    вида «кеш без границ». Если значение и так живёт столько же, сколько ключ, нужен не этот приём,
+    а `WeakMap`.
+
+  </Card>
+
+  ### `WeakRef` и `FinalizationRegistry` — почему их лучше не брать
+
+  Так прямо и написано в предложении TC39 — комитета, который развивает стандарт JS:
+  этого API лучше избегать, пока задача решается через WeakMap. Что именно
+  **не гарантировано**:
+
+  <CardGrid min={240} gap={10}>
+    {FR_CAVEATS.map((caveat) => (
+      <Card tone="err" color="tone" pad={14} radius={4} size={15} lh={1.55}>
+        <Md text={caveat} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} gap={10} size={16} lh={1.6}>
+
+    Уместны они только для диагностики и страховки: записать в лог, что ресурс забыли
+    закрыть явно. Если понятно, где ресурс перестаёт быть нужен, правильный ответ —
+    освобождение в заранее известной точке. Для этого в языке есть `using`: ресурс
+    освобождается при выходе из блока — в том числе когда вылетело исключение. Как раз
+    этой гарантии у финализатора нет. Разбор — в разделе [«`using`: освобождение в известной точке»](#s5).
+
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="`using`: освобождение в известной точке"
+  lead="Слабая ссылка отпускает объект, когда решит сборщик, — то есть неизвестно когда. Файл, сокет, подписку, таймер так отпускать нельзя: сборщик о них не знает, и закрыть их надо в определённый момент. `using` привязывает освобождение к выходу из блока, и выполняет его сам язык — при любом выходе."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_USING} />
+
+  <CodeBlock code={USING_CODE} size={12} />
+
+  <Card title="Что происходит в `work()`" titleSize={16.5} pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <NumberedList items={USING_WORK_STEPS} size={15.5} />
+  </Card>
+
+  ### Что `using` заменяет
+
+  <CodeBlock code={USING_DESUGAR_CODE} size={12} />
+
+  <Md text={USING_DESUGAR_NOTE} />
+
+  <Card title="Что происходит в `firstLine()`" titleSize={16.5} pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <NumberedList items={USING_LINES_STEPS} size={15.5} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {USING_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Когда ресурсов заранее не знаешь: `DisposableStack`
+
+  <CodeBlock code={USING_STACK_CODE} size={12} />
+
+  <Md text={USING_STACK_NOTE} />
+
+  ### В браузере: свои обёртки
+
+  <Md text={USING_BROWSER_NOTE} />
+
+  <CodeBlock code={USING_BROWSER_CODE} size={12} />
+
+  <CodeBlock code={USING_COMPONENT_CODE} size={12} />
+
+  <Md text={USING_COMPONENT_NOTE} />
+
+  ### В Node: уборка уже встроена
+
+  <Md text={USING_NODE_NOTE} />
+
+  <Table
+    head={['ресурс', 'объявление', 'что делает уборка']}
+    rows={USING_NODE_ROWS}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(130px,.8fr) minmax(250px,1.4fr) minmax(220px,1.4fr)"
+    minWidth={640}
+  />
+
+  <CodeBlock code={USING_NODE_CODE} size={12} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={USING_SUPPORT} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6 · демо"
+  eyebrowTone="demo"
+  title="Пилообразный график — это норма"
+  lead="Память растёт и падает после каждой сборки — это нормально. Утечка выглядит иначе: после нескольких сборок график **не возвращается к прежнему минимуму**. Поэтому смотреть надо на линию по нижним точкам графика (нижнюю огибающую), а не на пики."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={HEAP_DEMO_NOTE} />
+  </Card>
+
+  <HeapChart client:visible presets={HEAP_PRESETS} />
+
+  <Card tone="warn" color="tone" pad={20} radius={5} size={16.5} lh={1.6}>
+
+    **От какой ошибки это спасает:** от паники «сервис ест 900 МБ». Большое потребление само
+    по себе не диагноз: V8 охотно занимает всё, что ему разрешили, и не спешит отдавать
+    память системе. Освободившиеся страницы он придерживает про запас, поэтому `heapUsed`
+    падает, а `rss` — вся память процесса — остаётся на месте. Это норма, а не утечка;
+    как это видно в логе — в теме «Память в Node», раздел [«Как читать `--trace-gc`»](/js/node-memory/#s3).
+    Диагноз ставят по тому, как меняются минимумы, а не по абсолютному числу.
+
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    **Нижняя огибающая растёт — дальше нужен снимок кучи.** Повторяемый сценарий, три снимка
+    и сравнение третьего со вторым, затем retained size и цепочка «кто держит» — эта процедура
+    по шагам разобрана в теме [«Профилирование памяти»](/js/memory-profiling/).
+
+  </Card>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Тонкие места"
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+  <Card pad={20} gap={12}>
+
+    У источников разный срок годности. Блог движка объясняет, зачем что сделано, и устаревает
+    вместе с реализацией: `map_space`, который есть в его старых записях, из нынешнего V8 уже
+    убран. Спецификация обязательна для движков и не устаревает: правило эфемеронов записано
+    в ней раз и навсегда. Документация Node — посередине, и она отвечает на практический
+    вопрос: чем всё это померить.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [«Профилирование памяти»](/js/memory-profiling/) — процедура поиска
+    утечки: три снимка, доминаторы (объекты, через которые проходят все пути к другому
+    объекту), retained size и путь от строки в снимке до строки в коде.
+    [«Память в Node»](/js/node-memory/) — та же куча снаружи процесса: `rss` против `heapUsed`,
+    чтение `--trace-gc` и согласование потолка с лимитом контейнера. [«Движок V8»](/js/v8-engine/) —
+    вторая половина цены объекта: формы объектов, inline caches и почему `delete` уводит
+    объект в словарь. [«Строки в V8»](/js/v8-strings/) — ещё один класс утечки, которого нет
+    в списке выше: срез строки держит исходную целиком, и десять оставленных символов
+    удерживают мегабайт.
+    [«Vue 3 изнутри: watch и effectScope»](/frameworks/vue-watch-internals/#s6) — утечка во фреймворке:
+    эффект, созданный вне области, держит всё, что прочитал, пока его никто не остановит.
+    [Кеши с вытеснением](/algorithms/eviction/) — как ограничить кеш по числу записей и байтам,
+    когда `WeakMap` не подходит: LRU, LFU и W-TinyLFU.
+
+  </Card>
+</Section>

@@ -1,0 +1,185 @@
+---
+/**
+ * Стопка слоёв образа, слой контейнера сверху и то, как стопку видит процесс.
+ *
+ * Слово «слой» в теме звучит раньше, чем его можно представить: таблица перечисляет слои
+ * строками, но из неё не видно, что они **лежат друг на друге**, что сверху есть ещё один —
+ * для записи, — и что процесс видит не стопку, а одну папку. Схема ставит это рядом.
+ *
+ * Слои приходят в порядке таблицы темы (снизу вверх) и рисуются перевёрнутыми: база внизу.
+ * Слои без файлов (0 Б) — пунктиром: они меняют только конфиг.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  title: string;
+  caption: string;
+  image: string;
+  layers: { k: string; size: string; what: string }[];
+  top: { t: string; d: string };
+  view: { t: string; rules: string[] };
+}
+
+const { title, caption, image, layers, top, view } = Astro.props;
+const stack = [...layers].reverse();
+---
+
+<figure class="dld">
+  <div class="t-eyebrow t-eyebrow--panel">{title}</div>
+
+  <div class="dld-body">
+    <div class="dld-stack">
+      <div class="dld-top">
+        <span class="dld-top-t">{top.t}</span>
+        <span class="dld-top-d">{top.d}</span>
+      </div>
+
+      <div class="dld-image">
+        <div class="t-label dld-image-k" set:html={inlineMd(image)} />
+        {
+          stack.map((l) => (
+            <div class="dld-layer" data-empty={l.size.startsWith('0 ') ? 'yes' : 'no'}>
+              <span class="dld-layer-k" set:html={inlineMd(l.k)} />
+              <span class="dld-layer-size">{l.size}</span>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="dld-arrow" aria-hidden="true">→</div>
+
+    <div class="dld-view">
+      <div class="dld-view-t">{view.t}</div>
+      <ul class="dld-rules">
+        {view.rules.map((r) => <li set:html={inlineMd(r)} />)}
+      </ul>
+    </div>
+  </div>
+
+  <figcaption class="t-note" set:html={inlineMd(caption)} />
+</figure>
+
+<style>
+  .dld {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .dld-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+  }
+
+  .dld-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .dld-top {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 12px;
+    border: 1.5px dashed var(--tone-warn-line);
+    border-radius: var(--r2);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .dld-top-t {
+    font-size: var(--fs-4);
+    font-weight: 600;
+  }
+  .dld-top-d {
+    font-size: var(--fs-3);
+  }
+
+  .dld-image {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px;
+    border: 1px solid var(--ink);
+    border-radius: var(--r2);
+  }
+  .dld-image-k {
+    padding-bottom: 2px;
+  }
+
+  .dld-layer {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    padding: 7px 11px;
+    border: 1px solid var(--tone-info-line);
+    border-radius: var(--r1);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-strong);
+    font-size: var(--fs-3);
+  }
+  .dld-layer[data-empty='yes'] {
+    border-style: dashed;
+    background: var(--surface);
+    color: var(--text-muted);
+  }
+  .dld-layer-k {
+    min-width: 0;
+  }
+  .dld-layer-size {
+    flex: none;
+    font-family: var(--mono);
+    font-weight: 600;
+  }
+
+  .dld-arrow {
+    color: var(--text-faint);
+    font-size: var(--fs-6);
+  }
+
+  .dld-view {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border-radius: var(--r2);
+    background: var(--surface-2);
+  }
+  .dld-view-t {
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .dld-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding-left: 18px;
+    font-size: var(--fs-4);
+    line-height: 1.45;
+    color: var(--prose);
+  }
+
+  @media (max-width: 640px) {
+    .dld {
+      padding: 16px;
+    }
+    .dld-body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .dld-arrow {
+      justify-self: center;
+      transform: rotate(90deg);
+    }
+  }
+</style>

@@ -1,0 +1,130 @@
+---
+/**
+ * Мифы об оптимизации: «что было правдой» рядом с «как сейчас».
+ *
+ * Форма карточки здесь и есть аргумент. Совет не объявляется глупым — показано, что он был
+ * верен для конкретного компилятора конкретных лет, и что от него осталось сегодня. Поэтому
+ * три зоны: красная шапка с самим мифом, две колонки «тогда / сейчас» и янтарный подвал
+ * с тем, что переживает смену эпох.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+export interface Myth {
+  myth: string;
+  was: string;
+  now: string;
+  left: string;
+}
+
+interface Props {
+  items: Myth[];
+}
+
+const { items } = Astro.props;
+---
+
+<div class="list">
+  {
+    items.map((item) => (
+      <article class="myth">
+        <header class="head">
+          <span class="head__tag">миф</span>
+          <span class="head__text" set:html={inlineMd(item.myth)} />
+        </header>
+
+        <div class="body">
+          <div class="col">
+            <div class="col__label">что было правдой</div>
+            <div class="col__text col__text--was" set:html={inlineMd(item.was)} />
+          </div>
+          <div class="col">
+            <div class="col__label col__label--now">как сейчас</div>
+            <div class="col__text col__text--now" set:html={inlineMd(item.now)} />
+          </div>
+        </div>
+
+        <footer class="left" set:html={inlineMd(item.left)} />
+      </article>
+    ))
+  }
+</div>
+
+<style>
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .myth {
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--tone-err-line);
+    background: var(--tone-err-bg);
+  }
+  .head__tag {
+    flex-shrink: 0;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tone-err-strong);
+  }
+  .head__text {
+    font-size: var(--fs-7);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--tone-err-text);
+  }
+
+  .body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+    gap: 16px;
+    padding: 18px 20px;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .col__label {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .col__label--now {
+    color: var(--tone-ok-strong);
+  }
+  .col__text {
+    font-size: var(--fs-6);
+    line-height: 1.6;
+  }
+  /* Прошлое — приглушённым, настоящее — чернилами: читается как «а сейчас вот так». */
+  .col__text--was {
+    color: var(--text-muted);
+  }
+  .col__text--now {
+    color: var(--ink);
+  }
+
+  .left {
+    padding: 14px 20px;
+    border-top: 1px solid var(--rule);
+    background: var(--tone-warn-bg);
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--tone-warn-text);
+  }
+</style>

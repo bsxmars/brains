@@ -1,0 +1,82 @@
+---
+import { withBase } from '@/shared/lib/url';
+/**
+ * Список уроков направления.
+ *
+ * Маршрут один на все направления, включая «Внутренности JS»: пока направление было одно,
+ * его список жил на главной, и это было честно — сайт и был этим курсом. Направлений стало
+ * больше, и список переехал на `/js/`, а главная стала перекрёстком. Адреса самих уроков
+ * (`/js/<slug>/`) при этом не тронуты: ломать чужие ссылки ради перестановки нельзя.
+ */
+import { DIRECTIONS, lessonHref, type Direction } from '@/entities/direction';
+import { getDirectionLessons, type Lesson } from '@/entities/lesson';
+import { topics } from '@/shared/lib/format';
+import BaseLayout from '@/shared/ui/BaseLayout.astro';
+import CourseList from '@/widgets/course-list/ui/CourseList.astro';
+import LessonBack from '@/widgets/lesson-back/ui/LessonBack.astro';
+
+export async function getStaticPaths() {
+  const routes = await Promise.all(
+    DIRECTIONS.map(async (direction) => ({
+      params: { direction: direction.id },
+      props: { direction, lessons: await getDirectionLessons(direction) },
+    })),
+  );
+
+  // Пока у направления нет ни одной темы, страницы списка у него тоже нет: пустой список —
+  // это обещание, за которым читатель приходит и уходит ни с чем. Направление при этом уже
+  // объявлено, и первая же приехавшая тема поднимает страницу сама.
+  return routes.filter((route) => route.props.lessons.length > 0);
+}
+
+interface Props {
+  direction: Direction;
+  lessons: Lesson[];
+}
+
+const { direction, lessons } = Astro.props as Props;
+
+/**
+ * Номер — это место в списке, а не поле `order`.
+ *
+ * `order` задаёт порядок и нарочно оставляет промежутки: направление пишется не подряд, и между
+ * первым уроком и четвёртым может пока не быть второго и третьего. Если печатать `order`,
+ * читатель видит «01, 04, 05» и решает, что часть курса потерялась. Нумерация по позиции
+ * пересчитывается сама, когда недостающие уроки появятся.
+ */
+const items = lessons.map((lesson, i) => ({
+  href: lessonHref(direction, lesson.id),
+  num: String(i + 1).padStart(2, '0'),
+  title: lesson.data.title,
+  summary: lesson.data.summary,
+}));
+---
+
+<BaseLayout title={`${direction.title} — ${topics(lessons.length)}`} description={direction.lead}>
+  <LessonBack slot="top" href={withBase('/')} label="все направления" sticky />
+
+  <header class="hero">
+    <div class="t-eyebrow">направление · {direction.kicker}</div>
+    <h1 class="t-h1">{direction.title}</h1>
+    <p class="lead">{direction.lead}</p>
+  </header>
+
+  <CourseList items={items} />
+</BaseLayout>
+
+<style>
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 64px 0 56px;
+  }
+  h1 {
+    max-width: 16ch;
+  }
+  .lead {
+    font-size: var(--fs-8);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+</style>

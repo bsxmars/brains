@@ -1,0 +1,490 @@
+---
+title: CDN и серверный кеш
+heading: "CDN и серверный кеш: одна копия на всех"
+headingWidth: 22
+order: 2
+kicker: сеть и безопасность
+lead: "Браузерный кеш хранит ответ для одного человека. CDN, обратный прокси и Redis перед базой хранят его для всех — и от этого меняется всё: кто вправе положить ответ в общий кеш, из чего сложить ключ, что делать, когда срок вышел у тысячи читателей разом, и как убрать ответ, уже разошедшийся по сотне серверов."
+leadWidth: 66
+summary: "Что общий кеш вправе хранить по RFC 9111, ключ и `Vary`, `stale-while-revalidate`, коллапс запросов и толпа при истечении, XFetch, purge по тегам, PoP и щит, `Age` и `Cache-Status`; кеш в процессе и в Redis, cache-aside и его гонка, TTL с джиттером."
+verifiedOn: "Node 26.8.2, сентябрь 2026: учебная прослойка на node:http прогнана против своего origin на локальной петле — счётчик запросов к origin, заголовки Age и Cache-Status; время — виртуальные часы, без таймерных замеров; закреплено tests/unit/cdn-cache.test.ts. Поведение настоящих CDN (anycast, скорость purge, трактовка s-maxage рядом со stale-while-revalidate) и Redis запуском не проверялось — описано по RFC и документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Кто вправе хранить }
+  - { id: s2, label: Ключ и Vary }
+  - { id: s3, label: Устаревшее и толпа }
+  - { id: s4, label: Purge и версии }
+  - { id: s5, label: CDN изнутри }
+  - { id: s6, label: Кеш в приложении }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import StampedeDiagram from '@/widgets/cdn-cache-stampede-diagram/ui/StampedeDiagram.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import CdnStream from '@/widgets/cdn-stream/ui/CdnStream.vue';
+import {
+  INTRO_CALLOUT,
+  PLAIN_SHARED,
+  GLOSSARY,
+  PREREQ,
+  RULES_CODE,
+  STORE_ROWS,
+  RULES_FACTS,
+  SMAXAGE_NOTE,
+  PLAIN_KEY,
+  NORMALIZE_CODE,
+  KEY_ROWS,
+  KEY_NOTE,
+  KEY_FACTS,
+  VARY_NOTE,
+  HIT_ROWS,
+  HIT_NOTE,
+  PLAIN_STAMPEDE,
+  STALE_FACTS,
+  CACHE_CODE,
+  CACHE_NOTE,
+  PROXY_CODE,
+  PROXY_NOTE,
+  DEMO_CAPTION,
+  DEMO_NOTE,
+  XFETCH_PLAIN,
+  XFETCH_CODE,
+  XFETCH_FORMULA,
+  XFETCH_NOTE,
+  XFETCH_ROWS,
+  STORM_ROWS,
+  STORM_NOTE,
+  PURGE_CODE,
+  PURGE_FACTS,
+  PURGE_RACE_NOTE,
+  VERSION_ROWS,
+  VERSION_NOTE,
+  CDN_FACTS,
+  TIER_LOG,
+  TIER_NOTE,
+  CACHE_STATUS_CODE,
+  CACHE_STATUS_ROWS,
+  DIAG_FACTS,
+  APP_LAYERS,
+  APP_LAYERS_NOTE,
+  LRU_CODE,
+  LRU_NOTE,
+  PATTERN_ROWS,
+  PLAIN_RACE,
+  ASIDE_CODE,
+  RACE_LOG,
+  RACE_NOTE,
+  JITTER_ROWS,
+  JITTER_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  STAMPEDE_SCENE_CODE,
+  STAMPEDE_DIAGRAM,
+  STAMPEDE_SCENE_NOTE,
+  STAMPEDE_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Одна копия на всех" gap={24}>
+  <Callout size={19} pad="24px 26px">
+    <Md text={INTRO_CALLOUT} />
+  </Callout>
+
+  Между браузером и базой данных обычно стоит несколько кешей: PoP CDN рядом с читателем, щит
+  CDN в одном регионе, обратный прокси перед приложением, LRU в памяти процесса и Redis рядом
+  с базой. Все они общие, и все подчиняются одним и тем же законам: ключ, срок, сброс.
+  HTTP-кеши читают заголовки ответа, кеши внутри приложения — ваш код, но толпа при истечении
+  и гонка при инвалидации случаются в обоих.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHARED} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Кто вправе хранить"
+  lead="Браузер может хранить почти всё: ответ всё равно достанется тому же человеку. Общий кеш отдаст ответ следующему: страница «Мой профиль», положенная в CDN, покажет второму читателю имя первого. Поэтому RFC 9111 задаёт ему отдельные правила: что запрещено хранить, что разрешено только явно и какой срок читать."
+  leadWidth={72}
+>
+  <Card title="Правила общего кеша" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RULES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['запрос', 'ответ', 'хранить', 'свеж, с', 'что это значит']}
+    rows={STORE_ROWS.map((r) => [r.req, r.res, r.verdict, r.fresh, r.note])}
+    tones={STORE_ROWS.map((r) => r.tone)}
+    toneColumn={2}
+    kinds={['mono', 'mono', 'prose', 'mono', 'muted']}
+    cols="minmax(150px,.8fr) minmax(250px,1.4fr) minmax(150px,.8fr) minmax(70px,.3fr) minmax(220px,1.3fr)"
+    minWidth={900}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {RULES_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={SMAXAGE_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Ключ и Vary"
+  lead="Кеш находит копию по ключу: метод и адрес, плюс значения заголовков из `Vary`. Всё, что делает ключ длиннее, умножает число копий одной страницы и делит между ними попадания; всё, что делает его короче, рискует отдать одну страницу вместо другой."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEY} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {KEY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Нормализация: четыре записи одного адреса
+
+  <Card title="Ключ без мусора" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NORMALIZE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['запрошено', 'ключ как есть', 'ключ после `normalize`']}
+    rows={KEY_ROWS.map((r) => [r.url, r.raw, r.normal])}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(200px,1fr) minmax(230px,1.1fr) minmax(170px,.8fr)"
+    minWidth={620}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={KEY_NOTE} />
+
+  ### Сколько копий у одной страницы
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={VARY_NOTE} />
+
+  <Table
+    head={['спрос и кеш', 'hit ratio', 'что это значит']}
+    rows={HIT_ROWS.map((r) => [r.k, `${(r.hit * 100).toFixed(1).replace('.', ',')} %`, r.note])}
+    tones={HIT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(260px,1.3fr) minmax(90px,.4fr) minmax(250px,1.3fr)"
+    minWidth={680}
+  />
+
+  <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={HIT_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Срок вышел: устаревшее и толпа"
+  lead="Истечение у общего кеша — событие не для одного читателя, а для всех, кто пришёл, пока кеш ходит к origin. Три механизма решают, сколько из них пойдут туда сами: коллапс запросов, разрешение отдать устаревшее и пересчёт заранее."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STAMPEDE} />
+
+  ### Полторы секунды после истечения
+
+  <CodeBlock code={STAMPEDE_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={STAMPEDE_SCENE_NOTE} />
+
+  <StampedeDiagram diagram={STAMPEDE_DIAGRAM} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {STAMPEDE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Директивы и термины
+
+  <CardGrid min={280} gap={14} align="start">
+    {STALE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Прослойка целиком
+
+  <Card title="`createCache` — общий кеш целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CACHE_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CACHE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Обёртка на node:http" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PROXY_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={PROXY_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Минута трафика на одну страницу
+
+  <CdnStream client:visible rules={RULES_CODE} cache={CACHE_CODE} caption={DEMO_CAPTION} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={DEMO_NOTE} />
+
+  ### Пересчитать заранее: XFetch
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={XFETCH_PLAIN} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Формула" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={XFETCH_FORMULA} size={13} lh={1.6} pad="14px 16px" />
+
+      <CodeBlock code={XFETCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={XFETCH_NOTE} />
+  </CardGrid>
+
+  <Table
+    head={['до истечения', 'β = 0,5', 'β = 1', 'β = 2']}
+    rows={XFETCH_ROWS.map((r) => [r.gap, r.b05, r.b1, r.b2])}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(160px,1fr) minmax(90px,.6fr) minmax(90px,.6fr) minmax(90px,.6fr)"
+    minWidth={480}
+  />
+
+  <Table
+    head={['когда пересчитывать', 'пересчётов в среднем', 'медиана', 'худший цикл', 'циклов, где читатель ждал']}
+    rows={STORM_ROWS.map((r) => [r.k, r.mean, String(r.median), String(r.max), `${r.waitedCycles} из 1000`])}
+    tones={STORM_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(180px,1.1fr) minmax(110px,.6fr) minmax(80px,.4fr) minmax(90px,.5fr) minmax(130px,.7fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={STORM_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Purge, теги и версии в адресе"
+  lead="Сбросить копию до срока можно двумя способами: сменить адрес, чтобы старая копия стала никому не нужна, или приказать кешу её выбросить. Первый работает везде и без гонок, но годится не для всех адресов; второй — только там, где у кеша есть API."
+  leadWidth={72}
+>
+  <Card title="Теги в ответе и purge по тегу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PURGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {PURGE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={PURGE_RACE_NOTE} />
+
+  ### Версия в адресе против purge
+
+  <Table
+    head={['', 'версия в адресе', 'purge']}
+    rows={VERSION_ROWS.map((r) => [r.k, r.version, r.purge])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(240px,1.2fr) minmax(240px,1.2fr)"
+    minWidth={700}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={VERSION_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="CDN изнутри"
+  lead="CDN — это много общих кешей в разных городах, маршрутизация, которая приводит читателя к ближайшему, и уровни, которые не дают ста PoP одновременно пойти к одному origin. Всё, что происходило с копией по дороге, остаётся в двух заголовках ответа: `Age` и `Cache-Status`."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {CDN_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Два PoP за одним щитом
+
+  <Table
+    head={['с', 'PoP', '`Age`', '`Cache-Status`']}
+    rows={TIER_LOG.map((r) => [String(r.t), r.pop, r.age, r.cacheStatus])}
+    kinds={['mono', 'prose', 'mono', 'mono']}
+    cols="minmax(50px,.2fr) minmax(110px,.5fr) minmax(60px,.3fr) minmax(420px,2.4fr)"
+    minWidth={760}
+  />
+
+  <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TIER_NOTE} />
+
+  ### Как читать `Cache-Status`
+
+  <Card title="Запись на каждый кеш по дороге" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CACHE_STATUS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['параметр', 'что значит']}
+    rows={CACHE_STATUS_ROWS.map((r) => [r.k, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(120px,.4fr) minmax(300px,1.6fr)"
+    minWidth={520}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {DIAG_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Кеш в приложении: память процесса и Redis"
+  lead="Внутри приложения заголовков нет — ключ, срок и сброс пишет ваш код. Законы те же: копия расходится с источником, истечение собирает толпу, а инвалидация соревнуется с чтением."
+  leadWidth={72}
+>
+  <Table
+    head={['', 'в процессе', 'Redis']}
+    rows={APP_LAYERS.map((r) => [r.k, r.mem, r.redis])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(230px,1.2fr) minmax(230px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={APP_LAYERS_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="LRU в процессе" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LRU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LRU_NOTE} />
+  </CardGrid>
+
+  ### Кто наполняет кеш
+
+  <Table
+    head={['схема', 'чтение', 'запись', 'чем платите']}
+    rows={PATTERN_ROWS.map((r) => [r.k, r.read, r.write, r.risk])}
+    kinds={['mono', 'prose', 'prose', 'muted']}
+    cols="minmax(130px,.6fr) minmax(200px,1.1fr) minmax(190px,1fr) minmax(210px,1.1fr)"
+    minWidth={780}
+  />
+
+  ### Гонка cache-aside
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RACE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Чтение, запись и джиттер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ASIDE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="Как это случилось" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={RACE_LOG.map((line, i) => `${i + 1}. ${line}`).join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <Md text={RACE_NOTE} />
+    </Card>
+  </CardGrid>
+
+  ### TTL с джиттером
+
+  <Table
+    head={['срок', 'ключей, истекающих в худшую секунду']}
+    rows={JITTER_ROWS.map((r) => [r.k, r.peak.toLocaleString('ru-RU')])}
+    tones={JITTER_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono']}
+    cols="minmax(260px,1.4fr) minmax(200px,1fr)"
+    minWidth={520}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={JITTER_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      «В информатике две сложные вещи: инвалидация кеша и именование», — фраза, которую
+      приписывают Филу Карлтону. Сложность инвалидации в том, что копий больше, чем вы
+      видите: в каждом PoP, в каждом процессе, у каждого читателя, — и события между ними
+      идут в произвольном порядке. **TTL — это признание, что узнать обо всех копиях
+      нельзя**, и граница, за которой любая ошибка исправится сама. А версия в имени — ответ
+      на вторую сложную вещь: если назвать данные по содержимому, инвалидировать их не нужно вовсе.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

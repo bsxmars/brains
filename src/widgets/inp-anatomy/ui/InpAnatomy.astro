@@ -1,0 +1,172 @@
+---
+/**
+ * Анатомия INP: из чего складывается метрика и чем лечится каждая фаза.
+ *
+ * Полоса сверху нужна ровно затем, чтобы INP читался как **сумма трёх слагаемых**, а не как
+ * одно число: пока фазы стоят отдельными строками, легко решить, что «оптимизировать INP» —
+ * это про скорость обработчика. Обработчик здесь только средняя треть.
+ *
+ * Доли на полосе иллюстративные, и подпись под ней это говорит: у каждого интерфейса своя
+ * раскладка, а смысл картинки — в том, какая фаза чем лечится.
+ */
+import type { InpPart } from '../model/types';
+
+interface Props {
+  parts: InpPart[];
+  /** Заголовок блока — надзаголовок панели. */
+  eyebrow?: string;
+}
+
+const { parts, eyebrow = 'INP раскладывается на три части — и разрезание чинит их по-разному' } =
+  Astro.props;
+
+const sum = parts.reduce((acc, part) => acc + part.share, 0);
+---
+
+<div class="frame">
+  <div class="t-eyebrow t-eyebrow--panel">{eyebrow}</div>
+
+  <div class="sum">
+    <div class="strip">
+      {
+        parts.map((part) => (
+          <div class="strip__part" data-tone={part.tone} style={`width:${(part.share / sum) * 100}%`} />
+        ))
+      }
+    </div>
+    <div class="strip__caption">INP = input delay + processing time + presentation delay</div>
+  </div>
+
+  <div class="parts">
+    {
+      parts.map((part) => (
+        <div class="part">
+          <div class="part__head">
+            <div class="part__k">{part.k}</div>
+            <div class="part__bar" data-tone={part.tone} style={`width:${part.share}%`} />
+          </div>
+          <div class="part__body">
+            <div class="part__what">{part.what}</div>
+            <div class="part__fix">{part.fix}</div>
+          </div>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="note">
+    Доли на полосе — <b>иллюстративные</b>: у каждого интерфейса они свои, и смотреть их надо
+    в Event Timing или в <code>web-vitals</code> с атрибуцией. Неизменно другое: из трёх слагаемых
+    планирование работы чинит первое напрямую, второе — если резать внутри обработчика,
+    а третье — только если уступить сразу после первого видимого отклика.
+  </div>
+</div>
+
+<style>
+  .frame {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+  }
+
+  .sum {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .strip {
+    display: flex;
+    gap: 2px;
+    height: 14px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .strip__part[data-tone='err'] {
+    background: var(--tone-err-strong);
+  }
+  .strip__part[data-tone='info'] {
+    background: var(--bar-violet);
+  }
+  .strip__part[data-tone='warn'] {
+    background: var(--bar-amber);
+  }
+  .strip__caption {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--text-faint);
+  }
+
+  .parts {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .part {
+    display: grid;
+    grid-template-columns: minmax(140px, 175px) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .part__head {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .part__k {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--ink);
+  }
+  .part__bar {
+    height: 10px;
+    border-radius: 2px;
+  }
+  .part__bar[data-tone='err'] {
+    background: var(--tone-err-strong);
+  }
+  .part__bar[data-tone='info'] {
+    background: var(--bar-violet);
+  }
+  .part__bar[data-tone='warn'] {
+    background: var(--bar-amber);
+  }
+
+  .part__body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .part__what {
+    font-size: var(--fs-6);
+    line-height: 1.5;
+    color: var(--prose);
+  }
+  .part__fix {
+    font-size: var(--fs-6);
+    line-height: 1.5;
+    color: var(--tone-ok-strong);
+  }
+
+  .note {
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+  .note :global(b) {
+    color: var(--ink);
+  }
+
+  /* На телефоне подпись фазы встаёт над полосой, а не рядом с текстом. */
+  @media (max-width: 560px) {
+    .part {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+  }
+</style>

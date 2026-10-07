@@ -1,0 +1,248 @@
+---
+title: "Деревья и обход: компоновщик и итератор"
+order: 3
+kicker: паттерны
+lead: "Компоновщик отвечает на вопрос «сколько стоит вся посылка» одним вызовом, итератор — на вопрос «как пройти по ней». В JavaScript итератор встроен в язык, а дерево удобнее держать обычными объектами. Книжные реализации ломаются в неожиданных местах: лист, который принимает детей, итератор, который переставляет коллекцию, и рекурсия, которой не хватает стека."
+leadWidth: 66
+summary: "Книжный компоновщик и цена «прозрачного» варианта, дерево как размеченное объединение, DOM как готовый компоновщик и `HierarchyRequestError`; итератор с `current/next/prev` против протокола `Symbol.iterator`, сортировка коллекции в конструкторе и пропущенный первый элемент; обход рекурсивным генератором, явным стеком и очередью, `RangeError` на дереве из JSON и квадратичная цена `yield*`; тип id меню из самого меню, предел вывода, `ts(7023)` и помощники итераторов в `lib`."
+verifiedOn: "TypeScript 6.0.3 (`tsc --strict`, `lib` ES2025 + DOM), Node 26.8.2, Chromium 153, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, пределы стека сняты отдельным процессом `node` — `tests/unit/patterns-trees.test.ts`"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Зачем }
+  - { id: s2, label: Компоновщик }
+  - { id: s3, label: Итератор }
+  - { id: s4, label: Обход }
+  - { id: s5, label: Типы }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  PLAIN_TREE,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PROBLEM_CODE,
+  PATTERN_ROWS,
+  PLAIN_COMPOSITE,
+  COMPOSITE_CODE,
+  COMPOSITE_NOTES,
+  UNION_CODE,
+  UNION_NOTES,
+  DOM_CODE,
+  DOM_NOTE,
+  PLAIN_ITERATOR,
+  COURSE_ITER_CODE,
+  COURSE_ITER_NOTES,
+  NATIVE_ITER_CODE,
+  NATIVE_ITER_NOTES,
+  CURSOR_NOTE,
+  WALK_CODE,
+  WALK_NOTES,
+  FLAT_CODE,
+  PLAIN_CALL_STACK,
+  DEEP_CODE,
+  COST_CODE,
+  DEEP_NOTES,
+  MENU_CODE,
+  GEN_TYPE_CODE,
+  TYPES_NOTES,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Деревья в JS" gap={24}>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TREE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Зачем: глубина, которую не знаешь заранее"
+  lead="Магазин доставляет заказ: товары лежат в коробках, коробки — в других коробках, а магазин берёт плату за доставку. Покупатель хочет увидеть итоговую цену. Пока вложенность известна, хватает циклов. Но коробку в коробку может положить любой, и код с циклом на каждый этаж молча ошибается на следующем."
+  leadWidth={72}
+>
+  <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  Деревья во фронтенде повсюду: DOM, дерево компонентов, меню с подменю, файловый менеджер,
+  ветка комментариев. Два паттерна решают две половины задачи — что спросить у узла и как пройти
+  по всем узлам. Оба частично уже встроены в язык и платформу:
+
+  <Table
+    head={['паттерн', 'что решает', 'что уже есть в JS и браузере', 'когда нужна книжная версия']}
+    rows={PATTERN_ROWS.map((r) => [r.k, r.task, r.js, r.book])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(170px,.9fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={760}
+  />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Компоновщик"
+  lead="Компоновщик даёт листу и контейнеру один и тот же метод. Товар на вопрос о цене отвечает сам, коробка спрашивает содержимое, магазин спрашивает содержимое и прибавляет доставку. Код снаружи делает один вызов и не знает, сколько этажей внизу."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPOSITE} />
+
+  ### Книжная версия: абстрактный класс
+
+  <CodeBlock code={COMPOSITE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что получилось и где цена" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={COMPOSITE_NOTES} size={14.5} />
+  </Card>
+
+  ### Дерево из обычных объектов
+
+  <CodeBlock code={UNION_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Почему во фронтенде это чаще удобнее" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={UNION_NOTES} size={14.5} />
+  </Card>
+
+  ### DOM — готовый компоновщик
+
+  <CodeBlock code={DOM_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={DOM_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Итератор"
+  lead="Итератор отделяет «как пройти коллекцию» от самой коллекции, и одну коллекцию можно проходить по-разному: по приоритету, по порядку добавления, по зависимостям. Пример — список задач и итератор по приоритету. В JavaScript для этого есть встроенный протокол, и книжная версия с ним не дружит."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ITERATOR} />
+
+  ### Книжная версия
+
+  <CodeBlock code={COURSE_ITER_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card tone="err" title="Три поломки книжной версии" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={COURSE_ITER_NOTES} size={14.5} />
+  </Card>
+
+  ### На протоколе JS
+
+  <CodeBlock code={NATIVE_ITER_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что дал протокол" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={NATIVE_ITER_NOTES} size={14.5} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={CURSOR_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Обход дерева: генератор, стек и очередь"
+  lead="Итератор по дереву — это компоновщик и итератор вместе: функция знает, как устроен узел, и отдаёт узлы по одному. Рекурсивный генератор пишется в пять строк. У него две цены, обе зависят от глубины, и обе исчезают, если заменить рекурсию массивом."
+  leadWidth={72}
+>
+  ### Рекурсивный генератор
+
+  Обход идёт по дереву заказа из раздела «Компоновщик» — тому, что собрано обычными объектами.
+
+  <CodeBlock code={WALK_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Обход отдельно, задачи отдельно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={WALK_NOTES} size={14.5} />
+  </Card>
+
+  ### Явный стек и очередь
+
+  <CodeBlock code={FLAT_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  ### Глубокое дерево
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CALL_STACK} />
+
+  <CodeBlock code={DEEP_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <CodeBlock code={COST_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Что зависит от глубины" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={DEEP_NOTES} size={14.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Типы для дерева"
+  lead="Тип узла, который ссылается сам на себя, TypeScript принимает без оговорок. Вычисления по такому дереву — например, список всех id меню — тоже работают, но это уже рекурсия типов со своим пределом. И у рекурсивного генератора есть своё требование к типам."
+  leadWidth={72}
+>
+  <CodeBlock code={MENU_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <CodeBlock code={GEN_TYPE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Где типы помогают, а где упираются" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={TYPES_NOTES} size={14.5} />
+  </Card>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="Книга «банды четырёх» описывает компоновщик и итератор для C++ и Smalltalk; в JavaScript итератор стал частью языка, а компоновщик — устройством DOM."
+  leadWidth={72}
+>
+  <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,456 @@
+---
+title: "Ввод текста в браузере: события, IME и автозаполнение"
+heading: "Ввод текста в браузере: события, IME и автозаполнение"
+headingWidth: 24
+order: 17
+kicker: браузер и рендеринг
+lead: "Человек нажал клавишу — поле получило пять событий, и только одно из них позволяет не пустить букву в поле. Японское слово набирается так, что `preventDefault()` перестаёт работать. Автозаполнение меняет поле без единого нажатия, а `el.value = …` — без единого события. Здесь — что браузер делает с полем ввода сам, до всяких фреймворков."
+leadWidth: 66
+summary: "Порядок `keydown` → `keypress` → `beforeinput` → `input` → `keyup`, `inputType` и что отменяемо; `key` против `code` на русской раскладке, устаревшие `keyCode` и `keypress`; IME: `insertCompositionText`, неотменяемый `beforeinput`, Enter с `isComposing` и код 229; вставка и `clipboardData`, HTML в `contenteditable`; `el.value` без событий и без истории, `setRangeText`; автозаполнение — токены `autocomplete`, события без нажатий и `:autofill`; `contenteditable`, `execCommand` и `beforeinput`. Учебная модель поля сверена с журналами Chromium."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63: headless shell и полный Chromium для автозаполнения), Node 24.11.0, macOS, октябрь 2026: журналы событий, вставка, история правок, contenteditable и автозаполнение сняты в Chromium и снимаются заново tests/unit/text-input.test.ts; модель simulateField сверена с журналами на всех сценариях. Раскладка и IME имитированы командами CDP; keyCode 229, Safari, менеджер паролей и one-time-code — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Одно нажатие }
+  - { id: s2, label: Что можно отменить }
+  - { id: s3, label: key и code }
+  - { id: s4, label: IME }
+  - { id: s5, label: Вставка }
+  - { id: s6, label: Запись из кода }
+  - { id: s7, label: Автозаполнение }
+  - { id: s8, label: contenteditable }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import InputLab from '@/widgets/input-lab/ui/InputLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_INPUT,
+  PREREQ,
+  PREREQ_NOTE,
+  STAND_RUNS,
+  DEMO_SCENARIOS,
+  ORDER_ROWS,
+  ORDER_NOTE,
+  INPUT_TYPE_ROWS,
+  INPUT_TYPE_NOTE,
+  CANCEL_ROWS,
+  PLAIN_CANCEL,
+  SIM_CODE,
+  SIM_NOTE,
+  WATCH_CODE,
+  DEMO_CAPTION,
+  KEY_ROWS,
+  PLAIN_KEY,
+  KEY_RULES,
+  SHORTCUT_CODE,
+  IME_ROWS,
+  IME_FACTS,
+  PLAIN_IME,
+  ENTER_CODE,
+  ENTER_NOTE,
+  PASTE_ROWS,
+  PLAIN_CLIPBOARD,
+  PASTE_PLAIN_CODE,
+  PASTE_NOTE,
+  PROGRAM_START,
+  PROGRAM_ROWS,
+  PROGRAM_NOTE,
+  PLAIN_VALUE,
+  UNDO_ROWS,
+  INSERT_CODE,
+  INSERT_NOTE,
+  AUTOCOMPLETE_ROWS,
+  AUTOCOMPLETE_NOTE,
+  AUTOFILL_ROWS,
+  PLAIN_AUTOFILL,
+  AUTOFILL_FACTS,
+  AUTOFILL_CODE,
+  CE_ROWS,
+  CE_NOTE,
+  NO_FORMAT_CODE,
+  NO_FORMAT_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Поле ввода" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Поле меняется в одном месте: между `beforeinput` и `input`. Всё, что пришло раньше, может
+    правку остановить; всё, что позже, — только узнать о ней. Остальное в теме — о том, кто
+    меняет поле в обход этой пары: метод ввода, буфер обмена, автозаполнение и ваш же код.
+
+  </Callout>
+
+  Кажется, что поле ввода — это просто строка, в которую падают буквы. На деле браузер
+  ведёт по нему целую переписку: какая клавиша нажата, какую правку он собирается сделать,
+  что получилось. Отличить символ от вставки, недописанное японское слово от готового
+  и автозаполнение от набора можно только по этой переписке.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INPUT} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Одно нажатие — пять событий"
+  lead="Человек нажал «a» в пустом поле. Chromium 153 прислал полю пять событий, и значение поменялось ровно между третьим и четвёртым."
+  leadWidth={72}
+>
+  <Table
+    head={['событие', 'что происходит', '`value` в этот момент', 'отменяемое']}
+    rows={ORDER_ROWS.map((r) => [r.ev, r.what, r.value, r.cancelable])}
+    kinds={['mono', 'prose', 'mono', 'prose']}
+    cols="minmax(120px,.6fr) minmax(280px,2fr) minmax(110px,.6fr) minmax(100px,.5fr)"
+    minWidth={640}
+  />
+
+  <Md text={ORDER_NOTE} />
+
+  ### Чем правка была: `inputType`
+
+  Букву, удаление, вставку и Ctrl+Z поле получает одним и тем же событием `input`.
+  Различает их только `inputType`. В Chromium на стенде пришли такие:
+
+  <Table
+    head={['`inputType`', 'что сделал человек', 'где']}
+    rows={INPUT_TYPE_ROWS.map((r) => [r.t, r.how, r.where])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(280px,1.6fr) minmax(160px,.8fr)"
+    minWidth={680}
+  />
+
+  <Md text={INPUT_TYPE_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Что можно отменить"
+  lead="`preventDefault()` останавливает правку, только пока она не сделана. Каждое отменяемое событие до `input` отрезает всё, что идёт после него, — а `keyup` приходит в любом случае."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANCEL} />
+
+  <Table
+    head={['`preventDefault()` в', 'что пропадает']}
+    rows={CANCEL_ROWS.map((r) => [r.where, r.gone])}
+    tones={CANCEL_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,.8fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+
+  Отсюда выбор места. `keydown` знает клавишу, но не правку: по нему не понять, что
+  Ctrl+X что-то вырежет, а Backspace в начале поля ничего не сотрёт. Вставку мышью через
+  контекстное меню он не увидит вовсе — клавиш там нет. `beforeinput` знает правку: что вставится
+  (`data`) и какого она рода (`inputType`), — и при этом приходит одинаково на клавиатуру,
+  вставку, перетаскивание и отмену. Фильтр «только цифры» ставят в `beforeinput`.
+
+  ### Модель поля
+
+  Тот же порядок умещается в восемьдесят строк. Модель берёт поле, шаги и список событий,
+  которые слушатель отменяет, и выдаёт журнал — тот же, что пишет Chromium.
+
+  <Card title="simulateField" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SIM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SIM_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="watchField — журнал настоящего поля" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={WATCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <InputLab
+    client:visible
+    simCode={SIM_CODE}
+    watchCode={WATCH_CODE}
+    scenarios={DEMO_SCENARIOS}
+    standRuns={STAND_RUNS}
+    chromium="153"
+    caption={DEMO_CAPTION}
+  />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="`key`, `code` и раскладка"
+  lead="Одна и та же клавиша на английской и русской раскладке. Что напечатано, говорит `key`; где клавиша, говорит `code`. Старые поля `keyCode` и `charCode` отвечают на третий вопрос — и отвечают по-разному в `keydown` и `keypress`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEY} />
+
+  <Table
+    head={['поле', 'английская: «a»', 'русская: «ф»', 'что это']}
+    rows={KEY_ROWS.map((r) => [r.k, r.en, r.ru, r.d])}
+    kinds={['prose', 'mono', 'mono', 'prose']}
+    cols="minmax(170px,.9fr) minmax(110px,.5fr) minmax(110px,.5fr) minmax(220px,1.4fr)"
+    minWidth={620}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {KEY_RULES.map((rule) => (
+      <Card tone={rule.tone} title={rule.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={rule.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Горячие клавиши" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SHORTCUT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="IME: слово, которое ещё набирается"
+  lead="Японец набирает «かん» и выбирает в подсказке «漢». Пока он выбирает, поле получает обычные `beforeinput` и `input` — но правила для них другие: правка заменяет слово целиком и не отменяется."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IME} />
+
+  Поле `ab`, каретка в конце. Три шага набора, Enter посреди набора и выбор слова:
+
+  <Table
+    head={['событие', '`inputType` / клавиша', '`data`', '`isComposing`', '`value`', 'выделение', 'отменяемое']}
+    rows={IME_ROWS.map((r) => [r.ev, r.extra, r.data, r.composing, r.value, r.sel, r.cancel])}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(160px,1fr) minmax(170px,1fr) minmax(70px,.4fr) minmax(90px,.4fr) minmax(90px,.5fr) minmax(80px,.4fr) minmax(90px,.4fr)"
+    minWidth={860}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {IME_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Отправка по Enter
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Enter, который не выбирает слово" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ENTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ENTER_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Вставка и буфер обмена"
+  lead="Перед вставкой приходит событие `paste` с содержимым буфера в `clipboardData`. В буфере обычно несколько видов одного и того же: текст, HTML, иногда картинка. Что из них возьмёт браузер, зависит от поля."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLIPBOARD} />
+
+  В буфере — `text/plain` «жирный» и `text/html` с тем же словом, стилем, картинкой
+  с обработчиком `onerror` и тегом `<script>`. Этот буфер вставили в разные поля:
+
+  <Table
+    head={['что', 'результат', 'что это значит']}
+    rows={PASTE_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(170px,1fr) minmax(280px,1.6fr)"
+    minWidth={700}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Вставить только текст" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PASTE_PLAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PASTE_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Запись из кода и каретка"
+  lead="Код может поменять поле тремя способами: присвоить `value`, вызвать `setRangeText` или `document.execCommand`. Для браузера это три разные вещи — по событиям, по каретке и по истории Ctrl+Z."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VALUE} />
+
+  <Md text={PROGRAM_START} />
+
+  <Table
+    head={['вызов', '`value`', 'выделение', 'что случилось']}
+    rows={PROGRAM_ROWS.map((r) => [r.k, r.value, r.sel, r.d])}
+    tones={PROGRAM_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'prose']}
+    cols="minmax(250px,1.4fr) minmax(100px,.6fr) minmax(80px,.4fr) minmax(220px,1.3fr)"
+    minWidth={720}
+  />
+
+  <Md text={PROGRAM_NOTE} />
+
+  ### История Ctrl+Z
+
+  <Table
+    head={['что было', 'после Ctrl+Z', 'почему']}
+    rows={UNDO_ROWS.map((r) => [r.k, r.v, r.d])}
+    tones={UNDO_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(250px,1.3fr) minmax(110px,.5fr) minmax(280px,1.6fr)"
+    minWidth={700}
+  />
+
+  ### Вставка в место каретки
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="insertAtCaret" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={INSERT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={INSERT_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Автозаполнение"
+  lead="Браузер помнит имя, адрес, карту и пароли и сам вписывает их в форму. Какое поле чем заполнить, он узнаёт из атрибута `autocomplete` — или угадывает. А код страницы узнаёт о заполнении из событий, которые на набор похожи только названием."
+  leadWidth={72}
+>
+  <Table
+    head={['`autocomplete`', 'что в поле']}
+    rows={AUTOCOMPLETE_ROWS.map((r) => [r.t, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(260px,1.2fr) minmax(280px,1.6fr)"
+    minWidth={580}
+  />
+
+  <Md text={AUTOCOMPLETE_NOTE} />
+
+  ### Что видит страница
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AUTOFILL} />
+
+  Форма из трёх полей — `name`, `email`, `address-level2`. Человек выбрал сохранённый
+  адрес в подсказке под первым полем. Каждое из трёх полей получило шесть событий:
+
+  <Table
+    head={['событие', 'объект', '`:autofill`', 'чем отличается от набора']}
+    rows={AUTOFILL_ROWS.map((r) => [r.ev, r.cls, r.autofill, r.what])}
+    kinds={['mono', 'mono', 'prose', 'prose']}
+    cols="minmax(100px,.5fr) minmax(110px,.6fr) minmax(90px,.4fr) minmax(280px,1.8fr)"
+    minWidth={620}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {AUTOFILL_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Узнать, что поле заполнил браузер" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={AUTOFILL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="contenteditable: `beforeinput` вместо `execCommand`"
+  lead="В `<input>` правка меняет строку. В `contenteditable` — дерево HTML: абзацы, переносы, теги жирного. Описывает правки тот же `beforeinput`, и отменить можно любую."
+  leadWidth={72}
+>
+  <Table
+    head={['действие', '`inputType`', 'HTML после']}
+    rows={CE_ROWS.map((r) => [r.k, r.t, r.html])}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(240px,1.2fr) minmax(170px,.8fr) minmax(200px,1fr)"
+    minWidth={640}
+  />
+
+  <Md text={CE_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Без форматирования" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NO_FORMAT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NO_FORMAT_NOTE} />
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Слушайте правку, а не клавиши.** `beforeinput` и `input` приходят на всё, что меняет
+      поле руками человека: набор, вставку, IME, Ctrl+Z. Клавиш при этом может не быть вовсе.
+      А то, что меняет поле в обход человека, — ваш код и автозаполнение — оставляет следы
+      другого рода: никаких событий от `value` и голые `Event` от автозаполнения.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

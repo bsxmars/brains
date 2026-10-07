@@ -1,0 +1,209 @@
+---
+/**
+ * Номер пода и всё, что из него вычисляется: имя, адрес в DNS, заявка на диск, диск.
+ *
+ * В теме это правило разнесено по трём местам — DNS, `volumeClaimTemplates` и заметка
+ * про IP-адрес, — и связь «одно вычисляется из номера» приходится собирать самому. Схема
+ * ставит всё в строку на номер, а ниже показывает, что переживает пересоздание пода,
+ * а что нет.
+ *
+ * На широком экране — строки со стрелками, на узком каждая строка становится карточкой,
+ * и подписи колонок стоят только у первой.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  title: string;
+  caption: string;
+  heads: string[];
+  rows: string[][];
+  recreated: { k: string; same: string[]; changed: string };
+}
+
+const { title, caption, heads, rows, recreated } = Astro.props;
+---
+
+<figure class="sid">
+  <div class="t-eyebrow t-eyebrow--panel">{title}</div>
+
+  <div class="sid-table" role="table">
+    <div class="sid-row sid-row--head" role="row">
+      {
+        heads.map((h, i) => (
+          <>
+            {i > 0 && <span class="sid-arrow" aria-hidden="true" />}
+            <span class="t-label" role="columnheader">
+              {h}
+            </span>
+          </>
+        ))
+      }
+    </div>
+    {
+      rows.map((row) => (
+        <div class="sid-row" role="row">
+          {row.map((cell, i) => (
+            <>
+              {i > 0 && (
+                <span class="sid-arrow" aria-hidden="true">
+                  →
+                </span>
+              )}
+              <span class="sid-cell" data-col={i} role="cell">
+                <span class="sid-cell-h t-label">{heads[i]}</span>
+                <span set:html={inlineMd(cell)} />
+              </span>
+            </>
+          ))}
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="sid-again">
+    <div class="sid-again-k" set:html={inlineMd(recreated.k)} />
+    <ul class="sid-list">
+      {
+        recreated.same.map((s) => (
+          <li data-ok="yes">
+            <span class="sid-mark" aria-hidden="true">=</span>
+            <span set:html={inlineMd(s)} />
+          </li>
+        ))
+      }
+      <li data-ok="no">
+        <span class="sid-mark" aria-hidden="true">≠</span>
+        <span set:html={inlineMd(recreated.changed)} />
+      </li>
+    </ul>
+  </div>
+
+  <figcaption class="t-note" set:html={inlineMd(caption)} />
+</figure>
+
+<style>
+  .sid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .sid-table {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .sid-row {
+    display: grid;
+    grid-template-columns: minmax(64px, 0.45fr) 22px minmax(0, 1.9fr) 22px minmax(0, 0.9fr) 22px minmax(0, 0.7fr);
+    align-items: center;
+    gap: 4px;
+  }
+  .sid-arrow {
+    text-align: center;
+    color: var(--text-faint);
+  }
+
+  .sid-cell {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 11px;
+    border-radius: var(--r2);
+    font-size: var(--fs-3);
+    color: var(--text);
+    overflow-wrap: anywhere;
+  }
+  .sid-cell-h {
+    display: none;
+  }
+  .sid-cell[data-col='0'] {
+    border: 1px solid var(--ink);
+    font-weight: 600;
+  }
+  .sid-cell[data-col='1'] {
+    background: var(--surface-2);
+  }
+  .sid-cell[data-col='2'] {
+    border: 1px solid var(--tone-info-line);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-strong);
+  }
+  .sid-cell[data-col='3'] {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+
+  .sid-again {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px dashed var(--tone-warn-line);
+    border-radius: var(--r2);
+    background: var(--tone-warn-bg);
+  }
+  .sid-again-k {
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--tone-warn-strong);
+  }
+  .sid-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fs-4);
+    color: var(--text);
+  }
+  .sid-list li {
+    display: flex;
+    gap: 6px;
+  }
+  .sid-mark {
+    font-family: var(--mono);
+    font-weight: 700;
+  }
+  .sid-list li[data-ok='yes'] .sid-mark {
+    color: var(--tone-ok-strong);
+  }
+  .sid-list li[data-ok='no'] {
+    color: var(--tone-err-strong);
+  }
+
+  /* На узком экране строка — карточка: ячейки друг под другом, у каждой своя подпись. */
+  @media (max-width: 640px) {
+    .sid {
+      padding: 16px;
+    }
+    .sid-row--head {
+      display: none;
+    }
+    .sid-row {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--r2);
+    }
+    .sid-arrow {
+      display: none;
+    }
+    /* Подписи — только у первой карточки: дальше они повторяли бы то же самое трижды. */
+    .sid-row:nth-child(2) .sid-cell-h {
+      display: block;
+    }
+    .sid-row {
+      gap: 4px;
+    }
+    .sid-cell {
+      padding: 6px 10px;
+    }
+  }
+</style>

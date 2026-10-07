@@ -1,0 +1,551 @@
+---
+title: "Serverless и edge: холодный старт и границы рантайма"
+heading: "Serverless и edge: холодный старт и границы рантайма"
+headingWidth: 24
+order: 16
+kicker: доставка
+lead: "Функцию не держат запущенной: платформа поднимает экземпляр на запрос, какое-то время хранит его тёплым и выгружает. Всё, что у обычного сервера случается один раз при запуске, — импорт зависимостей, соединение с базой, — здесь повторяется в каждом новом экземпляре. А экземпляров в пик сотни, и все они идут к одной базе."
+leadWidth: 66
+summary: "Жизнь экземпляра: Init, вызов, заморозка, выгрузка; из чего состоит холодный старт и сколько модулей грузит импорт; ленивый `import()` и сборка в один файл; что переживает вызов и гонка `db ??= await connect()`; один запрос на экземпляр против многих и пул соединений против `max_connections`; изоляты V8, хост на `node:vm`, лимит процессора и что есть в edge-рантайме; edge у пользователя против региона у базы; потоковый ответ."
+verifiedOn: "Node 24.11.0, esbuild 0.28.2, zod 4.6.2, ioredis 5.11.1, yaml 2.9.1, Postgres 16.6 в Docker 27.4.0, октябрь 2026: модули холодного старта, сборка, соединения, хост на node:vm и потоковый ответ пересчитываются tests/unit/serverless-edge.test.ts; модель масштабирования совпала с эмулятором на настоящем Postgres во всех точках шести прогонов; всё про Lambda, Cloud Run, Vercel, Cloudflare Workers и Next.js — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Жизнь экземпляра }
+  - { id: s2, label: Холодный старт }
+  - { id: s3, label: Что переживает вызов }
+  - { id: s4, label: Параллелизм и пул }
+  - { id: s5, label: Edge и изоляты }
+  - { id: s6, label: У пользователя или у базы }
+  - { id: s7, label: Стриминг }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ScaleLab from '@/widgets/serverless-lab/ui/ScaleLab.vue';
+import PlaceLab from '@/widgets/serverless-lab/ui/PlaceLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_SERVERLESS,
+  PREREQ,
+  PREREQ_NOTE,
+  LIFECYCLE_CHIPS,
+  LIFECYCLE_ROWS,
+  LIFECYCLE_NOTE,
+  PLATFORM_ROWS,
+  PLATFORM_NOTE,
+  COLD_PARTS,
+  HANDLER_EAGER,
+  HANDLER_LAZY,
+  COUNT_CODE,
+  COLD_ROWS,
+  COLD_NOTE,
+  BUNDLE_CODE,
+  BUNDLE_ROWS,
+  BUNDLE_NOTE,
+  BUNDLE_WARN,
+  COLD_FACTS,
+  SURVIVE_ROWS,
+  SURVIVE_NOTE,
+  POOL_PER_CALL,
+  POOL_RACE,
+  POOL_MODULE,
+  POOL_ROWS,
+  POOL_NOTE,
+  PLAIN_LITTLE,
+  LITTLE_NOTE,
+  SCALE_CODE,
+  SCALE_NOTE,
+  SCALE_PROFILES,
+  SCALE_PLATFORMS,
+  STAND_RUNS,
+  KEEP_WARM,
+  DB_LIMIT,
+  SCALE_CAPTION,
+  SCALE_FACTS,
+  K8S_NOTE,
+  PLAIN_ISOLATE,
+  ISOLATE_NOTE,
+  EDGE_HOST_CODE,
+  EDGE_WORKER_CODE,
+  EDGE_LOG_ROWS,
+  EDGE_LOG_NOTE,
+  ISOLATE_VM_WARN,
+  GLOBALS_ROWS,
+  GLOBALS_NOTE,
+  EDGE_RUNTIME_ROWS,
+  EDGE_RUNTIME_NOTE,
+  EDGE_LIMIT_ROWS,
+  EDGE_LIMIT_NOTE,
+  SETUP_ROWS,
+  SETUP_TRIPS,
+  LATENCY_CODE,
+  PLAIN_PLACE,
+  PLACE_PRESETS,
+  PLACE_NEAR,
+  PLACE_LOCAL,
+  PLACE_ASSUMPTIONS,
+  PLACE_ROWS,
+  PLACE_NOTE,
+  PLACE_RULE,
+  PLACE_CAPTION,
+  PLACE_FACTS,
+  STREAM_CODE,
+  STREAM_LOG,
+  STREAM_NOTE,
+  STREAM_FACTS,
+  FINAL_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Сервер на один запрос" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Функция платит за запуск не один раз, а **на каждый новый экземпляр**. Экземпляров
+    столько, сколько запросов идёт одновременно, делённое на то, сколько запросов берёт
+    один экземпляр. Отсюда и холодные старты, и очередь к базе данных: у неё мест
+    десятки, а экземпляров в пик — сотни.
+
+  </Callout>
+
+  Обычный сервер запускают один раз. Он импортирует зависимости, открывает пул соединений
+  с базой и потом месяцами отвечает на запросы. У функции нет этого «потом месяцами».
+  Платформа запускает её, когда пришёл запрос, держит, пока выгодно, и выключает, когда
+  запросов нет. Вы не платите за простой и не думаете о машинах, но всё, что сервер
+  делал при запуске, теперь случается снова и снова — и параллельно.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SERVERLESS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Жизнь экземпляра: запуск, вызовы, заморозка"
+  lead="Единица деплоя — функция-обработчик, а единица работы — экземпляр: процесс с вашим кодом, который платформа запустила. Один экземпляр живёт много вызовов подряд. Дорогая часть — запуск — случается у него один раз, дешёвая — вызов обработчика — на каждый запрос."
+  leadWidth={72}
+>
+  <Card title="Один экземпляр Lambda от рождения до выгрузки" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={700} chips={LIFECYCLE_CHIPS} />
+  </Card>
+
+  <Table
+    head={['фаза', 'что происходит', 'когда и чем это отзывается']}
+    rows={LIFECYCLE_ROWS.map((r) => [r.k, r.what, r.note])}
+    tones={LIFECYCLE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(120px,.5fr) minmax(280px,1.6fr) minmax(240px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Md text={LIFECYCLE_NOTE} />
+
+  ### Сколько запросов делят экземпляр
+
+  <Table
+    head={['платформа', 'экземпляр — это', 'запросов одновременно', 'границы']}
+    rows={PLATFORM_ROWS.map((r) => [r.k, r.unit, r.conc, r.limits])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(140px,.7fr) minmax(180px,1fr) minmax(170px,1fr) minmax(240px,1.3fr)"
+    minWidth={760}
+  />
+
+  <Md text={PLATFORM_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Холодный старт: что в нём ваше"
+  lead="Холодный старт складывается из двух частей. Первую делает платформа: поднимает среду и запускает рантайм. Вторую — ваш код: всё, что стоит в модуле вне обработчика, исполняется до первого запроса. Её не видно в коде обработчика, и именно её проще всего раздуть."
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {COLD_PARTS.map((p) => (
+      <Card tone={p.tone ?? 'neutral'} title={p.t} titleSize={16.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={p.d} />
+    ))}
+
+  </CardGrid>
+
+  Сквозной пример — обработчик заказа. Он проверяет тело запроса схемой zod, держит клиента
+  Redis и на редком пути `/export` отдаёт заказ в YAML. Две версии: всё импортировано сверху
+  и yaml загружается лениво, только когда пришёл `/export`.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Всё сверху" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HANDLER_EAGER} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="yaml лениво" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HANDLER_LAZY} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Сколько работы в холодном старте
+
+  Время холодного старта зависит от машины, а работа — нет. Посчитать её можно хуком загрузки
+  модулей Node: он видит каждый файл, который загружается, и его исходник. Скрипт ниже
+  импортирует обработчик, как это делает платформа при запуске, и трижды его вызывает.
+
+  <Card title="count.mjs" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={COUNT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['обработчик', 'холодный старт', 'первый вызов', 'второй вызов', 'первый `/export`']}
+    rows={COLD_ROWS.map((r) => [r.k, r.init, r.first, r.warm, r.exp])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(200px,1.2fr) minmax(120px,.8fr) minmax(100px,.6fr) minmax(100px,.6fr) minmax(120px,.8fr)"
+    minWidth={680}
+  />
+
+  <Md text={COLD_NOTE} />
+
+  ### Сборка в один файл
+
+  <Card title="Сборка обработчика esbuild" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BUNDLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['обработчик', 'без сборки: файлов · объём', 'собран: файлов · объём', 'первый `/export` после сборки']}
+    rows={BUNDLE_ROWS.map((r) => [r.k, r.before, r.after, r.exp])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(140px,.8fr) minmax(170px,1fr) minmax(170px,1fr) minmax(170px,1fr)"
+    minWidth={660}
+  />
+
+  <Md text={BUNDLE_NOTE} />
+
+  <Card tone="err" title="Сборка прошла — запуск упал" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={BUNDLE_WARN} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {COLD_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Что переживает вызов, а что нет"
+  lead="Между вызовами одного экземпляра модуль остаётся в памяти: переменные верхнего уровня, открытые соединения, кеши. Между экземплярами не общее ничего. На этом держится главный приём — открыть соединение с базой один раз на экземпляр, а не на каждый запрос."
+  leadWidth={72}
+>
+  <Table
+    head={['что', 'следующий вызов того же экземпляра', 'вызов в другом экземпляре']}
+    rows={SURVIVE_ROWS.map((r) => [r.k, r.same, r.other])}
+    tones={SURVIVE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(280px,1.6fr) minmax(180px,.9fr)"
+    minWidth={680}
+  />
+
+  <Md text={SURVIVE_NOTE} />
+
+  ### Три способа держать соединение
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="На каждый вызов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={POOL_PER_CALL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" title="В переменной модуля — с гонкой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={POOL_RACE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="В переменной модуля — обещание" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={POOL_MODULE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['способ', 'соединений за три вызова по очереди', 'за три одновременных']}
+    rows={POOL_ROWS.map((r) => [r.k, String(r.seq), String(r.par)])}
+    tones={POOL_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(240px,1.4fr) minmax(160px,.8fr) minmax(160px,.8fr)"
+    minWidth={560}
+  />
+
+  <Md text={POOL_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Параллелизм на экземпляр и пул соединений"
+  lead="Сколько экземпляров поднимет платформа, решает не число запросов в секунду, а число запросов, которые идут одновременно. А сколько соединений получит база — то, сколько из них держит каждый экземпляр, включая тех, что сейчас простаивают."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LITTLE} />
+
+  <Md text={LITTLE_NOTE} />
+
+  <Card title="Модель: экземпляры, холодные старты и соединения" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCALE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SCALE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Три профиля трафика, две платформы, одна база
+
+  <ScaleLab
+    client:visible
+    code={SCALE_CODE}
+    profiles={SCALE_PROFILES}
+    platforms={SCALE_PLATFORMS}
+    stand={STAND_RUNS}
+    keepWarm={KEEP_WARM}
+    dbLimit={DB_LIMIT}
+    caption={SCALE_CAPTION}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SCALE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={K8S_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Edge-рантайм: изолят вместо контейнера"
+  lead="Edge-платформы запускают код не в отдельном процессе, а в изоляте V8 внутри общего процесса. Новый изолят поднимается быстро, и его можно держать в каждом городе. Цена — рантайм даёт только то, что выбрал хост: Web API, лимит процессора на запрос и никакого общего состояния, на которое стоит рассчитывать."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ISOLATE} />
+
+  <Md text={ISOLATE_NOTE} />
+
+  ### Хост «как в edge» на `node:vm`
+
+  Модель edge-хоста можно собрать из `node:vm`: на каждую точку присутствия — свой контекст
+  со своим глобальным объектом, внутрь — только Web API, превращение строк в код запрещено,
+  на синхронную работу — лимит 50 мс. Воркер внутри считает запросы в глобальной переменной.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Хост" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={EDGE_HOST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Воркер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={EDGE_WORKER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['точка', 'путь', 'ответ хоста']}
+    rows={EDGE_LOG_ROWS.map((r) => [r.pop, r.path, r.out])}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(70px,.3fr) minmax(80px,.4fr) minmax(280px,2fr)"
+    minWidth={460}
+  />
+
+  <Md text={EDGE_LOG_NOTE} />
+
+  <Card tone="warn" title="Контекст `node:vm` — не изолят и не песочница" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ISOLATE_VM_WARN} />
+
+  ### Что видно изнутри
+
+  <Table
+    head={['имя', 'Node', 'пустой контекст V8', 'контекст хоста']}
+    rows={GLOBALS_ROWS.map((r) => [r.k, r.node, r.bare, r.edge])}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(120px,.8fr) minmax(100px,.7fr) minmax(140px,.9fr) minmax(130px,.9fr)"
+    minWidth={500}
+  />
+
+  <Md text={GLOBALS_NOTE} />
+
+  ### Edge-рантаймы сегодня
+
+  <Table
+    head={['рантайм', 'чего нет или что иначе', 'положение дел']}
+    rows={EDGE_RUNTIME_ROWS.map((r) => [r.k, r.what, r.status])}
+    tones={EDGE_RUNTIME_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(280px,1.5fr) minmax(240px,1.2fr)"
+    minWidth={700}
+  />
+
+  <Md text={EDGE_RUNTIME_NOTE} />
+
+  <Table
+    head={['лимит', 'значение', 'что важно']}
+    rows={EDGE_LIMIT_ROWS.map((r) => [r.k, r.v, r.note])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={600}
+  />
+
+  <Md text={EDGE_LIMIT_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6 · демо"
+  eyebrowTone="demo"
+  title="Ближе к пользователю или ближе к базе"
+  lead="Edge сокращает путь от пользователя до кода. Но если код ходит в базу, путь от кода до базы удлиняется ровно на столько же — и проходится столько раз, сколько запросов к базе подряд."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PLACE} />
+
+  Цена одного похода в базу — один круг. Цена нового соединения — несколько: столько обменов
+  нужно Postgres, чтобы пустить клиента. На стенде их четыре.
+
+  <Table
+    head={['обмен', 'кругов', 'откуда']}
+    rows={SETUP_ROWS.map((r) => [r.k, r.v, r.how])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(260px,1.6fr) minmax(70px,.3fr) minmax(200px,1fr)"
+    minWidth={560}
+  />
+
+  <Card title="Модель задержки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LATENCY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={PLACE_ASSUMPTIONS} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['запросов к базе', 'edge, мс', 'регион, мс']}
+    rows={PLACE_ROWS.map((r) => [String(r.q), String(r.edge), String(r.region)])}
+    tones={PLACE_ROWS.map((r) => (r.edge < r.region ? 'ok' : 'err'))}
+    toneColumn={1}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(140px,1fr) minmax(100px,.8fr) minmax(100px,.8fr)"
+    minWidth={380}
+  />
+
+  <Md text={PLACE_NOTE} />
+
+  <Md text={PLACE_RULE} />
+
+  ### Посчитать для своего случая
+
+  <PlaceLab
+    client:visible
+    code={LATENCY_CODE}
+    presets={PLACE_PRESETS}
+    near={PLACE_NEAR}
+    local={PLACE_LOCAL}
+    setupTrips={SETUP_TRIPS}
+    caption={PLACE_CAPTION}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PLACE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Стриминг ответа: первые байты раньше базы"
+  lead="Функция, которая копит ответ целиком, отдаёт первый байт только после последнего запроса к базе. Потоковая отдаёт шапку сразу, а данные дописывает, когда они придут. Полное время то же, а пользователь видит страницу раньше."
+  leadWidth={72}
+>
+  <Card title="Один обработчик — два способа ответить" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STREAM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="Поток: порядок событий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STREAM_LOG.stream.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" title="Целиком: порядок событий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STREAM_LOG.buffer.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={STREAM_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {STREAM_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={FINAL_NOTE} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

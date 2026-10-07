@@ -1,0 +1,120 @@
+---
+/**
+ * Галерея вычисляющих демо — вторая половина витрины.
+ *
+ * Зачем отдельная страница, а не раздел на `/kit/`. Витрина обслуживает два разных повода
+ * её открыть. Первый — правка оформления: меняешь токен и смотришь, что поехало; там нужны
+ * палитра, ступени шрифта, карточки, тёмные панели. Второй — проверка правила «демо обязано
+ * вычислять, а не листать заготовки»; там нужны сами лаборатории, и их уже шестнадцать.
+ * Читатели у этих половин разные, и открывают их в разные минуты.
+ *
+ * Разделено это, впрочем, не из стройности, а по сторожу: `tests/e2e/weight.spec.ts` держит
+ * для витрины порог в 200 КБ, и с шестнадцатью островами одна страница выросла до 233.
+ * В самом сторожевом файле записано, что правильный ответ в такой момент — делить витрину,
+ * а не двигать число. Порог затем и стоит, чтобы этот разговор состоялся вовремя.
+ *
+ * Страница не входит в курс и не попадает в карту уроков: это инструмент автора.
+ */
+import BaseLayout from '@/shared/ui/BaseLayout.astro';
+import Section from '@/shared/ui/Section.astro';
+import Card from '@/shared/ui/Card.astro';
+import Md from '@/shared/ui/Md.astro';
+import DispatchLab from '@/widgets/dispatch-lab/ui/DispatchLab.vue';
+import EnumProbe from '@/widgets/enum-probe/ui/EnumProbe.vue';
+import IcBench from '@/widgets/ic-bench/ui/IcBench.vue';
+import InstanceofLab from '@/widgets/instanceof-lab/ui/InstanceofLab.vue';
+import IterProtocol from '@/widgets/iter-protocol/ui/IterProtocol.vue';
+import KeyOrder from '@/widgets/key-order/ui/KeyOrder.vue';
+import LockLab from '@/widgets/lock-lab/ui/LockLab.vue';
+import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
+import PollutionLab from '@/widgets/pollution-lab/ui/PollutionLab.vue';
+import ReachabilityLab from '@/widgets/reachability-lab/ui/ReachabilityLab.vue';
+import ResolveCost from '@/widgets/resolve-cost/ui/ResolveCost.vue';
+import RetainGraph from '@/widgets/retain-graph/ui/RetainGraph.vue';
+import StringWeight from '@/widgets/string-weight/ui/StringWeight.vue';
+import ThreadProbe from '@/widgets/thread-probe/ui/ThreadProbe.vue';
+import TimerClamp from '@/widgets/timer-clamp/ui/TimerClamp.vue';
+import TransferRules from '@/widgets/transfer-rules/ui/TransferRules.vue';
+import YieldMeter from '@/widgets/yield-meter/ui/YieldMeter.vue';
+---
+
+<BaseLayout
+  title="Вычисляющие демо · Внутренности JS"
+  description="Лаборатории курса: каждая спрашивает движок тем же кодом, что и юнит-тест"
+>
+  <Section
+    variant="intro"
+    eyebrow="набор · инструмент автора"
+    title="Демо, которые считают"
+    lead="Вторая половина витрины. Здесь собраны демо одной породы: они не пересказывают поведение языка, а выполняют его. Клетку рисует настоящий вызов на свежем объекте — вместе с настоящим текстом отказа. Логика вынесена в `model/`, и тот же модуль импортирует юнит-тест: демо и проверка обязаны спрашивать движок одинаково, иначе «проверено тестом» значило бы «проверено чем-то похожим»."
+  />
+
+  <Section
+    id="semantics"
+    eyebrow="семантика"
+    title="Что язык делает на самом деле"
+    lead="Таблицы о поведении языка здесь не набраны руками, а вычислены: каждая клетка — настоящий вызов."
+  >
+    <LockLab client:visible />
+
+    <EnumProbe client:visible />
+
+    <KeyOrder client:visible />
+
+    <IterProtocol client:visible />
+
+    <InstanceofLab client:visible />
+
+    <PollutionLab client:visible />
+
+    <DispatchLab client:visible />
+
+    <TransferRules client:visible initial="ok" />
+  </Section>
+
+  <Section
+    id="timing"
+    eyebrow="очереди и тики"
+    title="Порядок и цена"
+    lead="Здесь спрашивают не «что вернётся», а «когда» и «во сколько обойдётся». Числа считает машина читателя, поэтому у каждого они свои — и это единственный честный способ их показать."
+  >
+    <MicroProbe client:visible />
+
+    <TimerClamp client:visible />
+
+    <ResolveCost client:visible />
+
+    <YieldMeter client:visible />
+
+    <ThreadProbe client:visible />
+  </Section>
+
+  <Section
+    id="memory"
+    eyebrow="память и представления"
+    title="Что видно снаружи, а что нет"
+    lead="Самая осторожная группа. Представления строк, состояние кешей и момент сборки мусора из обычного JS **не наблюдаемы вовсе** — эти стенды меряют следствие и говорят об этом вслух, а не выдают вывод за ответ движка."
+  >
+    <IcBench client:visible />
+
+    <StringWeight client:visible />
+
+    <ReachabilityLab client:visible />
+
+    <RetainGraph client:visible />
+  </Section>
+
+  <Section id="rule" eyebrow="правило" title="Чем демо отличается от листалки">
+    <Card tone="err" title="Признак подделки — отсутствие `model/`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+      <Md
+        text="Остров, который отвечает на клик и листает шаги, ещё не вычисление. Если в слайсе нет `model/*.ts`, зовущего движок, значит демо пересказывает заранее написанные строки, а пометка «проверено запуском» относится к тому разовому запуску, которого больше никто не повторит. Так уже было в «Колбэках»: из пяти островов считал **один**."
+      />
+
+      <Md
+        text="Обратная сторона правила тоже важна: выполнить можно не всё. Там, где движок ответа не даёт, честный стенд меряет следствие и называет границу — а не рисует правдоподобное число. Образец такой оговорки — `widgets/ic-bench`."
+      />
+
+    </Card>
+  </Section>
+</BaseLayout>

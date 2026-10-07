@@ -1,0 +1,154 @@
+---
+/**
+ * `#`-поля — не свойства: слева слот, справа пустой список собственных свойств.
+ *
+ * Картинка нужна, чтобы снять ходовое «приватное поле — это скрытое свойство». Оно не скрытое,
+ * его там нет вовсе: запись живёт в слоте `[[PrivateElements]]`, а таблица проб внизу
+ * перебирает все способы до него добраться. Работает ровно один — `#x in obj`,
+ * и он же единственный честный brand check.
+ *
+ * Все строки таблицы сняты запуском в Node 24.11, а не выписаны по памяти.
+ */
+import type { PrivateProbe } from '../model/types';
+
+interface Props {
+  /** Заголовок объекта, например `экземпляр Temperature`. */
+  title: string;
+  /** Содержимое слота: `#celsius → 20`. */
+  slot: string;
+  probes: PrivateProbe[];
+}
+
+const { title, slot, probes } = Astro.props;
+---
+
+<div class="private">
+  <div class="halves">
+    <div class="half">
+      <div class="t-label">{title}</div>
+      <div class="box box--slot">
+        <span class="box__name">[[PrivateElements]] — слот</span>
+        <span class="box__body">{slot}</span>
+      </div>
+    </div>
+
+    <div class="half">
+      <div class="t-label">собственные свойства</div>
+      <div class="box box--empty">
+        <span class="box__body box__body--empty">пусто</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="probes">
+    {
+      probes.map((probe) => (
+        <div class="probe">
+          <span class="probe__k">{probe.k}</span>
+          <span class="probe__v" data-ok={probe.ok ? 'yes' : 'no'}>
+            {probe.v}
+          </span>
+        </div>
+      ))
+    }
+  </div>
+</div>
+
+<style>
+  .private {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px;
+    border-radius: var(--r4);
+    background: var(--surface);
+    box-shadow: var(--shadow-2);
+    min-width: 0;
+  }
+
+  .halves {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+    gap: 14px;
+    align-items: start;
+  }
+  .half {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    min-width: 0;
+  }
+
+  .box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 13px 15px;
+    border-radius: var(--r2);
+  }
+  /* Слот — настоящее хранилище, поэтому у него есть тон. Список свойств — пустая коробка. */
+  .box--slot {
+    border: 1px solid var(--tone-info-line);
+    background: var(--tone-info-bg);
+  }
+  .box--empty {
+    border: 1px dashed var(--border-strong);
+  }
+  .box__name {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    font-weight: 600;
+    color: var(--tone-info-strong);
+  }
+  .box__body {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.5;
+    color: var(--tone-info-text);
+    overflow-wrap: anywhere;
+  }
+  .box__body--empty {
+    font-style: italic;
+    color: var(--ghost);
+  }
+
+  .probes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .probe {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .probe:last-child {
+    border-bottom: 0;
+  }
+  .probe__k {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .probe__v {
+    padding: 3px 9px;
+    border-radius: var(--r-full);
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    white-space: nowrap;
+  }
+  /* Зелёным горит единственная строка, которая отвечает «да» — это и есть brand check. */
+  .probe__v[data-ok='yes'] {
+    background: var(--tone-ok-chip);
+    color: var(--tone-ok-strong);
+  }
+  .probe__v[data-ok='no'] {
+    background: var(--surface-3);
+    color: var(--text-muted);
+  }
+</style>

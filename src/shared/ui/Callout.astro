@@ -1,0 +1,48 @@
+---
+/**
+ * Тёмный тезис — самый громкий блок урока: чернильная плашка со светлым текстом.
+ *
+ * Два цвета текста не прихоть: `on-ink` (#F4F2EC) — для фразы, ради которой раздел писался,
+ * `code` (#E9E6DE) — для пояснения потише. Инлайновый код внутри подсвечивается фиолетовым
+ * из тонового семейства — на чернилах обычный цвет кода не читается.
+ */
+interface Props {
+  size?: number;
+  lh?: number;
+  pad?: string;
+  fg?: 'on-ink' | 'code';
+  /** Устарел: текст идёт на всю ширину колонки (решение автора, 2026-09-28). Проп оставлен для совместимости. */
+  maxWidth?: number;
+}
+
+const { size = 17, lh = 1.5, pad = '18px 20px', fg = 'on-ink' } = Astro.props;
+---
+
+<div
+  class="callout"
+  data-fg={fg}
+  style={`--callout-fs:calc(${size}px * var(--fs-scale));--callout-lh:${lh};--callout-pad:${pad}`}
+>
+  <slot />
+</div>
+
+<style>
+  .callout {
+    --inline-code-bg: transparent;
+    padding: var(--callout-pad);
+    border-radius: var(--r3);
+    background: var(--ink);
+    font-size: var(--callout-fs);
+    line-height: var(--callout-lh);
+  }
+  .callout[data-fg='on-ink'] {
+    color: var(--on-ink);
+  }
+  .callout[data-fg='code'] {
+    color: var(--code-fg);
+  }
+  .callout :global(code) {
+    color: var(--tone-info-on-ink);
+    font-size: 0.82em;
+  }
+</style>

@@ -1,0 +1,410 @@
+---
+title: "Отмена и повтор: undo/redo изнутри"
+heading: "Отмена и повтор: undo/redo изнутри"
+headingWidth: 24
+order: 9
+kicker: алгоритмы во фронтенде
+lead: "Ctrl+Z кажется кнопкой «назад во времени», но времени редактор не хранит. Он хранит записи: что сделать, чтобы шагнуть назад. Как устроены две стопки, чем снимки отличаются от обратных правок, почему набранное слово отменяется целиком, что умеет история браузерного поля и почему в совместном редакторе своя отмена не вправе стереть чужое."
+leadWidth: 66
+summary: "Две стопки и почему новая правка стирает redo, снимки и общие ветки Immer, обратные правки и патчи, группировка по времени, виду и месту, выделение в записи, история `<textarea>` в Chromium — что она склеивает и где ломается, своя история через `beforeinput` и `keydown`, локальная отмена при чужих правках: пересчёт позиций и `Y.UndoManager`, дерево отмены в Vim и Emacs."
+verifiedOn: "immer 11.1.18, yjs 13.6.33, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: учебная история сверена с патчами Immer, с Y.UndoManager на 3000 случайных сценариев двух клиентов и с историей textarea в Chromium в tests/unit/undo-redo.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Две стопки }
+  - { id: s2, label: Снимки }
+  - { id: s3, label: Обратные правки }
+  - { id: s4, label: Группировка }
+  - { id: s5, label: В браузере }
+  - { id: s6, label: Совместно }
+  - { id: s7, label: Дерево отмены }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import UndoLab from '@/widgets/undo-lab/ui/UndoLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_HISTORY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_STACKS,
+  STACK_ROWS,
+  STACKS_FACTS,
+  PLAIN_SNAPSHOT,
+  SHARING_CODE,
+  SHARING_OUT,
+  SHARING_NOTE,
+  SNAP_ROWS,
+  SNAP_TEXT_NOTE,
+  OPS_CODE,
+  PLAIN_INVERSE,
+  PATCH_CODE,
+  PATCH_NOTE,
+  IMMER_SPLICE_PRINT,
+  IMMER_SPLICE_NOTE,
+  HISTORY_CODE,
+  HISTORY_FACTS,
+  XFORM_CODE,
+  DEMO_START,
+  DEMO_CAPTION,
+  PLAIN_GROUP,
+  GROUP_RULES,
+  SELECTION_NOTE,
+  PLAIN_TRANSACTION,
+  YJS_CODE,
+  YJS_OUT,
+  YJS_FACTS,
+  GROUP_NOTE,
+  NATIVE_ROWS,
+  NATIVE_NOTE,
+  NATIVE_CARDS,
+  NATIVE_LINK_NOTE,
+  INTERCEPT_CODE,
+  INTERCEPT_NOTE,
+  PLAIN_LOCAL_UNDO,
+  COLLAB_ROWS,
+  COLLAB_NOTE,
+  XFORM_FACTS,
+  YJS_MATCH_NOTE,
+  CRDT_UNDO_NOTE,
+  PLAIN_TREE,
+  TREE_ROWS,
+  TREE_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Шаг назад" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    История отмены — не машина времени, а две стопки записей. В каждой записи лежит то,
+    что вернёт документ на шаг назад: либо его прежняя копия, либо список **обратных
+    правок**. Ctrl+Z снимает верхнюю запись с одной стопки, исполняет её и кладёт обратную
+    на другую.
+
+  </Callout>
+
+  За простой кнопкой стоят четыре решения. Что хранить — копию всего документа или только
+  разницу. Где кончается одна запись и начинается следующая: буква, слово, пауза. Куда
+  ставить каретку после отмены. И что делать с правками, которые сделал кто-то другой.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HISTORY} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Две стопки: undo и redo"
+  lead="Отменять нужно от свежего к старому, повторять — в обратном порядке. Ровно так работают две стопки: Ctrl+Z перекладывает верхнюю запись из undo в redo, Ctrl+Shift+Z — обратно."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STACKS} />
+
+  <Table
+    head={['действие', 'текст', 'записей в undo', 'в redo']}
+    rows={STACK_ROWS.map((r) => [r.act, r.text ? `«${r.text}»` : 'пусто', String(r.undo), String(r.redo)])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(200px,1.4fr) minmax(110px,.8fr) minmax(110px,.6fr) minmax(80px,.5fr)"
+    minWidth={560}
+  />
+
+  <CardGrid min={260} gap={14} align="start">
+    {STACKS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Снимки: хранить копию"
+  lead="Самая простая история: перед каждой правкой запомнить всё состояние. Отмена возвращает прошлую копию — и не нужно знать, что именно изменилось. Вопрос только в цене копии."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+
+  <Card title="Сколько стоит снимок объекта" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SHARING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={SHARING_OUT} tone="ok" size={11.5} lh={1.65} pad="12px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SHARING_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Снимки текста
+
+  <Table
+    head={['что в записи', 'хранит стопка', 'почему']}
+    rows={SNAP_ROWS.map((r) => [r.k, r.v, r.d])}
+    tones={SNAP_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(140px,.7fr) minmax(170px,.8fr) minmax(260px,1.6fr)"
+    minWidth={600}
+  />
+
+  <Md text={SNAP_TEXT_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Обратные правки"
+  lead="Вместо копии можно хранить разницу: что сделано и как это погасить. Запись становится маленькой — сколько изменили, столько и храним. Зато каждая правка обязана знать свою обратную."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INVERSE} />
+
+  <Card title="Правка над строкой и обратная к ней" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={OPS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Патчи объекта
+
+  Для объектов то же самое делают патчи. Immer по запросу выдаёт к каждому изменению
+  два списка: прямые патчи и обратные. Функция `update` делает то же руками — копирует путь
+  до правки и записывает пару патчей.
+
+  <Card title="Правка с патчами в формате Immer" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PATCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={PATCH_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Массив — по номерам мест" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={IMMER_SPLICE_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={IMMER_SPLICE_NOTE} />
+  </CardGrid>
+
+  ### История над строкой
+
+  Учебная история: две стопки, правки по символу, группировка и выделение. Режим
+  `snapshots` хранит в записи копию текста, `ops` — обратные правки. Режим `naive` и
+  функции `xform` и `shiftPos` нужны для совместной работы — о них в разделе «Совместно».
+
+  <Card title="createEditor" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HISTORY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {HISTORY_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Две стопки вживую
+
+  <UndoLab client:visible opsCode={OPS_CODE} xformCode={XFORM_CODE} historyCode={HISTORY_CODE} start={DEMO_START} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Группировка: где кончается запись"
+  lead="Если каждая буква — своя запись, «Привет» отменяется шестью нажатиями. Если весь сеанс — одна запись, Ctrl+Z стирает час работы. Запись должна совпадать с тем, что человек считает одним действием."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GROUP} />
+
+  <CardGrid min={240} gap={14} align="start">
+    {GROUP_RULES.map((rule) => (
+      <Card title={rule.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={rule.d} />
+    ))}
+
+  </CardGrid>
+
+  В `createEditor` все четыре правила — одно условие `merge` в функции `edit`: запись
+  открыта, вид тот же, пауза короче `timeout`. `select` и `stop` закрывают запись, отмена
+  и повтор — тоже.
+
+  <Md text={SELECTION_NOTE} />
+
+  ### Транзакции и Y.UndoManager
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSACTION} />
+
+  <Card title="Своя отмена в Yjs" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={YJS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={YJS_OUT} tone="ok" size={11.5} lh={1.65} pad="12px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={GROUP_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {YJS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="История браузера"
+  lead="У `<textarea>`, `<input>` и `contenteditable` своя история, и Ctrl+Z в них работает без единой строки кода. Её правила группировки нигде не стандартизованы, их можно только снять — и у Chromium 153 они местами расходятся с учебной моделью."
+  leadWidth={72}
+>
+  <Table
+    head={['что сделали', 'Chromium', 'модель', 'что видно']}
+    rows={NATIVE_ROWS.map((r) => [r.k, r.chrome, r.model, r.d])}
+    tones={NATIVE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'prose']}
+    cols="minmax(200px,1.1fr) minmax(170px,.9fr) minmax(170px,.9fr) minmax(220px,1.2fr)"
+    minWidth={820}
+  />
+
+  <Md text={NATIVE_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {NATIVE_CARDS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={NATIVE_LINK_NOTE} />
+
+  ### Своя история поверх поля
+
+  <Card title="Перехватить правки и Ctrl+Z" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INTERCEPT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={INTERCEPT_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Отмена в совместном редакторе"
+  lead="Аня набрала «Привет», через паузу «, мир». Борис в своей копии вставил «Борис: » в начало, и его правка дошла до Ани. Аня жмёт Ctrl+Z. Отменить нужно её «, мир» — где бы оно теперь ни стояло, — и не тронуть ни символа Бориса."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOCAL_UNDO} />
+
+  <Table
+    head={['что в записи', 'Ctrl+Z', 'ещё Ctrl+Z', 'Ctrl+Shift+Z', 'почему']}
+    rows={COLLAB_ROWS.map((r) => [r.k, `«${r.u1}»`, `«${r.u2}»`, `«${r.r}»`, r.d])}
+    tones={COLLAB_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(170px,1fr) minmax(130px,.8fr) minmax(110px,.7fr) minmax(140px,.8fr) minmax(220px,1.3fr)"
+    minWidth={820}
+  />
+
+  <Md text={COLLAB_NOTE} />
+
+  ### Пересчитать правку через чужую
+
+  <Card title="xform и shiftPos" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={XFORM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {XFORM_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={YJS_MATCH_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={CRDT_UNDO_NOTE} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Дерево отмены"
+  lead="Линейная история теряет отменённое при первой же новой правке. Два старых редактора решили это по-разному — и ни один не выбросил ветку."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TREE} />
+
+  <Table
+    head={['история', 'что делает новая правка после отмены', 'что теряется']}
+    rows={TREE_ROWS.map((r) => [r.k, r.how, r.lost])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(320px,2fr) minmax(130px,.6fr)"
+    minWidth={640}
+  />
+
+  <Md text={TREE_NOTE} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,98 @@
+---
+/**
+ * Пять механизмов отписки → один сигнал.
+ *
+ * Воронка здесь и есть мысль: сверху россыпь несовместимых способов снять колбэк, снизу —
+ * один объект, который закрывает их все. Пунктирная линия посередине означает схождение,
+ * поэтому это не карточка со списком, а отдельный блок с собственной геометрией.
+ */
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+
+interface Props {
+  /** Старые способы отписки — по одному на API. */
+  old: string[];
+  code: string;
+  facts: string[];
+}
+
+const { old, code, facts } = Astro.props;
+---
+
+<div class="funnel">
+  <div class="old">
+    {old.map((item) => <div class="chip">{item}</div>)}
+  </div>
+
+  <div class="join">
+    <span class="join__line"></span>
+    <span class="join__text">один сигнал на все</span>
+    <span class="join__head">▼</span>
+    <span class="join__line"></span>
+  </div>
+
+  <CodeBlock code={code} size={12.5} lh={1.75} pad="16px 18px" />
+
+  <div class="facts">
+    {facts.map((fact) => <div class="fact">{fact}</div>)}
+  </div>
+</div>
+
+<style>
+  .funnel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+  }
+
+  .old {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+    gap: 8px;
+  }
+  .chip {
+    padding: 9px 11px;
+    border: 1px solid var(--divider);
+    border-radius: var(--r2);
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--text-muted);
+  }
+
+  .join {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--accent);
+  }
+  .join__line {
+    flex: 1;
+    height: 0;
+    border-top: 1px dashed var(--ghost);
+  }
+  .join__text {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    white-space: nowrap;
+  }
+  .join__head {
+    font-size: var(--fs-4);
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+    gap: 12px;
+  }
+  .fact {
+    border-left: 2px solid var(--accent);
+    padding-left: 13px;
+    font-size: var(--fs-6);
+    line-height: 1.55;
+    color: var(--prose);
+  }
+</style>

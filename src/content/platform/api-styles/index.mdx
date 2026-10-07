@@ -1,0 +1,468 @@
+---
+title: REST, GraphQL и gRPC-web
+heading: "REST, GraphQL и gRPC-web: что ходит по проводу"
+headingWidth: 24
+order: 16
+kicker: сеть и безопасность
+lead: "Экран со списком заказов, авторами и товарами можно собрать десятью GET-запросами, одним POST с запросом GraphQL или одним вызовом gRPC. Разница видна в числах: сколько запросов ждут друг друга, сколько байт уходит впустую, сколько раз сервер сходит в базу — и что из этого сможет закешировать браузер."
+leadWidth: 66
+summary: "Один экран тремя способами: запросы и байты; REST — ресурсы, водопад, лишние поля, ETag и Cache-Control на втором заходе; GraphQL — исполнитель и резолверы, N+1 и DataLoader по журналу базы, persisted queries, глубина запроса как атака, ошибки при статусе 200; gRPC-web — protobuf по байтам (varint, ключи полей), размер против JSON до и после сжатия, трейлеры HTTP/2 и почему браузеру нужен прокси."
+verifiedOn: "Node 24.11.0, graphql 17.0.2, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: три API над одной «базой» на своём node:http-сервере; учебный исполнитель GraphQL сверен tests/unit/api-styles.test.ts с graphql 17 — ответ, порядок вызовов резолверов, журнал базы; байты пересобраны на сырых сокетах. gRPC-сервера и прокси на стенде нет: protobuf закодирован по спецификации и сверен с её примерами, кадр gRPC-web — по PROTOCOL-WEB.md, трейлеры проверены на node:http2 и в Chromium"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Один экран }
+  - { id: s2, label: REST и кеш }
+  - { id: s3, label: GraphQL изнутри }
+  - { id: s4, label: N+1 и DataLoader }
+  - { id: s5, label: GraphQL на проводе }
+  - { id: s6, label: gRPC-web }
+  - { id: s7, label: Что выбрать }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ApiWireLab from '@/widgets/api-wire-lab/ui/ApiWireLab.vue';
+import ResolverLab from '@/widgets/api-wire-lab/ui/ResolverLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_STYLES,
+  PREREQ,
+  PREREQ_NOTE,
+  TABLES,
+  TABLES_PRINT,
+  SCREEN_NOTE,
+  SCREEN_FIRST,
+  WIRE_ROWS,
+  WIRE_NOTE,
+  WIRE_CAPTION,
+  WIRE_MODES,
+  CODES,
+  REST_CODE,
+  REST_FACTS,
+  REST_FIX,
+  CACHE_ROWS,
+  CACHE_NOTE,
+  SDL,
+  SCREEN_QUERY,
+  PLAIN_RESOLVER,
+  SCHEMA_CODE,
+  RESOLVERS_CODE,
+  GQL_CODE,
+  GQL_FACTS,
+  GQL_NOTE,
+  PLAIN_N1,
+  N1_JOURNAL,
+  LOADER_CODE,
+  PLAIN_BATCH,
+  BATCH_JOURNAL,
+  BATCH_NOTE,
+  LOADER_FACTS,
+  DEMO_SCENARIOS,
+  RESOLVER_CAPTION,
+  APQ_CODE,
+  PLAIN_APQ,
+  APQ_FACTS,
+  DEPTH_ROWS,
+  DEPTH_NOTE,
+  FAIL_CODE,
+  FAIL_RESPONSE,
+  STATUS_FACTS,
+  PROTO_FILE,
+  PLAIN_VARINT,
+  PROTO_CODE,
+  PROTO_VECTORS,
+  ORDER_BYTES,
+  ORDER_PARTS,
+  SIZE_ROWS,
+  SIZE_NOTE,
+  PLAIN_TRAILERS,
+  TRAILER_FACTS,
+  WEB_FRAME_CODE,
+  WEB_NOTE,
+  CHOOSE_ROWS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Что ходит по проводу" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    REST, GraphQL и gRPC — три договорённости поверх одного HTTP. Они по-разному отвечают
+    на три вопроса: **кто выбирает форму ответа**, сколько запросов нужно экрану и в каком виде
+    едут байты. Из этого следует всё остальное — кеш, ошибки и нагрузка на базу.
+
+  </Callout>
+
+  Пример на всю тему — экран интернет-магазина: пять последних заказов, у каждого автор
+  и товары. Один и тот же сервер отдаёт этот экран тремя способами, над одной и той же
+  «базой». Поэтому разницу можно не пересказывать, а посчитать: запросы, байты в обе стороны
+  и обращения к базе.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STYLES} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Один экран — три способа"
+  lead="«База» — три таблицы: пользователи, товары и заказы. Заказ ссылается на автора и на товары по id, как в любой реляционной базе. Её одинаково читают REST-маршруты, резолверы GraphQL и сервис gRPC."
+  leadWidth={72}
+>
+  <Card title="«База»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TABLES_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={SCREEN_NOTE} />
+
+  <Card title="Что получает экран: первый заказ из пяти" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCREEN_FIRST} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['способ', 'запросов', 'шагов подряд', 'тело вверх, байт', 'тело вниз, байт', 'с заголовками HTTP/1.1: вверх / вниз']}
+    rows={WIRE_ROWS.map((r) => [r.k, String(r.requests), String(r.steps), String(r.upBody), String(r.downBody), `${r.up} / ${r.down}`])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(110px,.9fr) minmax(80px,.6fr) minmax(90px,.7fr) minmax(100px,.8fr) minmax(100px,.8fr) minmax(170px,1.2fr)"
+    minWidth={720}
+  />
+
+  <Md text={WIRE_NOTE} />
+
+  ### Три способа на одном экране
+
+  <ApiWireLab client:visible codes={CODES} tables={TABLES} query={SCREEN_QUERY} modes={WIRE_MODES} caption={WIRE_CAPTION} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="REST: ресурсы, водопад и кеш"
+  lead="REST раскладывает данные по ресурсам: у каждой записи свой адрес, а какие поля в ней отдать, решает сервер. Экран клиент собирает сам — и платит за это запросами."
+  leadWidth={72}
+>
+  <Card title="Маршруты и клиент экрана" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {REST_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={REST_FIX} />
+
+  ### Второй заход: здесь REST сильнее
+
+  <Table
+    head={['способ', 'первый заход', 'второй заход в той же вкладке']}
+    rows={CACHE_ROWS.map((r) => [r.k, r.first, r.second])}
+    tones={CACHE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(220px,1.1fr) minmax(300px,1.6fr)"
+    minWidth={700}
+  />
+
+  <Md text={CACHE_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="GraphQL изнутри: запрос, схема, резолверы"
+  lead="У GraphQL один адрес. Клиент присылает запрос — текст, по форме которого сервер строит ответ: какие поля названы, те и придут, с той же вложенностью. Что вообще можно спросить, сервер описывает схемой."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Схема (SDL)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SDL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Запрос экрана" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCREEN_QUERY} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESOLVER} />
+
+  <Card title="Схема для исполнителя, «база» и резолверы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCHEMA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock code={RESOLVERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Исполнитель запроса
+
+  <Card title="Разбор и обход запроса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GQL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {GQL_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={GQL_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="N+1 и DataLoader"
+  lead="Резолвер ничего не знает о соседях. `author` первого заказа не знает, что ещё четыре заказа ждут своих авторов, — и каждый идёт в базу сам. Клиент отправил один запрос, а база получила шестнадцать."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_N1} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Без загрузчика: 16 обращений" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={N1_JOURNAL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="С загрузчиком: 3 обращения" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BATCH_JOURNAL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BATCH} />
+
+  <Card title="Загрузчик в духе DataLoader" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOADER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CardNote tone="prose">
+      <Md text={BATCH_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {LOADER_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Резолверы и база
+
+  <ResolverLab client:visible codes={CODES} tables={TABLES} scenarios={DEMO_SCENARIOS} failCode={FAIL_CODE} caption={RESOLVER_CAPTION} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="GraphQL на проводе: кеш, глубина, ошибки"
+  lead="Один POST на всё удобен клиенту и неудобен всему, что стоит между клиентом и базой: кешу, который не видит адреса, защите, которая не знает, сколько стоит запрос, и мониторингу, который смотрит на коды ответа."
+  leadWidth={72}
+>
+  ### Persisted queries: адрес для кеша
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_APQ} />
+
+  <Card title="Automatic persisted queries на стенде" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={APQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {APQ_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Глубина как оружие
+
+  Схема темы замкнута в круг: у заказа есть автор, у автора — заказы. Значит, запрос может
+  спускаться по кругу сколько угодно раз, и каждый уровень — новый список резолверов.
+  Такой запрос короткий, а считать его долго: это готовая атака на отказ в обслуживании.
+
+  <Table
+    head={['уровней `orders { author }`', 'глубина', 'тело запроса, байт', 'вызовов резолверов', 'ответ, байт']}
+    rows={DEPTH_ROWS.map((r) => [String(r.levels), String(r.depth), String(r.query), String(r.resolvers), String(r.response)])}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(150px,1fr) minmax(80px,.6fr) minmax(110px,.8fr) minmax(120px,.8fr) minmax(100px,.7fr)"
+    minWidth={620}
+  />
+
+  <Md text={DEPTH_NOTE} />
+
+  ### Ошибки при статусе 200
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сервис пользователей лёг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FAIL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Ответ: 200, data и errors" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FAIL_RESPONSE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {STATUS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="gRPC-web: байты по схеме"
+  lead="gRPC описывает API файлом `.proto`: сервис, методы и сообщения, у каждого поля — номер. По проводу едет protobuf — двоичное сообщение, в котором вместо имён полей стоят эти номера. Прочитать его может только тот, у кого есть схема."
+  leadWidth={72}
+>
+  <Card title="shop.proto" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PROTO_FILE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VARINT} />
+
+  <Card title="Кодирование protobuf и кадр gRPC-web" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PROTO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['сообщение', 'значение', 'байты', 'разбор']}
+    rows={PROTO_VECTORS.map((r) => [r.msg, r.value, r.bytes, r.d])}
+    kinds={['mono', 'prose', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(120px,.6fr) minmax(170px,.9fr) minmax(240px,1.3fr)"
+    minWidth={760}
+  />
+
+  ### Первый заказ по байтам
+
+  <Table
+    head={['поле', 'ключ и длина', 'данные', 'что это']}
+    rows={ORDER_BYTES.map((r) => [r.k, r.head, r.body, r.d])}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(160px,.9fr) minmax(100px,.5fr) minmax(150px,.8fr) minmax(260px,1.4fr)"
+    minWidth={700}
+  />
+
+  <Table
+    head={['из чего состоит первый заказ', 'JSON, байт', 'protobuf, байт']}
+    rows={ORDER_PARTS.map((r) => [r.k, String(r.json), String(r.proto)])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(280px,2fr) minmax(100px,.6fr) minmax(110px,.6fr)"
+    minWidth={520}
+  />
+
+  <Table
+    head={['весь экран', 'JSON, байт', 'protobuf, байт']}
+    rows={SIZE_ROWS.map((r) => [r.k, String(r.json), String(r.proto)])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(160px,1fr) minmax(100px,.6fr) minmax(110px,.6fr)"
+    minWidth={420}
+  />
+
+  <Md text={SIZE_NOTE} />
+
+  ### Трейлеры: почему браузеру нужен gRPC-web
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRAILERS} />
+
+  Настоящий gRPC работает поверх HTTP/2. Тело ответа — сообщения в кадрах по 5 + N байт,
+  а статус вызова (`grpc-status`) сервер присылает трейлерами: ещё одним кадром HEADERS
+  после последнего кадра DATA. Статус в конце нужен потоковым вызовам: пока сервер шлёт
+  сообщения, исход ещё неизвестен.
+
+  <CardGrid min={280} gap={14} align="start">
+    {TRAILER_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Кадры gRPC-web на стенде" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={WEB_FRAME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={WEB_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Что выбрать"
+  lead="Ни один способ не быстрее «вообще». Каждый переносит работу в своё место: REST — на клиент и кеш, GraphQL — на сервер, gRPC — в схему и прокси."
+  leadWidth={72}
+>
+  <Table
+    head={['способ', 'хорош, когда', 'чем платите']}
+    rows={CHOOSE_ROWS.map((r) => [r.k, r.good, r.cost])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(260px,1.4fr) minmax(260px,1.4fr)"
+    minWidth={680}
+  />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Выбирают не формат, а место, где будет сложно.** У REST сложно клиенту — запросы
+      и склейка, зато кеш HTTP работает сам. У GraphQL клиенту просто, а сервер отвечает
+      за N+1, цену запроса и честные ошибки. У gRPC-web всё строго по схеме, но между
+      браузером и сервером стоит ещё одно звено.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

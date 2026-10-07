@@ -1,0 +1,134 @@
+---
+/**
+ * Почему `await` в цикле даёт последовательность: две дорожки на одной шкале времени.
+ *
+ * Тезис знают все, а видно на картинке другое и более полезное: полосы одинаковой длины,
+ * то есть работа та же самая. Разница только в том, когда каждая из них начинается —
+ * и начинается она поздно не из-за ожидания, а потому что вызов, порождающий работу,
+ * физически стоит после точки ожидания.
+ */
+interface Props {
+  /** Сколько запросов показывать. */
+  count?: number;
+  scaleLabel?: string;
+}
+
+const { count = 3, scaleLabel = '~300 мс' } = Astro.props;
+
+const share = 100 / count;
+const lanes = [
+  {
+    label: 'await в цикле',
+    tone: 'err' as const,
+    bars: Array.from({ length: count }, (_, i) => ({ width: share, offset: share * i })),
+  },
+  {
+    label: 'Promise.all',
+    tone: 'ok' as const,
+    bars: Array.from({ length: count }, () => ({ width: share, offset: 0 })),
+  },
+];
+---
+
+<div class="chart">
+  <div class="lanes">
+    {
+      lanes.map((lane) => (
+        <div class="lane">
+          <div class="lane__label" data-tone={lane.tone}>
+            {lane.label}
+          </div>
+          <div class="bars">
+            {lane.bars.map((bar) => (
+              <div
+                class="bar"
+                data-tone={lane.tone}
+                style={`width:${bar.width}%;margin-left:${bar.offset}%`}
+              />
+            ))}
+          </div>
+        </div>
+      ))
+    }
+    <div class="lane">
+      <div></div>
+      <div class="axis"><span>0</span><span>{scaleLabel}</span></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Причина одна: следующего <code>fetch</code> не существует, пока предыдущий не завершился.</b>{' '}
+    <code>await</code> ничего не блокирует — поток всё это время свободен. Дело в том, что вызов,
+    порождающий работу, физически стоит после точки ожидания.
+  </div>
+</div>
+
+<style>
+  .chart {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+  }
+
+  .lanes {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .lane {
+    display: grid;
+    grid-template-columns: minmax(110px, 130px) minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+  }
+  .lane__label {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    text-align: end;
+  }
+  .lane__label[data-tone='err'] {
+    color: var(--tone-err-strong);
+  }
+  .lane__label[data-tone='ok'] {
+    color: var(--tone-ok-strong);
+  }
+
+  .bars {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .bar {
+    height: 15px;
+    border-radius: var(--r1);
+  }
+  .bar[data-tone='err'] {
+    background: var(--bar-red);
+  }
+  .bar[data-tone='ok'] {
+    background: var(--bar-green);
+  }
+
+  .axis {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--dim);
+  }
+
+  .note {
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-7);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+  .note :global(b) {
+    color: var(--ink);
+  }
+</style>

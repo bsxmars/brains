@@ -1,0 +1,440 @@
+---
+title: Svelte 5 изнутри
+heading: "Svelte 5 изнутри: руны и компилятор"
+headingWidth: 24
+order: 22
+kicker: фреймворки изнутри
+lead: "Компилятор Svelte превращает шаблон в клонирование готового HTML и прямые записи в узлы, а руны — в граф сигналов. Как этот граф помечает «грязное» битами и одним счётчиком записей, почему запись ничего не пересчитывает до микрозадачи, чем `$state` с объектом отличается от `$state.raw` и что стало с `let` и `$:`."
+leadWidth: 66
+summary: "Настоящий вывод `svelte/compiler` 5.57.1 для компонента со списком, флаги `CLEAN`/`DIRTY`/`MAYBE_DIRTY` и номера записей, пакет и `flushSync`, порядок шаблона и `$effect`, Proxy против `$state.raw`, `{#each}` с ключом и без, режим совместимости — и мини-руны, которые на девяти сценариях дают тот же журнал, что Svelte."
+verifiedOn: "svelte 5.57.1, happy-dom 20.14.5, Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: вывод компилятора, журналы сценариев и счётчики компонентов пересобираются tests/unit/svelte-runes.test.ts; мини-руны сверены с svelte/internal/client на всех сценариях"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Вывод компилятора }
+  - { id: s2, label: Граф и флаги }
+  - { id: s3, label: Пакет и сброс }
+  - { id: s4, label: Proxy и raw }
+  - { id: s5, label: $effect и $derived }
+  - { id: s6, label: Списки с ключом }
+  - { id: s7, label: Против Svelte 4 }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import SvelteLab from '@/widgets/svelte-lab/ui/SvelteLab.vue';
+import {
+  INTRO_NOTE,
+  PLAIN_INTRO,
+  GLOSSARY,
+  PREREQ,
+  TODOS_SRC,
+  TODOS_OUT,
+  OUT_NOTES,
+  PARENT_SRC,
+  PARENT_OUT,
+  COST_HEAD,
+  COST_ROWS,
+  COST_NOTE,
+  GRAPH_LEAD,
+  PLAIN_FLAGS,
+  STEP_FLAGS,
+  STEP_SOURCE,
+  SOURCE_NOTE,
+  STEP_DERIVED,
+  DERIVED_NOTE,
+  COMPARE_HEAD,
+  COMPARE_ROWS,
+  COMPARE_NOTE,
+  PLAIN_BATCH,
+  STEP_EFFECT,
+  STEP_BATCH,
+  BATCH_NOTE,
+  ORDER_NOTE,
+  FLUSHSYNC_NOTE,
+  MINI_RUNES_CODE,
+  SCENARIOS,
+  SYNC_SCENARIO,
+  CLEANUP_SCENARIO,
+  DEMO_CAPTION,
+  PROXY_LEAD,
+  PLAIN_PROXY,
+  STEP_PROXY,
+  STEP_EXPORT,
+  CART_SRC,
+  CART_OUT,
+  CART_CLICKS,
+  PROXY_FACTS,
+  RAW_NOTE,
+  SYNC_NOTE,
+  EFFECT_VS_HEAD,
+  EFFECT_VS_ROWS,
+  CLEANUP_NOTE,
+  PLAIN_KEY,
+  EACH_HEAD,
+  EACH_ROWS,
+  EACH_NOTE,
+  LEGACY_SRC,
+  RUNES_SRC,
+  LEGACY_OUT,
+  ORDER_LEGACY,
+  ORDER_RUNES,
+  LEGACY_OUT_NOTES,
+  LEGACY_HEAD,
+  LEGACY_ROWS,
+  SVELTE4_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Один раз и точечно" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    В Svelte 5 нет ни виртуального DOM, ни повторного вызова компонента. Компилятор заранее
+    выписывает, какое место разметки от какого состояния зависит, а рантайм держит граф
+    сигналов и в ближайшей микрозадаче выполняет только то, что запись пометила «грязным».
+
+  </Callout>
+
+  <Md text={INTRO_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Что выдал компилятор"
+  lead="Сквозной пример — список дел: проп, состояние, производное значение, эффект и список с ключом. Вывод `svelte/compiler` напечатан целиком. В нём нет функции render и дерева описаний — только клон готового HTML, дорога к нужным узлам и эффекты, которые пишут в эти узлы."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Исходник: Todos.svelte" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TODOS_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод компилятора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TODOS_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={290} gap={14} align="start">
+    {OUT_NOTES.map((note) => (
+      <Card title={note.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={note.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Проп от родителя
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="App.svelte" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PARENT_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод компилятора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PARENT_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  Дочерний компонент — просто вызов функции `Todos(node, props)`. Объект пропов собран
+  из геттеров: `title` при каждом чтении зовёт `$.get(name)`. Когда эффект `<h2>` внутри
+  `Todos` читает `$$props.title`, он читает состояние родителя — и подписывается на него
+  напрямую, без посредников.
+
+  ### Сколько стоит одно действие
+
+  <Table
+    head={COST_HEAD}
+    rows={COST_ROWS}
+    kinds={['prose', 'mono', 'prose', 'prose', 'mono', 'prose']}
+    cols="minmax(170px,1.3fr) minmax(80px,.5fr) minmax(150px,1.1fr) minmax(120px,.9fr) minmax(70px,.4fr) minmax(120px,.8fr)"
+    minWidth={780}
+  />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={COST_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Руны как сигналы: граф и флаги"
+  lead={GRAPH_LEAD}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLAGS} />
+
+  ### Биты и общие переменные
+
+  <CodeBlock code={STEP_FLAGS} />
+
+  ### Источник: `state`, `get`, `set`
+
+  <CodeBlock code={STEP_SOURCE} />
+
+  <Card pad={18} gap={11} size={15.5} lh={1.6} text={SOURCE_NOTE} />
+
+  ### `derived` и проверка «грязного»
+
+  <CodeBlock code={STEP_DERIVED} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DERIVED_NOTE} />
+
+  ### Чем это отличается от общей схемы
+
+  <Table
+    head={COMPARE_HEAD}
+    rows={COMPARE_ROWS}
+    kinds={['prose', 'muted', 'prose']}
+    cols="minmax(150px,.7fr) minmax(200px,1fr) minmax(260px,1.4fr)"
+    minWidth={640}
+  />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55} text={COMPARE_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Пакет, сброс и flushSync"
+  lead="`$.set` ничего не пересчитывает и не трогает DOM: он помечает граф и заводит пакет. Пакет сбрасывается в микрозадаче — одной на все записи, сделанные подряд. Сброс обходит дерево эффектов и выполняет помеченные: сначала шаблонные, потом `$effect`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BATCH} />
+
+  ### Эффекты
+
+  <CodeBlock code={STEP_EFFECT} />
+
+  ### Пакет и сброс
+
+  <CodeBlock code={STEP_BATCH} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Пакет — это синхронный код" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={BATCH_NOTE} />
+
+    <Card title="Шаблон раньше `$effect`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={ORDER_NOTE} />
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={FLUSHSYNC_NOTE} />
+
+  ### Вживую: мини-руны и Svelte 5.57.1 на одних сценариях
+
+  <SvelteLab client:visible miniCode={MINI_RUNES_CODE} scenarios={SCENARIOS} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="`$state` и Proxy, `$state.raw` без него"
+  lead={PROXY_LEAD}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+
+  <CodeBlock code={STEP_PROXY} />
+
+  <Card title="Хвост мини-рун: корень и экспорт" titleSize={16} pad={18} radius={5} gap={10} size={15.5}>
+    <CodeBlock code={STEP_EXPORT} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Оба вида в одном компоненте
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Cart.svelte" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CART_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод компилятора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CART_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['клик', 'кнопки после клика']}
+    rows={CART_CLICKS.map((c) => [c.click, c.buttons.join(' · ')])}
+    kinds={['prose', 'mono']}
+    cols="minmax(180px,.8fr) minmax(240px,1.2fr)"
+    minWidth={460}
+  />
+
+  <CardGrid min={290} gap={14} align="start">
+    {PROXY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55} text={RAW_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="`$effect` против `$derived`"
+  lead="Значение, которое вычисляется из другого, можно держать в `$derived`, а можно записывать из `$effect`. Второе работает — но шаблон успевает показать несогласованную пару, и работы становится вдвое больше."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сценарий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SYNC_SCENARIO.code} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Журнал Svelte 5.57.1" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SYNC_SCENARIO.svelte.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SYNC_NOTE} />
+
+  <Table
+    head={EFFECT_VS_HEAD}
+    rows={EFFECT_VS_ROWS}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={620}
+  />
+
+  ### Очистка эффекта
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сценарий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CLEANUP_SCENARIO.code} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Журнал Svelte 5.57.1" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CLEANUP_SCENARIO.svelte.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={CLEANUP_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="`{#each}` с ключом и без"
+  lead="`{#each}` — отдельный блок со своим эффектом: он читает массив и сопоставляет элементы с узлами. С ключом перестановка переносит узлы `<li>`, без ключа — оставляет узлы на местах и переписывает в них текст. Пример — кнопка «перевернуть» в `Todos`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEY} />
+
+  <Table
+    head={EACH_HEAD}
+    rows={EACH_ROWS}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={640}
+  />
+
+  <Md text={EACH_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Что изменилось против Svelte 4"
+  lead="В Svelte 4 реактивной была любая переменная `let` верхнего уровня, а `$:` помечал реактивные выражения. Svelte 5 компилирует такой компонент в режиме совместимости, и по выводу видно, чем старая модель отличается от рун."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="let и $:" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LEGACY_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={ORDER_LEGACY.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Руны" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RUNES_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={ORDER_RUNES.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Вывод в режиме совместимости
+
+  <CodeBlock code={LEGACY_OUT} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {LEGACY_OUT_NOTES.map((note) => (
+      <Card title={note.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={note.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={LEGACY_HEAD}
+    rows={LEGACY_ROWS}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(230px,1.2fr) minmax(230px,1.2fr)"
+    minWidth={640}
+  />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55} text={SVELTE4_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Руны перенесли реактивность из компилятора в рантайм.** Компилятор по-прежнему
+      превращает разметку в клон HTML и эффекты на узлах, но зависимости больше не выписывает
+      из текста — их собирает граф при выполнении. Поэтому реактивность работает в функциях,
+      в классах и в модулях `.svelte.js`, а не только на верхнем уровне компонента.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

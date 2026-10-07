@@ -1,0 +1,198 @@
+---
+/**
+ * Страница товара под предрендером: строка кода × момент — схема к «Одна страница товара —
+ * от наведения до клика».
+ *
+ * Строки схемы — четыре строки скрипта страницы из `PRERENDER_SCENE_CODE`, столбцы — моменты:
+ * невидимая загрузка, через секунду, клик и «клика нет». Одним взглядом видно то, что
+ * в тексте разнесено по шагам и трём исходам: три строки из четырёх **уже выполнились**
+ * до клика, а придержана браузером только одна — кадр.
+ *
+ * На узком экране шапка моментов уходит, и название момента приезжает в каждую клетку.
+ * Все строки — из `data.ts` темы, печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+import type { PrerenderDiagramData } from '../model/types';
+
+interface Props {
+  diagram: PrerenderDiagramData;
+}
+
+const { diagram } = Astro.props;
+---
+
+<figure class="ipd-frame" style={`--ipd-cols:${diagram.moments.length}`}>
+  <div class="t-eyebrow t-eyebrow--panel">{diagram.title}</div>
+
+  <div class="ipd-grid">
+    <div class="ipd-row ipd-row--head">
+      <span class="ipd-code ipd-code--head">строка скрипта</span>
+      {
+        diagram.moments.map((m) => (
+          <span class="ipd-moment">
+            <span class="ipd-moment__k" set:html={inlineMd(m.k)} />
+            <span class="ipd-moment__ev" set:html={inlineMd(m.events)} />
+          </span>
+        ))
+      }
+    </div>
+
+    {
+      diagram.lines.map((line) => (
+        <section class="ipd-row">
+          <span class="ipd-code" set:html={inlineMd(line.code)} />
+          <div class="ipd-cells">
+            {line.cells.map((cell, i) => (
+              <div class={`ipd-cell ipd--${cell.tone}`}>
+                <span class="ipd-who" set:html={inlineMd(diagram.moments[i]?.k ?? '')} />
+                <span set:html={inlineMd(cell.text)} />
+              </div>
+            ))}
+          </div>
+        </section>
+      ))
+    }
+  </div>
+
+  <figcaption class="ipd-caption" set:html={inlineMd(diagram.caption)} />
+</figure>
+
+<style>
+  .ipd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .ipd-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Клетки встают прямо в сетку строки (`display: contents`) — столбцы шапки и строк
+     совпадают без подсетки. */
+  .ipd-row {
+    display: grid;
+    grid-template-columns: minmax(170px, 1.5fr) repeat(var(--ipd-cols), minmax(0, 1fr));
+    gap: 10px;
+    align-items: stretch;
+  }
+  .ipd-row + .ipd-row {
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
+  }
+  .ipd-cells {
+    display: contents;
+  }
+
+  .ipd-code {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    color: var(--ink);
+  }
+  .ipd-code--head {
+    font-family: inherit;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .ipd-moment {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .ipd-moment__k {
+    font-size: var(--fs-3);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .ipd-moment__ev {
+    font-size: var(--fs-3);
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+
+  .ipd-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    font-size: var(--fs-3);
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+  .ipd--info {
+    border-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-strong);
+  }
+  .ipd--warn {
+    border-color: var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .ipd--err {
+    border-color: var(--tone-err-line);
+    background: var(--tone-err-bg);
+    color: var(--tone-err-strong);
+  }
+  .ipd--ok {
+    border-color: var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  /* Придержано браузером: пунктир — «место есть, но ничего не случилось». */
+  .ipd--held {
+    border: 1.5px dashed var(--border-strong);
+    color: var(--text-muted);
+  }
+  .ipd--none {
+    border-style: dashed;
+    border-color: var(--hairline);
+    color: var(--text-faint);
+  }
+  .ipd-who {
+    display: none;
+    font-weight: 600;
+  }
+
+  .ipd-caption {
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  /* Узко: шапка остаётся сводкой событий по моментам, а название момента приезжает
+     в каждую клетку — иначе строки потеряли бы, к какому моменту они относятся. */
+  @media (max-width: 860px) {
+    .ipd-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ipd-row--head {
+      grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+    }
+    .ipd-code--head {
+      display: none;
+    }
+    .ipd-cells {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+      gap: 8px;
+    }
+    .ipd-who {
+      display: block;
+    }
+  }
+</style>

@@ -1,0 +1,860 @@
+---
+title: Объектная модель
+order: 1
+lead: "Объект — это набор свойств плюс ссылка на другой объект. Классы, символы, итераторы и прокси новой сущности не принесли: они надстроены над этим и в это же разворачиваются."
+leadWidth: 66
+summary: "Четыре слоя модели, `[[Get]]` и `[[Set]]` по шагам, порядок инициализации класса и декораторы, дескрипторы и замки, символы, генератор как корутина, ленивые итераторы, прокси как перехват внутренних методов."
+verifiedOn: Node 26.8.2 · V8 14.6 · Apple M1
+nav:
+  - { id: s1, label: Модель }
+  - { id: s2, label: Прототипы }
+  - { id: s3, label: Наследование }
+  - { id: s4, label: Классы }
+  - { id: s5, label: Дескрипторы }
+  - { id: s6, label: Замки }
+  - { id: s7, label: Символы }
+  - { id: s8, label: Итераторы }
+  - { id: s9, label: Сломайте сами }
+  - { id: s10, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import ClassInit from '@/widgets/class-internals/ui/ClassInit.vue';
+import PrivateSlots from '@/widgets/class-internals/ui/PrivateSlots.astro';
+import GeneratorMachine from '@/widgets/generator-machine/ui/GeneratorMachine.vue';
+import LookupChain from '@/widgets/lookup-chain/ui/LookupChain.vue';
+import NewSteps from '@/widgets/object-anatomy/ui/NewSteps.astro';
+import ObjectAnatomy from '@/widgets/object-anatomy/ui/ObjectAnatomy.astro';
+import ObjectLayers from '@/widgets/object-layers/ui/ObjectLayers.astro';
+import SymbolMap from '@/widgets/symbol-map/ui/SymbolMap.vue';
+import PropertyMatrix from '@/widgets/property-matrix/ui/PropertyMatrix.astro';
+import PrototypeMap from '@/widgets/prototype-map/ui/PrototypeMap.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import LockLab from '@/widgets/lock-lab/ui/LockLab.vue';
+import EnumProbe from '@/widgets/enum-probe/ui/EnumProbe.vue';
+import KeyOrder from '@/widgets/key-order/ui/KeyOrder.vue';
+import SnippetLab from '@/widgets/snippet-lab/ui/SnippetLab.vue';
+import IterProtocol from '@/widgets/iter-protocol/ui/IterProtocol.vue';
+import InstanceofLab from '@/widgets/instanceof-lab/ui/InstanceofLab.vue';
+import SetAlgorithm from '@/widgets/set-algorithm/ui/SetAlgorithm.vue';
+import SetExits from '@/widgets/set-algorithm/ui/SetExits.astro';
+import {
+  LAYERS, LAYERS_LEAD, GLOSSARY,
+  ANATOMY_SLOTS, ANATOMY_PROPS, ANATOMY_CHAIN, ANATOMY_FACTS, ANATOMY_READING_HEAD, ANATOMY_READING,
+  SAMPLE_CODE, HIDDEN_KEYS, SET_DEMO_NOTE,
+  NEW_TARGET_NOTE, PRIVATE_CODE,
+  TO_PRIMITIVE_HINT_NOTE,
+  INIT_BUG_CODE, INIT_BUG_NOTE, CI_DEMO_NOTE, PRIVATE_DEMO_NOTE,
+  SYMBOL_DEMO_NOTE, ITER_DEMO_NOTE, GEN_DEMO_NOTE, LAB_DEMO_NOTE,
+  PLAIN_BRACKETS, PLAIN_DESCRIPTOR, PLAIN_RECEIVER, PLAIN_SET,
+  GET_CHAIN, GET_KEYS, GET_VALUES, GET_NOTES,
+  SET_SCENARIOS, SET_NOTE, NEW_STEPS, NEW_NOTE, NEW_NOTE_CODE,
+  PROTO_VS_PROTOTYPE, PROTO_VS_NOTE, PROTO_CODE, PROTO_THREE, PROTO_THREE_LEAD, PROTO_LITERAL_RULE,
+  INSTANCEOF_STEPS, INSTANCEOF_NOTE, INSTANCEOF_BREAKS, INSTANCEOF_ALTS,
+  SETPROTO_CHIPS, SETPROTO_NOTE,
+  CLASS_DIFFS, SUPER_LEAD, SUPER_VIA_THIS_CODE, SUPER_VIA_THIS_NOTE, SUPER_REAL_CODE, HOME_OBJECT_LEAD, HOME_OBJECT_CODE, HOME_OBJECT_FACTS, HOME_OBJECT_NOTE,
+  STATIC_BLOCK_LEAD, STATIC_BLOCK_CODE, STATIC_BLOCK_FACTS,
+  CI_BASE, CI_CHILD, CI_STEPS, CI_NOTE,
+  PRIVATE_SLOT, PRIVATE_PROBES, PRIVATE_FACTS,
+  DESC_DATA, DESC_ACCESSOR, DESC_MIX_NOTE, DESC_DEFAULTS,
+  DESC_TRANSITIONS, DESC_TRANSITIONS_NOTE,
+  TWO_OPS, TWO_OPS_NOTE,
+  LOCK_HEAD, LOCK_ROWS, LOCK_NOTES,
+  ENUM_HEAD, ENUM_ROWS, ENUM_NOTES,
+  KEY_ORDER_CODE, KEY_ORDER_CHIPS, KEY_ORDER_RULES, KEY_ORDER_NOTE,
+  SYMBOL_PROBE, SYMBOL_NOTE, WELL_KNOWN,
+  TO_PRIMITIVE_HINTS, TO_PRIMITIVE_NOTE, SYMBOL_FOR_NOTE,
+  ITER_TERMS, ITER_PROTOCOL_CHIPS, ITER_RETURN_NOTE, ONCE_CODE, FACTORY_CODE, COROUTINE_NOTE,
+  GEN_CODE, GEN_LINES, GEN_LABELS, GEN_FACTS,
+  LAB_SNIPPETS,
+  SOURCES,
+  WEAKMAP_PRIVATE_CODE, PLAIN_WEAKMAP, WEAKMAP_VS_SLOT,
+  DECORATOR_LEAD, PLAIN_DECORATOR, DECORATOR_CODE, DECORATOR_NOTE, DECORATOR_INIT_CODE, DECORATOR_INIT_NOTE, DECORATOR_PRIVATE_CODE, DECORATOR_PRIVATE_NOTE, DECORATOR_FACTS,
+  ITER_HELPERS_CODE, PLAIN_ITER_HELPERS, ITER_HELPERS_FACTS,
+  HOOK_CODE, HOOK_WHY, HOOK_NOTE, DOG_INSPECT, DOG_FIELDS_NOTE, CLASS_IS_CODE, CLASS_IS_NOTE,
+  PROTO_OPENER_CODE, PROTO_OPENER_NOTE, DESC_OPENER_CODE, DESC_OPENER_NOTE, LOCK_OPENER_CODE, LOCK_OPENER_NOTE,
+  LOOKUP_DEMO_NOTE, INSTANCEOF_DEMO_NOTE, ENUM_DEMO_NOTE, KEY_ORDER_DEMO_NOTE,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Сквозной пример"
+>
+  {/* Словарь идёт первым, а не после карты. Карта показывает, как устроена тема; словарь
+      нужен, чтобы понять саму карту — «слот», «внутренний метод» и «дескриптор» стоят прямо
+      в её подписях. Читатель, встретивший карту первой, читает её словами, которых ещё
+      не знает, и возвращается наверх.
+
+      ⚠️ Лида у раздела нет намеренно. Здесь стояло «Сначала четыре слова, потом карта слоёв» —
+      фраза, пересказывавшая порядок того, что читатель и так видит ниже: оглавление из двух
+      пунктов над двумя пунктами. Подзаголовки говорят то же самое и стоят на своих местах.
+
+      ⚠️ И не ставьте комментарий между атрибутами `<Section …>`: внутри открывающего тега
+      JSX комментариев не бывает, сборка падает на разборе. Место комментария — здесь, в теле. */}
+  Вся тема разбирает один объект — `dog`. Вот код, который его создаёт:
+
+  <CodeBlock code={SAMPLE_CODE} size={12} />
+
+  <CodeBlock code={DOG_INSPECT} size={12.5} />
+
+  <Md text={DOG_FIELDS_NOTE} />
+
+  <CodeBlock code={HOOK_CODE} size={12.5} />
+
+  <NumberedList items={HOOK_WHY} size={15.5} />
+
+  <Md text={HOOK_NOTE} />
+
+  ### Глоссарий
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Карта темы: четыре слоя
+
+  <Md text={LAYERS_LEAD} />
+
+  <ObjectLayers layers={LAYERS} />
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Модель: объект и его окружение"
+  lead="`new Dog('Шарик')` создаёт обычный объект; класс лишь описывает, что в него положить. В `dog` оказываются три собственных свойства — `name`, `age` и `Symbol(id)`, — внутренние поля, которых из кода не видно (среди них приватное `#age`), и ссылка на прототип `Dog.prototype`. Если ключа нет в самом `dog`, чтение идёт по этой ссылке дальше: в `Dog.prototype`, затем в `Animal.prototype`."
+>
+  {/* ⚠️ Раздел начинается с исходника, и это главная правка захода.
+      Раньше он открывался схемой готового объекта: читатель видел слот, приватное поле,
+      аксессор и геттер в прототипе — но кода, который всё это создаёт, в теме не было
+      ни строки. Классы приходилось достраивать в голове по обрывкам из схемы и демо.
+      Теперь у каждой строки схемы и каждого ключа обоих демо есть источник, и он перед
+      глазами. */}
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BRACKETS} />
+
+  ### Что происходит при `new Dog('Шарик')`
+
+  {/* ⚠️ Шаги `new` стояли последними в разделе. Вопрос «откуда взялся dog» возникает
+      на первом экране, а ответ приходил через три — теперь он идёт сразу за кодом
+      и читается как «что произошло с этими строками». */}
+  <NewSteps steps={NEW_STEPS} />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} gap={12} size={16} lh={1.6}>
+    <Md text={NEW_NOTE} />
+    <CodeBlock code={NEW_NOTE_CODE} size={12.5} />
+  </Card>
+
+  ### Что получилось: объект и его окружение
+
+  <ObjectAnatomy
+    title="объект dog"
+    made="new Dog('Шарик')"
+    slots={ANATOMY_SLOTS}
+    props={ANATOMY_PROPS}
+    chain={ANATOMY_CHAIN}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DESCRIPTOR} />
+
+  <Table
+    head={ANATOMY_READING_HEAD}
+    rows={ANATOMY_READING}
+    cols="minmax(150px, .8fr) minmax(170px, 1fr) minmax(280px, 2.2fr)"
+    kinds={['mono', 'mono', 'prose']}
+    minWidth={640}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {ANATOMY_FACTS.map((fact) => (
+      <Card index={fact.n} title={fact.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" title="Два ключа, которых не видно" titleSize={17} pad={20} gap={12} size={16} lh={1.6} text={HIDDEN_KEYS} />
+
+  ### Как читается свойство: `obj.[[Get]]`
+
+  Ключ читается не «из объекта», а по цепочке — до первого, кто его знает.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RECEIVER} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={LOOKUP_DEMO_NOTE} />
+  </Card>
+
+  <LookupChain client:visible chain={GET_CHAIN} keys={GET_KEYS} values={GET_VALUES} />
+
+  <CardGrid min={280} gap={14}>
+    {GET_NOTES.map((note) => (
+      <Card title={note.t} titleSize={16} pad={16} radius={4} gap={9} size={15} lh={1.55} text={note.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Запись — не зеркало чтения
+
+  Часто говорят: «чтение идёт по цепочке, а запись — нет». По результату похоже на правду —
+  запись обычно кладёт свойство прямо на сам объект. Но цепочку она всё равно проходит,
+  и ищет в ней не значение, а причину своего свойства **не** создавать. Причин ровно три.
+
+  <SetExits />
+
+  {/* ⚠️ Здесь стояла карточка «Обратите внимание: первые две проверки смотрят весь путь
+      до null, а третья — только сам объект». Её содержание целиком вошло во врезку ниже,
+      последней фразой: два объяснения одного правила подряд читаются как муть. */}
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SET} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SET_DEMO_NOTE} />
+  </Card>
+
+  <SetAlgorithm client:visible scenarios={SET_SCENARIOS} sample={SAMPLE_CODE} objectName="dog" protoName="Animal.prototype" />
+
+  {/* ⚠️ Отсюда убрана карточка «Главное в сценарии `writable: false`»: она почти дословно
+      повторяла итог того же сценария внутри демо. Следствие про `Object.freeze` осталось —
+      оно про другое и в демо не показано. */}
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SET_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Прототипы"
+  lead="Два похожих имени в разные места: слот `[[Prototype]]`, по которому идёт поиск, и обычное свойство `prototype`, которое станет слотом будущих экземпляров."
+>
+  <CodeBlock code={PROTO_OPENER_CODE} size={12.5} />
+
+  <Md text={PROTO_OPENER_NOTE} />
+
+  <CardGrid min={280} gap={16} align="start">
+    {PROTO_VS_PROTOTYPE.map((item) => (
+      <Card label={item.k} labelSize={13} title={item.kind} titleSize={16} pad={18} gap={11} size={15}>
+        <Md text={item.note} />
+        <CodeBlock code={item.code} size={12.5} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PROTO_VS_NOTE} />
+  </Card>
+
+  ### Полная карта связей · `class B extends A {}`
+
+  <PrototypeMap />
+
+  <Card pad={20} radius={5} gap={13} size={16} lh={1.6}>
+
+    {/* ⚠️ Здесь стояло «Левый столбец — родитель, правый — потомок»: описание раскладки
+        картинки вместо предмета. На узком экране сетка складывается в одну колонку,
+        и «левый/правый» перестаёт значить что-либо — та же ошибка, что уже правилась
+        в подписи к демо чтения. */}
+    У наследования **две** связи, а не одна. `B.prototype` смотрит в `A.prototype` — по ней
+    экземпляр находит методы родителя. И сама функция `B` смотрит в `A` — по этой связи
+    наследник получает статические методы.
+
+    <CodeBlock code={PROTO_CODE} size={12} />
+
+
+    Старые ES5-паттерны наследования заводили только нижнюю. Отсюда классическое
+    «статический метод родителя не виден у наследника».
+
+  </Card>
+
+  ### `__proto__`: три способа написать одно имя — три разных результата
+
+  <Md text={PROTO_THREE_LEAD} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {PROTO_THREE.map((item) => (
+      <Card tone={item.tone} color="tone" title={item.t} titleSize={16} pad={16} radius={4} gap={10} size={15} lh={1.55}>
+        <CodeBlock code={item.code} size={12.5} />
+        <Md text={item.note} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PROTO_LITERAL_RULE} />
+  </Card>
+
+  ### Объект без прототипа
+
+  {/* ⚠️ Здесь стояли «Что выбрать под словарь» (таблица и три цены) и `Object.groupBy`.
+      2026-10-03 они переехали в тему «Коллекции»: автор курса спросил, почему выбор
+      словаря разбирается в «Прототипах». Здесь осталось то, что следует из цепочки. */}
+  `Object.create(null)` создаёт объект, у которого вместо прототипа `null`: цепочка кончается
+  сразу, и `obj["toString"]` или `obj["__proto__"]` отвечают только тем, что положили сами.
+  Так делают словари для ключей из внешнего мира. Цена — всё, что жило в `Object.prototype`,
+  пропадает тоже: `String(obj)` бросает `TypeError`, `hasOwnProperty` нет. Когда брать такой
+  объект, а когда `Map`, — в теме [«Коллекции», раздел «Объект как словарь»](/js/collections/#s1).
+
+  ### Почему `setPrototypeOf` дорог
+
+  <Card tone="err" pad={20} gap={13} size={16} lh={1.6}>
+
+    Дело не в самой операции — она копеечная. Дело в том, что она делает с уже проделанной
+    движком работой.
+
+    <FlowChips chips={SETPROTO_CHIPS} minWidth={760} />
+
+    <Md text={SETPROTO_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Наследование и `instanceof`"
+  lead="Вопрос «чей это объект» язык решает не сравнением типов: он поднимается по той же цепочке прототипов и вызывает метод, который можно переопределить. Поэтому ответ `instanceof` зависит от того, что лежит в цепочке сейчас, а не от того, как объект создавали."
+  leadWidth={72}
+>
+  ### `instanceof` не проверяет тип — он вызывает метод
+
+  <Card pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <NumberedList items={INSTANCEOF_STEPS} size={15.5} />
+
+    <CardNote tone="info"><Md text={INSTANCEOF_NOTE} /></CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={INSTANCEOF_DEMO_NOTE} />
+  </Card>
+
+  <InstanceofLab client:visible />
+
+  ### Где `instanceof` отвечает не то
+
+  <CardGrid min={280} gap={12}>
+    {INSTANCEOF_BREAKS.map((item) => (
+      <Card tone="err" title={item.t} titleSize={16} pad={16} radius={4} gap={8} size={15} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={['вместо instanceof', 'что именно спрашивает']}
+    rows={INSTANCEOF_ALTS}
+    kinds={['mono', 'muted']}
+    cols="minmax(230px,1fr) minmax(240px,1.3fr)"
+    minWidth={520}
+  />
+
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Классы: функция с особыми правилами"
+  lead="Класс — это та же функция-конструктор с объектом `prototype`: новой сущности в модель он не добавил. Но записать его через `function` один в один не получится — у класса восемь отличий, которые видно из кода."
+>
+  ### Что на самом деле создаёт `class`
+
+  <CodeBlock code={CLASS_IS_CODE} size={12.5} />
+
+  <Md text={CLASS_IS_NOTE} />
+
+  ### Восемь отличий от функции
+
+  <CardGrid min={290} gap={14} align="start">
+    {CLASS_DIFFS.map((diff) => (
+      <Card index={`№${diff.n}`} title={diff.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={diff.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="`super` не имеет отношения к `this`" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    <Md text={SUPER_LEAD} />
+
+    <CodeBlock code={SUPER_VIA_THIS_CODE} size={12} />
+
+    <Md text={SUPER_VIA_THIS_NOTE} />
+
+    <CodeBlock code={SUPER_REAL_CODE} size={12} />
+
+    <Md text={HOME_OBJECT_LEAD} />
+
+    <CodeBlock code={HOME_OBJECT_CODE} size={12} />
+
+    <CardGrid min={230} gap={10}>
+      {HOME_OBJECT_FACTS.map((fact) => (
+        <Card tone="info" color="tone" label={fact.k} labelTone="tone" labelSize={12} pad={13} radius={4} gap={7} size={14.5} text={fact.d} />
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="err"><Md text={HOME_OBJECT_NOTE} /></CardNote>
+  </Card>
+
+  ### Статический блок: доступ к приватному полю для своих
+
+  <Card pad={22} radius={5} gap={14} size={16} lh={1.6}>
+
+    <Md text={STATIC_BLOCK_LEAD} />
+
+    <CodeBlock code={STATIC_BLOCK_CODE} size={12} />
+
+    <CardGrid min={230} gap={10}>
+      {STATIC_BLOCK_FACTS.map((fact) => (
+        <Card tone="info" color="tone" label={fact.k} labelTone="tone" labelSize={12} pad={13} radius={4} gap={7} size={14.5} text={fact.d} />
+
+      ))}
+
+    </CardGrid>
+  </Card>
+  ### Порядок инициализации: почему «работало, пока не добавили поле»
+
+  Поля подкласса создаются **после** возврата из `super()`. Всё, что родительский
+  конструктор успел вызвать, их не увидит, — а то, что вызванный метод успел записать, поле затрёт.
+
+  <CodeBlock code={INIT_BUG_CODE} />
+
+  <Md text={INIT_BUG_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={NEW_TARGET_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CI_DEMO_NOTE} />
+  </Card>
+
+  <ClassInit client:visible base={CI_BASE} child={CI_CHILD} steps={CI_STEPS} />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={CI_NOTE} />
+  </Callout>
+  ### `#`-поля — это не свойства
+
+  <CodeBlock code={PRIVATE_CODE} size={12} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PRIVATE_DEMO_NOTE} />
+  </Card>
+
+  <PrivateSlots title="экземпляр Temperature" slot={PRIVATE_SLOT} probes={PRIVATE_PROBES} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PRIVATE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### До `#`-полей: приватность через `WeakMap`
+
+  <CodeBlock code={WEAKMAP_PRIVATE_CODE} size={12} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WEAKMAP} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {WEAKMAP_VS_SLOT.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16} pad={17} radius={4} gap={9} size={15} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Декораторы: функция, которая правит класс при сборке
+
+  <Md text={DECORATOR_LEAD} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DECORATOR} />
+
+  <CodeBlock code={DECORATOR_CODE} size={12} />
+
+  <Md text={DECORATOR_NOTE} />
+
+  <CodeBlock code={DECORATOR_INIT_CODE} size={12} />
+
+  <Md text={DECORATOR_INIT_NOTE} />
+
+  <CodeBlock code={DECORATOR_PRIVATE_CODE} size={12} />
+
+  <Md text={DECORATOR_PRIVATE_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {DECORATOR_FACTS.map((fact) => (
+      <Card tone={fact.k === 'где это работает сегодня' ? 'warn' : 'info'} color="tone" label={fact.k} labelTone="tone" labelSize={12.5} pad={16} radius={4} gap={9} size={15} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Дескрипторы"
+  lead="У каждого свойства, кроме имени, есть дескриптор — описание того, что в свойстве лежит и что с ним можно делать. Дескриптор бывает двух видов: у свойства со значением в нём лежит `value`, у аксессора — функции `get` и `set`. Совместить их в одном свойстве нельзя."
+>
+  <CodeBlock code={DESC_OPENER_CODE} size={12.5} />
+
+  <Md text={DESC_OPENER_NOTE} />
+
+  <CardGrid min={280} gap={16} align="start">
+    {/* ⚠️ Подписи были английскими — `data property` / `accessor property`, — хотя вся
+        остальная тема говорит «свойство со значением» и «аксессор». Имена из спецификации
+        оставлены в скобках: читатель встретит их в таблицах ECMA-262. */}
+    <Card label="поля дескриптора: свойство со значением · data property" labelSize={13} pad={18} gap={11} size={15}>
+      {DESC_DATA.map((flag) => (
+        <Card tone="dim" color="prose" label={flag.k} labelTone="tone" labelSize={12} pad={12} radius={4} gap={5} size={14.5} text={flag.d} />
+
+      ))}
+
+    </Card>
+
+    <Card label="поля дескриптора: аксессор · accessor property" labelSize={13} pad={18} gap={11} size={15}>
+      {DESC_ACCESSOR.map((flag) => (
+        <Card tone="dim" color="prose" label={flag.k} labelTone="tone" labelSize={12} pad={12} radius={4} gap={5} size={14.5} text={flag.d} />
+
+      ))}
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="14px 16px" radius={4} size={15.5}>
+    <Md text={DESC_MIX_NOTE} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {DESC_DEFAULTS.map((item) => (
+      <Card tone={item.tone} label={item.k} labelTone="tone" labelSize={12.5} pad={18} radius={5} gap={11} size={15}>
+        <CheckList items={item.flags} tone={item.tone === 'ok' ? 'ok' : 'err'} size={14.5} />
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Что ещё законно после `configurable: false`
+
+  <Card pad={20} radius={5} gap={13}>
+    <CardGrid min={250} gap={12}>
+      {DESC_TRANSITIONS.map((item) => (
+        <Card tone={item.tone} color="tone" label={item.k} labelTone="tone" labelSize={12.5} pad={15} radius={4} gap={8} size={15} text={item.d} />
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="warn"><Md text={DESC_TRANSITIONS_NOTE} /></CardNote>
+  </Card>
+
+  ### Две операции, которые путают
+
+  <CardGrid min={290} gap={16} align="start">
+    {TWO_OPS.map((op) => (
+      <Card tone={op.tone} label={op.k} labelTone="tone" labelSize={13} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={op.d} />
+        <CardNote tone={op.tone}>{op.who.join(' · ')}</CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TWO_OPS_NOTE} />
+  </Card>
+
+  ### Где предел у аксессора
+
+  Аксессор сторожит **один** ключ, и только тот, что уже есть. Ключа, добавленного позже,
+  он не видит: сторожить было нечего. `delete` не проходит ни через `get`, ни через `set`.
+  А `length` у массива — `configurable: false`, превратить его в аксессор нельзя. Ровно на
+  этом пределе споткнулся Vue 2, который строил реактивность на `defineProperty`; его дыры
+  и то, как их закрыл Vue 3, разобраны в [реактивности Vue](/frameworks/vue-reactivity/).
+
+  {/* ⚠️ До 2026-10-03 мысль ниже стояла отдельным разделом 9 «Proxy и Reflect». После выноса
+      прокси в свою тему (2026-10-02) от раздела остались лид, дословно повторявший лид той
+      темы, и перечень того, что там разобрано. Здесь оставлено только то, что связывает прокси
+      с моделью объекта, — там, где рассказ о `defineProperty` упирается в его предел.
+      2026-10-06 сняты три карточки о дырах Vue 2 (`VUE2_REASONS`): они повторяли таблицу
+      в «Реактивности Vue»; отсюда — ссылка, оттуда — ссылка обратно сюда. */}
+  `new Proxy(target, handler)` перехватывает не ключ, а операцию над объектом целиком:
+  каждый внутренний метод — `[[Get]]`, `[[Set]]`, `[[Delete]]`, `[[OwnPropertyKeys]]` —
+  сначала вызывает ловушку из `handler`, а `Reflect` выполняет ту же операцию «как было». Поэтому
+  прокси видит и ключи, которых ещё нет, и `delete`, и запись в `length`.
+
+  Чего прокси не умеет, тоже следует из модели. Сравнение ссылок, внутренние слоты и `#`-поля
+  к внутренним методам не относятся: `proxy !== target`, а методы `Map` и `Date` через прокси
+  падают. Ловушки, инварианты и мембрана — в теме [«Proxy и Reflect»](/js/proxy-reflect/).
+
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Замки и перечисление"
+  lead="Три уровня запирания, девять способов спросить «какие здесь ключи» и порядок, в котором они приходят — и он не «порядок добавления»."
+  leadWidth={72}
+>
+  <CodeBlock code={LOCK_OPENER_CODE} size={12.5} />
+
+  <Md text={LOCK_OPENER_NOTE} />
+
+  ### Три уровня запирания
+
+  <PropertyMatrix head={LOCK_HEAD} rows={LOCK_ROWS} mode="allow" minWidth={620} />
+
+  {/* ⚠️ Здесь стоял абзац «Таблица выше — сводка. Ниже та же таблица, но её никто не набирал:
+      каждая клетка получена выполнением…» — три указания на расположение блоков и оправдание
+      существования демо. Полезная половина (что показывает переключатель режима) уехала
+      в подпись к демо, остальное снято. */}
+
+  <LockLab client:visible />
+
+  <CardGrid min={260} gap={12}>
+    {LOCK_NOTES.map((note) => (
+      <Card tone="warn" title={note.t} titleSize={16} pad={16} radius={4} gap={8} size={15} text={note.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Кто что видит при перечислении
+
+  <PropertyMatrix head={ENUM_HEAD} rows={ENUM_ROWS} mode="see" minWidth={660} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ENUM_DEMO_NOTE} />
+  </Card>
+
+  <EnumProbe client:visible />
+
+  <CardGrid min={280} gap={12}>
+    {ENUM_NOTES.map((note) => (
+      <Card pad={16} radius={4} size={15.5} lh={1.55}>
+        <Md text={note} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Числовые ключи встают первыми, по возрастанию
+
+  `Object.keys`, `for…in`, `JSON.stringify` и `Reflect.ownKeys` отдают ключи объекта не в том
+  порядке, в каком их записали. Вот литерал и порядок, в котором вернутся его ключи:
+
+  <Card pad={20} radius={5} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={KEY_ORDER_CODE} size={12.5} />
+
+    <FlowChips chips={KEY_ORDER_CHIPS} minWidth={520} />
+
+    <NumberedList items={KEY_ORDER_RULES} size={15.5} />
+
+    <CardNote tone="warn"><Md text={KEY_ORDER_NOTE} /></CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={KEY_ORDER_DEMO_NOTE} />
+  </Card>
+
+  <KeyOrder client:visible />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Символы — точки расширения языка"
+  lead="Чтобы прочитать свойство с символьным ключом, нужно **иметь сам символ**: знать его описание мало, два `Symbol('id')` — разные ключи. Поэтому символьный ключ не столкнётся ни с чьим строковым. Ради этого символы и появились: авторы стандарта получили способ добавлять языку «магические» имена вроде `Symbol.iterator`, не ломая код, где уже был ключ `iterator`."
+  leadWidth={72}
+>
+  <Card tone="warn" title="Символ — это НЕ приватность" titleSize={17} pad={20} gap={13}>
+    <Table
+      head={['операция', 'что вернёт']}
+      rows={SYMBOL_PROBE}
+      kinds={['mono', 'muted']}
+      cols="minmax(220px,1fr) minmax(200px,1.1fr)"
+      minWidth={480}
+    />
+
+    <Md text={SYMBOL_NOTE} />
+  </Card>
+
+  ### Встроенные символы: как подключить объект к синтаксису языка
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SYMBOL_DEMO_NOTE} />
+  </Card>
+
+  <SymbolMap client:visible items={WELL_KNOWN} />
+
+  <CardGrid min={290} gap={16} align="start">
+    {/* ⚠️ Заголовок обещал «три hint’а» словом, которого читателю не объясняли.
+        Термин теперь вводится нотой первым делом, а карточки идут под ним. */}
+    <Card title="`Symbol.toPrimitive` — три подсказки" titleSize={16.5} pad={18} gap={11} size={15}>
+      <Md text={TO_PRIMITIVE_HINT_NOTE} />
+
+      {TO_PRIMITIVE_HINTS.map((hint) => (
+        <Card tone="info" color="tone" label={hint.k} labelTone="tone" labelSize={12} pad={12} radius={4} gap={5} size={14.5} text={hint.d} />
+
+      ))}
+
+      <CardNote tone="warn"><Md text={TO_PRIMITIVE_NOTE} /></CardNote>
+    </Card>
+
+    <Card title="`Symbol.for` — глобальный реестр" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <Md text={SYMBOL_FOR_NOTE} />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Итераторы и генераторы"
+  lead="Два интерфейса, которые постоянно путают: iterable — фабрика, iterator — состояние. Из этой разницы следует, почему объект-генератор одноразовый."
+>
+  <CardGrid min={280} gap={16} align="start">
+    {ITER_TERMS.map((term) => (
+      <Card label={term.k} labelSize={13} pad={18} gap={10} size={15.5} lh={1.6}>
+        <Md text={term.d} />
+        <CardNote tone="info"><Md text={term.tag} /></CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Цикл протокола" titleSize={17} pad={20} gap={14}>
+    <FlowChips chips={ITER_PROTOCOL_CHIPS} minWidth={680} />
+
+    <CardNote tone="ok">{ITER_RETURN_NOTE.map((text) => <Md text={text} />)}</CardNote>
+  </Card>
+
+  ### Протокол в работе
+
+  {/* ⚠️ Здесь стоял абзац о добросовестности демо: «цикл не описан, а прогнан… настоящий
+      ответ, не заготовка». Три предложения о том, как сделана страница, и ни одного
+      об итерации. Что в демо смотреть — сказано подписью под заголовком. */}
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ITER_DEMO_NOTE} />
+  </Card>
+
+  <IterProtocol client:visible />
+
+  <CardGrid min={280} gap={16} align="start">
+    <Card tone="err" title="Объект сам себе итератор — одноразовый" titleSize={16.5} pad={18} gap={11} size={15}>
+      <CodeBlock code={ONCE_CODE} />
+    </Card>
+
+    <Card tone="ok" title="Наружу отдавайте фабрику" titleSize={16.5} pad={18} gap={11} size={15}>
+      <CodeBlock code={FACTORY_CODE} />
+    </Card>
+  </CardGrid>
+
+  ### Помощники итераторов: ленивый конвейер
+
+  <CodeBlock code={ITER_HELPERS_CODE} size={12} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ITER_HELPERS} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {ITER_HELPERS_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Генератор — корутина, а не источник значений
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={COROUTINE_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={GEN_DEMO_NOTE} />
+  </Card>
+
+  <GeneratorMachine client:visible code={GEN_CODE} lineByPhase={GEN_LINES} labels={GEN_LABELS} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {GEN_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Сломайте сами"
+>
+  {/* ⚠️ До 2026-10-06 раздел назывался «Тонкие места» и начинался с `<Pitfalls>`; карточки сняты
+      по решению автора курса, песочница осталась.
+      ⚠️ Здесь стояло «Тема до сих пор показывала чужие прогоны…» — три предложения о том,
+      что тема делала раньше, чей браузер считает и как устроена песочница. Всё нужное
+      сказано подписью к самому демо. */}
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={LAB_DEMO_NOTE} />
+  </Card>
+
+  <SnippetLab client:visible snippets={LAB_SNIPPETS} />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Источники"
+>
+  {/* ⚠️ Раздел назывался «Что осталось за кадром» и держал семь пунктов с лидом о том, зачем
+      называть границы. Все семь раскрыты в разделах, которые они продолжают: `groupBy` — с 2026-10-03
+      в теме «Коллекции», `WeakMap`-приватность и декораторы — в «Классах», помощники итераторов
+      — в «Итераторах», `using` — с 2026-10-06 в теме «Память и GC». Полный список инвариантов и мембрана жили в «Proxy и Reflect»,
+      а с 2026-10-02 — в отдельной теме `/js/proxy-reflect/`.
+      Раздел был одиннадцатым; 2026-10-03, после снятия раздела о прокси, стал `s10`. */}
+  <Card pad={20} gap={12}>
+
+    Нормативные тексты и объяснения — вещи с разным сроком годности. Спецификация меняется
+    медленно и является последней инстанцией; статьи устаревают быстрее, но объясняют
+    мотивацию, которой в спецификации нет.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [движок V8](/js/v8-engine/) — форма объекта и инвалидация inline cache,
+    из-за которой дорог `setPrototypeOf`. [Реактивность Vue](/frameworks/vue-reactivity/) — те же
+    прокси на живом графе зависимостей. [Воркеры и параллелизм](/js/workers/) —
+    что `structuredClone` теряет от объекта и почему.
+    [Замыкания и области видимости](/js/closures/) — окружения, TDZ, `for (let)` и что V8 держит в контексте функции.
+    [Proxy и Reflect](/js/proxy-reflect/) — тринадцать ловушек, инварианты, реактивность на прокси и мембрана.
+    [Коллекции](/js/collections/) — `Map`, `Set`, словари на объектах и `Object.groupBy`.
+    [Безопасность бэкенда, раздел «Лишние поля»](/platform/backend-security/#s4) — prototype pollution через глубокое слияние и защиты от неё.
+
+  </Card>
+</Section>

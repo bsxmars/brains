@@ -1,0 +1,77 @@
+---
+/**
+ * Карточка внутри тёмной панели.
+ *
+ * Заголовок моноширинный и цветной — цвет здесь работает как ярлык: зелёный у того, что
+ * «умеет», янтарный у того, что «не умеет». Подпись снизу — приглушённая моно-строка,
+ * в оригинале ею подписывают, где эта штука встречается.
+ */
+type TitleTone = 'ok' | 'warn' | 'info' | 'err' | 'faint';
+
+interface Props {
+  title?: string;
+  titleTone?: TitleTone;
+  foot?: string;
+  pad?: number;
+  gap?: number;
+}
+
+const { title, titleTone = 'ok', foot, pad = 16, gap = 8 } = Astro.props;
+---
+
+<div class="dark-card" style={`--dc-pad:${pad}px;--dc-gap:${gap}px`}>
+  {title && <div class="title" data-tone={titleTone}>{title}</div>}
+  <div class="body"><slot /></div>
+  {foot && <div class="foot">{foot}</div>}
+</div>
+
+<style>
+  .dark-card {
+    --inline-code-bg: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: var(--dc-gap);
+    padding: var(--dc-pad);
+    border: 1px solid var(--ink-line);
+    border-radius: var(--r3);
+  }
+
+  .title {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+  }
+  .title[data-tone='ok'] {
+    color: var(--tone-ok-on-ink);
+  }
+  .title[data-tone='warn'] {
+    color: var(--tone-warn-on-ink);
+  }
+  .title[data-tone='info'] {
+    color: var(--tone-info-on-ink);
+  }
+  .title[data-tone='err'] {
+    color: var(--bar-red);
+  }
+  .title[data-tone='faint'] {
+    color: var(--ink-faint);
+  }
+
+  .body {
+    font-size: var(--fs-6);
+    line-height: 1.55;
+    color: var(--ink-prose);
+  }
+
+  /* Ссылка на чернилах. Акцент курса — фиолетовый `--accent`, и на `--ink` он даёт 3.2:1:
+     для ссылки в теле текста этого мало (порог 4.5:1). Светлый фиолетовый тоновой оттенок
+     того же семейства даёт 9.9:1 и остаётся узнаваемой ссылкой, а не просто текстом. */
+  .body :global(a) {
+    color: var(--tone-info-on-ink);
+  }
+
+  .foot {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--ink-faint);
+  }
+</style>

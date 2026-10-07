@@ -1,0 +1,291 @@
+---
+title: "Коллекции: Map, Set и словари"
+order: 29
+lead: "Обычный объект годится в словарь, пока ключи — простые строки из кода. Как только ключи приходят из данных, объект начинает их портить: превращает числа и объекты в строки, находит то, чего никто не клал, и меняет порядок. `Map` и `Set` — хеш-таблицы без этих бед. Как они устроены внутри, что видит `for…of`, когда таблицу меняют на ходу, и что выбрать под задачу."
+leadWidth: 66
+summary: "Три беды объекта-словаря и `Object.create(null)`; `Map`: любые ключи, SameValueZero, `getOrInsert`, мост в объект и в JSON; `Set` и методы `union`, `intersection`, `difference`; упорядоченная хеш-таблица V8 изнутри; обход с изменениями — от удалённого ключа до бесконечного цикла; `WeakMap` и `WeakSet`; что выбрать и `Object.groupBy` / `Map.groupBy`."
+verifiedOn: "Node 26.8.2 (V8 14.6); поддержка методов Set, getOrInsert, Map.groupBy и символов-ключей WeakMap — Chromium 153, Firefox 155, WebKit 26.6 (Playwright), октябрь 2026. Весь код темы исполняет tests/unit/collections.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Объект-словарь }
+  - { id: s2, label: Map }
+  - { id: s3, label: Set }
+  - { id: s4, label: Изнутри }
+  - { id: s5, label: Обход }
+  - { id: s6, label: Слабые }
+  - { id: s7, label: Что выбрать }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import CollectionKeys from '@/widgets/collection-keys/ui/CollectionKeys.vue';
+import MapIteration from '@/widgets/map-iteration/ui/MapIteration.vue';
+import {
+  PLAIN_COLLECTIONS, GLOSSARY, PREREQ, PREREQ_NOTE,
+  OBJ_DICT_CODE, OBJ_DICT_NOTE, PLAIN_NULL_PROTO, NULL_PROTO_CODE, NULL_PROTO_COSTS,
+  KEY_NOTES, KEYS_DEMO_NOTE,
+  MAP_CODE, MAP_NOTE, SAMEVALUE_CODE, SAMEVALUE_NOTE, MAP_VS_OBJ_HEAD, MAP_VS_OBJ,
+  UPSERT_CODE, UPSERT_NOTE, MAP_CONVERT_CODE, MAP_CONVERT_NOTE,
+  SET_CODE, SET_NOTE, SET_OPS_CODE, SET_OPS, SET_LIKE_CODE, SET_LIKE_NOTE,
+  INSIDE_LEAD, DEBUG_PRINT_CODE, INSIDE_PARTS, INSIDE_NOTE,
+  ORDER_CODE, ORDER_NOTE, ITER_SCENARIOS, ITER_DEMO_NOTE,
+  WEAK_CODE, WEAK_FACTS, WEAKSET_CODE, WEAKSET_NOTE,
+  DICT_ROWS, GROUPBY_CODE, PLAIN_GROUPBY, GROUPBY_FACTS,
+  PITFALLS, SOURCES, RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Ключ и значение" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Объект — это **запись**: набор полей, который знает код. `Map` — это **словарь**: набор
+    ключей, который знают данные. Пока ключи пишет программист, разницы почти нет. Когда ключи
+    приходят из запроса, файла или ввода пользователя, объект начинает отвечать не то.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COLLECTIONS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Объект как словарь"
+  lead="Объект не задумывался под ключи из данных, и это видно в трёх местах: ключ становится строкой, в пустом объекте уже что-то лежит, а порядок ключей — не порядок добавления."
+  leadWidth={72}
+>
+  <CodeBlock code={OBJ_DICT_CODE} size={12.5} />
+
+  <Md text={OBJ_DICT_NOTE} />
+
+  ### Объект без прототипа
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NULL_PROTO} />
+
+  <CodeBlock code={NULL_PROTO_CODE} size={12.5} />
+
+  <CardGrid min={250} gap={12}>
+    {NULL_PROTO_COSTS.map((item) => (
+      <Card tone="warn" color="tone" label={item.n} labelTone="tone" labelSize={12} pad={15} radius={4} gap={8} size={15} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Один ключ — три хранилища
+
+  <CollectionKeys client:visible notes={KEY_NOTES} caption={KEYS_DEMO_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Map: словарь с любыми ключами"
+  lead="`Map` хранит записи, а не свойства. Поэтому ключ остаётся тем, чем был, пустая таблица пуста, а порядок — порядок вставки."
+  leadWidth={72}
+>
+  <CodeBlock code={MAP_CODE} size={12.5} />
+
+  <Md text={MAP_NOTE} />
+
+  ### Какой ключ «тот же самый»
+
+  <CodeBlock code={SAMEVALUE_CODE} size={12.5} />
+
+  <Md text={SAMEVALUE_NOTE} />
+
+  ### Объект и `Map` по операциям
+
+  <Table
+    head={MAP_VS_OBJ_HEAD}
+    rows={MAP_VS_OBJ}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(110px,.6fr) minmax(220px,1.3fr) minmax(200px,1.1fr)"
+    minWidth={600}
+  />
+
+  ### Достать или положить: `getOrInsert`
+
+  <CodeBlock code={UPSERT_CODE} size={12.5} />
+
+  <Md text={UPSERT_NOTE} />
+
+  ### Мост в объект и в JSON
+
+  <CodeBlock code={MAP_CONVERT_CODE} size={12.5} />
+
+  <Md text={MAP_CONVERT_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Set: множество значений"
+  lead="`Set` — та же таблица, что у `Map`, только без значений: ключи и есть содержимое. С 2024 года у него наконец есть операции над множествами."
+  leadWidth={72}
+>
+  <CodeBlock code={SET_CODE} size={12.5} />
+
+  <Md text={SET_NOTE} />
+
+  ### Объединение, пересечение, разность
+
+  <CodeBlock code={SET_OPS_CODE} size={12.5} />
+
+  <CardGrid min={220} gap={10}>
+    {SET_OPS.map((op) => (
+      <Card label={op.k} labelSize={12.5} pad={14} radius={4} gap={6} size={15} text={op.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Аргумент — «как множество», а не обязательно `Set`
+
+  <CodeBlock code={SET_LIKE_CODE} size={12.5} />
+
+  <Md text={SET_LIKE_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Изнутри: таблица, которая помнит порядок"
+  lead={INSIDE_LEAD}
+  leadWidth={72}
+>
+  <CodeBlock code={DEBUG_PRINT_CODE} size={12.5} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {INSIDE_PARTS.map((part) => (
+      <Card title={part.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={part.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Md text={INSIDE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Обход: итератор идёт по живой таблице"
+  lead="`for…of` по `Map` не снимает копию ключей. Итератор помнит позицию в массиве записей и на каждом шаге идёт к следующей живой. Отсюда все правила: удалённое не придёт, добавленное придёт, а вставленное заново придёт ещё раз."
+  leadWidth={72}
+>
+  <CodeBlock code={ORDER_CODE} size={12.5} />
+
+  <Md text={ORDER_NOTE} />
+
+  ### Что меняется на ходу
+
+  <MapIteration client:visible scenarios={ITER_SCENARIOS} caption={ITER_DEMO_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="WeakMap и WeakSet: записи, которые не держат ключ"
+  lead="Слабая коллекция привязывает данные к объекту и не мешает сборщику его забрать. Плата — нельзя узнать, что в ней лежит, не зная ключа."
+  leadWidth={72}
+>
+  <CodeBlock code={WEAK_CODE} size={12.5} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {WEAK_FACTS.map((fact) => (
+      <Card tone="info" color="tone" label={fact.k} labelTone="tone" labelSize={12.5} pad={15} radius={4} gap={8} size={15} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### `WeakSet`: «уже видел»
+
+  <CodeBlock code={WEAKSET_CODE} size={12.5} />
+
+  <Md text={WEAKSET_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Что выбрать"
+  lead="Выбор задаёт не вкус, а откуда берутся ключи и что с ними будут делать."
+  leadWidth={72}
+>
+  <Table
+    head={['задача', 'чем решать']}
+    rows={DICT_ROWS}
+    kinds={['prose', 'mono']}
+    cols="minmax(260px,1.4fr) minmax(180px,1fr)"
+    minWidth={520}
+  />
+
+  ### `Object.groupBy` и `Map.groupBy`
+
+  <CodeBlock code={GROUPBY_CODE} size={12} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GROUPBY} />
+
+  <CardGrid min={250} gap={12} align="start">
+    {GROUPBY_FACTS.map((fact) => (
+      <Card tone="info" color="tone" label={fact.k} labelTone="tone" labelSize={12.5} pad={15} radius={4} gap={8} size={15} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

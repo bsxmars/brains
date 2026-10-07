@@ -1,0 +1,174 @@
+---
+/**
+ * Push против pull: две дорожки доставки одной и той же сборки.
+ *
+ * Таблица в теме сравнивает модели построчно; схема показывает то, что в таблице не
+ * видно, — **куда смотрит последняя стрелка**. В push она идёт в кластер сверху, от конвейера,
+ * у которого для этого есть ключ. В pull конвейер останавливается на Git, а стрелка между Git
+ * и кластером направлена вверх: инициатор — контроллер внутри кластера.
+ *
+ * Дорожки стоят рядом на широком экране и друг под другом на узком (`auto-fit`), каждая
+ * читается сверху вниз.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Lane {
+  name: string;
+  tone: 'warn' | 'ok';
+  nodes: { kind: 'ci' | 'git' | 'cluster' | 'arrow'; dir?: 'up' | 'down'; text: string }[];
+  foot: string[];
+}
+
+interface Props {
+  data: {
+    title: string;
+    lanes: Lane[];
+    caption: string;
+  };
+}
+
+const { data } = Astro.props;
+---
+
+<figure class="hgpp-frame">
+  <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
+
+  <div class="hgpp-lanes">
+    {
+      data.lanes.map((lane) => (
+        <section class="hgpp-lane" data-tone={lane.tone}>
+          <div class="hgpp-lane__name">{lane.name}</div>
+          {lane.nodes.map((node) =>
+            node.kind === 'arrow' ? (
+              <div class="hgpp-arrow" data-dir={node.dir}>
+                <span class="hgpp-arrow__glyph" aria-hidden="true">
+                  {node.dir === 'up' ? '↑' : '↓'}
+                </span>
+                <span set:html={inlineMd(node.text)} />
+              </div>
+            ) : (
+              <div class="hgpp-node" data-kind={node.kind} set:html={inlineMd(node.text)} />
+            ),
+          )}
+          <ul class="hgpp-foot">
+            {lane.foot.map((f) => (
+              <li set:html={inlineMd(f)} />
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+  </div>
+
+  <figcaption class="hgpp-caption" set:html={inlineMd(data.caption)} />
+</figure>
+
+<style>
+  .hgpp-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 24px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+  }
+  .hgpp-frame :global(code) {
+    font-size: 1em;
+  }
+
+  .hgpp-lanes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+    gap: 18px;
+  }
+  .hgpp-lane {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    border-radius: var(--r3);
+    background: var(--surface-2);
+  }
+  .hgpp-lane__name {
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .hgpp-lane[data-tone='warn'] .hgpp-lane__name {
+    color: var(--tone-warn-strong);
+  }
+  .hgpp-lane[data-tone='ok'] .hgpp-lane__name {
+    color: var(--tone-ok-strong);
+  }
+
+  .hgpp-node {
+    padding: 10px 13px;
+    border-radius: var(--r2);
+    background: var(--surface);
+    color: var(--prose);
+  }
+  .hgpp-node[data-kind='ci'] {
+    border: 1px solid var(--ink);
+  }
+  .hgpp-node[data-kind='git'] {
+    border: 1px solid var(--tone-info-line);
+    background: var(--tone-info-bg);
+    color: var(--tone-info-text);
+  }
+  /* Кластер — толще остальных: это граница, внутрь которой одна из схем пускает чужой ключ. */
+  .hgpp-node[data-kind='cluster'] {
+    border: 2px solid var(--ink);
+  }
+
+  .hgpp-arrow {
+    display: grid;
+    grid-template-columns: 1.4em 1fr;
+    gap: 6px;
+    align-items: center;
+    padding: 0 4px 0 10px;
+    font-size: var(--fs-4);
+    color: var(--text-muted);
+  }
+  .hgpp-arrow__glyph {
+    font-size: var(--fs-8);
+    line-height: 1;
+    text-align: center;
+  }
+  .hgpp-lane[data-tone='warn'] .hgpp-arrow__glyph {
+    color: var(--tone-warn-strong);
+  }
+  .hgpp-lane[data-tone='ok'] .hgpp-arrow__glyph {
+    color: var(--tone-ok-strong);
+  }
+
+  .hgpp-foot {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 6px 0 0;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--divider);
+    list-style: none;
+    color: var(--text-muted);
+  }
+  .hgpp-foot li {
+    position: relative;
+    padding-left: 1.2em;
+  }
+  .hgpp-foot li::before {
+    content: '·';
+    position: absolute;
+    left: 0.3em;
+  }
+
+  .hgpp-caption {
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    color: var(--text-muted);
+  }
+</style>

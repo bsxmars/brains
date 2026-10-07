@@ -1,0 +1,380 @@
+---
+title: "Стили веб-компонентов: Shadow DOM и каскад"
+order: 6
+kicker: браузер и рендеринг
+lead: "Теневое дерево не пускает внутрь селекторы страницы, но пропускает наследование и пользовательские свойства. Поэтому снаружи компонент настраивают переменными и `::part()`, а не селекторами потомков, — и там, где движки расходятся, ошибка выглядит как ваша."
+leadWidth: 66
+summary: "Граница теневого дерева в каскаде: что через неё проходит, `:host`/`:host()`/`:host-context()`, `::slotted()` и `::part()` с `exportparts`, кто побеждает на границе, `adoptedStyleSheets` и `replaceSync`, `<template shadowrootmode>`, `all: initial` и шрифт страницы — сверено в трёх движках."
+verifiedOn: Chromium 153 · Firefox 155 · WebKit 26.6 (Playwright 1.63, macOS)
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Граница }
+  - { id: s2, label: ":host" }
+  - { id: s3, label: "::slotted" }
+  - { id: s4, label: "::part" }
+  - { id: s5, label: Кто побеждает }
+  - { id: s6, label: Общие листы }
+  - { id: s7, label: Декларативный корень }
+  - { id: s8, label: Сброс и шрифт }
+  - { id: s9, label: Поддержка }
+  - { id: s10, label: Тонкие места }
+  - { id: s11, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ShadowBoundary from '@/widgets/shadow-lab/ui/ShadowBoundary.vue';
+import ShadowStage from '@/widgets/shadow-lab/ui/ShadowStage.vue';
+import {
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
+  PLAIN_BOUNDARY, SD_DEFINE_CODE, SD_DEFINE_NOTE, SD_SHADOW_HTML, SD_LIGHT_HTML, SD_PAGE_HTML,
+  BOUNDARY_ROWS, BOUNDARY_DEMO_NOTE, INHERIT_FACTS,
+  HOST_CODE, HOST_FACTS,
+  SLOTTED_CODE, SLOTTED_FACTS,
+  PART_CODE, PART_FACTS,
+  PLAIN_CONTEXT, CONTEXT_NOTE, CASCADE_HEAD, CASCADE_ROWS,
+  SD_RULES, SD_BASE, SD_TARGETS, SD_SIDES, SD_LABELS, SD_FONT_LABELS, SD_DEMO_NOTE, SD_FOOTER,
+  ADOPTED_CODE, ADOPTED_FACTS, ADOPTED_WHY,
+  DSD_HTML, DSD_NOTE, DSD_HEAD, DSD_ROWS, DSD_HYDRATE_CODE,
+  PLAIN_FONT, RESET_CODE, RESET_HEAD, RESET_ROWS, RESET_FACTS, FONT_FACE_NOTE, BUTTON_FONT_ROWS,
+  ENGINES_HEAD, ENGINES_ROWS,
+  PITFALLS, SOURCES, RELATED,
+  CONTEXT_SCENE_CODE, CONTEXT_SCENE_NOTE, CONTEXT_STEPS, PLAIN_CONTEXT_STEPS, RESET_SCENE_CODE, RESET_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Идея"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  leadWidth={72}
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Граница: селекторы стоят, наследование течёт"
+  lead="Правило страницы ищет элементы по адресу, и адресов внутри теневого дерева для него нет. Наследование адресов не ищет: значение переходит от родителя к ребёнку по плоскому дереву, и хост для него — обычный родитель."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BOUNDARY} />
+
+  ### Сквозной пример: `<sd-demo-card>`
+
+  <Card title="Регистрация элемента" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SD_DEFINE_CODE} />
+
+    <Md text={SD_DEFINE_NOTE} />
+  </Card>
+
+  <Card title="`SHADOW_HTML` — теневой корень целиком" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SD_SHADOW_HTML} />
+
+    <CodeBlock code={SD_PAGE_HTML} />
+  </Card>
+
+  ### Что проходит через границу — в вашем браузере
+
+  <ShadowBoundary client:visible rows={BOUNDARY_ROWS} note={BOUNDARY_DEMO_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {INHERIT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="`:host`, `:host()` и `:host-context()`: хост изнутри"
+  lead="Хост принадлежит документу, но компоненту нужно задать ему хотя бы `display`. Для этого у внутреннего листа есть `:host` — единственный способ изнутри дотянуться до элемента, к которому прикреплён корень."
+  leadWidth={72}
+>
+  <CodeBlock code={HOST_CODE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {HOST_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="`::slotted()`: только то, что легло в слот напрямую"
+  lead="Дети из светлого DOM принадлежат странице, но показываются внутри компонента. `::slotted()` даёт компоненту стилизовать их — ровно на один уровень и слабее, чем это делает страница."
+  leadWidth={72}
+>
+  <CodeBlock code={SLOTTED_CODE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {SLOTTED_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="`::part()` и `exportparts`: окно, которое прорезал сам компонент"
+  lead="`part` — это договор: компонент называет элементы, которые страница вправе перекрашивать, и держит закрытым всё остальное. Разметку внутри можно менять как угодно, пока имена частей на месте."
+  leadWidth={72}
+>
+  <CodeBlock code={PART_CODE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {PART_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="Кто побеждает на границе"
+  lead="Когда страница и компонент задают одному элементу одно свойство, спор решает не специфичность и не слои, а контекст: для обычных объявлений сильнее страница, для `!important` — компонент."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CONTEXT_NOTE} />
+
+  ### Один хост, четыре спора
+
+  <CodeBlock code={CONTEXT_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={CONTEXT_SCENE_NOTE} />
+
+  Тот же `<my-card>` — в четырёх вариантах спора.
+
+  <CardGrid min={290} gap={14} align="start">
+    {CONTEXT_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT_STEPS} />
+
+  ### Все проверенные пары
+
+  <Table
+    head={CASCADE_HEAD}
+    rows={CASCADE_ROWS}
+    kinds={['mono', 'mono', 'prose', 'muted']}
+    cols="minmax(200px,1.1fr) minmax(200px,1.1fr) minmax(90px,.45fr) minmax(220px,1.2fr)"
+    minWidth={780}
+  />
+
+  ### Сцена: правила по обе стороны
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SD_DEMO_NOTE} />
+
+  <ShadowStage
+    client:visible
+    rules={SD_RULES}
+    base={SD_BASE}
+    targets={SD_TARGETS}
+    sides={SD_SIDES}
+    labels={SD_LABELS}
+    fontLabels={SD_FONT_LABELS}
+    shadowHtml={SD_SHADOW_HTML}
+    lightHtml={SD_LIGHT_HTML}
+    footer={SD_FOOTER}
+  />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="`adoptedStyleSheets`: один лист на все корни"
+  lead={ADOPTED_WHY}
+  leadWidth={72}
+>
+  <CodeBlock code={ADOPTED_CODE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {ADOPTED_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Декларативный корень: `<template shadowrootmode>`"
+  lead={DSD_NOTE}
+  leadWidth={72}
+>
+  <CodeBlock code={DSD_HTML} />
+
+  <Table
+    head={DSD_HEAD}
+    rows={DSD_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(220px,1.1fr) minmax(130px,.6fr) minmax(260px,1.4fr)"
+    minWidth={700}
+  />
+
+  ### Класс, который пришёл позже разметки
+
+  <CodeBlock code={DSD_HYDRATE_CODE} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Сброс на границе и шрифт страницы"
+  lead="Наследование — это не только удобно: всё наследуемое, что страница поставила хосту или его предкам, приходит в компонент без спроса. `all` на `:host` отрезает это одним объявлением — не во всех движках одинаково и не всё."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FONT} />
+
+  <CodeBlock code={RESET_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  Четыре ответа на вопрос в последней строке — и что каждый оставляет в компоненте.
+
+  <CardGrid min={290} gap={14} align="start">
+    {RESET_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Итоговый рецепт — явный шрифт поверх сброса и контролы вручную:
+
+  <CodeBlock code={RESET_CODE} />
+
+  <Table
+    head={RESET_HEAD}
+    rows={RESET_ROWS}
+    kinds={['mono', 'prose', 'prose', 'muted']}
+    cols="minmax(220px,1.2fr) minmax(180px,1fr) minmax(200px,1fr) minmax(110px,.5fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={260} gap={14} align="start">
+    {RESET_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Шрифт внутри компонента
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={FONT_FACE_NOTE} />
+
+  <Table
+    head={['`<button>` внутри корня', '`font-family`', '`font-size`']}
+    rows={BUTTON_FONT_ROWS}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(160px,1fr) minmax(160px,1fr) minmax(110px,.6fr)"
+    minWidth={480}
+  />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Поддержка в трёх движках"
+  lead="Всё, что названо в теме, есть во всех трёх, кроме `:host-context()`. Расходятся движки в краевых случаях — и каждый из них выглядит как ошибка в вашем коде."
+  leadWidth={72}
+>
+  <Table
+    head={ENGINES_HEAD}
+    rows={ENGINES_ROWS}
+    kinds={['prose', 'muted', 'muted', 'muted']}
+    cols="minmax(240px,1.4fr) minmax(130px,.7fr) minmax(130px,.7fr) minmax(150px,.8fr)"
+    minWidth={700}
+  />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Тонкие места"
+  lead="Места, где стиль компонента ломается молча: правило валидно, консоль пуста, а элемент выглядит не так."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s11"
+  eyebrow="Раздел 11"
+  title="Источники"
+  lead="Спецификации — чтобы сверить, что селектор обязан делать; расхождения движков из таблицы поддержки в них не видны, их показывает только запуск."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

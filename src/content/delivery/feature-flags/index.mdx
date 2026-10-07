@@ -1,0 +1,428 @@
+---
+title: "Фича-флаги: раскатка без деплоя"
+heading: "Фича-флаги: раскатка без деплоя"
+headingWidth: 24
+order: 17
+kicker: доставка
+lead: "Флаг выглядит как `if (flags.newCart)`, но это не переменная, а функция: на входе — кто спрашивает, на выходе — вариант. Отсюда всё остальное: почему 20% пользователей можно выбрать без базы, почему переименование флага перемешивает всех, почему клиентский флаг мигает и что стандартизирует OpenFeature."
+leadWidth: 66
+summary: "Флаг как функция контекста: правила по очереди, доли, значение по умолчанию; корзины по MurmurHash3 как у flagd, монотонность и что её ломает — переименование, порядок вариантов, три варианта, смена формулы, UTF-8 против UTF-16; OpenFeature — провайдер, контекст и его слои, хуки, resolution details; сервер, браузер или edge и мигание; выключатель и удаление флагов; флаг против канарейки."
+verifiedOn: "@openfeature/server-sdk 1.23.0, imurmurhash 0.1.4, Node 24.11.0, Go 1.26.0 с twmb/murmur3 1.2.0, октябрь 2026: вычислитель темы исполнен через настоящий OpenFeature SDK и сверен с InMemoryProvider; раскладка по корзинам — с векторами flagd-testbed (v1 и v2); хеш — с imurmurhash и с Go-библиотекой flagd; распределение и липкость — на 10 000 детерминированных id (tests/unit/feature-flags.test.ts). Клиентский SDK, edge-платформы и сервисы флагов — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Флаг — функция }
+  - { id: s2, label: Корзины и хеш }
+  - { id: s3, label: OpenFeature }
+  - { id: s4, label: Где вычислять }
+  - { id: s5, label: Выключатель и долг }
+  - { id: s6, label: Флаг или канарейка }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import FlagLab from '@/widgets/flag-lab/ui/FlagLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_FLAG,
+  PREREQ,
+  PREREQ_NOTE,
+  FUNCTION_WHY,
+  PLAIN_CONTEXT,
+  FLAGS_CODE,
+  ORDER_STEPS,
+  FLAG_CODE,
+  EVAL_ROWS,
+  EVAL_NOTE,
+  BUCKET_WHY,
+  PLAIN_BUCKET,
+  FLAGD_NOTE,
+  FLAGD_SPLIT_CODE,
+  SPREAD_ROWS,
+  SPREAD_NOTE,
+  PLAIN_MONOTONE,
+  MONOTONE_NOTE,
+  STICKY_ROWS,
+  STICKY_NOTE,
+  UTF_NOTE,
+  COIN_CODE,
+  DEMO_CAPTION,
+  DEMO_USERS,
+  OF_WHY,
+  PLAIN_PROVIDER,
+  PROVIDER_CODE,
+  USAGE_CODE,
+  USAGE_OUTPUT,
+  DETAILS_ROWS,
+  DETAILS_NOTE,
+  HOOKS_NOTE,
+  MERGE_WHY,
+  MERGE_CODE,
+  MERGE_RESULT,
+  MERGE_NOTE,
+  WHERE_WHY,
+  WHERE_ROWS,
+  PLAIN_FLICKER,
+  FLICKER_STEPS,
+  FLICKER_FIXES,
+  STATIC_CONTEXT_NOTE,
+  LEAK_NOTE,
+  KILL_WHY,
+  KILL_CHECKS,
+  DEBT_WHY,
+  DEBT_STEPS,
+  DEBT_CODE,
+  VS_WHY,
+  VS_ROWS,
+  VS_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Включить без выката" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Выкат меняет код у всех сразу и занимает минуты. Флаг меняет **поведение** уже
+    выкаченного кода — у части пользователей, за секунды и без сборки. Цена — в коде живут
+    две ветки, а ответ «включено или нет» теперь зависит от того, кто спрашивает.
+
+  </Callout>
+
+  Новая корзина готова, но показывать её всем страшно. Её выкатывают выключенной, за
+  условием, а потом включают: сотрудникам, затем 1% покупателей, 20%, всем. Если что-то
+  пошло не так — выключают, не дожидаясь отката. Условие и называется флагом, а настройку
+  «кому включено» хранит отдельный сервис.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLAG} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Флаг — это функция"
+  lead="Вариант флага зависит от того, кто спрашивает. Поэтому у флага нет «значения» — есть функция от контекста, правила внутри неё и порядок, в котором они проверяются."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={FUNCTION_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+
+  <Card title="Флаги на всю тему" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FLAGS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Порядок проверки" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={ORDER_STEPS} size={15.5} />
+  </Card>
+
+  <Card title="Вычислитель флага — семьдесят строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FLAG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Ответы на разные контексты
+
+  <Table
+    head={['флаг', 'контекст', 'value', 'variant', 'reason', 'почему']}
+    rows={EVAL_ROWS.map((r) => [
+      '`' + r.flag + '`',
+      Object.keys(r.ctx).length ? Object.entries(r.ctx).map(([k, v]) => '`' + k + ': ' + v + '`').join(', ') : '`{}`',
+      r.value,
+      r.variant === '—' ? '—' : '`' + r.variant + '`',
+      '`' + r.reason + '`',
+      r.why,
+    ])}
+    kinds={['mono', 'prose', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(110px,.6fr) minmax(220px,1.4fr) minmax(80px,.4fr) minmax(70px,.4fr) minmax(150px,.8fr) minmax(200px,1.1fr)"
+    minWidth={880}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={EVAL_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Корзины и хеш"
+  lead="Доля пользователей выбирается без базы: хеш от ключа флага и id даёт номер корзины, а доля — это порог. Так устроено и в открытом сервисе флагов flagd, и учебная функция раскладывает пользователей так же, как он."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={BUCKET_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUCKET} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Доли во flagd" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FLAGD_SPLIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FLAGD_NOTE} />
+  </CardGrid>
+
+  ### Сколько людей на самом деле
+
+  <Table
+    head={['доля', 'включено из 10 000', 'ожидалось']}
+    rows={SPREAD_ROWS.map((r) => [r.p + '%', String(r.on), String(r.p * 100)])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(80px,.6fr) minmax(160px,1fr) minmax(120px,.8fr)"
+    minWidth={380}
+  />
+
+  <Md text={SPREAD_NOTE} />
+
+  ### Рост доли только добавляет
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MONOTONE} />
+
+  <Md text={MONOTONE_NOTE} />
+
+  ### Что ломает липкость
+
+  <Table
+    head={['что поменяли', 'что произошло', 'на 10 000 id']}
+    rows={STICKY_ROWS.map((r) => [r.k, r.what, r.moved])}
+    tones={STICKY_ROWS.map((r) => (r.tone === 'ok' ? 'ok' : r.tone === 'warn' ? 'warn' : 'err'))}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(220px,1.2fr) minmax(170px,.9fr)"
+    minWidth={680}
+  />
+
+  <Md text={STICKY_NOTE} />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={UTF_NOTE} />
+  </Card>
+
+  ### Кто включился и кто выпал
+
+  <Card title="Антипример: монетка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={COIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <FlagLab client:visible flagCode={FLAG_CODE} flagsCode={FLAGS_CODE} coinCode={COIN_CODE} users={DEMO_USERS} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="OpenFeature: стандарт вызова"
+  lead="Код приложения спрашивает флаг через один и тот же API, а отвечает провайдер конкретного сервиса. Значение по умолчанию при ошибке, хуки и подробный ответ делает SDK — провайдеру остаётся только вычислить."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={OF_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROVIDER} />
+
+  <Card title="Провайдер поверх evaluate" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PROVIDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Вызов с хуками" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={USAGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={USAGE_OUTPUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Что лежит в ответе
+
+  <Table
+    head={['поле', 'что это']}
+    rows={DETAILS_ROWS.map((r) => [r.k, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(170px,.6fr) minmax(320px,2fr)"
+    minWidth={520}
+  />
+
+  <Md text={DETAILS_NOTE} />
+
+  <Md text={HOOKS_NOTE} />
+
+  ### Контекст слоями
+
+  <Md text={MERGE_WHY} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Три слоя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MERGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что увидел провайдер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MERGE_RESULT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={MERGE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Где вычислять флаг"
+  lead="Функция одна, а вызвать её можно на сервере, в браузере или на узле CDN. Ответ не меняется — меняется момент, когда он готов, и то, кто видит настройку."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={WHERE_WHY} />
+  </Card>
+
+  <Table
+    head={['где', 'когда готов ответ', 'кто видит настройку', 'цена']}
+    rows={WHERE_ROWS.map((r) => [r.k, r.when, r.see, r.cost])}
+    tones={WHERE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(100px,.5fr) minmax(200px,1fr) minmax(220px,1.1fr) minmax(220px,1.1fr)"
+    minWidth={760}
+  />
+
+  ### Мигание при загрузке
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLICKER} />
+
+  <Card title="Как это происходит" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={FLICKER_STEPS} size={15.5} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {FLICKER_FIXES.map((fix) => (
+      <Card title={fix.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fix.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={STATIC_CONTEXT_NOTE} />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={LEAK_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Выключатель и удаление"
+  lead="У флага две опасные минуты: когда его надо выключить в аварию и когда его наконец удаляют. В обе он ведёт себя не так, как в обычный день."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={KILL_WHY} />
+  </Card>
+
+  <Card title="Чтобы выключатель сработал" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={KILL_CHECKS} size={15.5} />
+  </Card>
+
+  ### Удаление флага
+
+  <Md text={DEBT_WHY} />
+
+  <Card title="Порядок уборки" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={DEBT_STEPS} size={15.5} />
+  </Card>
+
+  <CodeBlock code={DEBT_CODE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Флаг или канарейка"
+  lead="Оба показывают новое части пользователей и оба делят людей хешем. Но канарейка делит версии, а флаг — ветки кода внутри одной версии."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={VS_WHY} />
+  </Card>
+
+  <Table
+    head={['', 'канарейка', 'флаг']}
+    rows={VS_ROWS.map((r) => [r.k, r.canary, r.flag])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(130px,.6fr) minmax(240px,1.2fr) minmax(240px,1.2fr)"
+    minWidth={640}
+  />
+
+  <Md text={VS_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Флаг — функция от контекста, и вся его надёжность — в том, что она чистая.** Тот же
+      ключ флага, тот же порядок вариантов, та же формула и тот же `targetingKey` дают тот же
+      ответ где угодно. Меняется любое из четырёх — пользователи перемешиваются.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

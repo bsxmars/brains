@@ -1,0 +1,168 @@
+---
+/**
+ * Как устроен `Context` — объект в куче, представляющий одну лексическую область видимости.
+ *
+ * Две правки против оригинала, обе проверены запуском (вывод рядом, в пропе `probe`):
+ *
+ *   порядок слотов  в оригинале стояло «0: предыдущий Context, 1: ScopeInfo, 2: extension».
+ *                   По исходникам V8 наоборот: слот 0 — ScopeInfo, слот 1 — предыдущий
+ *                   контекст. Отдельного слота `extension` у обычного FunctionContext нет
+ *                   вовсе — он появляется у контекстов `with` и sloppy-`eval`;
+ *   состав слотов   переменная, которую не захватило ни одно замыкание, в Context не попадает:
+ *                   компилятор видит это по ScopeInfo на этапе разбора. Поэтому объявить
+ *                   тяжёлые данные в скоупе, где нет ни одной выживающей функции, безопасно.
+ *
+ * Число слотов видно снаружи: `%DebugPrint` печатает `FunctionContext[N]`, где N — это два
+ * слота заголовка плюс по слоту на каждую **захваченную** переменную.
+ */
+import type { ContextSlot } from '../model/types';
+
+interface Props {
+  slots: ContextSlot[];
+  /** Имена функций, чьё поле `context` указывает на этот объект. */
+  users: string[];
+  title?: string;
+  probe?: string;
+  probeOut?: string;
+}
+
+const {
+  slots,
+  users,
+  title = 'Context (для вызова make)',
+  probe,
+  probeOut,
+} = Astro.props;
+---
+
+<div class="frame">
+  <div class="head">{title}</div>
+
+  <div class="slots">
+    {
+      slots.map((slot) => (
+        <div class="slot" data-kind={slot.kind} data-hot={slot.hot ? 'yes' : 'no'}>
+          <span class="slot__n">{slot.n}</span>
+          <span class="slot__k">{slot.k}</span>
+          <span class="slot__v">{slot.v}</span>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="users">
+    <div class="users__note">↑ у каждой из этих функций поле context указывает СЮДА</div>
+    <div class="users__row">
+      {users.map((name) => <span class="users__chip">{name}</span>)}
+    </div>
+  </div>
+
+  {
+    probe && (
+      <div class="probe">
+        <div class="t-eyebrow t-eyebrow--panel">Число слотов видно снаружи</div>
+        <pre class="probe__code">{probe}</pre>
+        {probeOut && <pre class="probe__out">{probeOut}</pre>}
+      </div>
+    )
+  }
+</div>
+
+<style>
+  .frame {
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r3);
+    background: var(--surface);
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .head {
+    padding: 12px 16px;
+    background: var(--ink);
+    color: var(--on-ink);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+  }
+
+  .slots {
+    display: flex;
+    flex-direction: column;
+  }
+  .slot {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+    align-items: baseline;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+  }
+  .slot__n {
+    color: var(--text-faint);
+  }
+  /* Заголовок контекста — служебный, поэтому приглушён: читать там нечего. */
+  .slot[data-kind='header'] {
+    background: var(--sunk-dim);
+    color: var(--text-muted);
+  }
+  .slot[data-kind='var'] {
+    color: var(--chip-text);
+  }
+  .slot[data-hot='yes'] {
+    background: var(--tone-err-bg);
+    color: var(--tone-err-strong);
+    font-weight: 600;
+  }
+  .slot__v {
+    color: inherit;
+    overflow-wrap: anywhere;
+  }
+
+  .users {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 14px 16px;
+    background: var(--tone-info-bg);
+  }
+  .users__note {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--tone-info-strong);
+  }
+  .users__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .users__chip {
+    padding: 5px 10px;
+    border: 1px solid var(--tone-info-line);
+    border-radius: var(--r1);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--tone-info-strong);
+  }
+
+  .probe {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 16px;
+    border-top: 1px solid var(--rule);
+    min-width: 0;
+  }
+  .probe__code {
+    font-size: var(--fs-2);
+  }
+  .probe__out {
+    background: var(--ink-deep);
+    color: var(--tone-ok-on-ink);
+    font-size: var(--fs-2);
+  }
+</style>

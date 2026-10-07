@@ -1,0 +1,474 @@
+---
+title: Service Worker изнутри
+heading: "Service Worker изнутри: жизненный цикл и работа без сети"
+headingWidth: 24
+order: 19
+kicker: браузер и рендеринг
+lead: "Выкатили новую версию, а у пользователя старая — и F5 не помогает. Service Worker живёт по своим правилам: ставится заранее, ждёт, пока освободятся вкладки, засыпает между событиями и отвечает на запросы даже без сети. Как устроен его жизненный цикл, когда браузер замечает новую версию и что на самом деле делают `skipWaiting()` и `clients.claim()`."
+leadWidth: 66
+summary: "Регистрация и область, первая страница без контроллера, `install` и `waitUntil`, предзагрузка в Cache API, `waiting` и почему F5 его не снимает, `activate` и чистка кешей, `skipWaiting` и `claim` с их ценой, байтовое сравнение и `updateViaCache`, `respondWith` и три стратегии, navigation preload, офлайн, сон воркера, отладка."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: жизненный цикл снят по протоколу DevTools на десяти сценариях; модель темы и стратегии сверяются с журналами стенда в tests/unit/service-worker.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Регистрация и область }
+  - { id: s2, label: Установка и активация }
+  - { id: s3, label: Почему новая ждёт }
+  - { id: s4, label: skipWaiting и claim }
+  - { id: s5, label: Проверка обновления }
+  - { id: s6, label: Перехват fetch }
+  - { id: s7, label: Без сети }
+  - { id: s8, label: Сон и пробуждение }
+  - { id: s9, label: Отладка }
+  - { id: s10, label: Тонкие места }
+  - { id: s11, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import SwLab from '@/widgets/sw-lab/ui/SwLab.vue';
+import StrategyLab from '@/widgets/sw-lab/ui/StrategyLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_SW,
+  PREREQ,
+  PREREQ_NOTE,
+  PAGE_CODE,
+  SW_CODE,
+  FIRST_FACTS,
+  SCOPE_ROWS,
+  SCOPE_NOTE,
+  INSTALL_ROWS,
+  CACHE_KEYS_ROWS,
+  WAITUNTIL_NOTE,
+  ACTIVATE_NOTE,
+  PLAIN_WAITING,
+  LIFECYCLE_CODE,
+  WAIT_RULE,
+  VARIANT_NOTE,
+  OWN_NOTE,
+  DEMO_CAPTION,
+  LIFECYCLE_SCENARIOS,
+  WAIT_FACTS,
+  SKIP_ROWS,
+  SKIP_NOTE,
+  RISK_CODE,
+  RISK_ROWS,
+  RISK_NOTE,
+  MIX_NOTE,
+  UPDATE_TRIGGERS,
+  BYTES_NOTE,
+  VIA_CACHE_ROWS,
+  VIA_CACHE_NOTE,
+  SELF_NOTE,
+  RESPOND_NOTE,
+  STRATEGY_CODE,
+  ROUTER_CODE,
+  REPLAY_CODE,
+  STRATEGY_STEPS,
+  STRATEGY_STEP_TEXT,
+  STRATEGY_CASES,
+  STRATEGY_CAPTION,
+  STRATEGY_FACTS,
+  PRELOAD_CODE,
+  PLAIN_PRELOAD,
+  PRELOAD_ROWS,
+  PRELOAD_NOTE,
+  OFFLINE_ROWS,
+  OFFLINE_NOTE,
+  ONLINE_NOTE,
+  STATE_CODE,
+  SLEEP_ROWS,
+  SLEEP_NOTE,
+  SLEEP_TRAP,
+  DEBUG_ROWS,
+  STUCK_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  STAND,
+} from './data';
+
+<Section variant="intro" eyebrow="Посредник со своей жизнью" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Service Worker — не часть страницы. Это отдельный скрипт, который браузер ставит, хранит
+    и будит сам. У него есть версии, и сменить версию браузер готов только тогда, когда ни одна
+    вкладка сайта не зависит от старой. Отсюда почти все вопросы «почему не обновилось».
+
+  </Callout>
+
+  Обычный скрипт живёт, пока открыта страница: закрыли вкладку — его нет. Service Worker
+  переживает вкладки. Он стоит между всеми страницами сайта и сетью, получает событие на каждый
+  их запрос и решает, чем ответить. Поэтому браузер обращается с ним осторожно: сначала ставит
+  новую версию рядом со старой, потом ждёт удобного момента, чтобы переключить страницы.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SW} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Регистрация и область"
+  lead="Всё начинается с одной строки на странице. `register()` скачивает скрипт, запускает его и привязывает к области адресов. Пример на всю тему — эта страница и этот `sw.js`: он заранее сохраняет три файла, отдаёт их из кеша, а без сети показывает заглушку."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Страница: index.html" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PAGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Воркер: sw.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {FIRST_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Область
+
+  <Table
+    head={['вызов', 'итог', 'почему']}
+    rows={SCOPE_ROWS.map((r) => [r.k, r.r, r.d])}
+    tones={SCOPE_ROWS.map((r) => r.tone ?? 'info')}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(220px,1.1fr) minmax(130px,.6fr) minmax(280px,1.6fr)"
+    minWidth={680}
+  />
+
+  <Md text={SCOPE_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Установка и активация"
+  lead="У новой версии два события подготовки. В `install` она сохраняет всё, что понадобится без сети. В `activate` убирает за предыдущей версией. Между ними может пройти сколько угодно времени: почему — в разделе «Почему новая версия ждёт»."
+  leadWidth={72}
+>
+  ### Что увидел сервер при первой установке
+
+  <Table
+    head={['момент', 'что пришло на сервер', 'зачем']}
+    rows={INSTALL_ROWS.map((r) => [r.k, r.what, r.note])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(130px,.6fr) minmax(220px,1.1fr) minmax(280px,1.6fr)"
+    minWidth={660}
+  />
+
+  <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={WAITUNTIL_NOTE} />
+
+  ### Кеш у каждой версии свой
+
+  <Table
+    head={['момент', '`caches.keys()`']}
+    rows={CACHE_KEYS_ROWS.map((r) => [r.k, r.keys])}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(240px,1.2fr)"
+    minWidth={460}
+  />
+
+  <Md text={ACTIVATE_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Почему новая версия ждёт"
+  lead="Установившись, новая версия не включается, а встаёт в `waiting`. Ждёт она одного: момента, когда старой версии будет некого обслуживать. До тех пор все вкладки, и новые тоже, получают старую."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WAITING} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={WAIT_RULE} />
+
+  ### Модель регистрации
+
+  <Card title="Модель: версии, места и вкладки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LIFECYCLE_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VARIANT_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Жизненный цикл по шагам
+
+  <SwLab client:visible lifecycleCode={LIFECYCLE_CODE} scenarios={LIFECYCLE_SCENARIOS} chromium={STAND.chromium} caption={DEMO_CAPTION} ownNote={OWN_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {WAIT_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="skipWaiting и claim"
+  lead="Два вызова, которые ломают ожидание. Их часто ставят парой, не различая, а делают они разное: один отменяет ожидание версии, другой забирает вкладки, которыми никто не управляет."
+  leadWidth={72}
+>
+  <Table
+    head={['вызов', 'что делает', 'чего не делает']}
+    rows={SKIP_ROWS.map((r) => [r.k, r.what, r.not])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.7fr) minmax(280px,1.5fr) minmax(240px,1.2fr)"
+    minWidth={700}
+  />
+
+  <Md text={SKIP_NOTE} />
+
+  ### Старая страница, новый воркер
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Что держит страница" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RISK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={RISK_NOTE} />
+  </CardGrid>
+
+  <Table
+    head={['v2 на сервере', 'контроллер вкладки', '`caches.keys()`', '`openReport()`']}
+    rows={RISK_ROWS.map((r) => [r.k, r.ctrl, r.keys, r.got])}
+    tones={RISK_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(150px,.7fr) minmax(180px,.8fr) minmax(260px,1.4fr)"
+    minWidth={760}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={MIX_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Проверка обновления"
+  lead="Браузер сам решает, когда скачать `sw.js` заново, и сравнивает его с установленным побайтно. Новая версия — это не новый деплой, а другие байты, которые дошли до браузера."
+  leadWidth={72}
+>
+  <CardGrid min={260} gap={14} align="start">
+    {UPDATE_TRIGGERS.map((item) => (
+      <Card title={item.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={BYTES_NOTE} />
+
+  ### HTTP-кеш и `updateViaCache`
+
+  <Table
+    head={['`updateViaCache`', 'сам `sw.js`', '`importScripts`', 'дошёл ли `update()` до сервера']}
+    rows={VIA_CACHE_ROWS.map((r) => [r.k, r.main, r.imp, r.seen])}
+    tones={VIA_CACHE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(140px,.7fr) minmax(140px,.7fr) minmax(220px,1.1fr)"
+    minWidth={680}
+  />
+
+  <Md text={VIA_CACHE_NOTE} />
+
+  <Card tone="ok" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SELF_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Перехват fetch"
+  lead="На каждый запрос страницы воркер получает событие `fetch` и может ответить сам. Как именно отвечать — стратегия. Обзор пяти стратегий и когда какую брать — в [«Сети и кешировании»](/platform/network/#s5); здесь три основные записаны функциями и прогнаны по одному сценарию."
+  leadWidth={72}
+>
+  <Md text={RESPOND_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Три стратегии" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STRATEGY_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Маршрутизатор в sw.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ROUTER_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Один сценарий — три стратегии
+
+  <Card title="Сервер и кеш демо" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={REPLAY_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <StrategyLab client:visible strategyCode={STRATEGY_CODE} replayCode={REPLAY_CODE} cases={STRATEGY_CASES} steps={STRATEGY_STEPS} stepText={STRATEGY_STEP_TEXT} chromium={STAND.chromium} caption={STRATEGY_CAPTION} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {STRATEGY_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Navigation preload
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PRELOAD} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Предзагрузка навигации" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PRELOAD_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Сколько раз сервер получил страницу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <Table
+        head={['воркер', 'запросов', 'заголовок']}
+        rows={PRELOAD_ROWS.map((r) => [r.k, r.reqs, r.head])}
+        tones={PRELOAD_ROWS.map((r) => r.tone)}
+        kinds={['prose', 'prose', 'prose']}
+        cols="minmax(170px,1.2fr) minmax(70px,.4fr) minmax(170px,1fr)"
+        minWidth={420}
+      />
+    </Card>
+  </CardGrid>
+
+  <Md text={PRELOAD_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Без сети"
+  lead="Стенд выключил сеть у всего браузерного контекста — у страницы и у воркера — и перезагрузил вкладку под `SW_CODE`. Работает ровно то, на что в коде есть ветка без сети."
+  leadWidth={72}
+>
+  <Table
+    head={['что запросили', 'что получила страница']}
+    rows={OFFLINE_ROWS.map((r) => [r.k, r.got])}
+    tones={OFFLINE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(320px,1.8fr)"
+    minWidth={560}
+  />
+
+  <Md text={OFFLINE_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ONLINE_NOTE} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Сон и пробуждение"
+  lead="Воркер не работает постоянно. Браузер запускает его на событие и останавливает после простоя. Следующее событие запускает скрипт заново — с первой строки и с пустыми переменными."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Счётчик в переменной" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что вернул /count" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <Table
+        head={['что делали', 'ответы']}
+        rows={SLEEP_ROWS.map((r) => [r.k, r.got])}
+        kinds={['prose', 'prose']}
+        cols="minmax(200px,1.2fr) minmax(160px,1fr)"
+        minWidth={400}
+      />
+    </Card>
+  </CardGrid>
+
+  <Md text={SLEEP_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SLEEP_TRAP} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Отладка и залипший воркер"
+  lead="У разработчика есть DevTools и жёсткая перезагрузка. У пользователя — только то, что придёт в следующем `sw.js`. Оба набора стоит знать, и знать, что каждый инструмент делает на самом деле."
+  leadWidth={72}
+>
+  <Table
+    head={['инструмент', 'что происходит']}
+    rows={DEBUG_ROWS.map((r) => [r.k, r.what])}
+    tones={DEBUG_ROWS.map((r) => r.tone ?? 'info')}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,.8fr) minmax(340px,2fr)"
+    minWidth={600}
+  />
+
+  <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={STUCK_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Версия воркера и версия страницы меняются в разные моменты.** Браузер ставит новый
+      воркер заранее и включает его, только когда старый никому не нужен. Всё, что ускоряет
+      этот момент, — `skipWaiting`, `claim`, — сводит новый воркер со старой страницей. Значит,
+      ускоряя, нужно и перезагружать страницу; а не ускоряя — не удивляться, что обновление
+      приходит со второго визита.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s11" eyebrow="Раздел 11" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

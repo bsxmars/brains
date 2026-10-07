@@ -1,0 +1,648 @@
+---
+title: Промис изнутри
+order: 4
+lead: "Когда вы пишете `.then`, в очередь ещё ничего не встаёт: реакция попадёт туда, только когда промис получит результат. Из этого правила следуют и порядок реакций, и разница в цене между `return p` и `return await p`, и утечки через промис, который никогда не завершится."
+leadWidth: 66
+summary: Пять скрытых полей, три операции спеки, линейка тиков, комбинаторы и цена промиса.
+verifiedOn: Node 24.11 и 26.8
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Модель }
+  - { id: s2, label: Операции }
+  - { id: s3, label: Линейка }
+  - { id: s4, label: Комбинаторы }
+  - { id: s5, label: Отказ }
+  - { id: s6, label: Цены }
+  - { id: s7, label: Тонкости }
+  - { id: s8, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkCard from '@/shared/ui/DarkCard.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import PromiseAnatomy from '@/widgets/promise-anatomy/ui/PromiseAnatomy.astro';
+import PromiseLifecycle from '@/widgets/promise-lifecycle/ui/PromiseLifecycle.vue';
+import PromiseResolveCard from '@/widgets/promise-resolve-card/ui/PromiseResolveCard.astro';
+import ResolvePromiseFlow from '@/widgets/resolve-promise-flow/ui/ResolvePromiseFlow.astro';
+import ResolveCost from '@/widgets/resolve-cost/ui/ResolveCost.vue';
+import TickRuler from '@/widgets/tick-ruler/ui/TickRuler.vue';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SequentialVsParallel from '@/widgets/sequential-vs-parallel/ui/SequentialVsParallel.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  PITFALLS,
+  NO_CANCEL,
+  WITH_RESOLVERS_CODE,
+  WITH_RESOLVERS_NOTE,
+  IS_HANDLED_NOTE,
+  PROMISE_TRY_CODE,
+  PROMISE_TRY_NOTE,
+  THEN_JOBS,
+  THEN_JOBS_NOTE,
+  SEQ_FACTS,
+  CATCH_NOTE,
+  FINALLY_CODE,
+  FINALLY_NOTE,
+  CHAIN_CODE,
+  CHAIN_NOTE,
+  CHAIN_PAIR_NOTE,
+  TRY_FINALLY_CODE,
+  TRY_FINALLY_NOTE,
+  COMBINATOR_HEAD,
+  COMBINATOR_ROWS,
+  COMBINATOR_FACTS,
+  ANY_CODE,
+  ANY_NOTE,
+  SOURCES,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  THREE_OPS_LEAD,
+  THREE_OPS,
+  ANATOMY_DEMO_NOTE,
+  COST_DEMO_NOTE,
+  REJECTION_CODE,
+  REJECTION_RUNS,
+  REJECTION_WHY,
+  REJECTION_LATE,
+  REJECTION_PRACTICE,
+  REJECTION_NODE,
+  COST_AWAIT,
+  COST_CREATE,
+  COST_MEASURED, COST_NOTE,
+  COST_ALL,
+  COST_ALL_NOTE,
+  POOL_CODE,
+  POOL_RUNS,
+  POOL_NOTE,
+  RULER_DEMO_NOTE,
+  PLAIN_TICK,
+  PLAIN_REACTIONS,
+  PLAIN_THENABLE,
+  PLAIN_CHECKPOINT,
+  RETURN_SCENE_CODE,
+  RETURN_SCENE_NOTE,
+  RETURN_STEPS,
+  REJECTION_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Вывести, а не заучить"
+  lead="Каверзные вопросы «в каком порядке это напечатается» решаются не заученной таблицей, а умением её вывести. Вся таблица цен выводится из **трёх операций спецификации** над **пятью скрытыми полями** промиса. Три операции запомнить проще, чем восемь строк таблицы, и они не устаревают. Таблица меняется от версии движка к версии — `await` подешевел с 3 тиков до 1 в 2019 году, — а операции остаются прежними."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TICK} />
+
+  <CardGrid min={240} gap={14}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Пять скрытых полей"
+  lead="**Подписка ничего не стоит — тики тратятся, когда промис получает результат.** Подписаться на промис, который ещё ждёт (pending), — значит дописать реакцию в список: ноль микрозадач, сколько бы подписок ни было. Цена появляется, когда промис узнаёт результат и разом отправляет весь накопленный список в очередь."
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REACTIONS} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ANATOMY_DEMO_NOTE} />
+  </Card>
+
+  <PromiseAnatomy />
+
+  <PromiseLifecycle client:visible />
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={IS_HANDLED_NOTE} />
+  </Card>
+
+  <CardGrid min={290} gap={16}>
+    <Card title="Состояние меняется ровно один раз" pad={18} radius={5} gap={11} size={15}>
+      ```js
+      new Promise((res, rej) => {
+        res(1); rej(new Error('x')); res(2);
+      }).then(v => console.log(v));   // 1
+      ```
+
+      `new Promise` создаёт пару функций `resolve`/`reject` с общим флагом `alreadyResolved` —
+      «уже сработало». Второй вызов молча ничего не делает, даже ошибки не будет.
+
+    </Card>
+
+    <Card tone="err" title="Промис держит в памяти всех, кто на него подписан" pad={18} radius={5} gap={11} lh={1.6}>
+
+      Пока промис ждёт результата (pending), он держит все подписанные функции, а через них —
+      всё, что они замкнули. Промис, который никогда не завершится (забытый
+      `new Promise(() => {})`, отменённый запрос без `reject`), — типичная утечка.
+
+      <CardNote tone="ok">
+
+        Когда промис завершён (settled), списки очищаются, а новые подписки сразу встают
+        в очередь. Подписка на завершённый промис стоит один тик и ничего не стоит по памяти.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Отмены у промиса нет — и это не пропуск в стандарте
+
+  Пользователь закрыл диалог, а запрос за его данными ещё идёт. Первое желание — «отменить
+  промис». Метода для этого нет — и не потому, что его забыли.
+
+  <CardGrid min={290} gap={14}>
+    {NO_CANCEL.map((item) => (
+      <Card title={item.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card
+    title="`Promise.withResolvers()` — те же две функции, вынесенные наружу"
+    titleSize={17}
+    pad={20}
+    gap={13}
+    size={16}
+    lh={1.6}
+  >
+    <CodeBlock code={WITH_RESOLVERS_CODE} size={12} />
+
+    <Md text={WITH_RESOLVERS_NOTE} />
+  </Card>
+
+  <Card
+    title="`Promise.try(fn)` — начать цепочку с функции"
+    titleSize={17}
+    pad={20}
+    gap={13}
+    size={16}
+    lh={1.6}
+  >
+    <CodeBlock code={PROMISE_TRY_CODE} size={12} />
+
+    <Md text={PROMISE_TRY_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Три операции, которые всё объясняют"
+  lead={THREE_OPS_LEAD}
+  leadWidth={72}
+>
+  <CardGrid min={250} gap={14} align="start">
+    {THREE_OPS.map((op) => (
+      <Card index={op.n} title={op.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={op.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THENABLE} />
+
+  <ResolvePromiseFlow />
+
+  <CardGrid min={290} gap={16}>
+    <Card
+      tone="err"
+      title="Побочный эффект: чтение `v.then` может запустить геттер"
+      pad={18}
+      radius={5}
+      gap={11}
+      size={15}
+    >
+      ```js
+      const trap = { get then() {
+        console.log('прочитали!'); return undefined;
+      } };
+      Promise.resolve().then(() => trap);
+      // напечатает "прочитали!"
+      ```
+
+      Практическое правило: не отдавайте наружу объекты с полем `then`, если это не промис.
+
+    </Card>
+
+    <PromiseResolveCard />
+  </CardGrid>
+
+  <DarkPanel eyebrow="Главное различие операций 2 и 3">
+    <CardGrid min={260} gap={14}>
+      <DarkCard title="PromiseResolve — вход" titleTone="ok" foot="await · Promise.resolve">
+
+        **Умеет** узнать настоящий (нативный) промис и пропустить его без обёртки.
+
+      </DarkCard>
+      <DarkCard
+        title="ResolvePromise — выход"
+        titleTone="warn"
+        foot="резолв тем, что вернули из .then или из async-функции"
+      >
+
+        **Не умеет** и обязан разворачивать всё по протоколу thenable — вызывать `then`.
+
+      </DarkCard>
+    </CardGrid>
+
+    <DarkText>
+
+      На этом держится половина ответов. Отсюда же: вернуть `Promise.resolve('x')` из `.then` не
+      дешевле, чем вернуть `{ then: r => r('x') }`, — наоборот, на тик дороже. Настоящий промис
+      выигрывает только на входе. На выходе после возврата из `.then` идут три задания:
+
+    </DarkText>
+
+    {THEN_JOBS.map((job) => (
+      <DarkText>
+        <Md text={job} />
+      </DarkText>
+
+    ))}
+
+
+    <DarkText>
+      <Md text={THEN_JOBS_NOTE} />
+    </DarkText>
+  </DarkPanel>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={COST_DEMO_NOTE} />
+  </Card>
+
+  <ResolveCost client:visible />
+
+  ### `catch` — сокращение для `then`, а `finally` — нет
+
+  <CardGrid min={290} gap={16}>
+    <Card title="`catch(f)` — это `then(undefined, f)`" pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <Md text={CATCH_NOTE} />
+    </Card>
+
+    <Card tone="warn" title="`finally` — отдельная операция" pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={FINALLY_CODE} size={12} />
+
+      <Md text={FINALLY_NOTE} />
+    </Card>
+  </CardGrid>
+
+  ### Отказ едет по цепочке до ближайшего `catch`
+
+  <Card pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={CHAIN_CODE} size={12} />
+
+    <Md text={CHAIN_NOTE} />
+
+    <CardNote tone="warn">
+      <Md text={CHAIN_PAIR_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card
+    tone="err"
+    title="`try/finally` в async-функции: `return` перекрывает всё"
+    titleSize={17}
+    pad={20}
+    gap={13}
+    size={16}
+    lh={1.6}
+  >
+    <CodeBlock code={TRY_FINALLY_CODE} size={12} />
+
+    <Md text={TRY_FINALLY_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Линейка: как замерить тики самому"
+  lead="Цену в тиках не заучивают, а замеряют. Рядом с проверяемым кодом запускают цепочку `.then` известной длины — каждое звено ровно одна микрозадача — и смотрят, между какими звеньями напечатается проверяемая строка."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={RULER_DEMO_NOTE} />
+  </Card>
+
+  {/* Пресеты виджет берёт сам: в них есть функция `program`, а пропы острова
+      сериализуются — функция до браузера не доезжает. */}
+  <TickRuler client:visible initial={2} />
+
+  <CardGrid min={280} gap={14}>
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5}>
+
+      **Старая цифра «3 тика на await» — самый частый источник неверных ответов.** До V8 7.2
+      (Node 12, 2019) `await` вместо `PromiseResolve` делал `new Promise(r => r(value))`, то есть
+      полное разворачивание. Если ответ расходится с источником на два тика, первым делом
+      проверьте, не устарел ли источник.
+
+    </Card>
+    <Card tone="ok" color="tone" pad={16} radius={4} size={15.5}>
+
+      **Один снимок такого вывода стоит больше, чем таблица из статьи.** Он снят на той версии
+      движка, которая у вас сейчас, а таблица могла устареть. Так же замеряют полифиллы и чужие
+      обёртки.
+
+    </Card>
+  </CardGrid>
+
+  <Card
+    title="`return p` против `return await p`"
+    titleSize={17}
+    pad={20}
+    radius={5}
+    gap={13}
+    size={16.5}
+    lh={1.6}
+  >
+
+    `async`-функция завершает свой промис тем, что вернула, — здесь это `p`. Раз `p` — промис,
+    срабатывает `ResolvePromise` с thenable → **+2 тика**. `return await p` сначала платит 1 тик
+    за `await`, а дальше завершает промис уже готовым **значением** → **+1**. На линейке это
+    3 против 2.
+
+    <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+      Старое правило линтера `no-return-await` придумано для кода вне `async`. Внутри `async` оно
+      делает код медленнее и портит стек вызовов в ошибке: без `await` функции на стеке уже нет,
+      когда приходит отказ.
+      Как движок достраивает стек через `await` и почему у колбэка таймера его нет —
+      [«Колбэки», раздел «Ошибка в асинхронном колбэке»](/js/callbacks/#s5).
+
+    </Card>
+
+
+    Тот же эффект виден и в обычной цепочке: `return значение` из `.then` дешевле, чем
+    `return промис`. Причина та же: звено цепочки завершается тем, что вы вернули.
+
+  </Card>
+
+  ### Откуда 3 и 2: обе функции по тикам
+
+  <CodeBlock code={RETURN_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={RETURN_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {RETURN_STEPS.map((v) => (
+      <Card title={v.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        {v.ticks.map((t) => (
+          <Md text={t} />
+        ))}
+        <Md text={`**Итог:** ${v.total}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Разница в один тик — это ровно разница между входом и выходом из раздела «Три операции,
+  которые всё объясняют»: `await` пропускает настоящий промис без обёртки, а завершение промиса
+  промисом разворачивает его отдельным заданием.
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Четыре комбинатора — и ни один не отменяет проигравших"
+  lead="Комбинатор — функция, которая собирает много промисов в один: `all`, `allSettled`, `race`, `any`. Все четыре устроены одинаково: подписываются `.then` на каждый элемент и решают, чем завершить **свой** промис. Отсюда и их цена в тиках, и то, чего они не умеют."
+  leadWidth={72}
+>
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Комбинатор добавляет свой слой — даже над одним элементом.** `await Promise.all([p])`
+    стоит 2 тика, а `await p` — 1: подписка `.then` на элемент — лишняя реакция.
+    То же с `race`, `any`, `allSettled` и самописными обёртками.
+    Во что это обходится в наносекундах — в разделе [«Цены»](#s6).
+
+  </Card>
+
+  <Table
+    head={COMBINATOR_HEAD}
+    rows={COMBINATOR_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(150px,.7fr) minmax(200px,1fr) minmax(240px,1.4fr)"
+    minWidth={620}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {COMBINATOR_FACTS.map((fact) => (
+      <Card pad={16} radius={4} size={15.5} text={fact} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="`any` отклоняется составной причиной" titleSize={17} pad={20} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={ANY_CODE} size={12} />
+
+    <Md text={ANY_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Необработанный отказ: кого ещё можно спасти"
+  lead="В консоли `Uncaught (in promise)`, хотя `catch` в коде есть: его добавили слишком поздно. Граница этого «поздно» проходит не по времени и не по строкам кода, а по моменту, когда **очередь микрозадач опустела**."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHECKPOINT} />
+
+  <CodeBlock code={REJECTION_CODE} size={12} />
+
+  Что происходит с этим кодом по шагам — и где именно проходит проверка:
+
+  <CardGrid min={250} gap={12} align="start">
+    {REJECTION_STEPS.map((step, i) => (
+      <Card index={String(i + 1)} title={step.k} titleSize={16} pad={17} radius={4} gap={9} size={15} lh={1.55}>
+        <Md text={step.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={REJECTION_RUNS.head}
+    rows={REJECTION_RUNS.rows}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(200px,1fr) minmax(150px,.7fr) minmax(260px,1.6fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={REJECTION_WHY} />
+  </Card>
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={REJECTION_LATE} />
+  </Card>
+
+  ### Что делать в своём коде
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={REJECTION_PRACTICE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={REJECTION_NODE} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Во что обходится сам промис"
+  lead="Тики — это **задержка**. Процессорное время — отдельный вопрос: сколько стоит сама конструкция и когда это вообще имеет значение."
+  leadWidth={72}
+>
+  {/* Вывод стоял после обеих таблиц: читатель сначала видел два столбца «×1.5 … ×13.8» и не знал,
+      много это или мало. Карточка сама начинается словами «читать эти таблицы стоит с одной
+      мыслью» — её место перед ними. */}
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={COST_NOTE} />
+  </Card>
+
+  <Table
+    head={COST_AWAIT.head}
+    rows={COST_AWAIT.rows}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(210px,1fr) minmax(160px,.7fr) minmax(260px,1.5fr)"
+    minWidth={720}
+  />
+
+  <Table
+    head={COST_CREATE.head}
+    rows={COST_CREATE.rows}
+    kinds={['mono', 'mono', 'muted']}
+    cols="minmax(240px,1.1fr) minmax(170px,.8fr) minmax(220px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Md text={COST_MEASURED} />
+
+  ### Комбинатор на один элемент — самая невыгодная его форма
+
+  <Table
+    head={COST_ALL.head}
+    rows={COST_ALL.rows}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(150px,.7fr) minmax(150px,.7fr) minmax(150px,.7fr)"
+    minWidth={520}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={COST_ALL_NOTE} />
+  </Card>
+
+  ### Ни один комбинатор не ограничивает число одновременных операций
+
+  <Card title="Пул на N одновременных задач — двадцать строк без зависимостей" titleSize={17} pad={20} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={POOL_CODE} size={12} />
+
+    <Table
+      head={POOL_RUNS.head}
+      rows={POOL_RUNS.rows}
+      kinds={['mono', 'mono', 'mono', 'prose']}
+      cols="minmax(150px,.7fr) minmax(130px,.6fr) minmax(110px,.5fr) minmax(240px,1.5fr)"
+      minWidth={700}
+    />
+
+    <CardNote tone="prose">
+      <Md text={POOL_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Почему `await` в цикле даёт последовательность
+
+  Десять запросов в `for` с `await` внутри идут друг за другом: общее время — сумма всех
+  десяти, а не самый долгий из них. На шкале времени видно: чинится это не удалением `await`,
+  а тем, когда запрос запускается. Параллельно идут те запросы, которые запустили до первого
+  `await`.
+
+  <SequentialVsParallel />
+
+  <CardGrid min={270} gap={12}>
+    {SEQ_FACTS.map((fact) => (
+      <Card pad={16} radius={4} size={15}>
+        <Md text={fact} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Тот же порядок заложен в `for await`: цикл запрашивает следующее значение, только когда
+  доработало тело, а `break` зовёт у источника `return()` — на примере чтения потока это
+  разобрано в [«Стримах», раздел «Итерация над стримом и байтовые читатели»](/platform/streams/#s6).
+
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники и смежные темы"
+>
+  <Card title="Источники" titleSize={17} pad={20} gap={12}>
+
+    У спецификации и объяснений разный срок годности. Спецификация меняется медленно,
+    и последнее слово за ней. Справочники и статьи устаревают быстрее, зато объясняют,
+    зачем всё так устроено, — в спецификации этого нет.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [колбэки](/js/callbacks/) — те гарантии, которых у колбэка нет и ради
+    которых промис придуман. [Цикл событий](/js/event-loop/) — очередь, куда ложатся реакции,
+    и checkpoint, на котором проверяют необработанный отказ.
+    [Планирование работы](/js/task-scheduling/) — что делать, когда микрозадач стало столько,
+    что страница перестала отвечать.
+    [Генераторы и асинхронные итераторы](/js/generators/) — как `async`/`await` собирается
+    из генератора и промисов и что делает `for await`.
+    [Асинхронный контекст](/js/async-context/) — почему контекст промиса снимается в момент подписки, а не разрешения.
+
+  </Card>
+</Section>

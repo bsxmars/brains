@@ -1,0 +1,62 @@
+time="2026-09-15T15:52:54+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[b-jobs/build      ] ⭐ Run Set up job
+[b-jobs/independent] ⭐ Run Set up job
+[b-jobs/build      ] 🚀  Start image=node:22-slim
+[b-jobs/independent] 🚀  Start image=node:22-slim
+[b-jobs/build      ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[b-jobs/independent]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[b-jobs/build      ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[b-jobs/independent]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[b-jobs/build      ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[b-jobs/independent]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[b-jobs/independent]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[b-jobs/build      ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[b-jobs/build      ]   ✅  Success - Set up job
+[b-jobs/independent]   ✅  Success - Set up job
+[b-jobs/independent] ⭐ Run Main echo "no needs -> runs in parallel with build"
+[b-jobs/build      ] ⭐ Run Main produce
+[b-jobs/independent]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[b-jobs/build      ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/mk] user= workdir=
+[b-jobs/build      ]   | wrote /private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha/artefact-candidate.txt
+[b-jobs/independent]   | no needs -> runs in parallel with build
+[b-jobs/build      ]   | hostname=docker-desktop container-id-ish=docker-desktop
+[b-jobs/independent]   ✅  Success - Main echo "no needs -> runs in parallel with build" [84.738208ms]
+[b-jobs/build      ]   ✅  Success - Main produce [89.657458ms]
+[b-jobs/build      ]   ⚙  ::set-env:: SECRETLY=env-file-of-job-A
+[b-jobs/build      ]   ⚙  ::set-output:: value=built-in-job-A
+[b-jobs/independent] ⭐ Run Complete job
+[b-jobs/independent] Cleaning up container for job independent
+[b-jobs/build      ] ⭐ Run Main confirm inside same job
+[b-jobs/independent]   ✅  Success - Complete job
+[b-jobs/independent] 🏁  Job succeeded
+[b-jobs/build      ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[b-jobs/build      ]   | same job sees env file: [env-file-of-job-A]
+[b-jobs/build      ]   | same job sees file: hello from build
+[b-jobs/build      ]   ✅  Success - Main confirm inside same job [119.275958ms]
+[b-jobs/build      ] ⭐ Run Complete job
+[b-jobs/build      ] Cleaning up container for job build
+[b-jobs/build      ]   ✅  Success - Complete job
+[b-jobs/build      ] 🏁  Job succeeded
+[b-jobs/deploy     ] ⭐ Run Set up job
+[b-jobs/deploy     ] 🚀  Start image=node:22-slim
+[b-jobs/deploy     ]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[b-jobs/deploy     ]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[b-jobs/deploy     ]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[b-jobs/deploy     ]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[b-jobs/deploy     ]   ✅  Success - Set up job
+[b-jobs/deploy     ] ⭐ Run Main what crossed the job border
+[b-jobs/deploy     ]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[b-jobs/deploy     ]   | needs.build.outputs.declared=[built-in-job-A]
+[b-jobs/deploy     ]   | needs.build.outputs.undeclared_attempt=[]
+[b-jobs/deploy     ]   | needs.build.result=[success]
+[b-jobs/deploy     ]   | env file from job A=[]
+[b-jobs/deploy     ]   | hostname=docker-desktop
+[b-jobs/deploy     ]   | cwd=/private/tmp/claude-501/-Users-ivankrylov-projects-my-lesson/8939cd62-69b4-4ebf-a9c7-41b1152dc6bb/scratchpad/gha
+[b-jobs/deploy     ]   | FILE GONE
+[b-jobs/deploy     ]   ✅  Success - Main what crossed the job border [130.750583ms]
+[b-jobs/deploy     ] ⭐ Run Complete job
+[b-jobs/deploy     ] Cleaning up container for job deploy
+[b-jobs/deploy     ]   ✅  Success - Complete job
+[b-jobs/deploy     ] 🏁  Job succeeded

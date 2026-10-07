@@ -1,0 +1,392 @@
+---
+/**
+ * Галерея общих компонентов и токенов курса.
+ *
+ * Зачем отдельная страница: вид курса задан в одном месте (`shared/ui/theme.ts`), но увидеть
+ * его целиком раньше было негде — приходилось листать уроки и надеяться, что все состояния
+ * где-нибудь да встретились. Здесь они собраны рядом: меняешь токен — сразу видно, что поехало.
+ *
+ * Страница не входит в курс и не попадает в карту уроков: это инструмент автора.
+ */
+import BaseLayout from '@/shared/ui/BaseLayout.astro';
+import Section from '@/shared/ui/Section.astro';
+import Card from '@/shared/ui/Card.astro';
+import Md from '@/shared/ui/Md.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Table from '@/shared/ui/Table.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Text from '@/shared/ui/Text.astro';
+import ChartFrame from '@/shared/ui/ChartFrame.vue';
+import PlayerToolbar from '@/shared/ui/PlayerToolbar.vue';
+import Procedure from '@/widgets/procedure/ui/Procedure.vue';
+import SnippetLab from '@/widgets/snippet-lab/ui/SnippetLab.vue';
+import StackView from '@/shared/ui/StackView.vue';
+import QueueView from '@/shared/ui/QueueView.vue';
+import ConsoleView from '@/shared/ui/ConsoleView.vue';
+import CodeListing from '@/shared/ui/CodeListing.vue';
+import { LESSON_VARS } from '@/shared/ui/theme';
+
+/** Цветные токены отделяем от остальных: в теме рядом лежат шрифты, радиусы и ступени шкалы. */
+const isColor = (value: string) => /^#[0-9a-f]{3,8}$/i.test(value) || /^rgba?\(/.test(value);
+const colors = Object.entries(LESSON_VARS).filter(([, value]) => isColor(value));
+
+/**
+ * Группы палитры.
+ *
+ * Порядок нагружен смыслом: токен попадает в **первую** подошедшую группу и больше нигде
+ * не показывается. Иначе `--tone-ok-text` честно матчится и «тоном успеха», и «текстом»,
+ * и галерея начинает врать о размере палитры, показывая один цвет дважды. Поэтому тоновые
+ * семейства стоят раньше общей группы текста, а она идёт последней и собирает остаток.
+ */
+const GROUPS: { title: string; match: (name: string) => boolean }[] = [
+  { title: 'Поверхности и линии', match: (n) => /canvas|surface|sunk|border|hairline|divider|rule/.test(n) },
+  { title: 'Тон: информация', match: (n) => n.includes('info') },
+  { title: 'Тон: успех', match: (n) => n.includes('ok') || n === '--success' },
+  { title: 'Тон: предупреждение', match: (n) => n.includes('warn') || n === '--warning' },
+  { title: 'Тон: ошибка', match: (n) => n.includes('err') || n === '--danger' },
+  { title: 'Столбики диаграмм', match: (n) => n.startsWith('--bar-') },
+  { title: 'Акцент', match: (n) => /accent|grad/.test(n) },
+  { title: 'Текст и чернила', match: () => true },
+];
+
+const taken = new Set<string>();
+const grouped = GROUPS.map((group) => {
+  const items = colors.filter(([name]) => !taken.has(name) && group.match(name));
+  for (const [name] of items) taken.add(name);
+  return { title: group.title, items };
+}).filter((group) => group.items.length);
+
+/** Ступени шкалы — те же, что в теме; здесь они просто показаны собой. */
+const STEPS = [
+  { token: '--fs-1', use: 'оси графиков, самые мелкие подписи' },
+  { token: '--fs-2', use: 'моно-метки колонок' },
+  { token: '--fs-3', use: '«пилюли», кнопки, блоки кода, надзаголовки' },
+  { token: '--fs-4', use: 'сноски, вторая строка карточки' },
+  { token: '--fs-5', use: 'строки таблиц' },
+  { token: '--fs-6', use: 'тело карточки — самый частый размер' },
+  { token: '--fs-7', use: 'лид раздела' },
+  { token: '--fs-8', use: 'врезка-акцент, крупная цифра' },
+];
+
+const TONES = ['neutral', 'info', 'ok', 'warn', 'err', 'dim'] as const;
+
+/**
+ * Тон карточки → тон сноски. Наборы намеренно разные: у карточки тон означает заливку,
+ * у сноски — цвет текста, и «нейтральной заливки» в виде цвета текста не существует —
+ * её роль играет обычная проза.
+ */
+const NOTE_TONE: Record<(typeof TONES)[number], 'ok' | 'prose' | 'err' | 'warn' | 'info'> = {
+  neutral: 'prose',
+  info: 'info',
+  ok: 'ok',
+  warn: 'warn',
+  err: 'err',
+  dim: 'prose',
+};
+const VARIANTS = ['h1', 'h2', 'h3', 'lead', 'body', 'ui', 'note', 'display'] as const;
+---
+
+<BaseLayout
+  title="Набор компонентов · Внутренности JS"
+  description="Токены, типографика и общие компоненты курса в одном месте"
+>
+  <Section
+    variant="intro"
+    eyebrow="набор · инструмент автора"
+    title="Из чего собран курс"
+    lead="Токены темы, ступени типографики и все общие компоненты в одном месте. Страница не входит в курс: она нужна, чтобы правку одного токена было видно целиком, а не по одному уроку за раз."
+  />
+
+  <Section id="colors" eyebrow="токены" title="Палитра" lead="Единственный источник цвета — `shared/ui/theme.ts`. Ни один компонент не имеет права завести свой оттенок: это проверяет e2e-тест палитры.">
+    {
+      grouped.map((group) => (
+        <div class="group">
+          <Text variant="label">{group.title}</Text>
+          <div class="swatches">
+            {group.items.map(([name, value]) => (
+              <div class="swatch">
+                <div class="swatch__chip" style={`background:${value}`} />
+                <Text variant="micro" class="swatch__name">{name}</Text>
+                <Text variant="micro" class="swatch__value">{value}</Text>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))
+    }
+  </Section>
+
+  <Section id="type" eyebrow="токены" title="Типографика" lead="Восемь ступеней вместо двадцати одного размера. Общий масштаб курса — одно число `--fs-scale`; здесь видно, как оно раздвигает всю шкалу разом.">
+    <div class="rows">
+      {
+        STEPS.map((step) => (
+          <div class="row">
+            <Text variant="micro" mono>{step.token}</Text>
+            <div style={`font-size: var(${step.token})`}>Съешь ещё этих мягких булок · 0123</div>
+            <Text variant="micro">{step.use}</Text>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="rows">
+      {
+        VARIANTS.map((variant) => (
+          <div class="row">
+            <Text variant="micro" mono>{`t-${variant}`}</Text>
+            <Text variant={variant}>Роль текста: {variant}</Text>
+            <Text variant="micro" text="компонент `Text`" />
+          </div>
+        ))
+      }
+    </div>
+  </Section>
+
+  <Section id="depth" eyebrow="токены" title="Высота и скругления" lead="На белой канве рамка в 1px превращалась в бледную сетку, поэтому поверхности поднимает тень.">
+    <div class="tiles">
+      <div class="tile" style="box-shadow: var(--shadow-card)"><Text variant="micro" mono>--shadow-card</Text></div>
+      <div class="tile" style="box-shadow: var(--shadow-1)"><Text variant="micro" mono>--shadow-1</Text></div>
+      <div class="tile" style="box-shadow: var(--shadow-2)"><Text variant="micro" mono>--shadow-2</Text></div>
+      <div class="tile" style="box-shadow: var(--shadow-3)"><Text variant="micro" mono>--shadow-3</Text></div>
+    </div>
+    <div class="tiles">
+      <div class="tile" style="border-radius: var(--r1)"><Text variant="micro" mono>--r1</Text></div>
+      <div class="tile" style="border-radius: var(--r2)"><Text variant="micro" mono>--r2</Text></div>
+      <div class="tile" style="border-radius: var(--r3)"><Text variant="micro" mono>--r3</Text></div>
+      <div class="tile" style="border-radius: var(--r4)"><Text variant="micro" mono>--r4</Text></div>
+    </div>
+  </Section>
+
+  <Section id="cards" eyebrow="компоненты" title="Карточки и тона" lead="Один компонент с пропом `tone`: нейтральная карточка и цветная врезка отличаются ровно им.">
+    <CardGrid min={260}>
+      {
+        TONES.map((tone) => (
+          <Card tone={tone} title={`tone: ${tone}`}>
+            Текст карточки. <b>Жирный зачин</b> — чернилами, остальное прозой.
+            <CardNote tone={NOTE_TONE[tone]}>Сноска: её линия повторяет цвет рамки карточки.</CardNote>
+          </Card>
+        ))
+      }
+    </CardGrid>
+
+    <CardGrid min={260}>
+      <Card label="метка · моно" index="01" title="Номер и заголовок">Номер стоит на одной базовой линии с заголовком.</Card>
+      <Card tone="ok" emphasis title="Выбранный вариант">Рамка в 1.5px цветом тона — так помечают выбор из нескольких.</Card>
+      <Card tone="info" color="tone" radius={4}>Врезка без заголовка: весь текст цвета тона.</Card>
+    </CardGrid>
+  </Section>
+
+  <Section id="lists" eyebrow="компоненты" title="Списки, таблица, код">
+    <CardGrid min={280} align="start">
+      <Card title="Нумерованный список">
+        <NumberedList
+          pad
+          items={[
+            'Первый шаг — нумерация с ведущим нулём.',
+            'Второй шаг — линия слева задаёт колонку.',
+            'Третий шаг.',
+          ]}
+        />
+      </Card>
+      <Card title="Списки-вердикты">
+        <CheckList tone="ok" items={['так можно', 'и так тоже']} />
+        <CheckList tone="err" items={['а так нельзя', 'и так нельзя']} />
+      </Card>
+    </CardGrid>
+
+    <Table
+      head={['операция', 'что делает', 'цена']}
+      rows={[
+        ['queueMicrotask', 'ставит микрозадачу', '+1 тик'],
+        ['await', 'разворачивается в then', '+1 тик'],
+        ['setTimeout(f, 0)', 'макрозадача, клэмп 4 мс', 'следующий оборот'],
+      ]}
+      kinds={['mono', 'prose', 'muted']}
+      minWidth={520}
+    />
+
+    <CodeBlock code={`const p = Promise.resolve(1);\np.then((v) => console.log(v));\nqueueMicrotask(() => console.log('микрозадача'));`} />
+  </Section>
+
+  <Section id="dark" eyebrow="компоненты" title="Тёмные панели" lead="Чернильная поверхность — это вывод движка и итоговые тезисы: то, что говорит не автор, а машина.">
+    <DarkPanel eyebrow="панель · вывод движка">
+      <DarkText>Текст на чернилах: основной тон — светлая проза, вторичный — приглушённый.</DarkText>
+      <DarkText tone="secondary">Вторичная строка.</DarkText>
+    </DarkPanel>
+  </Section>
+
+  <Section id="demo" eyebrow="компоненты" title="Части демо" lead="Кирпичи, из которых собраны все интерактивные разборы курса.">
+    {/* Панель проигрывателя стоит в галерее не для красоты: у ползунка есть собственные цвета
+        браузера, и проверка палитры обязана увидеть их здесь, а не в уроке. */}
+    <PlayerToolbar client:visible counter="3 / 8" index={2} total={8} playing={false} speed={1} />
+
+    <CardGrid min={240} align="start">
+      <StackView client:visible frames={['each', 'ваш код']} label="стек вызовов" />
+      <QueueView client:visible items={['t1', 't2']} label="очередь макрозадач" tone="warn" />
+      <ConsoleView client:visible lines={['1', 'поймали: стоп']} />
+      <CodeListing
+        client:visible
+        label="исходник"
+        active={1}
+        lines={['try {', '  each([1, 2, 3], cb);', '} catch (e) {}']}
+      />
+    </CardGrid>
+  </Section>
+
+  <Section
+    id="chart"
+    eyebrow="компоненты"
+    title="Рамка графика"
+    lead="Оси, сетка и засечки. Данные рисует тот, кто её использует, — поэтому здесь она пустая: проверяется именно рамка, её цвета и поведение на узком экране."
+  >
+    <ChartFrame
+      client:visible
+      xTicks={[
+        { at: 0, label: '0' },
+        { at: 163, label: '25' },
+        { at: 326, label: '50' },
+        { at: 489, label: '75' },
+        { at: 652, label: '100' },
+      ]}
+      yTicks={[
+        { at: 0, label: '120' },
+        { at: 54, label: '90' },
+        { at: 108, label: '60' },
+        { at: 162, label: '30' },
+        { at: 216, label: '0' },
+      ]}
+      xLabel="мс"
+      yLabel="цена"
+    />
+  </Section>
+
+  <Section
+    id="live-matrix"
+    eyebrow="компоненты"
+    title="Матрица, которую считает браузер"
+    lead="Демо одной породы: они не пересказывают поведение языка, а выполняют его. Их шестнадцать, и живут они на соседней странице — [вычисляющие демо](/kit/labs/)."
+  >
+    <Card tone="info" title="Почему витрин две" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+      <Md
+        text="Витрину открывают по двум разным поводам. Первый — правка оформления: меняешь токен и смотришь, что поехало; для этого нужны палитра, ступени шрифта, карточки, тёмные панели — всё, что выше. Второй — проверка правила «демо обязано вычислять, а не листать заготовки»; для этого нужны сами лаборатории, и их набралось шестнадцать."
+      />
+
+      <Md
+        text="Разделено это, впрочем, не из стройности. Сторож веса держит для витрины порог в 200 КБ, и с шестнадцатью островами одна страница выросла до 233. В самом сторожевом файле записано, что правильный ответ в такой момент — **делить витрину, а не двигать число**: порог затем и стоит, чтобы этот разговор состоялся вовремя."
+      />
+
+    </Card>
+  </Section>
+
+  <Section
+    id="procedure"
+    eyebrow="компоненты"
+    title="Процедура"
+    lead="Порядок действий, который проходят, а не читают: «зачем» раскрыто только у текущего шага, а подготовка блокирует остальные — пока она не сделана, проходить процедуру незачем."
+  >
+    <Procedure
+      client:visible
+      prep={['Закрыть лишние вкладки: они делят с вами процесс.', 'Очистить консоль — она удерживает всё напечатанное.']}
+      steps={[
+        { n: '1', t: 'Снять первый снимок', why: 'Опорная точка. Сравнивать будет не с чем, если её нет.' },
+        { n: '2', t: 'Прогнать сценарий двадцать раз', why: 'Утечка видна на повторении: разовый прирост — это прогрев, а не течь.' },
+        { n: '3', t: 'Снять второй снимок и сравнить', why: 'Смотреть на прирост, а не на абсолютный размер.' },
+      ]}
+    />
+  </Section>
+
+  <Section
+    id="snippet-lab"
+    eyebrow="компоненты"
+    title="Песочница"
+    lead="Авторский пример можно переписать и запустить: вывод настоящий, из браузера читателя. Код уходит в воркер — опечатка вроде `while (true)` не должна убивать вкладку вместе с уроком."
+  >
+    <SnippetLab
+      client:visible
+      snippets={[
+        {
+          label: 'микрозадача против таймера',
+          code: "setTimeout(() => console.log('таймер'), 0);\nPromise.resolve().then(() => console.log('микрозадача'));\nconsole.log('синхронно');",
+          note: 'Порядок один и тот же в любом движке: синхронный код, затем микрозадачи, и только потом таймер.',
+        },
+        {
+          label: 'цена await',
+          code: "(async () => {\n  console.log('до');\n  await null;\n  console.log('после await');\n})();\nPromise.resolve().then(() => console.log('соседняя микрозадача'));",
+          note: '`await null` стоит один тик — «после await» встаёт в очередь раньше соседней реакции, поставленной позже.',
+        },
+      ]}
+    />
+  </Section>
+
+</BaseLayout>
+
+<style>
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+    gap: 10px;
+  }
+  .swatch {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  /* Рамка у образца есть всегда: белый на белом иначе не виден вовсе. */
+  .swatch__chip {
+    height: 46px;
+    border: 1px solid var(--border);
+    border-radius: var(--r1);
+  }
+  .swatch__name {
+    overflow-wrap: anywhere;
+    color: var(--ink);
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(90px, 110px) minmax(0, 1fr) minmax(0, 200px);
+    gap: 14px;
+    align-items: baseline;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
+    min-width: 0;
+  }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+    gap: 18px;
+  }
+  .tile {
+    display: flex;
+    align-items: flex-end;
+    min-height: 84px;
+    padding: 12px;
+    background: var(--surface);
+    border-radius: var(--r3);
+    box-shadow: var(--shadow-1);
+  }
+
+  @media (max-width: 640px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

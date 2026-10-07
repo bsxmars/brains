@@ -1,0 +1,56 @@
+---
+/**
+ * Оболочка страницы: голова документа, токены темы и корневой блок урока.
+ *
+ * Токены едут атрибутом `style` на `<html>` — инлайн сильнее любого `@layer`, поэтому ни
+ * порядок подключения, ни `[data-theme]` из Aura на палитру не влияют.
+ *
+ * `lang="ru"` и `<title>` — то, чего в оригинальных бандлах не было вовсе: там осталось
+ * «Bundled Page» и документ без языка. На вид это не влияет, на скринридер и вкладку — да.
+ */
+import '@/shared/styles/index.css';
+import { plainMd } from '@/shared/lib/format';
+import AppVersion from './AppVersion.astro';
+import { varsToStyle } from './theme';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<!doctype html>
+<html lang="ru" style={varsToStyle()}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    {description && <meta name="description" content={plainMd(description)} />}
+  </head>
+  <body>
+    <AppVersion />
+    <div class="root">
+      <slot name="top" />
+      <div class="container">
+        <slot />
+      </div>
+    </div>
+  </body>
+</html>
+
+<style>
+  /* Те же значения, что у корневого `<div ref="{{ rootRef }}">` в оригинале. */
+  .root {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--serif);
+    padding: 0 24px 120px;
+  }
+  /* Полосу навигации ширина не касается: она сама выходит за поля через margin. */
+  .container {
+    max-width: 1060px;
+    margin: 0 auto;
+  }
+</style>

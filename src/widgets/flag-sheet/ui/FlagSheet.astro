@@ -1,0 +1,86 @@
+---
+/**
+ * Шпаргалка по флагам: что флаг задаёт, что ограничивает и чего не трогает.
+ *
+ * Карточка собрана из общих `Card`/`CardGrid`, поэтому вид и высота у неё те же, что у любой
+ * карточки курса. Своего здесь ровно две вещи: моно-строка флага и метка владельца — «node»,
+ * «pm2», «kubernetes». Метка нужна, чтобы соседство флагов в одном списке не читалось как
+ * утверждение «это всё флаги Node».
+ */
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import Pill from '@/shared/ui/Pill.astro';
+import type { FlagRow } from '../model/types';
+
+interface Props {
+  rows: FlagRow[];
+  min?: number;
+}
+
+const { rows, min = 300 } = Astro.props;
+
+const OWNER: Record<FlagRow['owner'], { label: string; tone: 'info' | 'neutral' | 'warn' }> = {
+  node: { label: 'node', tone: 'info' },
+  pm2: { label: 'pm2 · не Node', tone: 'warn' },
+  k8s: { label: 'kubernetes · не Node', tone: 'warn' },
+};
+---
+
+<CardGrid min={min} gap={14} align="start">
+  {
+    rows.map((row) => (
+      <Card tone={row.tone ?? 'neutral'} pad={18} gap={11} size={15.5} lh={1.6}>
+        <div class="head">
+          <code class="flag">{row.flag}</code>
+          <Pill tone={OWNER[row.owner].tone} size={10}>
+            {OWNER[row.owner].label}
+          </Pill>
+        </div>
+
+        <div class="what">{row.what}</div>
+
+        <div class="row">
+          <span class="t-label">ограничивает</span>
+          <span class="limits">{row.limits}</span>
+        </div>
+
+        {row.misses && <CardNote tone="err">{row.misses}</CardNote>}
+      </Card>
+    ))
+  }
+</CardGrid>
+
+<style>
+  .head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px;
+  }
+  /* Имя флага длиннее телефона не бывает, но переносится оно только по дефисам — иначе
+     `--heapsnapshot-near-heap-limit` утащит карточку вбок. */
+  .flag {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+
+  .what {
+    font-size: var(--fs-6);
+    line-height: 1.6;
+  }
+
+  .row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .limits {
+    font-size: var(--fs-5);
+    line-height: 1.55;
+    color: var(--prose);
+  }
+</style>

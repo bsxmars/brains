@@ -1,0 +1,518 @@
+---
+title: "Что внутри gzip: LZ77 и коды Хаффмана"
+heading: "Что внутри gzip: LZ77 и коды Хаффмана"
+headingWidth: 24
+order: 8
+kicker: алгоритмы во фронтенде
+lead: "gzip, PNG, zip и `CompressionStream` сжимают одним и тем же форматом — DEFLATE. В нём два приёма подряд: повтор заменяется ссылкой назад, а получившиеся символы записываются кодами разной длины. Как ищутся повторы, чем уровень 9 отличается от 6, откуда берутся коды и как распаковать настоящий поток по одному биту."
+leadWidth: 66
+summary: "LZ77: окно 32 КБ, пары (расстояние, длина) 3–258, перекрытие; хеш-цепочки, жадный и ленивый поиск, configuration_table zlib; дерево Хаффмана, префиксный код, ограничение 15 бит; канонический код и fixed-коды; блоки stored, fixed, dynamic, алфавиты с extra-битами, заголовок HLIT/HDIST/HCLEN; распаковщик в девяносто строк; обёртки gzip и zlib, CRC-32 и Adler-32; энтропия, окно, Brotli и zstd."
+verifiedOn: "Node 24.11.0 (zlib 1.3.1), fflate 0.8.3, pako 1.0.11, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: учебный inflate распаковывает вывод zlib, fflate и pako на уровнях 0–9 байт в байт, длины кодов совпадают с dynamic-блоками zlib, размеры и биты заголовка пересчитываются tests/unit/deflate.test.ts; поведение Chromium с битым gzip снято стендом; устройство Brotli и zstd — по RFC"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: LZ77 }
+  - { id: s2, label: Поиск повторов }
+  - { id: s3, label: Хаффман }
+  - { id: s4, label: Канонический код }
+  - { id: s5, label: Блоки DEFLATE }
+  - { id: s6, label: gzip и zlib }
+  - { id: s7, label: Предел сжатия }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import DeflateLab from '@/widgets/deflate-lab/ui/DeflateLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_DEFLATE,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_LZ77,
+  BLAH_TEXT,
+  BLAH_TOKENS,
+  BLAH_NOTE,
+  LZ77_CODE,
+  LZ77_NOTE,
+  LIMIT_ROWS,
+  ZLIB_START_NOTE,
+  PLAIN_CHAIN,
+  CHAIN_STEPS,
+  LAZY_TEXT,
+  LAZY_ROWS,
+  LAZY_NOTE,
+  LEVEL_ROWS,
+  LEVEL_NOTE,
+  TOO_FAR_NOTE,
+  DEMO_PRESETS,
+  DEMO_CAPTION,
+  LAB_CODES,
+  PLAIN_HUFFMAN,
+  ABRA_TEXT,
+  ABRA_STEPS,
+  ABRA_ROWS,
+  ABRA_NOTE,
+  HUFFMAN_CODE,
+  HUFFMAN_NOTE,
+  PLAIN_KRAFT,
+  FIB_NOTE,
+  PLAIN_CANON,
+  CANON_STEPS,
+  CANON_NOTE,
+  FIXED_ROWS,
+  FIXED_NOTE,
+  BLOCK_ROWS,
+  BLOCK_NOTE,
+  PLAIN_BITORDER,
+  LEN_ROWS,
+  DIST_ROWS,
+  ALPHABET_NOTE,
+  HEADER_LEAD,
+  HEADER_ROWS,
+  HEADER_NOTE,
+  INFLATE_CODE,
+  INFLATE_NOTE,
+  BITS_CODE,
+  BITS_NOTE,
+  DEMO_GZIP_CAPTION,
+  WRAP_ROWS,
+  GZIP_HEADER_ROWS,
+  WRAP_CODE,
+  WRAP_NOTE,
+  BROWSER_FACTS,
+  PLAIN_ENTROPY,
+  ENTROPY_ROWS,
+  ENTROPY_NOTE,
+  WINDOW_ROWS,
+  WINDOW_NOTE,
+  NEWER_ROWS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Два приёма" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    DEFLATE сжимает в два шага. **LZ77** заменяет повтор ссылкой «назад на столько-то байт,
+    скопировать столько-то». **Хаффман** записывает то, что осталось, кодами разной длины:
+    частым символам — короткие. Распаковщику не нужны ни уровень, ни настройки: всё, чтобы
+    восстановить байты, лежит в самом потоке.
+
+  </Callout>
+
+  Как браузер и сервер договариваются о сжатии, какой уровень брать и чем сжимать заранее,
+  разобрано в [«Сжатии в вебе»](/platform/compression/). Здесь — что происходит внутри
+  `gzip`: как находятся повторы, откуда берутся коды и что лежит в потоке бит за битом.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEFLATE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="LZ77: ссылки назад"
+  lead="Сжатие идёт по данным слева направо и на каждой позиции спрашивает: встречались ли эти байты раньше? Если да — вместо них пишется пара (расстояние, длина). Если нет — сам байт, литерал. Распаковщик повторяет ссылки, глядя на то, что уже собрал."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LZ77} />
+
+  <Card title={`«${BLAH_TEXT}» — семь токенов`} titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Table
+      head={['токены', 'что значат']}
+      rows={BLAH_TOKENS.map((r) => [r.k, r.d])}
+      kinds={['mono', 'prose']}
+      cols="minmax(180px,.8fr) minmax(260px,1.6fr)"
+      minWidth={480}
+    />
+
+    <CardNote tone="prose">
+      <Md text={BLAH_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="LZ77 туда и обратно" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LZ77_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={LZ77_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Почему 32 КБ, 3 и 258
+
+  <CardGrid min={260} gap={14} align="start">
+    {LIMIT_ROWS.map((row) => (
+      <Card title={row.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={row.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={ZLIB_START_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Поиск повторов и уровни"
+  lead="Сравнить текущую позицию со всеми 32 768 прошлыми — слишком дорого. Поэтому компрессор помнит, где раньше встречалась каждая тройка байт, и проверяет только эти места. Сколько мест проверить и когда остановиться — это и есть уровень сжатия."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHAIN} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {CHAIN_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Жадно или лениво
+
+  <Table
+    head={['поиск', `токены «${LAZY_TEXT}»`, 'итог']}
+    rows={LAZY_ROWS.map((r) => [r.k, r.tokens, r.count])}
+    tones={LAZY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(90px,.4fr) minmax(300px,1.8fr) minmax(110px,.5fr)"
+    minWidth={560}
+  />
+
+  <Md text={LAZY_NOTE} />
+
+  ### Что меняет уровень
+
+  <Table
+    head={['уровень', '`chain`', '`nice`', '`lazy`', '`good`', 'zlib, байт', 'учебный, байт']}
+    rows={LEVEL_ROWS}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(80px,.5fr) repeat(4, minmax(64px,.5fr)) minmax(100px,.7fr) minmax(110px,.7fr)"
+    minWidth={640}
+  />
+
+  <Md text={LEVEL_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TOO_FAR_NOTE} />
+
+  ### Ссылки на своём тексте
+
+  <DeflateLab client:visible codes={LAB_CODES} presets={DEMO_PRESETS} start="tokens" caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Коды Хаффмана"
+  lead="После LZ77 остаются символы: литералы, длины и расстояния. Одни встречаются сотни раз, другие — однажды. Если давать частым короткие коды, а редким длинные, бит выйдет меньше, чем при восьми на каждый."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HUFFMAN} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title={`Дерево для «${ABRA_TEXT}»`} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['шаг', 'что склеили']}
+        rows={ABRA_STEPS.map((r) => [r.k, r.d])}
+        kinds={['prose', 'prose']}
+        cols="minmax(90px,.6fr) minmax(180px,1.6fr)"
+        minWidth={300}
+      />
+    </Card>
+
+    <Card title="Длины и коды" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['символ', 'раз', 'бит', 'код']}
+        rows={ABRA_ROWS.map((r) => [r.sym, String(r.freq), String(r.len), r.code])}
+        kinds={['mono', 'mono', 'mono', 'mono']}
+        cols="repeat(4, minmax(60px,1fr))"
+        minWidth={300}
+      />
+    </Card>
+  </CardGrid>
+
+  <Md text={ABRA_NOTE} />
+
+  <Card title="Длины по частотам" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HUFFMAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={HUFFMAN_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Не длиннее 15 бит
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KRAFT} />
+
+  <Md text={FIB_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Канонический код"
+  lead="Распаковщик должен знать коды, которые выбрал компрессор. Передавать таблицу «символ → код» дорого. DEFLATE передаёт только длины, а сами коды обе стороны выводят из длин по одному правилу."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANON} />
+
+  <Table
+    head={['длина', 'какие коды']}
+    rows={CANON_STEPS.map((r) => [r.k, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(90px,.4fr) minmax(320px,2fr)"
+    minWidth={480}
+  />
+
+  <Md text={CANON_NOTE} />
+
+  ### Готовые коды из RFC
+
+  <Table
+    head={['символы', 'что это', 'бит', 'первый код', 'последний код']}
+    rows={FIXED_ROWS.map((r) => [r.range, r.what, String(r.len), r.from, r.to])}
+    kinds={['mono', 'prose', 'mono', 'mono', 'mono']}
+    cols="minmax(90px,.5fr) minmax(200px,1.4fr) minmax(50px,.3fr) minmax(110px,.7fr) minmax(110px,.7fr)"
+    minWidth={640}
+  />
+
+  <Md text={FIXED_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Блоки DEFLATE"
+  lead="Поток DEFLATE — это блоки подряд. Каждый говорит в первых трёх битах, последний ли он и как записаны его данные. Внутри — символы двух алфавитов: литералы вперемешку с длинами и расстояния."
+  leadWidth={72}
+>
+  <Table
+    head={['`BTYPE`', 'как записано', 'когда выбирают']}
+    rows={BLOCK_ROWS.map((r) => [r.k, r.how, r.when])}
+    tones={BLOCK_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(260px,1.5fr) minmax(240px,1.3fr)"
+    minWidth={680}
+  />
+
+  <Md text={BLOCK_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BITORDER} />
+
+  ### Два алфавита
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Длины: коды 257–285" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['коды', 'extra-бит', 'длины']}
+        rows={LEN_ROWS.map((r) => [r.codes, String(r.extra), r.range])}
+        kinds={['mono', 'mono', 'mono']}
+        cols="repeat(3, minmax(70px,1fr))"
+        minWidth={280}
+      />
+    </Card>
+
+    <Card title="Расстояния: коды 0–29" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['коды', 'extra-бит', 'расстояния']}
+        rows={DIST_ROWS.map((r) => [r.codes, r.codes === '…' ? '…' : String(r.extra), r.range])}
+        kinds={['mono', 'mono', 'mono']}
+        cols="repeat(3, minmax(70px,1fr))"
+        minWidth={280}
+      />
+    </Card>
+  </CardGrid>
+
+  <Md text={ALPHABET_NOTE} />
+
+  ### Заголовок dynamic-блока
+
+  <Md text={HEADER_LEAD} />
+
+  <Table
+    head={['биты', 'поле', 'значение', 'что значит']}
+    rows={HEADER_ROWS.map((r) => [r.bits, r.field, r.value, r.meaning])}
+    tones={HEADER_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(130px,.8fr) minmax(130px,.7fr) minmax(90px,.5fr) minmax(280px,2fr)"
+    minWidth={700}
+  />
+
+  <Md text={HEADER_NOTE} />
+
+  ### Распаковщик
+
+  <Card title="inflateRaw" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INFLATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={INFLATE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Сколько бит у своих кодов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BITS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={BITS_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Настоящий gzip по битам
+
+  <DeflateLab client:visible codes={LAB_CODES} presets={DEMO_PRESETS} start="gzip" caption={DEMO_GZIP_CAPTION} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Обёртки gzip и zlib"
+  lead="Сам DEFLATE не знает ни имени файла, ни контрольной суммы. Это добавляют обёртки: zlib — два байта спереди и Adler-32 сзади, gzip — заголовок от десяти байт и CRC-32 с длиной. Поток DEFLATE внутри одинаковый."
+  leadWidth={72}
+>
+  <Table
+    head={['формат', 'спереди', 'сзади', 'HTML из демо, байт', 'где встречается']}
+    rows={WRAP_ROWS.map((r) => [r.k, r.head, r.tail, String(r.size), r.where])}
+    kinds={['prose', 'prose', 'prose', 'mono', 'prose']}
+    cols="minmax(120px,.7fr) minmax(170px,1fr) minmax(140px,.8fr) minmax(90px,.5fr) minmax(200px,1.2fr)"
+    minWidth={760}
+  />
+
+  ### Заголовок gzip
+
+  <Table
+    head={['байт', 'поле', 'у zlib Node', 'что значит']}
+    rows={GZIP_HEADER_ROWS.map((r) => [r.at, r.k, r.v, r.d])}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(60px,.3fr) minmax(90px,.5fr) minmax(120px,.6fr) minmax(280px,2fr)"
+    minWidth={600}
+  />
+
+  <Card title="gunzip и unzlib" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={WRAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={WRAP_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что делает браузер
+
+  <CardGrid min={280} gap={14} align="start">
+    {BROWSER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Предел сжатия"
+  lead="Сжатие не создаёт место из ничего: оно убирает предсказуемость. Где байты уже непредсказуемы — случайные данные, уже сжатое, — убирать нечего, и DEFLATE честно пишет их как есть, ещё и с заголовками."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENTROPY} />
+
+  <Table
+    head={['данные', 'байт', 'бит на байт', 'предел по частотам', 'только Хаффман', 'DEFLATE 9']}
+    rows={ENTROPY_ROWS.map((r) => [r.k, r.size.toLocaleString('ru-RU'), String(r.h0).replace('.', ','), r.bound.toLocaleString('ru-RU'), r.huff.toLocaleString('ru-RU'), `**${r.deflate.toLocaleString('ru-RU')}**`])}
+    tones={ENTROPY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(170px,1.2fr) repeat(5, minmax(90px,.6fr))"
+    minWidth={720}
+  />
+
+  <Md text={ENTROPY_NOTE} />
+
+  ### Окно в 32 КБ
+
+  <Table
+    head={['расстояние до повтора', 'исходник', 'gzip 9', 'Brotli', 'zstd']}
+    rows={WINDOW_ROWS.map((r) => [`${r.distance.toLocaleString('ru-RU')} байт`, r.raw.toLocaleString('ru-RU'), r.zlib.toLocaleString('ru-RU'), r.br.toLocaleString('ru-RU'), r.zstd.toLocaleString('ru-RU')])}
+    tones={['ok', 'err']}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(170px,1.2fr) repeat(4, minmax(90px,.6fr))"
+    minWidth={600}
+  />
+
+  <Md text={WINDOW_NOTE} />
+
+  ### Чем лучше Brotli и zstd
+
+  <CardGrid min={300} gap={14} align="start">
+    {NEWER_ROWS.map((row) => (
+      <Card title={row.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={row.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Вся хитрость сжатия — у компрессора, распаковщик прост и один на всех.** Уровень,
+      цепочки, ленивый поиск и выбор блоков решают, сколько байт получится, но в поток попадают
+      только ссылки, длины кодов и сами коды. Поэтому сжимать сильнее можно сколько угодно
+      долго и один раз, а распаковывать будет каждый браузер — быстро и одинаково.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

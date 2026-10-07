@@ -1,0 +1,78 @@
+---
+/**
+ * Список источников: название ссылкой и одна строка о том, что именно оттуда взято.
+ *
+ * Раздел «Источники» появляется в курсе впервые, и раньше такого блока не было ни у одной темы.
+ * Отдельный виджет, а не разметка внутри MDX, по прозаической причине: в MDX нельзя `<style>` —
+ * фигурные скобки CSS разбираются как выражение и сборка падает. Разовый блок с собственным
+ * видом — это маленький виджет, и вот он.
+ *
+ * Вторая строка — не украшение. Ссылка на спеку без неё означает «я это где-то видел»;
+ * с ней читатель знает, какой именно раздел открывать и зачем.
+ *
+ * ⚠️ Обе строки идут через `inlineMd`. Без этого обратные кавычки из `data.ts` доезжали
+ * до читателя как есть — и поймал это `markup.spec`, уже третий раз на одной и той же
+ * ошибке: сперва шапка таблиц, потом метки карточек, теперь источники. Правило простое:
+ * **любой компонент, печатающий строку из данных, обязан её разобрать**.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Source {
+  title: string;
+  href: string;
+  what: string;
+}
+
+interface Props {
+  items: Source[];
+}
+
+const { items } = Astro.props;
+---
+
+<ul class="list">
+  {
+    items.map((item) => (
+      <li class="item">
+        {/* Внешние ссылки: `rel` без `target` — уходить из темы в новой вкладке читатель
+            не просил, а `noreferrer` уместен в любом случае. */}
+        <a class="link" href={item.href} rel="noreferrer" set:html={inlineMd(item.title)} />
+        <span class="what" set:html={inlineMd(item.what)} />
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 12px;
+    padding: 10px 0;
+    min-width: 0;
+  }
+  /* Разделитель между строками, но не под последней: список кончается текстом, а не линией. */
+  .item + .item {
+    border-top: 1px solid var(--rule);
+  }
+  .link {
+    font-family: var(--mono);
+    font-size: var(--fs-5);
+    /* Длинный адрес спеки на телефоне иначе утаскивает вбок всю страницу. */
+    overflow-wrap: anywhere;
+  }
+  .what {
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+</style>

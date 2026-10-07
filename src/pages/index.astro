@@ -1,0 +1,57 @@
+---
+import { withBase } from '@/shared/lib/url';
+/**
+ * Главная: перекрёсток направлений.
+ *
+ * Раньше здесь лежал список уроков «Внутренностей JS» — и это было честно, пока сайт этим
+ * курсом и был. Направлений стало больше, и список, оставшись на главной, начал врать:
+ * первое направление выглядело сайтом целиком, а остальные — приложением к нему внизу страницы.
+ * Поэтому список переехал на `/js/`, а главная отвечает на единственный вопрос, который здесь
+ * задают: «про что тут вообще и куда мне». Адреса уроков не изменились.
+ */
+import { DIRECTIONS } from '@/entities/direction';
+import { getDirectionLessons } from '@/entities/lesson';
+import BaseLayout from '@/shared/ui/BaseLayout.astro';
+import DirectionCards from '@/widgets/direction-cards/ui/DirectionCards.astro';
+
+/** Сколько названий уроков показать на карточке: три помещаются в строку и дают понять тему. */
+const PREVIEW = 3;
+
+const all = await Promise.all(
+  DIRECTIONS.map(async (direction) => {
+    const lessons = await getDirectionLessons(direction);
+    return {
+      href: withBase(direction.base),
+      title: direction.title,
+      question: direction.question,
+      count: lessons.length,
+      preview: lessons.slice(0, PREVIEW).map((lesson) => lesson.data.title),
+    };
+  }),
+);
+
+/**
+ * Направление без тем на главную не попадает.
+ *
+ * Оно объявлено заранее — коллекция, адрес, карточка, — потому что темам нужно куда-то
+ * приезжать. Но пустая карточка обещает читателю то, чего ещё нет: он приходит по ней
+ * и находит список из нуля строк. Пусть появится вместе с первой темой.
+ */
+const items = all.filter((item) => item.count > 0);
+---
+
+<BaseLayout
+  title="Как это устроено — разборы внутренностей веба"
+  description="Движок JS, рендеринг и фреймворки: разборы с демо, которые можно потрогать, и с ценой, которую можно померить самому."
+>
+  {/* Заголовка у главной нет намеренно: карточки направлений и есть ответ на вопрос
+      «про что тут», а строка над ними только отодвигала его вниз. */}
+  <DirectionCards items={items} />
+</BaseLayout>
+
+<style>
+  /* Отбивка сверху — вместо снятой шапки: карточки не должны начинаться от самого края. */
+  :global(.container) {
+    padding-top: 72px;
+  }
+</style>

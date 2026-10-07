@@ -1,0 +1,482 @@
+---
+title: "Canvas 2D и OffscreenCanvas: рисовать вне DOM"
+heading: "Canvas 2D и OffscreenCanvas: рисовать вне DOM"
+headingWidth: 22
+order: 18
+kicker: браузер и рендеринг
+lead: "Холст — не дерево элементов, а одна таблица пикселей. Нарисованный круг нельзя кликнуть, подвинуть или прочитать вслух, зато тысяча кругов стоит столько же, сколько один. Почему линия в 1px выходит серой и двойной, почему на ретине всё мылится, куда копятся пути без `beginPath`, когда холст отказывается отдать свои пиксели и как рисовать в воркере, пока главный поток занят."
+leadWidth: 66
+summary: "Битмап против DOM и SVG, попадание и доступность, буфер против CSS-размера и `devicePixelRatio`, покрытие пикселя и полупиксельные линии, `save`/`restore`, пути и `beginPath`, `clearRect` под матрицей, цена кадра и слои, запачканный холст и CORS, `OffscreenCanvas` в воркере при занятом главном потоке, `ImageBitmap` и `createImageBitmap`."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless, программная растеризация), Node 24.11.0, октябрь 2026; сброс пятна — ещё Firefox 155.0 и WebKit 26.6. Пиксели, снимки экрана, дерево доступности, слои, ошибки и кадры воркера сняты стендом и снимаются заново в tests/unit/canvas.test.ts; модель покрытия сверена с Chromium в 64 случаях"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Битмап, а не дерево }
+  - { id: s2, label: Два размера холста }
+  - { id: s3, label: Полпикселя }
+  - { id: s4, label: Состояние и путь }
+  - { id: s5, label: Цена кадра }
+  - { id: s6, label: Чужие пиксели }
+  - { id: s7, label: Холст в воркере }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import LineLab from '@/widgets/canvas-lab/ui/LineLab.vue';
+import BusyLab from '@/widgets/canvas-lab/ui/BusyLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_CANVAS,
+  PREREQ,
+  PREREQ_NOTE,
+  HIT_CODE,
+  HIT_FACTS,
+  A11Y_HTML,
+  AX_TREE,
+  A11Y_FACTS,
+  CHOICE_ROWS,
+  CHOICE_NOTE,
+  PLAIN_BUFFER,
+  NAIVE_CODE,
+  FIT_CODE,
+  BLUR_ROWS,
+  BLUR_NOTE,
+  SIZE_FACTS,
+  MEMORY_ROWS,
+  MEMORY_NOTE,
+  PLAIN_COVERAGE,
+  RASTER_CODE,
+  PROBE_CODE,
+  LINE_CASES,
+  STAND_COLUMNS,
+  LINE_ROWS,
+  LINE_NOTE,
+  DEMO_CAPTION,
+  STATE_CODE,
+  PLAIN_PATH,
+  PATH_CODE,
+  PATH_NOTE,
+  CLEAR_CODE,
+  STATE_FACTS,
+  FRAME_CODE,
+  COST_ROWS,
+  LAYERS,
+  LAYER_NOTE,
+  READBACK_WARNING,
+  COST_FACTS,
+  PLAIN_TAINT,
+  TAINT_CODE,
+  TAINT_OK_CODE,
+  TAINT_ROWS,
+  TAINT_FACTS,
+  TAINT_ENGINES,
+  TAINT_ENGINES_NOTE,
+  SPINNER_WORKER_CODE,
+  SPINNER_MAIN_CODE,
+  WORKER_NOTE,
+  WORKER_LINK,
+  SPINNER_CAPTION,
+  BUSY_REDUCED_NOTE,
+  BITMAP_CODE,
+  BITMAP_ROWS,
+  BITMAP_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Пиксели без узлов" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Холст хранит не фигуры, а пиксели. Браузер не знает, что на нём нарисовано, и поэтому
+    не помогает ни с кликами, ни с перерисовкой, ни со скринридером. Зато и не мешает:
+    тысяча фигур на холсте — это тысяча команд рисования, а не тысяча элементов со стилями
+    и раскладкой.
+
+  </Callout>
+
+  `<canvas>` — элемент, внутри которого одна картинка: таблица пикселей заданного размера.
+  Вы получаете у него контекст рисования и командами вроде `fillRect` или `stroke` красите
+  эти пиксели. Всё остальное, что у DOM есть даром, — попадание мышью, фокус, доступность,
+  чёткость на экране с высокой плотностью — здесь делаете вы сами. И почти каждая ошибка
+  с холстом проходит молча: исключения нет, просто картинка мыльная, линия серая, а кадр
+  тяжелеет.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANVAS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Битмап, а не дерево"
+  lead="Круг в SVG — элемент, у которого есть координаты, стили и обработчики. Круг на холсте — закрашенные пиксели. Браузер хранит результат рисования, а не то, что рисовали, и от этого зависит всё остальное: как узнать, куда кликнули, и что прочтёт скринридер."
+  leadWidth={72}
+>
+  <Card title="Круг на холсте и клик по нему" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {HIT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Что видит скринридер
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Три холста и SVG" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={A11Y_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Дерево доступности Chromium" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={AX_TREE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {A11Y_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Когда что брать
+
+  <Table
+    head={['чем рисовать', 'когда', 'чем платите']}
+    rows={CHOICE_ROWS.map((r) => [r.k, r.when, r.cost])}
+    tones={CHOICE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(130px,.6fr) minmax(280px,1.6fr) minmax(240px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Md text={CHOICE_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Два размера холста"
+  lead="У холста два размера, и браузер их не связывает. Атрибуты `width` и `height` задают, сколько пикселей в буфере. CSS задаёт, какое место элемент займёт на странице. Если они не совпадают с точками экрана, браузер растягивает готовую картинку — и она мылится."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUFFER} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Буфер в CSS-пикселях" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Буфер в точках экрана" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Одна линия на трёх экранах
+
+  Элемент 40×20 CSS-пикселей, чёрная линия толщиной 1 на `x = 10.5`. Снимок экрана
+  в точках, средний ряд: номер столбца и яркость там, где пиксель не белый (0 — чёрный).
+
+  <Table
+    head={['DPR', 'буфер по CSS', 'снимок', 'буфер × DPR', 'снимок']}
+    rows={BLUR_ROWS.map((r) => [String(r.dpr), r.naiveBuffer.join('×'), r.naive.map(([i, v]) => `${i}: ${v}`).join(', '), r.fitBuffer.join('×'), r.fit.map(([i, v]) => `${i}: ${v}`).join(', ')])}
+    kinds={['mono', 'mono', 'warn', 'mono', 'ok']}
+    cols="minmax(50px,.3fr) minmax(90px,.6fr) minmax(200px,1.4fr) minmax(90px,.6fr) minmax(140px,1fr)"
+    minWidth={640}
+  />
+
+  <Md text={BLUR_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SIZE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Цена чёткости
+
+  <Table
+    head={['DPR', 'буфер для 800×600 CSS', 'байт']}
+    rows={MEMORY_ROWS.map((r) => [String(r.dpr), r.buffer.join('×'), r.bytes.toLocaleString('ru-RU')])}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(60px,.4fr) minmax(160px,1fr) minmax(140px,1fr)"
+    minWidth={420}
+  />
+
+  <Md text={MEMORY_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Полпикселя: почему линия в 1px серая"
+  lead="Координаты на холсте — дробные, а пиксели — целые клетки. Когда край фигуры проходит через середину клетки, браузер красит её частично: альфа равна доле клетки под фигурой. Поэтому одна и та же линия выходит то чёрной в один пиксель, то двумя серыми."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COVERAGE} />
+
+  <Card title="Модель: покрытие пикселя полосой" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RASTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Проба: нарисовать и прочитать буфер" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PROBE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Линия под лупой
+
+  <LineLab client:visible rasterCode={RASTER_CODE} probeCode={PROBE_CODE} cases={LINE_CASES} stand={STAND_COLUMNS} caption={DEMO_CAPTION} />
+
+  <Table
+    head={['случай', 'код', 'что в буфере']}
+    rows={LINE_ROWS.map((r) => [r.k, r.code, r.cols])}
+    tones={LINE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(190px,1fr) minmax(190px,1fr) minmax(240px,1.3fr)"
+    minWidth={660}
+  />
+
+  <Md text={LINE_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Состояние и путь"
+  lead="Контекст 2D помнит настройки между вызовами: цвет, толщину, шрифт, матрицу сдвига и масштаба. Каждая команда рисования берёт их в момент вызова. Отдельно от настроек живёт путь — набранные, но ещё не нарисованные отрезки."
+  leadWidth={72}
+>
+  <Card title="save и restore" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Путь копится
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PATH} />
+
+  <Card title="Четыре полупрозрачные линии" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PATH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={PATH_NOTE} />
+
+  ### Очистка под матрицей
+
+  <CodeBlock code={CLEAR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14} align="start">
+    {STATE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Цена кадра"
+  lead="Анимация на холсте — это перерисовка в каждом `requestAnimationFrame`. Браузер не знает, какая часть картинки изменилась, поэтому решать, что рисовать заново, а что взять готовым, приходится коду."
+  leadWidth={72}
+>
+  <Card title="Фон — один раз, в кадре — копия" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FRAME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['приём', 'как', 'что стоит каждый кадр']}
+    rows={COST_ROWS.map((r) => [r.k, r.how, r.per])}
+    tones={COST_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(220px,1.2fr) minmax(260px,1.4fr)"
+    minWidth={680}
+  />
+
+  ### Каждый холст — слой
+
+  <Table
+    head={['элемент', 'слой', 'причина в Chromium']}
+    rows={LAYERS.rows}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(150px,1fr) minmax(100px,.6fr) minmax(140px,.8fr)"
+    minWidth={420}
+  />
+
+  <Md text={LAYER_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {COST_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Предупреждение Chromium после серии чтений" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={READBACK_WARNING} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Чужие пиксели: запачканный холст"
+  lead="Нарисовать на холсте картинку с другого origin можно всегда. Прочитать после этого его пиксели — только если сервер картинки разрешил это через CORS. Иначе холст считается запачканным, и всё, что выносит пиксели в JavaScript, бросает `SecurityError`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TAINT} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Без CORS" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TAINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="С CORS" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TAINT_OK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['картинка', 'drawImage', 'чтение пикселей']}
+    rows={TAINT_ROWS.map((r) => [r.k, r.draw, r.read])}
+    tones={TAINT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(160px,.8fr) minmax(240px,1.3fr)"
+    minWidth={660}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {TAINT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Можно ли отмыть: `canvas.width = …` в трёх движках
+
+  <Table
+    head={['движок', 'после присваивания width']}
+    rows={TAINT_ENGINES.map((r) => [r.engine, r.after])}
+    tones={TAINT_ENGINES.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(260px,1.4fr)"
+    minWidth={420}
+  />
+
+  <Md text={TAINT_ENGINES_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7 · демо"
+  eyebrowTone="demo"
+  title="Холст в воркере: OffscreenCanvas и ImageBitmap"
+  lead="`transferControlToOffscreen()` отдаёт буфер холста воркеру. Элемент остаётся на странице, а рисует в него воркер — своим циклом кадров. Пока главный поток занят, анимация в воркере продолжается."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Страница" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SPINNER_MAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="spinner.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SPINNER_WORKER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Два волчка и занятый поток
+
+  <BusyLab client:visible workerCode={SPINNER_WORKER_CODE} caption={SPINNER_CAPTION} reducedNote={BUSY_REDUCED_NOTE} />
+
+  <Md text={WORKER_NOTE} />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15.5} lh={1.6} text={WORKER_LINK} />
+
+  ### ImageBitmap: готовые пиксели
+
+  <CodeBlock code={BITMAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Md text={BITMAP_NOTE} />
+
+  <Table
+    head={['что сделали', 'что вышло']}
+    rows={BITMAP_ROWS.map((r) => [r.k, r.what])}
+    tones={BITMAP_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(300px,1.6fr)"
+    minWidth={600}
+  />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Холст отдаёт вам всё, что DOM делал сам.** Размер буфера — по точкам экрана, а не по CSS.
+      Координаты — с оглядкой на то, где проходят границы пикселей. Путь — с `beginPath`, очистка —
+      при единичной матрице, неподвижное — в готовый битмап. Попадание, фокус и имя для скринридера
+      — своим кодом или разметкой рядом. Взамен холст рисует тысячи фигур без тысяч элементов
+      и умеет делать это в воркере, не дожидаясь главного потока.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

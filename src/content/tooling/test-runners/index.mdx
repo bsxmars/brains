@@ -1,0 +1,472 @@
+---
+title: Тест-раннеры изнутри
+heading: "Тест-раннеры изнутри: Vitest и Jest"
+headingWidth: 24
+order: 9
+kicker: сборка и инструменты
+lead: "`vitest run` выглядит как «запусти мои тесты», а на деле это четыре механизма подряд: поиск файлов по шаблону, сбор дерева `describe` и `test`, исполнение с хуками и изоляция каждого файла в своём мире. Как они устроены, где Vitest и Jest расходятся и почему тесты одного файла влияют друг на друга, а тесты разных — нет."
+leadWidth: 66
+summary: "Поиск тестовых файлов, сбор дерева и исполнение с хуками `beforeAll`/`beforeEach`/`afterEach`/`afterAll`, изоляция файлов в процессах и vm-контекстах, реестр модулей, подъём `vi.mock` и `jest.mock`, шпионы `vi.fn`, фейковые таймеры и очередь, утечки между тестами и перемешивание."
+verifiedOn: "vitest 5.0.0, jest 30.5.2 (jest-circus, babel-jest 30.5.2, babel-plugin-jest-hoist 30.5.0), @sinonjs/fake-timers 15.4.0, Node 24.11.0, октябрь 2026: журналы хуков, изоляции, таймеров, перемешивания и трансформации моков сняты настоящими раннерами на фикстурах темы и пересобираются tests/unit/test-runners.test.ts; учебный раннер сверен с обоими на шести фикстурах, учебные часы — с @sinonjs/fake-timers, шпион — с @vitest/spy и jest-mock"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Сбор и исполнение }
+  - { id: s2, label: Изоляция файлов }
+  - { id: s3, label: Моки и подъём }
+  - { id: s4, label: Шпионы }
+  - { id: s5, label: Фейковые таймеры }
+  - { id: s6, label: Почему тесты текут }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import RunnerLab from '@/widgets/test-runner-lab/ui/RunnerLab.vue';
+import ClockLab from '@/widgets/test-runner-lab/ui/ClockLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_RUNNER,
+  PREREQ,
+  PREREQ_NOTE,
+  FIND_ROWS,
+  FIND_NOTE,
+  PLAIN_TWO_PHASES,
+  HOOKS_FIXTURE,
+  REAL,
+  HOOKS_NOTE,
+  RUNNER_CODE,
+  RUNNER_NOTE,
+  SCENARIOS,
+  DEMO_CAPTION,
+  DIFF_ROWS,
+  DIFF_NOTE,
+  PLAIN_ISOLATION,
+  COUNTER_CODE,
+  ISO_TEST_CODE,
+  ISO_HEAD,
+  ISO_TABLE,
+  ISO_TONES,
+  ISO_NOTE,
+  MODULES_CODE,
+  MODULES_NOTE,
+  REALM_FIXTURE,
+  REALM_LOG,
+  REALM_NOTE,
+  CART_CODE,
+  MOCK_TEST_VITEST,
+  VITEST_TRANSFORM,
+  MOCK_TEST_JEST,
+  JEST_TRANSFORM,
+  HOIST_STEPS,
+  HOIST_NOTE,
+  TDZ_VITEST,
+  TDZ_JEST,
+  TDZ_JEST_PREFIX,
+  TDZ_ERRORS,
+  FIX_VITEST,
+  FIX_JEST,
+  TDZ_NOTE,
+  SPY_CODE,
+  SPY_FIXTURE,
+  SPY_LOG,
+  SPY_NOTE,
+  PLAIN_FAKE_TIMERS,
+  TIMERS_FIXTURE,
+  TIMERS_LOG,
+  CLOCK_CODE,
+  CLOCK_SCENARIO_CODE,
+  TIMER_LABELS,
+  CLOCK_CAPTION,
+  TIMER_FACTS,
+  LEAK_FIXTURE,
+  SEED_ROWS,
+  SEED_NOTE,
+  OPEN_FIXTURE,
+  OPEN_LOG,
+  OPEN_JEST_TAIL,
+  OPEN_NOTE,
+  LEAK_CAUSES,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Что внутри раннера" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Раннер исполняет тестовый файл **дважды по-разному**: сначала целиком, чтобы записать,
+    какие в нём тесты и хуки, потом — тест за тестом по записанному дереву. А каждый файл
+    живёт в своём мире со своими модулями. Отсюда почти всё неожиданное в тестах: и порядок
+    строк, и моки, которые «не сработали», и тест, который падает только вместе с соседом.
+
+  </Callout>
+
+  Тесты пишут годами, ни разу не задумавшись, что делает `describe`. Пока всё зелёное,
+  это и не нужно. Нужно, когда тест падает только в CI, только после соседнего файла или
+  только после переезда с Jest на Vitest. Тогда приходится знать, в каком порядке раннер
+  вызывает ваш код и что он от вас прячет.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RUNNER} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Сначала сбор, потом исполнение"
+  lead="Раннер начинает не с ваших тестов, а с файловой системы: находит файлы по шаблону. Потом для каждого файла — две фазы. При сборе файл исполняется сверху вниз, и `describe`, `test`, хуки только записывают себя в дерево. При исполнении раннер обходит дерево и вызывает записанное."
+  leadWidth={72}
+>
+  ### Какие файлы — тесты
+
+  <Table
+    head={['файл', 'Vitest', 'Jest']}
+    rows={FIND_ROWS.map((r) => [r.file, r.vitest ? 'тест' : '—', r.jest ? 'тест' : '—'])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(220px,1.4fr) minmax(80px,.5fr) minmax(80px,.5fr)"
+    minWidth={420}
+  />
+
+  <Md text={FIND_NOTE} />
+
+  ### Две фазы на одном файле
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_PHASES} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Фикстура: хуки на двух уровнях" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HOOKS_FIXTURE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Журнал Jest" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REAL.hooks.jest.log.join('\n')} size={11.5} lh={1.65} pad="14px 16px" tone="ok" />
+    </Card>
+  </CardGrid>
+
+  <Md text={HOOKS_NOTE} />
+
+  ### Раннер в девяносто строк
+
+  <Card title="Сбор и исполнение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RUNNER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={RUNNER_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Одна фикстура, два раннера
+
+  <RunnerLab client:visible runnerCode={RUNNER_CODE} scenarios={SCENARIOS} caption={DEMO_CAPTION} />
+
+  <Table
+    head={['что', 'Vitest', 'Jest']}
+    rows={DIFF_ROWS.map((r) => [r.k, r.v, r.j])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(240px,1.3fr) minmax(240px,1.3fr)"
+    minWidth={680}
+  />
+
+  <Md text={DIFF_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Изоляция: файл в своём мире"
+  lead="Каждый тестовый файл получает свой реестр модулей. Поэтому модуль, импортированный в двух файлах, исполняется дважды и начинает с чистого состояния. А тесты одного файла видят один и тот же модуль — и всё, что предыдущий тест в нём оставил."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ISOLATION} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="counter.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={COUNTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="a.test.js (b.test.js — то же с буквой b)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ISO_TEST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  Оба файла запущены в одном воркере, друг за другом. В таблице — что увидел первый тест
+  второго по счёту файла.
+
+  <Table
+    head={ISO_HEAD}
+    rows={ISO_TABLE}
+    tones={ISO_TONES}
+    kinds={['prose', 'prose', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(190px,1.2fr) minmax(150px,1fr) minmax(110px,.7fr) minmax(110px,.7fr) minmax(110px,.7fr) minmax(80px,.5fr)"
+    minWidth={820}
+  />
+
+  <Md text={ISO_NOTE} />
+
+  ### Реестр модулей своими руками
+
+  <Card title="Загрузчик, моки и подъём" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MODULES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={MODULES_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Цена vm-контекста: чужой `Error`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Фикстура" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REALM_FIXTURE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Vitest и Jest" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={`// Vitest\n${REALM_LOG.vitest.join('\n')}\n\n// Jest\n${REALM_LOG.jest.join('\n')}`} size={11.5} lh={1.65} pad="14px 16px" tone="ok" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={REALM_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Моки модулей и подъём"
+  lead="`vi.mock('./price.js', фабрика)` записывает в реестр файла: «кто попросит `./price.js`, получит то, что вернёт фабрика». Работает это, только если запись сделана **до** первого импорта. Поэтому раннер переписывает тестовый файл и ставит вызов мока первой строкой."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="cart.js — код под тестом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CART_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="cart.test.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MOCK_TEST_VITEST} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Что исполнил Vitest" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VITEST_TRANSFORM} size={11.5} lh={1.65} pad="14px 16px" tone="ok" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Тот же тест для Jest" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MOCK_TEST_JEST} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что исполнил Jest" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={JEST_TRANSFORM} size={11.5} lh={1.65} pad="14px 16px" tone="ok" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={260} gap={14} align="start">
+    {HOIST_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={HOIST_NOTE} />
+
+  ### Поднимается вызов, а не переменные
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Vitest" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={`${TDZ_VITEST}\n\n// ${TDZ_ERRORS.vitest}`} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="Jest" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={`${TDZ_JEST}\n\n// ${TDZ_ERRORS.jest}`} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="Jest, префикс mock" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={`${TDZ_JEST_PREFIX}\n\n// ${TDZ_ERRORS.jestPrefix}`} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={TDZ_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="Vitest: vi.hoisted" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FIX_VITEST} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Jest: чтение позже" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FIX_JEST} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Шпионы: записи вызовов"
+  lead="`vi.fn()` и `jest.fn()` возвращают обычную функцию с полем `mock`. Каждый вызов дописывает в него аргументы, `this` и результат — значение или ошибку. Все проверки вида `toHaveBeenCalledWith` читают эти массивы."
+  leadWidth={72}
+>
+  <Card title="Шпион в тридцать строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SPY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Фикстура (T — это vi или jest)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SPY_FIXTURE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Журнал" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={`// Vitest\n${SPY_LOG.vitest.join('\n')}\n\n// Jest\n${SPY_LOG.jest.join('\n')}`} size={11.5} lh={1.65} pad="14px 16px" tone="ok" />
+    </Card>
+  </CardGrid>
+
+  <Md text={SPY_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Фейковые таймеры: время по команде"
+  lead="`useFakeTimers()` подменяет `setTimeout`, `setInterval` и `Date` на объекты из `@sinonjs/fake-timers`. Таймеры перестают ждать настоящее время: они ложатся в очередь, отсортированную по моменту срабатывания, и срабатывают, только когда тест прокручивает часы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FAKE_TIMERS} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Фикстура (T — это vi или jest)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TIMERS_FIXTURE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Журнал Vitest" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TIMERS_LOG.vitest.join('\n')} size={11.5} lh={1.65} pad="14px 16px" tone="ok" />
+    </Card>
+  </CardGrid>
+
+  У Jest журнал тот же до последних двух строк: предохранитель срабатывает на
+  100 000 таймерах, а часы показывают 1 000 000.
+
+  <CardGrid min={280} gap={14} align="start">
+    {TIMER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Часы своими руками
+
+  <Card title="Очередь и прокрутка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLOCK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Расписание для демо" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={CLOCK_SCENARIO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <ClockLab client:visible clockCode={CLOCK_CODE} scenarioCode={CLOCK_SCENARIO_CODE} labels={TIMER_LABELS} intervalId={3} caption={CLOCK_CAPTION} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Почему тесты текут"
+  lead="Утечка — когда результат теста зависит не только от его кода, но и от того, что делали тесты до него. Внутри файла раннер от этого не защищает вовсе: общие модули, глобальные объекты и таймеры переживают границу теста. Видно это при смене порядка."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Фикстура" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LEAK_FIXTURE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Порядок и итог" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SEED_ROWS.map((r) => `${r.runner} ${r.flags.join(' ') || '(по порядку)'}\n  ${r.order.join(' → ')}: ${r.failed ? `упал ${r.failed}` : 'всё зелёное'}`).join('\n\n')} size={11.5} lh={1.65} pad="14px 16px" tone="ok" />
+    </Card>
+  </CardGrid>
+
+  <Md text={SEED_NOTE} />
+
+  ### Таймер, который пережил свой тест
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Фикстура" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OPEN_FIXTURE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Журнал и конец прогона" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={`${OPEN_LOG.join('\n')}\n\n// Jest после отчёта:\n// ${OPEN_JEST_TAIL}`} size={11.5} lh={1.65} pad="14px 16px" tone="ok" />
+    </Card>
+  </CardGrid>
+
+  <Md text={OPEN_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {LEAK_CAUSES.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Граница изоляции — файл, а не тест.** Всё, что тест создаёт и меняет, он обязан
+      создавать в `beforeEach` и убирать в `afterEach`: состояние модулей, глобальные объекты,
+      таймеры, подмены. Перемешивание порядка — дешёвый способ узнать, где вы на это
+      не рассчитали.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

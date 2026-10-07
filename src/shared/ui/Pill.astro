@@ -1,0 +1,70 @@
+---
+/**
+ * Моно-«пилюля»: состояние, флаг, чип реакции.
+ *
+ * Две формы. `round` — состояние или флаг (радиус 99px, заливка тона). `chip` — элемент
+ * списка вроде реакции `r1` в списке промиса: светлая подложка и рамка тона.
+ */
+type Tone = 'neutral' | 'info' | 'ok' | 'warn' | 'err';
+
+interface Props {
+  tone?: Tone;
+  shape?: 'round' | 'chip';
+  size?: number;
+}
+
+const { tone = 'neutral', shape = 'round', size = 11 } = Astro.props;
+---
+
+<span class="pill" data-tone={tone} data-shape={shape} style={`--pill-fs:calc(${size}px * var(--fs-scale))`}>
+  <slot />
+</span>
+
+<style>
+  .pill {
+    display: inline-block;
+    padding: 3px 9px;
+    font-family: var(--mono);
+    /* Пол — ступень `--fs-2`: проп `size` ниже 10.7 давал нечитаемую пилюлю. */
+    font-size: max(var(--pill-fs), var(--fs-2));
+    white-space: nowrap;
+  }
+
+  .pill[data-shape='round'] {
+    border-radius: var(--r-full);
+    background: var(--pill-bg);
+    color: var(--pill-fg);
+  }
+  .pill[data-shape='chip'] {
+    border-radius: var(--r1);
+    border: 1px solid var(--pill-line);
+    background: var(--surface);
+    color: var(--pill-fg);
+  }
+
+  .pill[data-tone='neutral'] {
+    --pill-bg: var(--surface-3);
+    --pill-fg: var(--text-muted);
+    --pill-line: var(--border);
+  }
+  .pill[data-tone='info'] {
+    --pill-bg: var(--tone-info-chip);
+    --pill-fg: var(--tone-info-strong);
+    --pill-line: var(--tone-info-line);
+  }
+  .pill[data-tone='ok'] {
+    --pill-bg: var(--tone-ok-chip);
+    --pill-fg: var(--tone-ok-strong);
+    --pill-line: var(--tone-ok-line);
+  }
+  .pill[data-tone='warn'] {
+    --pill-bg: var(--tone-warn-chip);
+    --pill-fg: var(--tone-warn-strong);
+    --pill-line: var(--tone-warn-line);
+  }
+  .pill[data-tone='err'] {
+    --pill-bg: var(--tone-err-chip);
+    --pill-fg: var(--tone-err-strong);
+    --pill-line: var(--tone-err-line);
+  }
+</style>

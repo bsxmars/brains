@@ -1,0 +1,713 @@
+---
+title: 'GitLab CI: из чего собирается конвейер'
+order: 5
+kicker: доставка
+lead: "Файл `.gitlab-ci.yml` легко прочитать как список шагов сверху вниз. Выполняется он иначе. Между тем, что написано, и тем, что произойдёт, стоят четыре вопроса: **чего джоб — одна задача конвейера — на самом деле ждёт, какие файлы доживут до следующего джоба, какое значение получит переменная и попадёт ли джоб в конвейер вообще**."
+leadWidth: 68
+summary: "Почему стадия — не зависимость и что меняет `needs`, чем артефакт отличается от кеша, какая переменная сильнее, почему в `rules` решает первое совпавшее правило и что `extends` делает с массивами."
+verifiedOn: "gitlab-ci-local 4.75.1 (исполняет `.gitlab-ci.yml` в Docker Engine 27.4.0, macOS arm64), образ alpine:3, сентябрь 2026; правила GitLab сверены с документацией 17.7. Что снять прогоном не удалось — помечено в тексте"
+nav:
+  - { id: s0, label: 'Перед началом' }
+  - { id: s1, label: 'Стадии и джобы' }
+  - { id: s2, label: '`needs` и граф' }
+  - { id: s3, label: 'Артефакты и кеш' }
+  - { id: s4, label: Переменные }
+  - { id: s5, label: 'Правила запуска' }
+  - { id: s6, label: 'Шаблоны и include' }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import PipelineGraph from '@/widgets/pipeline-graph/ui/PipelineGraph.vue';
+import RulesBuilder from '@/widgets/rules-builder/ui/RulesBuilder.vue';
+import StageBarrierDiagram from '@/widgets/gitlab-ci-stage-diagram/ui/StageBarrierDiagram.astro';
+import {
+  ART_FACTS,
+  ART_ROWS,
+  ARTIFACTS_CODE,
+  CHANGES_CODE,
+  DAG_ROWS,
+  DEMO_LAYERS,
+  DEMO_RULES,
+  EXTENDS_CODE,
+  EXTENDS_FACTS,
+  EXTENDS_RESULT,
+  EXTENDS_ROWS,
+  GRAPH_JOBS,
+  GRAPH_STAGES,
+  INCLUDE_CODE,
+  MEASURED,
+  NEEDS_CODE,
+  NEEDS_FACTS,
+  ONLY_ROWS,
+  ORDER_ROWS,
+  PITFALLS,
+  REFERENCE_CODE,
+  RULE_CHECK,
+  RULE_CONTEXTS,
+  RULE_STEPS,
+  RULES_CODE,
+  RULES_FACTS,
+  SEEN_ROWS,
+  SOURCES,
+  STAGE_FACTS,
+  STAGE_TIMELINE,
+  STAGES_CODE,
+  VAR_FACTS,
+  VAR_ROWS,
+  VAR_STEPS,
+  VARS_CODE,
+  WORKSPACE_LOG,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  ORDER_NOTE,
+  RELATED,
+  GRAPH_DEMO_NOTE,
+  PLAIN_ART_CACHE,
+  PLAIN_RULES,
+  PLAIN_STAGE_BARRIER,
+  PLAIN_VAR_PRIORITY,
+  RULES_DEMO_NOTE,
+  CHILD_CODE,
+  COMPONENT_CODE,
+  DEPLOY_CODE,
+  DEPLOY_FACTS,
+  MATRIX_CODE,
+  MR_CODE,
+  MR_FACTS,
+  RUNNER_FACTS,
+  RUNNER_TAGS_CODE,
+  SCALE_FACTS,
+  SHARED_CACHE_CODE,
+  SHARED_CACHE_NOTE,
+  FILES_SCENE,
+  FILES_FATES,
+  PLAIN_FILES,
+  RULES_SCENE,
+  RULES_WALK,
+  PLAIN_RULES_WALK,
+  STAGE_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Зачем отдельная тема" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    `.gitlab-ci.yml` выглядит как программа, но это описание: по нему GitLab сам решает, что
+    и когда запускать. Отсюда три неверных прочтения. Список джобов сверху вниз кажется
+    порядком выполнения. Условия в `rules` кажутся набором «или». `cache` и `artifacts` кажутся
+    двумя способами передать файлы. Все три прочтения неверны, и каждое стоит рабочего дня.
+    Важнее ключей два вопроса: <b>что решает, запустится ли джоб, и какие файлы доживут
+    до следующего джоба</b>.
+
+  </Callout>
+
+  Числа в теме сняты не на GitLab, а программой `gitlab-ci-local`: она выполняет тот же
+  `.gitlab-ci.yml` на своей машине, в контейнерах Docker. Где она ведёт себя не как GitLab,
+  сказано по месту.
+
+  <CardGrid min={270} gap={14}>
+    <Card tone="err" emphasis title="Стадия — не зависимость" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Джоб ждёт не того, чей результат ему нужен, а конца **всей** предыдущей стадии.
+      В замере результат, нужный `test:unit`, был готов на 1,32 с, а сам `test:unit`
+      стартовал только на 7,30 с.
+
+    </Card>
+    <Card title="Решает первое совпавшее правило" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      `rules` — не набор «или». Они читаются сверху вниз до первого совпадения. Мы переставили
+      два правила местами и получили другой конвейер — это снято прогоном.
+
+    </Card>
+    <Card tone="ok" title="Каждый джоб начинает с чистой копии репозитория" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Файлы, созданные предыдущим джобом, сами не переезжают. Доживает только то, что названо
+      артефактом или кешем. И ведут себя эти двое по-разному: артефакт приходит гарантированно,
+      кеш — нет.
+
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Стадии и джобы, и почему стадия — не зависимость"
+  lead="Конвейер описывают списком стадий: собрали, проверили, выложили. Кажется, что это и есть порядок зависимостей. На самом деле стадия — барьер: джоб следующей стадии ждёт, пока закончатся все джобы предыдущей, а не только тот, чей результат ему нужен."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STAGE_BARRIER} />
+
+  <CodeBlock code={STAGES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <StageBarrierDiagram data={STAGE_DIAGRAM} />
+
+  <Card title="Что из этого вышло в прогоне" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={STAGE_TIMELINE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+
+      `build:b` закончился на 1,32 с — его результат был готов. Но `test:unit`, которому
+      он нужен, начал работу только на 7,30 с. Причина — сосед по стадии `build:a`: он шесть
+      секунд спал, и `test:unit` ждал его, хотя тот ему не нужен. Ни одна строка файла
+      об этом не говорит.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {STAGE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card pad={22} radius={5} gap={16}>
+    <div class="t-eyebrow t-eyebrow--panel">Путь одного джоба от описания до результата</div>
+
+    <FlowChips
+      minWidth={680}
+      chips={[
+        { label: 'правила: брать ли джоб' },
+        { label: 'ждёт конца прошлой стадии', tone: 'warn' },
+        { label: 'раннер берёт образ', tone: 'info' },
+        { label: 'копия репозитория', tone: 'info' },
+        { label: 'скачивание артефактов' },
+        { label: 'script', tone: 'ok' },
+        { label: 'выгрузка артефактов', tone: 'ok' },
+      ]}
+    />
+
+    Первый шаг выполняется **один раз на весь конвейер**, ещё до запуска чего бы то ни было:
+    какие джобы войдут в конвейер, решается в момент его создания. Остальные шаги повторяются
+    для каждого джоба. В том числе копирование репозитория — поэтому рабочая папка каждого
+    джоба всегда чистая.
+
+  </Card>
+
+  <Table
+    head={['ключ', 'что задаёт', 'что из этого следует']}
+    rows={ORDER_ROWS.map((r) => [r.k, r.what, r.why])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(150px,.8fr) minmax(220px,1.2fr) minmax(250px,1.5fr)"
+    minWidth={680}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={ORDER_NOTE} />
+  </Card>
+
+  ### Раннеры, исполнители и теги
+
+  Джоб висит в `pending` и не стартует, хотя в файле всё верно. Почти всегда дело не в файле,
+  а в том, какая машина согласна этот джоб взять.
+
+  <CodeBlock code={RUNNER_TAGS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {RUNNER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="`needs`: джоб ждёт только тех, кто ему нужен"
+  lead="Ключ `needs` снимает ожидание стадии — но только у того джоба, где он написан. Такой джоб стартует, как только готовы джобы, названные в `needs`. Конвейер из лестницы стадий превращается в граф зависимостей, и выясняется, что половина ожидания была ни за чем."
+  leadWidth={72}
+>
+  <CodeBlock code={NEEDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={GRAPH_DEMO_NOTE} />
+  </Card>
+
+  <PipelineGraph client:visible jobs={GRAPH_JOBS} stages={GRAPH_STAGES} target="deploy" />
+
+  <Table
+    head={['что меряем', 'по стадиям', 'с `needs`', 'о чём это']}
+    rows={DAG_ROWS.map((r) => [r.k, r.stages, r.dag, r.what])}
+    kinds={['prose', 'mono', 'mono', 'muted']}
+    cols="minmax(170px,1fr) minmax(120px,.7fr) minmax(120px,.7fr) minmax(250px,1.6fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {NEEDS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+
+    Длительности джобов в демо сняты прогоном, а расстановка по времени посчитана
+    по правилам GitLab: `gitlab-ci-local` по `needs` раньше конца стадии не запускает —
+    в проверочном прогоне джоб с `needs: [fast]` прождал всю стадию, 21 с вместо 1,3 с.
+
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Артефакты и кеш: какие файлы доживут до следующего джоба"
+  lead="Оба ключа переносят файлы из одного джоба в другой, поэтому их путают. Но задачи у них разные: артефакт передаёт результат работы дальше, а кеш экономит время на повторной работе."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ART_CACHE} />
+
+  <CodeBlock code={ARTIFACTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что напечатали джобы" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={WORKSPACE_LOG} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+
+      В одном выводе три факта. Каждый джоб начинает в свежей копии репозитория. Файл,
+      не объявленный ни артефактом, ни кешем, до следующего джоба не доживает. А в следующем
+      конвейере кеш оказался на месте, артефакт — нет.
+
+    </CardNote>
+  </Card>
+
+  ### Три файла одного джоба — три судьбы
+
+  {FILES_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {FILES_FATES.map((f) => (
+      <Card title={f.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Следующая стадия:** ${f.next}.`} />
+        <Md text={`**Следующий конвейер:** ${f.pipeline}.`} />
+        <Md text={`**Другой раннер:** ${f.runner}.`} />
+        <Md text={`**Чем платит:** ${f.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FILES} />
+
+  Коротко, в одну таблицу:
+
+  <Table
+    head={['', '`artifacts`', '`cache`']}
+    rows={ART_ROWS.map((r) => [r.k, r.art, r.cache])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(150px,.8fr) minmax(230px,1.3fr) minmax(230px,1.3fr)"
+    minWidth={700}
+  />
+
+  <Card title="Что именно увидел каждый джоб следующей стадии" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['джоб', 'что оказалось в директории', 'почему']}
+      rows={SEEN_ROWS.map((r) => [r.k, r.v, r.why])}
+      tones={SEEN_ROWS.map((r) => r.tone)}
+      kinds={['mono', 'mono', 'prose']}
+      cols="minmax(210px,1.1fr) minmax(190px,1fr) minmax(250px,1.5fr)"
+      minWidth={740}
+    />
+
+    <CardNote tone="warn">
+
+      Четыре джоба одной стадии отличаются одной строкой описания — и получили четыре разных
+      набора файлов. При этом ни одна из этих строк не выглядит как «управление файлами».
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {ART_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Отсюда правило, которое стоит запомнить раньше синтаксиса: **кеш имеет право исчезнуть,
+    артефакт — нет**. Если конвейер передаёт результат сборки через кеш, он работает до первого
+    раза, когда джоб попадёт на другой раннер. Что лежит в образе, в котором всё это
+    выполняется, — в теме
+    [про образ и слои](/delivery/docker/).
+
+  </Card>
+
+  <Card title="Кеш между раннерами" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={SHARED_CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={SHARED_CACHE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Переменные и их приоритеты"
+  lead="Одну и ту же переменную можно задать в шести местах — слоях. Выигрывает не тот слой, что ближе к джобу, а тот, что старше. Ниже одна переменная задана в пяти слоях, а `printenv` изнутри контейнера показывает, какое значение победило."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VAR_PRIORITY} />
+
+  <CodeBlock code={VARS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={['какие слои заданы', '`printenv WHO`', 'почему так']}
+    rows={VAR_ROWS.map((r) => [r.k, r.v, r.why])}
+    tones={VAR_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(150px,.8fr) minmax(250px,1.5fr)"
+    minWidth={700}
+  />
+
+  <Card title="Порядок целиком, от слабого к сильному" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={VAR_STEPS} size={14.5} />
+
+    <CardNote tone="err">
+
+      Самое дорогое недоумение в GitLab CI: значение, прописанное в `.gitlab-ci.yml`,
+      проигрывает значению из настроек проекта, а в файле этого никак не видно. Ищите
+      не там, где написано, а там, где сильнее.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {VAR_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="`rules` и `only`: какое правило решает, запустится ли джоб"
+  lead="Список условий хочется читать как «запустить, если совпадёт хоть одно». Работает он иначе. GitLab проверяет правила по порядку и останавливается на первом совпавшем. Это правило и решает всё: его `when` (запускать ли и как), его `allow_failure` (можно ли джобу упасть) и его переменные."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RULES} />
+
+  <CodeBlock code={RULES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Card title="Как читается этот список" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={RULE_STEPS} size={14.5} />
+  </Card>
+
+  ### Один джоб, пять событий
+
+  {RULES_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {RULES_WALK.map((r) => (
+      <Card title={r.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Путь:** ${r.path}.`} />
+        <Md text={`**Итог:** ${r.verdict}.`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RULES_WALK} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={RULES_DEMO_NOTE} />
+  </Card>
+
+  <RulesBuilder client:visible rules={DEMO_RULES} layers={DEMO_LAYERS} />
+
+  <Card title="Вердикты, снятые прогоном" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['джоб', 'о чём он', ...RULE_CONTEXTS.map((c) => c.label)]}
+      rows={RULE_CHECK.map((job) => [
+        `\`${job.name}\``,
+        job.about,
+        ...RULE_CONTEXTS.map((c) => `\`${job.verdict[c.id]}\``),
+      ])}
+      kinds={['mono', 'prose', 'muted', 'muted', 'muted', 'muted']}
+      cols="minmax(150px,.9fr) minmax(200px,1.3fr) repeat(4, minmax(110px,.7fr))"
+      minWidth={860}
+    />
+
+    <CardNote tone="prose">
+
+      Одиннадцать джобов в одном файле, четыре ситуации, сорок четыре ответа — дословный
+      вывод `gitlab-ci-local --list-all`. `never` здесь означает «джоба в конвейере нет».
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {RULES_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`changes`: с чем сравнивается ветка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CHANGES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="warn">
+
+        Три состояния одного репозитория, снятые против настоящей ветки `origin/main`.
+        Изменения считаются от неё, а не от последнего коммита, — поэтому в третьей строке
+        сработали оба джоба сразу.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Старые `only` и `except`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['что', 'что делает', 'статус']}
+        rows={ONLY_ROWS.map((r) => [r.k, r.what, r.why])}
+        tones={ONLY_ROWS.map((r) => r.tone)}
+        kinds={['mono', 'prose', 'muted']}
+        cols="minmax(160px,1fr) minmax(190px,1.2fr) minmax(190px,1.2fr)"
+        minWidth={520}
+      />
+
+      <CardNote tone="err">
+
+        Это **по документации, а не по прогону**: `gitlab-ci-local` `only`/`except`
+        не вычисляет вовсе. Новые файлы пишите на `rules`.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Конвейеры для merge request
+
+  Открыли merge request — и каждый push в ветку стал запускать два одинаковых конвейера:
+  вдвое больше очереди и минут раннера. Причина — в том, что конвейеры бывают разных видов,
+  и правила видят у них разные переменные.
+
+  <CodeBlock code={MR_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {MR_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Ручной выкат и окружения
+
+  Выкат в production не должен уезжать сам после каждого merge, а два выката не должны идти
+  одновременно. Обе вещи задаются в файле, но ведут себя не так очевидно, как выглядят.
+
+  <CodeBlock code={DEPLOY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {DEPLOY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="`extends` и `include`: почему шаблон даёт не тот результат"
+  lead="Шаблоны кажутся безобидными: вынесли общее в `.base`, унаследовали его и поменяли пару полей. Правило слияния при этом одно: словари сливаются, а массивы заменяются целиком. Из-за этой простоты результат часто оказывается не тем, что имели в виду."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Что написали" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={EXTENDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="Что получилось" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={EXTENDS_RESULT} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['ключ', 'тип значения', 'что с ним делает `extends`']}
+    rows={EXTENDS_ROWS.map((r) => [r.k, r.what, r.how])}
+    tones={EXTENDS_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(180px,1fr) minmax(150px,.8fr) minmax(250px,1.6fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="`!reference` добавляет, а не заменяет" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REFERENCE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" title="Джоб из `include` сливается с вашим" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={INCLUDE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14}>
+    {EXTENDS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Проверяется всё это одной командой, и её стоит завести в привычку раньше, чем выучить
+    правила слияния: итоговый конвейер, после всех слияний, можно посмотреть глазами. В GitLab
+    это «полная конфигурация» в редакторе конвейера, локально — `gitlab-ci-local --preview`.
+    Все три блока выше получены так.
+
+  </Card>
+
+  ### Матрица, дочерние конвейеры и компоненты
+
+  Когда одинаковых джобов становятся десятки, а одинаковых файлов конвейера — десятки
+  проектов, копировать YAML перестаёт работать. Для этого есть три механизма разного масштаба.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`parallel:matrix`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MATRIX_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card title="Компонент с входами и версией" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={COMPONENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CodeBlock code={CHILD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {SCALE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  <Card title="Что из этого снято прогоном" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['утверждение', 'что показал прогон', 'проект']}
+      rows={MEASURED.map((m) => [m.k, m.v, m.where])}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(260px,1.5fr) minmax(200px,1.1fr) minmax(130px,.6fr)"
+      minWidth={720}
+    />
+
+    <CardNote tone="prose">
+
+      Секунды зависят от машины: на вашей они будут другими, а порядок событий — тем же.
+      Прогоном не сняты старт по `needs`, `only`/`except` и всё, что работает на стороне
+      GitLab: раннеры, конвейеры merge request, выкат, матрица, дочерние конвейеры
+      и компоненты описаны по документации.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+  <Card title="Документация" titleSize={18} pad={22} gap={14}>
+
+    Правила — из документации, числа — из прогонов.
+
+    <SourceList items={SOURCES} />
+
+    <CardNote tone="prose">
+
+      GitLab меняется быстро, а с ним и правила: `only`/`except` успели побыть единственным
+      способом, потом рекомендованным, потом замороженным. Сверяйтесь со своей
+      версией — она написана внизу страницы настроек, — а не с этой страницей.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

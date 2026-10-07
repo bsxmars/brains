@@ -1,0 +1,351 @@
+---
+title: "CRDT: как два редактора сливают правки без сервера"
+heading: "CRDT: как два редактора сливают правки без сервера"
+headingWidth: 24
+order: 2
+kicker: алгоритмы во фронтенде
+lead: "Двое правят один текст, каждый в своей копии, а правки доходят друг до друга с опозданием и в разном порядке. CRDT — структуры данных, у которых слияние копий всегда даёт один ответ: конфликт решён заранее правилом, и сервер, расставляющий правки по очереди, не нужен."
+leadWidth: 66
+summary: "Почему правка «по индексу» ломается при одновременной работе, OT против CRDT, три свойства слияния на G-Counter, PN-Counter, LWW-Register и OR-Set, последовательность с id и соседом слева в духе RGA, порядок конфликтующих вставок, надгробия и их цена, векторные часы и обмен разницей, Yjs изнутри — с байтами на настоящем Yjs."
+verifiedOn: "yjs 13.6.33, Node 24.11.0, октябрь 2026: мини-CRDT темы сходится на всех порядках доставки, итоги и байты сверены с настоящим Yjs в tests/unit/crdt.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Сходимость }
+  - { id: s2, label: Простые CRDT }
+  - { id: s3, label: Последовательность }
+  - { id: s4, label: Векторные часы }
+  - { id: s5, label: Yjs }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import CrdtLab from '@/widgets/crdt-lab/ui/CrdtLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_CRDT,
+  PREREQ,
+  PREREQ_NOTE,
+  NAIVE_CODE,
+  NAIVE_PRINT,
+  NAIVE_NOTE,
+  PLAIN_CONVERGENCE,
+  APPROACHES,
+  APPROACH_ROWS,
+  MERGE_RULES,
+  PLAIN_MERGE,
+  G_CODE,
+  COUNTER_NOTE,
+  LWW_CODE,
+  OR_CODE,
+  SIMPLE_FACTS,
+  PLAIN_ID,
+  SEQ_FACTS,
+  PLAIN_LAMPORT,
+  PLAIN_TOMBSTONE,
+  SEQ_CODE,
+  SEQ_NOTE,
+  CONFLICT_FACTS,
+  SCENARIOS,
+  DEMO_CAPTION,
+  DIFFERS_NOTE,
+  RANDOM_MATCH,
+  RANDOM_NOTE,
+  TOMB_NOTE,
+  PLAIN_VECTOR,
+  VV_CODE,
+  VV_FACTS,
+  YJS_CODE,
+  YJS_SIZE_ROWS,
+  YJS_FACTS,
+  SIZE_ROWS,
+  SIZE_NOTE,
+  DIFF_DS_NOTE,
+  YJS_SUMMARY,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Слияние" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Совместный редактор не спрашивает «кто был первым». Каждый символ получает постоянный
+    **id**, правка ссылается на id, а не на позицию, и порядок спорных символов задаёт
+    правило над id — одно для всех. Тогда копии, получившие одни и те же правки в любом
+    порядке, совпадают сами.
+
+  </Callout>
+
+  Совместный редактор, общая доска, список задач, который работает и без сети, — все они
+  показывают правку сразу, не дожидаясь ответа сервера. Значит, у каждого участника своя
+  копия данных, и копии правятся независимо. Когда правки встречаются, их нужно слить —
+  и слить так, чтобы у всех вышло одно и то же, даже если правки пришли в разном порядке,
+  с опозданием или дважды.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CRDT} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Задача: копии обязаны сойтись"
+  lead="Аня и Борис правят слово «кот», каждый в своей копии. Правки уходят друг другу по сети. Самое простое — пересылать правку так, как её сделал редактор: «вставить символ в позицию такую-то»."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Правка по индексу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Аня и Борис" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_PRINT} size={12} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={NAIVE_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONVERGENCE} />
+
+  ### Два выхода: OT и CRDT
+
+  <CardGrid min={290} gap={16} align="start">
+    {APPROACHES.map((a) => (
+      <Card title={a.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={a.d} />
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={['что', 'OT', 'CRDT']}
+    rows={APPROACH_ROWS.map((r) => [r.k, r.ot, r.crdt])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(200px,1fr) minmax(200px,1fr)"
+    minWidth={600}
+  />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Простые CRDT: слияние без конфликтов"
+  lead="Чтобы копии сходились при любом порядке доставки, у слияния должно быть три свойства. Проще всего увидеть их не на тексте, а на счётчике, одном поле и множестве."
+  leadWidth={72}
+>
+  <CardGrid min={240} gap={14} align="start">
+    {MERGE_RULES.map((rule) => (
+      <Card title={rule.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={rule.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MERGE} />
+
+  <Card title="Счётчики: G-Counter и PN-Counter" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={G_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={COUNTER_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Одно поле: LWW-Register" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LWW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Множество: OR-Set" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={OR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={290} gap={16} align="start">
+    {SIMPLE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Текст как список: id и сосед слева"
+  lead="Текст — не счётчик: в нём важен порядок, и вставлять можно куда угодно. Решение — перестать говорить о позициях. Позиция меняется от каждой правки левее, а символ остаётся собой."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ID} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {SEQ_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAMPORT} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOMBSTONE} />
+
+  <Card title="Мини-CRDT текста" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SEQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SEQ_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Конфликт: две вставки в одно место
+
+  <CardGrid min={260} gap={14} align="start">
+    {CONFLICT_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Правки в разном порядке
+
+  <CrdtLab client:visible seqCode={SEQ_CODE} naiveCode={NAIVE_CODE} scenarios={SCENARIOS} caption={DEMO_CAPTION} />
+
+  <Md text={DIFFERS_NOTE} />
+
+  <Table
+    head={['участников', 'правок у каждого', 'совпало с Yjs из 2000']}
+    rows={RANDOM_MATCH.map((r) => [String(r.peers), String(r.ops), String(r.same)])}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(110px,1fr) minmax(140px,1fr) minmax(170px,1fr)"
+    minWidth={440}
+  />
+
+  <Md text={RANDOM_NOTE} />
+
+  ### Цена надгробий
+
+  <Md text={TOMB_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Векторные часы и обмен разницей"
+  lead="Слить можно всё со всем, но пересылать каждый раз весь документ дорого. Нужно знать, чего у собеседника нет. Для этого каждая копия помнит, сколько правок каждого участника она уже видела."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VECTOR} />
+
+  <Card title="Сравнить часы и найти разницу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {VV_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Yjs: как это сделано в настоящей библиотеке"
+  lead="Yjs — библиотека CRDT для JavaScript. Документ `Y.Doc` содержит общие типы: `Y.Text`, `Y.Array`, `Y.Map`. Правки уходят наружу бинарными обновлениями, а как их доставлять — WebSocket, WebRTC, IndexedDB — решает отдельный провайдер."
+  leadWidth={72}
+>
+  <Card title="Два документа, одновременные правки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={YJS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['обновление', 'размер', 'что внутри']}
+    rows={YJS_SIZE_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(110px,.6fr) minmax(90px,.4fr) minmax(300px,2fr)"
+    minWidth={560}
+  />
+
+  <CardGrid min={260} gap={14} align="start">
+    {YJS_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Сколько весит история
+
+  <Table
+    head={['документ', 'байт', 'почему']}
+    rows={SIZE_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(80px,.35fr) minmax(300px,1.6fr)"
+    minWidth={640}
+  />
+
+  <Md text={SIZE_NOTE} />
+
+  <Md text={DIFF_DS_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={YJS_SUMMARY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

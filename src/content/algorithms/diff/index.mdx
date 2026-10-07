@@ -1,0 +1,365 @@
+---
+title: "Diff: как git и фреймворки находят разницу"
+heading: "Diff: как git и фреймворки находят разницу"
+headingWidth: 24
+order: 1
+kicker: алгоритмы во фронтенде
+lead: "`git diff`, подсветка изменений на ревью и обновление списка в Vue или React решают одну задачу: как превратить старую последовательность в новую за наименьшее число операций. Её классическое решение — алгоритм Майерса, а списки с ключами сводят ту же задачу к наибольшей возрастающей подпоследовательности."
+leadWidth: 66
+summary: "Скрипт правок и связь с LCS, таблица динамического программирования и почему она дорога, алгоритм Майерса по шагам — граф правок, диагонали, змейки, массив v, — patience и histogram в git, перестановки в списках с ключами: LIS у Vue и `lastPlacedIndex` у React на настоящих фреймворках."
+verifiedOn: "jsdiff 9.0.0, git 2.44.0, Vue 3.5.42, React 19.3.0, happy-dom 20.14.5, Node 24.11.0, октябрь 2026: myers темы совпадает с jsdiff скрипт в скрипт, вывод git пересобирается, перемещения сверены с настоящими Vue и React в tests/unit/diff.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Скрипт правок }
+  - { id: s2, label: LCS и таблица }
+  - { id: s3, label: Майерс }
+  - { id: s4, label: git diff }
+  - { id: s5, label: Списки с ключами }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MyersLab from '@/widgets/diff-lab/ui/MyersLab.vue';
+import MoveLab from '@/widgets/diff-lab/ui/MoveLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_DIFF,
+  PREREQ,
+  PREREQ_NOTE,
+  SCRIPT_PRINT,
+  PLAIN_SCRIPT,
+  SCRIPT_FORMULA_NOTE,
+  SCRIPT_FACTS,
+  LCS_CODE,
+  PLAIN_DP,
+  LCS_TABLE_PRINT,
+  LCS_TABLE_NOTE,
+  COST_ROWS,
+  COST_NOTE,
+  PLAIN_GRAPH,
+  GRAPH_FACTS,
+  MYERS_CODE,
+  MYERS_NOTE,
+  V_ROWS,
+  V_NOTE,
+  DEMO_PAIRS,
+  DEMO_CAPTION,
+  COMPLEXITY_NOTE,
+  GIT_OLD,
+  GIT_NEW,
+  GIT_CHANGE_NOTE,
+  GIT_MYERS,
+  GIT_PATIENCE,
+  GIT_ROWS,
+  PLAIN_PATIENCE,
+  PLAIN_LIS,
+  PATIENCE_STEPS,
+  GIT_NOTE,
+  KEYED_INTRO_NOTE,
+  PERM_NOTE,
+  LIS_CODE,
+  LIS_NOTE,
+  FRAMEWORK_FACTS,
+  VUE_MOVES_CODE,
+  REACT_MOVES_CODE,
+  MOVE_SCENARIOS,
+  MOVES_NOTE,
+  MOVE_CAPTION,
+  RANDOM_NOTE,
+  MOVES_SUMMARY,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Разница" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Diff ищет не «что отличается», а **самый короткий список правок**: что удалить из старого
+    и что вставить, чтобы получилось новое. Всё, что он не тронул, — наибольшая общая
+    подпоследовательность двух версий. Чем она длиннее, тем короче список.
+
+  </Callout>
+
+  Одна и та же задача встречается во фронтенде трижды. `git diff` сравнивает строки файлов.
+  Ревью кода подсвечивает изменённые буквы внутри строки. Vue и React сравнивают старый
+  и новый список элементов, чтобы тронуть в DOM как можно меньше узлов. Алгоритмы у них
+  разные, а вопрос один — и ответ на него не всегда тот, которого ждёшь.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DIFF} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Задача: кратчайший скрипт правок"
+  lead="Есть старая последовательность и новая. Разрешены две операции: удалить элемент старой и вставить элемент новой. Нужно найти список операций, после которого из старой получится новая, — и чтобы операций было как можно меньше."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCRIPT} />
+
+  <Card title="Пример из статьи Майерса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCRIPT_PRINT} size={12} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SCRIPT_FORMULA_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {SCRIPT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="LCS: таблица n × m"
+  lead="Школьное решение — динамическое программирование. Длина общей подпоследовательности для первых i элементов одной строки и первых j другой выражается через ответы для чуть более коротких начал. Ответы складываются в таблицу, и каждая клетка считается за один шаг."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DP} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Таблица LCS" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LCS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="lcsTable('ABCABBA', 'CBABAC')" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={LCS_TABLE_PRINT} size={12} lh={1.7} pad="14px 16px" />
+
+      <Md text={LCS_TABLE_NOTE} />
+    </Card>
+  </CardGrid>
+
+  ### Почему это дорого
+
+  <Table
+    head={['способ', 'работа', 'откуда число']}
+    rows={COST_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(130px,.6fr) minmax(170px,.8fr) minmax(300px,2fr)"
+    minWidth={640}
+  />
+
+  <Md text={COST_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Алгоритм Майерса: граф правок и змейки"
+  lead="Юджин Майерс в 1986 году посмотрел на задачу как на поиск пути по сетке. Если правок мало, хороший путь почти весь идёт по бесплатным диагоналям, и искать его можно, перебирая не клетки, а число правок: сначала все пути без правок, потом с одной, с двумя — пока какой-то не дойдёт до конца."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GRAPH} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {GRAPH_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Майерс целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MYERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={MYERS_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Фронт по шагам
+
+  <Table
+    head={['d', 'самые дальние точки на диагоналях']}
+    rows={V_ROWS}
+    kinds={['mono', 'mono']}
+    cols="minmax(40px,.15fr) minmax(420px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={V_NOTE} />
+
+  ### Майерс по шагам
+
+  <MyersLab client:visible myersCode={MYERS_CODE} pairs={DEMO_PAIRS} caption={DEMO_CAPTION} />
+
+  <Md text={COMPLEXITY_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="git diff: минимальный — не значит понятный"
+  lead="git по умолчанию считает diff Майерсом, но умеет ещё три режима: `minimal`, `patience` и `histogram`. На большинстве правок они совпадают. Расходятся там, где в файле много одинаковых строк — скобок, пустых, повторяющихся проверок."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Было: api.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={GIT_OLD} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Стало: api.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={GIT_NEW} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={GIT_CHANGE_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="--diff-algorithm=myers" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={GIT_MYERS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="--diff-algorithm=patience" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={GIT_PATIENCE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['режим', 'строк − / +', 'что вышло']}
+    rows={GIT_ROWS.map((r) => [r.k, r.v, r.d])}
+    tones={GIT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(150px,.7fr) minmax(110px,.5fr) minmax(320px,2fr)"
+    minWidth={640}
+  />
+
+  ### Как patience выбирает якоря
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PATIENCE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIS} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {PATIENCE_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={GIT_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Списки с ключами: перестановки вместо правок"
+  lead="Во фреймворке элементы списка — живые узлы DOM с ключами. Задача та же, что у diff, но цена другая: узел с тем же ключом не удаляют и не создают заново, а переставляют, и считают перестановки."
+  leadWidth={72}
+>
+  <Md text={KEYED_INTRO_NOTE} />
+
+  <Md text={PERM_NOTE} />
+
+  <Card title="LIS за O(n log n)" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LIS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={LIS_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Vue и React
+
+  <CardGrid min={290} gap={16} align="start">
+    {FRAMEWORK_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Перестановки Vue" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_MOVES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Перестановки React" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REACT_MOVES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### На настоящих фреймворках
+
+  <Table
+    head={['перестановка', 'Vue двигает', 'React двигает']}
+    rows={MOVE_SCENARIOS.map((s) => [`\`${s.from} → ${s.to}\` — ${s.label}`, `${[...s.vue].join(', ')} — ${s.vue.length}`, `${[...s.react].join(', ')} — ${s.react.length}`])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(260px,1.6fr) minmax(130px,.7fr) minmax(150px,.8fr)"
+    minWidth={600}
+  />
+
+  <Md text={MOVES_NOTE} />
+
+  <MoveLab client:visible lisCode={LIS_CODE} vueCode={VUE_MOVES_CODE} reactCode={REACT_MOVES_CODE} scenarios={MOVE_SCENARIOS} caption={MOVE_CAPTION} />
+
+  <Md text={RANDOM_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={MOVES_SUMMARY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

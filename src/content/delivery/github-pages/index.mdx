@@ -1,0 +1,649 @@
+---
+title: 'GitHub Pages: публикация статики'
+order: 6
+kicker: доставка
+lead: "Опубликовать статический сайт — значит положить готовые файлы туда, откуда их будут раздавать. Главная поломка на этом пути одна, и случается она сразу везде: **сайт проекта живёт не в корне домена, а в подкаталоге**. Ссылки, адреса скриптов и пути к файлам, написанные от корня, после переезда ведут мимо сайта. А сборка при этом проходит успешно и ни о чём не предупреждает."
+leadWidth: 68
+summary: "Чего у Pages нет (сервера, переписывания адресов, своих заголовков); базовый путь и почему он ломает ссылки; страница 404 и адреса, которые разбирает скрипт в браузере; кеш и хеш в именах файлов; публикация через GitHub Actions и лимиты."
+verifiedOn: "Astro 7.3.2, Node v26.8.2 (macOS, arm64), 15 сентября 2026 — две сборки этого самого сайта, обычная и `--base /repo/`. Всё, что касается самого хостинга (заголовки, редиректы, кеш CDN, свой домен, лимиты), проверено документацией GitHub, а не прогоном, и помечено в тексте"
+nav:
+  - { id: s0, label: 'Перед началом' }
+  - { id: s1, label: 'Что это и чего тут нет' }
+  - { id: s2, label: 'Базовый путь' }
+  - { id: s3, label: 'Маршрутизация без сервера' }
+  - { id: s4, label: 'Кеш и инвалидация' }
+  - { id: s5, label: 'Сборка и публикация' }
+  - { id: s6, label: 'Ограничения' }
+  - { id: s7, label: 'Тонкие места' }
+  - { id: s8, label: 'Источники' }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import BasePathLab from '@/widgets/base-path-lab/ui/BasePathLab.vue';
+import ImageSize from '@/widgets/image-size/ui/ImageSize.vue';
+import RouteDiagram from '@/widgets/github-pages-route-diagram/ui/RouteDiagram.astro';
+import {
+  ADDRESS_ROWS,
+  BASES,
+  BASE_CODE,
+  BASE_FACTS,
+  BASE_URL_ROWS,
+  BUILD_CODE,
+  CACHE_ROWS,
+  DEMO_CAPTION,
+  DIFF_CODE,
+  DOC_ONLY,
+  FOUR_OH_FOUR,
+  HASH_CODE,
+  HASH_FACTS,
+  HEADERS_NOTE_ROWS,
+  LIMITS_ROWS,
+  MEASURED,
+  NOT_FOR_PAGES,
+  NO_SERVER,
+  PAGE_COST_ROWS,
+  PATH_ROWS,
+  PIPELINE_FACTS,
+  PITFALLS,
+  PROBE_CODE,
+  PUBLISH_ROWS,
+  ROUTING_ROWS,
+  SECURITY_ROWS,
+  SLASH_FACTS,
+  SOURCES,
+  SPA_CODE,
+  WEIGHT_BARS,
+  WEIGHT_CAPTION,
+  WEIGHT_ROWS,
+  WHAT_IS_SERVED,
+  WORKFLOW_CODE,
+  WORKFLOW_STEPS,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PAGE_COST_NOTE,
+  RELATED,
+  BASE_DEMO_NOTE,
+  PLAIN_BASE,
+  PLAIN_DNS,
+  PLAIN_ARTIFACT,
+  PLAIN_HASHNAME,
+  PLAIN_SPA,
+  DOMAIN_CODE,
+  DOMAIN_FACTS,
+  HOSTS_CODE,
+  HOSTS_NOTE,
+  SPA_SCENE,
+  SPA_VARIANTS,
+  PLAIN_SPA_VARIANTS,
+  DEPLOY_SCENE,
+  DEPLOY_FILES,
+  PLAIN_DEPLOY,
+  ROUTE_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Зачем отдельная тема" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    «Положить файлы на хостинг» кажется задачей, в которой нечего разбирать. Так и есть —
+    до первой публикации сайта проекта. Такой сайт живёт не на `user.github.io`,
+    а на <b>`user.github.io/repo/`</b>. Из-за этого корень сайта (`/repo/`) больше не совпадает
+    с корнем домена (`/`). Всё, что написано от корня, начинает вести мимо сайта — <b>и никто
+    об этом не скажет</b>: сборка пройдёт, типы сойдутся, линтер промолчит.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BASE} />
+
+  Проверить это можно на любом сайте. Ниже **этот самый сайт** собран дважды: обычной командой
+  и как для подкаталога, с `--base /repo/`. Обе сборки прошли молча, а сколько путей во второй
+  ведут мимо сайта — посчитано в разделе «Базовый путь».
+
+  <CodeBlock code={BUILD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={270} gap={14}>
+    <Card title="Pages отдаёт файлы, и только" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Ваш код на сервере не выполняется, правил переписывания адресов нет, свои заголовки
+      ответа задать нельзя. Запрос либо совпал с файлом в опубликованном дереве, либо нет —
+      третьего не бывает.
+
+    </Card>
+    <Card tone="err" emphasis title="Смена базового пути ломает 167 путей из 453" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      167 ссылок в собранном сайте человек написал от корня, и после переезда они дают 404.
+      Сборщик дописал новую базу только в 75 путей — те, что поставил сам. Чужие он не трогает.
+
+    </Card>
+    <Card tone="ok" title="Путь от корня пишут через `BASE_URL`" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      `import.meta.env.BASE_URL` — базовый путь, который знает сборщик. Ссылка, собранная
+      из него, переживает переезд. Любой другой путь, начинающийся со слеша, надо проверять
+      на уже собранном сайте.
+
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Что такое Pages и чего там нет"
+  lead="Статический хостинг проще любого сервера — потому что умеет меньше. Почти все сюрпризы Pages связаны не с тем, что в нём есть, а с тем, чего в нём нет."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14}>
+    {NO_SERVER.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Что именно публикуется" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={WHAT_IS_SERVED} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="prose">
+
+      Публикуется **собранное дерево файлов, а не репозиторий**. Исходники, история и тесты
+      остаются в гите; наружу уходит только то, что собрала сборка. Верно и обратное: всё,
+      что попало в это дерево, становится публичным — неважно, открыт репозиторий или закрыт.
+
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['адрес сайта', 'что это', 'где корень']}
+    rows={ADDRESS_ROWS.map((r) => [r.k, r.what, r.why])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(190px,1fr) minmax(200px,1.1fr) minmax(250px,1.5fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    У трёх строк выше три разных базовых пути. Переезжать между ними приходится чаще, чем
+    кажется: сайт начинают на `user.github.io/repo/`, потом покупают домен, потом переносят
+    в организацию. Каждый такой переезд меняет корень сайта.
+
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Базовый путь: почему ломается всё сразу"
+  lead={BASE_DEMO_NOTE}
+  leadWidth={72}
+>
+  <CodeBlock code={BASE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <BasePathLab client:visible rows={PATH_ROWS} bases={BASES} caption={DEMO_CAPTION} />
+
+  <CardGrid min={280} gap={14}>
+    {BASE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Та же страница из двух сборок" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={DIFF_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+
+      Правило видно целиком: **сборщик дописывает базу туда, где адрес пишет сам**. Ссылку
+      на стиль поставил он — значит, знает про неё и исправляет. Ссылку на соседнюю тему
+      написал человек. Для сборщика это просто строка: он не знает, что это адрес внутри сайта.
+
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['как написано', 'что окажется в файле при базе `/repo/`', 'почему']}
+    rows={BASE_URL_ROWS.map((r) => [r.k, r.v, r.why])}
+    tones={BASE_URL_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(190px,1fr) minmax(250px,1.6fr)"
+    minWidth={740}
+  />
+
+  <DarkPanel eyebrow="Почему это ловится так поздно">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      При базе `/` путь от корня и путь с базой — **одна и та же строка**. Поэтому на машине
+      разработчика, в предпросмотре, на ревью и в тестах ошибки не видно: всё работает,
+      и работает по-настоящему.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Ошибка появляется в тот момент, когда сайт впервые переезжает в подкаталог, — и сразу
+      вся: 167 ссылок, 32 разных адреса, до 13 штук на одной странице. Поэтому «переехать
+      и посмотреть» — плохой план. Хороший — после сборки обойти все файлы и проверить пути.
+
+    </DarkText>
+  </DarkPanel>
+
+  ### Свой домен
+
+  Рано или поздно сайт проекта переезжает на свой домен. Это не только настройка DNS: сайт
+  снова оказывается в корне, и базовый путь меняется вместе с адресом.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DNS} />
+
+  <CodeBlock code={DOMAIN_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {DOMAIN_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Маршрутизация без сервера: 404 и клиентские маршруты"
+  lead="На статическом хостинге адрес превращается в путь к файлу по жёсткому правилу, и поменять его вы не можете. Поэтому иначе, чем на своём сервере, устроены две вещи: ответ на несуществующий адрес и адрес, который должен обработать роутер в браузере."
+  leadWidth={72}
+>
+  <CodeBlock code={PROBE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={['адрес', 'что произошло', 'чем проверено']}
+    rows={ROUTING_ROWS.map((r) => [r.k, r.what, r.why])}
+    tones={ROUTING_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(190px,.9fr) minmax(220px,1.2fr) minmax(250px,1.6fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {SLASH_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPA} />
+
+  ### Один адрес `/profile/42` — четыре сайта
+
+  {SPA_SCENE.map((t) => <Md text={t} />)}
+
+  <RouteDiagram data={ROUTE_DIAGRAM} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {SPA_VARIANTS.map((v) => (
+      <Card title={v.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Сервер:** ${v.server}.`} />
+        <Md text={`**Человек видит:** ${v.human}.`} />
+        <Md text={`**Код ответа:** ${v.code}.`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPA_VARIANTS} />
+
+  <Card title="Клиентские маршруты и приём с `404.html`" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={SPA_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardGrid min={290} gap={14}>
+      {FOUR_OH_FOUR.map((item) => (
+        <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+          <Md text={item.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="warn">
+
+      В собранном дереве этого сайта файла `404.html` нет вообще — проверено обходом. Человек,
+      ошибившийся адресом, увидел бы страницу GitHub, а не страницу сайта. Исправляется это
+      одним файлом, но его почему-то делают последним.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Кеш и инвалидация статики"
+  lead="Файлы статики бывают двух видов: в имени одних есть хеш содержимого, в имени других — нет. Первые можно кешировать навсегда: обновлённый файл просто получает новое имя. Вторые обновятся у читателя, только когда истечёт срок кеша, — а задать этот срок своим `Cache-Control` на Pages нельзя."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HASHNAME} />
+
+  ### Одна публикация глазами вчерашнего читателя
+
+  {DEPLOY_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {DEPLOY_FILES.map((f) => (
+      <Card title={f.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={f.what} />
+        <Md text={`**Чем платит:** ${f.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEPLOY} />
+
+  Коротко, в одну таблицу:
+
+  <Table
+    head={['что', 'как устроено имя', 'что из этого следует']}
+    rows={CACHE_ROWS.map((r) => [r.k, r.what, r.why])}
+    tones={CACHE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(210px,1fr) minmax(190px,1fr) minmax(250px,1.6fr)"
+    minWidth={720}
+  />
+
+  <Card title="Смена базы переименовывает файлы" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={HASH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardGrid min={290} gap={14}>
+      {HASH_FACTS.map((item) => (
+        <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+          <Md text={item.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+    <CardNote tone="prose">
+
+      Отсюда неочевидная цена переезда: он ломает не только ссылки, но и **кеш**. Читатель,
+      у которого стили уже были, скачает их заново: файл теперь называется иначе, хотя страница
+      выглядит точно так же.
+
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['что', 'кто решает', 'подробности']}
+    rows={HEADERS_NOTE_ROWS.map((r) => [r.k, r.what, r.why])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(200px,1fr) minmax(160px,.8fr) minmax(250px,1.7fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Как устроен кеш браузера и как браузер спрашивает сервер, не изменился ли файл, — [Сеть
+    и кеширование: кеш и валидация](/platform/network/#s2). Здесь важно одно: на Pages
+    вы влияете на кеш только именами файлов, потому что заголовки ответа пишете не вы.
+
+  </Card>
+
+  ### Что скачивается один раз, а что — на каждой странице
+
+  <Card title="Сколько весит то, что публикуется" titleSize={18} pad={22} gap={16}>
+    <ImageSize client:visible bars={WEIGHT_BARS} unit="МиБ" caption={WEIGHT_CAPTION} />
+
+    <Table
+      head={['тип', 'файлов', 'байт', 'после `gzip -9`', 'о чём это']}
+      rows={WEIGHT_ROWS.map((r) => [r.k, r.files, r.raw, r.gz, r.why])}
+      kinds={['mono', 'mono', 'mono', 'mono', 'muted']}
+      cols="minmax(110px,.6fr) minmax(80px,.4fr) minmax(110px,.6fr) minmax(130px,.7fr) minmax(220px,1.4fr)"
+      minWidth={780}
+    />
+
+    <CardNote tone="warn">
+
+      Разметка весит больше всего остального
+      вместе взятого: сайт статический, и весь текст лежит прямо в HTML каждой из 33 страниц.
+      А шрифты от сжатия **растут**: формат woff2 уже сжат внутри, и второе сжатие только
+      добавляет байты.
+
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['что тянет одна страница', 'вес', 'и сколько раз']}
+    rows={PAGE_COST_ROWS.map((r) => [r.k, r.v, r.why])}
+    kinds={['mono', 'mono', 'muted']}
+    cols="minmax(230px,1.2fr) minmax(140px,.7fr) minmax(250px,1.5fr)"
+    minWidth={700}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={PAGE_COST_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Сборка и публикация конвейером"
+  lead="Опубликовать сайт на Pages можно двумя способами. Разница не в удобстве, а в том, что окажется в репозитории. Публикация из ветки означает, что собранный сайт придётся коммитить. Публикация артефактом — архивом готовых файлов, который собирает и загружает GitHub Actions, — оставляет в репозитории только исходники. Второй способ почти всегда лучше, и на него к тому же не действует лимит на число сборок."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ARTIFACT} />
+
+  <Table
+    head={['способ', 'что происходит', 'чем платите']}
+    rows={PUBLISH_ROWS.map((r) => [r.k, r.what, r.why])}
+    tones={PUBLISH_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(180px,.9fr) minmax(240px,1.3fr) minmax(250px,1.6fr)"
+    minWidth={700}
+  />
+
+  <CodeBlock code={WORKFLOW_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что делает каждая часть" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={WORKFLOW_STEPS} size={14.5} />
+
+    <CardNote tone="warn">
+
+      Всё в этом списке — по документации GitHub, а не прогоном.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {PIPELINE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Что проверять на собранном дереве, а не в исходнике" titleSize={18} pad={22} gap={14}>
+    <NumberedList
+      items={[
+        'Пути от корня, написанные руками. Обойдите все HTML и CSS, найдите `href`, `src` и `url()`, которые начинаются со слеша, и сверьте их с базой. В этом сайте таких нашлось **167**.',
+        'Пути, записанные строкой внутри собранных скриптов. Файлы из `public/` через сборщик не проходят, поэтому строка `/demo/modules/a-fn.js` осталась в JS-файле как есть даже при базе `/repo/`.',
+        'Если публикуете из ветки — файл `.nojekyll` рядом с деревом: без него пропадут все **148** файлов каталога `_astro/`. Своему конвейеру с артефактом он не нужен.',
+        'Файл `404.html`: без него читателю ответит страница GitHub, а не ваша.',
+        'Вес дерева и его состав — хотя бы затем, чтобы знать, что именно вы публикуете.',
+      ]}
+      size={14.5}
+    />
+  </Card>
+
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Ограничения и когда Pages не подходит"
+  lead="Pages бесплатен, но не безразмерен и годится не для всего: у него есть пределы по объёму и трафику и прямые запреты на то, что на нём размещать. Числа — из документации GitHub."
+  leadWidth={72}
+>
+  <Table
+    head={['что', 'предел', 'что это значит на практике']}
+    rows={LIMITS_ROWS.map((r) => [r.k, r.v, r.why])}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(180px,.9fr) minmax(190px,1fr) minmax(250px,1.6fr)"
+    minWidth={700}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {NOT_FOR_PAGES.map((item) => (
+      <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Чего нельзя без своих заголовков" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['механизм', 'доступен ли', 'что остаётся']}
+      rows={SECURITY_ROWS.map((r) => [r.k, r.what, r.why])}
+      tones={SECURITY_ROWS.map((r) => r.tone)}
+      kinds={['mono', 'prose', 'muted']}
+      cols="minmax(180px,.8fr) minmax(180px,.9fr) minmax(250px,1.6fr)"
+      minWidth={680}
+    />
+
+    <CardNote tone="err">
+
+      Что защищают эти заголовки и почему `<meta>` слабее заголовка — [Безопасность
+      фронтенда: CSP](/platform/security/#s3), а про запрет встраивания в чужой фрейм —
+      [там же, «CSRF и кликджекинг»](/platform/security/#s5). Вывод для публикации простой: страницу, которой
+      нужна настоящая политика безопасности, на Pages ставить не стоит. Это не запрещено —
+      просто нужного инструмента нет.
+
+    </CardNote>
+  </Card>
+
+  <Card title="Где заголовки и редиректы есть: `_headers` и `_redirects`" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={HOSTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={HOSTS_NOTE} />
+  </Card>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  <Card title="Что из этого снято прогоном" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['утверждение', 'замер', 'чем снято']}
+      rows={MEASURED.map((m) => [m.k, m.v, m.where])}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(260px,1.5fr) minmax(190px,1fr) minmax(160px,.8fr)"
+      minWidth={720}
+    />
+
+    <CardNote tone="prose">
+
+      От машины в этих числах зависит только скорость сборки. Количество путей, имён и байт
+      повторится на любом компьютере, пока не изменилось содержимое сайта.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="warn" title="А что проверено документацией, а не прогоном" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['утверждение', 'источник', 'почему прогоном нельзя']}
+      rows={DOC_ONLY.map((d) => [d.k, d.v, d.why])}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(250px,1.4fr) minmax(170px,.9fr) minmax(230px,1.3fr)"
+      minWidth={720}
+    />
+
+    <CardNote tone="warn">
+
+      Эти утверждения снимаются только с настоящего сайта на Pages, с доменом и живыми
+      заголовками ответа.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+  <Card title="Документация" titleSize={18} pad={22} gap={14}>
+
+    Числа — из двух сборок этого сайта; правила хостинга — из документации.
+
+    <SourceList items={SOURCES} />
+
+    <CardNote tone="prose">
+
+      Документация GitHub меняется вместе с самим Pages: публикация через Actions появилась
+      заметно позже публикации из ветки и постепенно стала основной. Сверяйтесь со своей
+      страницей настроек, а не с этой темой.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,364 @@
+---
+title: "Острова и resumability: Astro против гидратации"
+heading: "Острова и resumability: Astro против гидратации"
+headingWidth: 24
+order: 17
+kicker: фреймворки изнутри
+lead: "Полная гидратация отправляет в браузер код всей страницы и заставляет его повторить рендер сервера. Острова оставляют страницу HTML-документом и оживляют только интерактивные куски — каждый в свой момент. Этот сайт собран именно так, и он сам служит стендом: что лежит в `<astro-island>`, какие пропсы доезжают, когда скачивается код и сколько он весит."
+leadWidth: 66
+summary: "Полная гидратация против островов, устройство `<astro-island>`, сериализация пропсов, директивы `client:*` и их браузерные API, вес JS по шагам прокрутки, связь между островами, идея resumability в Qwik."
+verifiedOn: "Astro 7.3.2, @astrojs/vue 7.0.2, Vue 3.5.42, React 19.3.0, Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: острова, пропсы и граф чанков сняты с собранного dist/ этого сайта, загрузки при прокрутке — в Chromium; расчёт темы совпадает с записью браузера на двух страницах в трёх режимах и на стенде директив (tests/unit/islands.test.ts); пропсы сверены с serializeProps и восстановителем Astro. Qwik не устанавливался — раздел о нём по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Целиком или кусками }
+  - { id: s2, label: astro-island }
+  - { id: s3, label: Пропсы }
+  - { id: s4, label: Директивы }
+  - { id: s5, label: Вес по шагам }
+  - { id: s6, label: Связь островов }
+  - { id: s7, label: Resumability }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import IslandsLab from '@/widgets/islands-lab/ui/IslandsLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_ISLANDS,
+  PREREQ,
+  PREREQ_NOTE,
+  COMPARE,
+  SITE_FACTS,
+  ISLAND_HTML,
+  ISLAND_ATTRS,
+  LIFECYCLE,
+  AWAIT_NOTE,
+  PLAIN_PROPS,
+  REVIVE_CODE,
+  PROP_ROWS,
+  PROP_SETUP_CODE,
+  PROPS_NOTE,
+  DIRECTIVE_ROWS,
+  VISIBLE_SOURCE,
+  VISIBLE_NOTE,
+  DIRECTIVE_STAND_ROWS,
+  PLAN_CODE,
+  STAND_PAGES,
+  LAB_MODES,
+  LAB_CAPTION,
+  WEIGHT_FACTS,
+  BUS_ROWS,
+  LATE_CODE,
+  LATE_LOG,
+  BUS_NOTE,
+  SHARED_MODULE_NOTE,
+  PINIA_NOTE,
+  PLAIN_RESUME,
+  QWIK_NOTE,
+  RESUME_CODE,
+  RESUME_ROWS,
+  QWIK_FACTS,
+  RESUME_SUMMARY,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Код только там, где клик" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Острова — это не способ гидратировать быстрее, а способ **не гидратировать** большую
+    часть страницы вовсе. Текст, таблицы и картинки приходят готовым HTML и кода не получают
+    никогда. Код едет только к кускам, которые обязаны отвечать на клик, — и только когда
+    они понадобились.
+
+  </Callout>
+
+  Обычное приложение на Vue или React с серверным рендером оживает целиком. В браузер
+  уезжает код каждого компонента, даже того, что рисует абзац текста, и каждый ещё раз
+  выполняется, чтобы фреймворк нашёл свои узлы. На странице статьи с одним интерактивным
+  виджетом это почти вся работа впустую.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ISLANDS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Целиком или кусками"
+  lead="Полная гидратация делает страницу одним приложением: код всех компонентов едет в браузер, и всё дерево рендерится ещё раз. Острова оставляют страницу документом, а приложениями делают только интерактивные куски — каждый отдельно."
+  leadWidth={72}
+>
+  <Table
+    head={COMPARE.head}
+    rows={COMPARE.rows}
+    cols={COMPARE.cols}
+    kinds={COMPARE.kinds}
+    minWidth={COMPARE.minWidth}
+  />
+
+  ### Этот сайт как стенд
+
+  <CardGrid min={260} gap={14} align="start">
+    {SITE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Как устроен `<astro-island>`"
+  lead="В HTML остров — пользовательский элемент. Внутри лежит серверная разметка компонента, а в атрибутах — всё, что браузеру понадобится потом: где взять код, чем его оживить, с какими пропсами и когда."
+  leadWidth={72}
+>
+  <Card title="Остров со страницы «React против Vue»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ISLAND_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['атрибут', 'что в нём']}
+    rows={ISLAND_ATTRS.map((r) => [r.k, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(150px,.6fr) minmax(320px,2fr)"
+    minWidth={520}
+  />
+
+  ### От тега до живого компонента
+
+  <CardGrid min={260} gap={14} align="start">
+    {LIFECYCLE.map((step, i) => (
+      <Card title={`${i + 1}. ${step.k}`} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={AWAIT_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Пропсы: что переживает дорогу"
+  lead="Пропсы острова сборка пишет в атрибут `props` строкой JSON. А JSON знает только строки, числа, булевы значения, `null`, массивы и объекты. Поэтому каждое значение едет парой `[тег, данные]`, и тег говорит браузеру, во что собрать его обратно."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROPS} />
+
+  <Card title="Как браузер собирает пропсы обратно" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REVIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Что приходит в компонент
+
+  Строки таблицы — значения, переданные острову. `Point` и `loop` объявлены так:
+
+  <CodeBlock code={PROP_SETUP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['пропс', 'в атрибуте', 'что получит компонент']}
+    rows={PROP_ROWS.map((r) => ['`' + r.expr + '`', '`' + r.wire + '`', r.got])}
+    tones={PROP_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,1fr) minmax(190px,1.1fr) minmax(220px,1.3fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PROPS_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Директивы: когда приезжает код"
+  lead="Директива не меняет, как остров оживает, — только когда. Каждая — несколько строк, встроенных в страницу. Они получают функцию `load` и решают, в какой момент её вызвать."
+  leadWidth={72}
+>
+  <Table
+    head={['директива', 'когда', 'чем', 'на стенде']}
+    rows={DIRECTIVE_ROWS.map((r) => [r.k, r.when, r.how, r.stand])}
+    kinds={['prose', 'prose', 'prose', 'muted']}
+    cols="minmax(120px,.6fr) minmax(150px,.8fr) minmax(240px,1.4fr) minmax(200px,1fr)"
+    minWidth={760}
+  />
+
+  ### `client:visible` целиком
+
+  <Card title="astro/dist/runtime/client/visible.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={VISIBLE_SOURCE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={VISIBLE_NOTE} />
+
+  ### Пять директив на одной странице
+
+  Девять островов: по одному на `load`, `idle`, `media` и `only`, обычный `visible` вверху
+  и внизу, `visible` с запасом `rootMargin: 400px` и два, которые не могут ожить.
+  Окно — 800 px в высоту.
+
+  <Table
+    head={['момент', 'кто запросил код']}
+    rows={DIRECTIVE_STAND_ROWS.map((r) => [r.k, r.d])}
+    tones={DIRECTIVE_STAND_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(170px,.7fr) minmax(320px,2fr)"
+    minWidth={520}
+  />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Что и когда скачивается"
+  lead="Остров тянет за собой не один файл, а всё, что импортирует его модуль. Общие куски — рантайм фреймворка, общие компоненты — браузер скачивает один раз на страницу. Поэтому самый дорогой остров — первый."
+  leadWidth={72}
+>
+  <Card title="Расчёт: что скачается на каждом шаге прокрутки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PLAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Две страницы этого сайта
+
+  <IslandsLab client:visible planCode={PLAN_CODE} pages={STAND_PAGES} modes={LAB_MODES} caption={LAB_CAPTION} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {WEIGHT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Связь между островами"
+  lead="У островов нет общего дерева: каждый — отдельное приложение со своим корнем. Контекст React и `provide` во Vue до соседа не дотянутся. Общее у них только то, что общее у любых скриптов страницы: `window`, DOM и модули."
+  leadWidth={72}
+>
+  <Table
+    head={BUS_ROWS.head}
+    rows={BUS_ROWS.rows}
+    cols={BUS_ROWS.cols}
+    kinds={BUS_ROWS.kinds}
+    minWidth={BUS_ROWS.minWidth}
+  />
+
+  ### Остров, оживший позже
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Событие и стор" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card label="log" labelSize={12.5} pad={16} radius={4} gap={9}>
+      <CodeBlock code={JSON.stringify(LATE_LOG)} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={BUS_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card tone="info" title="Почему модуль один" titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={SHARED_MODULE_NOTE} />
+    <Card tone="warn" title="Почему Pinia не годится" titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={PINIA_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Resumability: не повторять, а продолжить"
+  lead="Остров, ожив, всё равно гидратируется: его компоненты выполняются заново, чтобы фреймворк нашёл обработчики. Qwik предлагает другое: сервер пишет в HTML всё, что нужно для продолжения, — состояние и адреса обработчиков, — а браузер на старте не выполняет ни одного компонента."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESUME} />
+
+  <Card tone="warn" titleSize={16} pad="14px 16px" radius={4} size={15.5} lh={1.6} text={QWIK_NOTE} />
+
+  <Card title="Модель: гидратация и возобновление" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RESUME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={RESUME_ROWS.head}
+    rows={RESUME_ROWS.rows}
+    cols={RESUME_ROWS.cols}
+    kinds={RESUME_ROWS.kinds}
+    minWidth={RESUME_ROWS.minWidth}
+  />
+
+  ### Как это устроено в Qwik
+
+  <CardGrid min={260} gap={14} align="start">
+    {QWIK_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={RESUME_SUMMARY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

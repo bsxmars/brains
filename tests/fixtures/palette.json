@@ -1,0 +1,354 @@
+{
+  "colors": [
+    {
+      "value": "#17150F",
+      "count": 557,
+      "lessons": 12
+    },
+    {
+      "value": "#3D3A33",
+      "count": 408,
+      "lessons": 12
+    },
+    {
+      "value": "#FDFDFC",
+      "count": 386,
+      "lessons": 12
+    },
+    {
+      "value": "#DDDBD4",
+      "count": 227,
+      "lessons": 12
+    },
+    {
+      "value": "#8A867C",
+      "count": 218,
+      "lessons": 12
+    },
+    {
+      "value": "#6D28D9",
+      "count": 196,
+      "lessons": 12
+    },
+    {
+      "value": "#F4F2EC",
+      "count": 150,
+      "lessons": 12
+    },
+    {
+      "value": "#B91C1C",
+      "count": 144,
+      "lessons": 12
+    },
+    {
+      "value": "#15803D",
+      "count": 143,
+      "lessons": 12
+    },
+    {
+      "value": "#FDF2F2",
+      "count": 134,
+      "lessons": 12
+    },
+    {
+      "value": "#F0C0C0",
+      "count": 131,
+      "lessons": 12
+    },
+    {
+      "value": "#7F1D1D",
+      "count": 119,
+      "lessons": 12
+    },
+    {
+      "value": "#FEF9EC",
+      "count": 119,
+      "lessons": 12
+    },
+    {
+      "value": "#F3D9A0",
+      "count": 113,
+      "lessons": 12
+    },
+    {
+      "value": "#6B6862",
+      "count": 111,
+      "lessons": 12
+    },
+    {
+      "value": "#4B4840",
+      "count": 107,
+      "lessons": 12
+    },
+    {
+      "value": "#E2DFD7",
+      "count": 104,
+      "lessons": 12
+    },
+    {
+      "value": "#14532D",
+      "count": 100,
+      "lessons": 12
+    },
+    {
+      "value": "#EDEBE4",
+      "count": 100,
+      "lessons": 12
+    },
+    {
+      "value": "#F0FAF3",
+      "count": 91,
+      "lessons": 12
+    },
+    {
+      "value": "#E9E6DE",
+      "count": 90,
+      "lessons": 12
+    },
+    {
+      "value": "#B9DFC6",
+      "count": 89,
+      "lessons": 12
+    },
+    {
+      "value": "#F3EFFB",
+      "count": 88,
+      "lessons": 12
+    },
+    {
+      "value": "#5C4708",
+      "count": 85,
+      "lessons": 12
+    },
+    {
+      "value": "#C9C6BD",
+      "count": 84,
+      "lessons": 12
+    },
+    {
+      "value": "#C9B8F0",
+      "count": 81,
+      "lessons": 12
+    },
+    {
+      "value": "#5B21B6",
+      "count": 79,
+      "lessons": 12
+    },
+    {
+      "value": "#FAF9F5",
+      "count": 74,
+      "lessons": 12
+    },
+    {
+      "value": "#92400E",
+      "count": 71,
+      "lessons": 12
+    },
+    {
+      "value": "#D6D4CD",
+      "count": 63,
+      "lessons": 12
+    },
+    {
+      "value": "#F59E0B",
+      "count": 47,
+      "lessons": 12
+    },
+    {
+      "value": "#3D2A6B",
+      "count": 38,
+      "lessons": 12
+    },
+    {
+      "value": "#B9B6AD",
+      "count": 36,
+      "lessons": 7
+    },
+    {
+      "value": "#C4B5FD",
+      "count": 36,
+      "lessons": 10
+    },
+    {
+      "value": "#A19D93",
+      "count": 32,
+      "lessons": 8
+    },
+    {
+      "value": "#E2C4C4",
+      "count": 31,
+      "lessons": 8
+    },
+    {
+      "value": "#D9A441",
+      "count": 25,
+      "lessons": 6
+    },
+    {
+      "value": "#EFEFEC",
+      "count": 24,
+      "lessons": 12
+    },
+    {
+      "value": "#A7E8BC",
+      "count": 22,
+      "lessons": 9
+    },
+    {
+      "value": "#F0A0A0",
+      "count": 16,
+      "lessons": 6
+    },
+    {
+      "value": "#F5F3EC",
+      "count": 14,
+      "lessons": 5
+    },
+    {
+      "value": "#B45309",
+      "count": 14,
+      "lessons": 5
+    },
+    {
+      "value": "#D8D4CA",
+      "count": 13,
+      "lessons": 6
+    },
+    {
+      "value": "#DDD6FE",
+      "count": 12,
+      "lessons": 12
+    },
+    {
+      "value": "rgba(239,239,236,.92)",
+      "count": 12,
+      "lessons": 12
+    },
+    {
+      "value": "#F3C77B",
+      "count": 11,
+      "lessons": 6
+    },
+    {
+      "value": "#8FCFA5",
+      "count": 11,
+      "lessons": 4
+    },
+    {
+      "value": "#3A362D",
+      "count": 10,
+      "lessons": 4
+    },
+    {
+      "value": "#DCFCE7",
+      "count": 9,
+      "lessons": 4
+    },
+    {
+      "value": "#B8B4AA",
+      "count": 8,
+      "lessons": 6
+    },
+    {
+      "value": "#8A8578",
+      "count": 8,
+      "lessons": 3
+    },
+    {
+      "value": "#C4C1B8",
+      "count": 7,
+      "lessons": 2
+    },
+    {
+      "value": "#FEE2E2",
+      "count": 6,
+      "lessons": 4
+    },
+    {
+      "value": "#A78BFA",
+      "count": 5,
+      "lessons": 5
+    },
+    {
+      "value": "#2A2620",
+      "count": 4,
+      "lessons": 3
+    },
+    {
+      "value": "#4A453A",
+      "count": 4,
+      "lessons": 1
+    },
+    {
+      "value": "#2B2822",
+      "count": 4,
+      "lessons": 1
+    },
+    {
+      "value": "#FFFFFF",
+      "count": 3,
+      "lessons": 3
+    },
+    {
+      "value": "#FEF3C7",
+      "count": 2,
+      "lessons": 2
+    },
+    {
+      "value": "#0D0C0A",
+      "count": 2,
+      "lessons": 2
+    },
+    {
+      "value": "#5A554A",
+      "count": 2,
+      "lessons": 1
+    },
+    {
+      "value": "#3A5A3A",
+      "count": 1,
+      "lessons": 1
+    },
+    {
+      "value": "#6B5A2A",
+      "count": 1,
+      "lessons": 1
+    },
+    {
+      "value": "#6B2A2A",
+      "count": 1,
+      "lessons": 1
+    },
+    {
+      "value": "#4A3820",
+      "count": 1,
+      "lessons": 1
+    },
+    {
+      "value": "#7C6BA8",
+      "count": 1,
+      "lessons": 1
+    },
+    {
+      "value": "#FDE68A",
+      "count": 1,
+      "lessons": 1
+    },
+    {
+      "value": "rgba(21,128,61,.1)",
+      "count": 1,
+      "lessons": 1
+    },
+    {
+      "value": "rgba(109,40,217,.09)",
+      "count": 1,
+      "lessons": 1
+    },
+    {
+      "value": "rgba(253,230,138,.09)",
+      "count": 1,
+      "lessons": 1
+    }
+  ]
+}

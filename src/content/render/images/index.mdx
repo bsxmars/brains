@@ -1,0 +1,386 @@
+---
+title: "Картинки: загрузка, декодирование и выбор размера"
+heading: "Картинки: загрузка, декодирование и выбор размера"
+headingWidth: 22
+order: 14
+kicker: браузер и рендеринг
+lead: "Одна и та же картинка на телефоне весит 10 КБ, а на ноутбуке 120 КБ — или наоборот, если ошибиться в одном атрибуте. Как браузер выбирает файл из `srcset`, когда начинает качать ленивую картинку, почему файл в 23 КБ занимает в памяти почти 7 МБ и что держит место под картинкой, пока она едет."
+leadWidth: 66
+summary: "Выбор кандидата из `srcset` по `sizes` и DPR, `x`-дескрипторы, файл из кеша, `<picture>` с `type` и `media`, `Accept`, размеры JPEG / WebP / AVIF / PNG при разном качестве, `loading=\"lazy\"` и его запас, приоритеты и `fetchpriority`, декодирование и память битмапа, `img.decode()`, `width` / `height` и `aspect-ratio`."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), sharp 0.35.4 (libvips 8.18.6), Node 24.11.0, октябрь 2026: запросы, приоритеты, пороги lazy, память битмапов и сдвиги сняты стендом со своим сервером и картинками из sharp; функция выбора из srcset и байты файлов сверены в tests/unit/images.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: srcset и sizes }
+  - { id: s2, label: x и кеш }
+  - { id: s3, label: picture }
+  - { id: s4, label: Форматы }
+  - { id: s5, label: lazy и приоритет }
+  - { id: s6, label: Память }
+  - { id: s7, label: Место под картинку }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import SrcsetLab from '@/widgets/srcset-lab/ui/SrcsetLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_IMAGES,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_SRCSET,
+  MARKUP_CODE,
+  SRCSET_CODE,
+  FILES,
+  SCENARIOS,
+  DEMO_CAPTION,
+  SRCSET_FACTS,
+  SIZES_ROWS,
+  SIZES_NOTE,
+  X_CODE,
+  X_NOTE,
+  CACHE_ROWS,
+  CACHE_NOTE,
+  PLAIN_PICTURE,
+  PICTURE_CODE,
+  PICTURE_ROWS,
+  ACCEPT_HEADER,
+  ACCEPT_NOTE,
+  PLAIN_PSNR,
+  FORMAT_ROWS,
+  FORMAT_NOTE,
+  PLAIN_LAZY,
+  LAZY_CODE,
+  LAZY_ROWS,
+  LAZY_NOTE,
+  LCP_ROWS,
+  LCP_NOTE,
+  PRIORITY_ROWS,
+  PRIORITY_NOTE,
+  PLAIN_DECODE,
+  BITMAP_CODE,
+  DECODE_ROWS,
+  DECODE_NOTE,
+  DECODE_API_CODE,
+  DECODE_API_ROWS,
+  RATIO_ROWS,
+  RATIO_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Пиксели по сети" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Браузер выбирает файл картинки раньше, чем знает, какого размера она будет на странице.
+    Поэтому размер ему подсказывают заранее, в разметке. А скачанный файл — ещё не картинка:
+    перед отрисовкой его распаковывают в битмап, и тот занимает в памяти ширину × высоту × 4 байта,
+    сколько бы ни весил файл.
+
+  </Callout>
+
+  У картинки на странице три цены. Байты по сети — их решают `srcset`, `sizes` и формат файла.
+  Время — когда запрос ушёл и в какой очереди стоял; тут работают `loading` и `fetchpriority`.
+  И память — битмап после декодирования. Все три браузер считает сам, но по подсказкам из
+  разметки. Неверная подсказка не даёт ни ошибки, ни предупреждения: просто приезжает не тот файл
+  и не тогда.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IMAGES} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Как браузер выбирает файл из srcset"
+  lead="`srcset` перечисляет файлы одной картинки разной ширины, `sizes` говорит, какой ширины будет место под неё. Из этих двух чисел и плотности экрана браузер решает, какой файл скачать, — до того, как загрузит CSS."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SRCSET} />
+
+  <CodeBlock code={MARKUP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  Дескриптор `800w` — ширина файла в пикселях. `sizes` читается слева направо: первое условие,
+  которое подошло, задаёт ширину слота. Потом для каждого файла считается плотность — сколько
+  его пикселей придётся на один CSS-пиксель слота. Файл 800 пикселей в слоте 400 даёт плотность 2.
+  Остаётся выбрать файл, плотность которого не меньше DPR экрана.
+
+  <Card title="Модель выбора" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SRCSET_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Модель и Chromium на одной разметке
+
+  <SrcsetLab client:visible code={SRCSET_CODE} scenarios={SCENARIOS} files={FILES} caption={DEMO_CAPTION} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SRCSET_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### sizes — обещание, а не замер
+
+  Карточка шириной 300 px в сетке, окно 1440 px. Набор файлов тот же.
+
+  <Table
+    head={['разметка', 'что добавлено', 'DPR 1', 'DPR 2']}
+    rows={SIZES_ROWS.map((r) => [r.k, r.markup, r.dpr1, r.dpr2])}
+    tones={SIZES_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(150px,.9fr) minmax(190px,1.2fr) minmax(150px,.9fr) minmax(160px,.9fr)"
+    minWidth={680}
+  />
+
+  <Md text={SIZES_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="x-дескрипторы и файл, который уже скачан"
+  lead="Когда ширина картинки на странице известна и не меняется, слот не нужен: плотность пишут прямо в `srcset`. А когда подходящий файл не совпадает с тем, что уже лежит в кеше, браузер может взять скачанный."
+  leadWidth={72}
+>
+  <CodeBlock code={X_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Md text={X_NOTE} />
+
+  ### Файл из кеша
+
+  <Table
+    head={['случай', 'что было', 'запрос', 'на экране']}
+    rows={CACHE_ROWS.map((r) => [r.k, r.how, r.req, r.shown])}
+    tones={CACHE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(140px,.8fr) minmax(250px,1.6fr) minmax(110px,.6fr) minmax(110px,.6fr)"
+    minWidth={640}
+  />
+
+  <Md text={CACHE_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="picture: формат и кадр"
+  lead="`srcset` выбирает размер одной и той же картинки. `<picture>` умеет больше: отдать новый формат тем, кто его понимает, и показать на узком экране другой кадр — например, обрезанный по центру."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PICTURE} />
+
+  <CodeBlock code={PICTURE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['случай', 'разметка', 'что запросил Chromium']}
+    rows={PICTURE_ROWS.map((r) => [r.k, r.markup, r.got])}
+    tones={PICTURE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(240px,1.4fr) minmax(240px,1.4fr)"
+    minWidth={660}
+  />
+
+  <Card title="Accept у запроса картинки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={`Accept: ${ACCEPT_HEADER}`} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={ACCEPT_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Форматы: сколько весит одна и та же картинка"
+  lead="Картинка 1200×800 из стенда, сжатая четырьмя форматами при разном качестве. Рядом с размером — насколько результат отличается от исходника."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PSNR} />
+
+  <Table
+    head={['формат', 'quality', 'байт', 'PSNR, дБ']}
+    rows={FORMAT_ROWS.map((r) => [r.fmt, r.q, r.bytes.toLocaleString('ru-RU'), r.psnr])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(90px,.6fr) minmax(100px,.6fr) minmax(100px,.7fr) minmax(90px,.6fr)"
+    minWidth={420}
+  />
+
+  <Md text={FORMAT_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Ленивая загрузка и приоритет"
+  lead="Ленивая картинка не качается, пока не подъедет к экрану. Это экономит байты на длинной странице и вредит на первом экране: браузер узнаёт, что картинка рядом, только после раскладки."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAZY} />
+
+  <CodeBlock code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['где картинка', 'тип сети', 'запрос ещё уходит, px', 'уже не уходит, px']}
+    rows={LAZY_ROWS.map((r) => [r.where, r.net, String(r.last), String(r.first)])}
+    kinds={['prose', 'prose', 'mono', 'mono']}
+    cols="minmax(170px,1.2fr) minmax(150px,1fr) minmax(110px,.7fr) minmax(110px,.7fr)"
+    minWidth={600}
+  />
+
+  <Md text={LAZY_NOTE} />
+
+  ### Ленивая картинка на первом экране
+
+  Страница с заголовком и одной большой картинкой. CSS отвечает через 400 мс, картинка — через 200 мс.
+
+  <Table
+    head={['картинка', 'запрос ушёл, мс', 'приоритет', 'LCP, мс']}
+    rows={LCP_ROWS.map((r) => [r.k, String(r.req), r.prio, String(r.lcp)])}
+    tones={LCP_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose', 'mono']}
+    cols="minmax(200px,1.4fr) minmax(100px,.6fr) minmax(90px,.6fr) minmax(80px,.5fr)"
+    minWidth={520}
+  />
+
+  <Md text={LCP_NOTE} />
+
+  ### С каким приоритетом стартуют картинки
+
+  <Table
+    head={['картинка', 'приоритет в Chromium 153']}
+    rows={PRIORITY_ROWS.map((r) => [r.k, r.prio])}
+    tones={PRIORITY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(260px,1.5fr) minmax(220px,1fr)"
+    minWidth={520}
+  />
+
+  <Md text={PRIORITY_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Декодирование и память"
+  lead="Скачанный файл нельзя нарисовать как есть. Перед отрисовкой браузер распаковывает его в битмап, и память считается по пикселям, а не по байтам файла."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DECODE} />
+
+  <CodeBlock code={BITMAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['что на странице', 'файл, байт', 'битмапы в памяти, байт']}
+    rows={DECODE_ROWS.map((r) => [r.k, r.fileBytes == null ? '—' : r.fileBytes.toLocaleString('ru-RU'), r.bitmaps.length ? r.bitmaps.map((b) => b.toLocaleString('ru-RU')).join(' + ') : 'нет'])}
+    tones={DECODE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(240px,1.5fr) minmax(100px,.6fr) minmax(170px,1fr)"
+    minWidth={560}
+  />
+
+  <Md text={DECODE_NOTE} />
+
+  ### img.decode() и decoding
+
+  <Card title="Распаковать заранее" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={DECODE_API_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['что', 'как ведёт себя']}
+    rows={DECODE_API_ROWS.map((r) => [r.k, r.what])}
+    tones={DECODE_API_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(170px,.7fr) minmax(320px,2fr)"
+    minWidth={540}
+  />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Место под картинку"
+  lead="Пока файл едет, браузер не знает его размеров. Если место не зарезервировать, картинка приедет и растолкает текст под собой. Экран 375 px, картинка 1200×800 приходит через 800 мс."
+  leadWidth={72}
+>
+  <Table
+    head={['вариант', 'CSS / разметка', '`aspect-ratio`', 'до загрузки', 'после', 'CLS']}
+    rows={RATIO_ROWS.map((r) => [r.k, r.css, r.ar, r.before, r.after, r.cls])}
+    tones={RATIO_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'mono', 'mono', 'mono']}
+    cols="minmax(150px,1fr) minmax(170px,1.1fr) minmax(130px,.9fr) minmax(80px,.5fr) minmax(110px,.7fr) minmax(60px,.4fr)"
+    minWidth={800}
+  />
+
+  <Md text={RATIO_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Картинке нужны три подсказки, и все три — в разметке.** `sizes` — какой ширины будет место,
+      чтобы браузер выбрал файл до CSS. `width` и `height` — какой формы место, чтобы ничего не
+      прыгало. И одна из двух: `fetchpriority="high"` для главной картинки первого экрана или
+      `loading="lazy"` для всего ниже. Формат экономит байты сети, а память решают только пиксели:
+      файл больше нужного стоит и трафика, и мегабайтов битмапа.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

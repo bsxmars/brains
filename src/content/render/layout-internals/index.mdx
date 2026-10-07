@@ -1,0 +1,348 @@
+---
+title: "Раскладка изнутри: flex и grid"
+heading: "Раскладка изнутри: как flex и grid делят место"
+headingWidth: 22
+order: 11
+kicker: браузер и рендеринг
+lead: "`flex: 1` у трёх колонок — а колонки разной ширины. Ссылка в карточке вылезает за край, хотя у карточки `flex-shrink: 1`. Это не капризы браузера: flex и grid считают размеры по точным алгоритмам из спецификации, и почти все сюрпризы идут из одного числа — минимального размера содержимого."
+leadWidth: 66
+summary: "min-content и max-content, алгоритм flex по шагам — базовый размер, раздача по `flex-grow`, сжатие по `flex-shrink` × базовый размер, заморозка и повторный проход, — `min-width: auto` и переполнения, треки и `fr` в гриде, `minmax`, `auto-fill` и `auto-fit`, авторасстановка и `dense`."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), октябрь 2026: размеры сняты getBoundingClientRect на фикстурах; функции темы сверены с замерами в tests/unit/layout-internals.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Размеры содержимого }
+  - { id: s2, label: Рост }
+  - { id: s3, label: Сжатие и min-width }
+  - { id: s4, label: Треки и fr }
+  - { id: s5, label: Авторасстановка }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import FlexLab from '@/widgets/flex-lab/ui/FlexLab.vue';
+import PlaceGrid from '@/widgets/flex-lab/ui/PlaceGrid.vue';
+import {
+  GLOSSARY,
+  PLAIN_LAYOUT,
+  PREREQ,
+  PREREQ_NOTE,
+  INTRINSIC_CODE,
+  PLAIN_INTRINSIC,
+  INTRINSIC_ROWS,
+  INTRINSIC_NOTE,
+  PLAIN_GROW,
+  FLEX_STEPS,
+  FLEX_CODE,
+  FLEX_CODE_NOTE,
+  GROW_ROWS,
+  SHORTHAND_ROWS,
+  SHORTHAND_NOTE,
+  BASIS_ROWS,
+  PLAIN_SHRINK,
+  SHRINK_ROWS,
+  MIN_AUTO_NOTE,
+  MIN_AUTO_COMPUTED_NOTE,
+  FIX_ROWS,
+  FIX_NOTE,
+  DEMO_SCENARIOS,
+  DEMO_CAPTION,
+  PLAIN_FR,
+  FR_CODE,
+  FR_ROWS,
+  FR_NOTE,
+  FR_VS_FLEX_NOTE,
+  REPEAT_FIXTURES,
+  PLACE_CODE,
+  PLACE_CSS,
+  PLACE_COLUMNS,
+  PLACE_SPANS,
+  PLACE_NAMES,
+  PLACE_NOTE,
+  PLACE_WARN,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  px,
+} from './data';
+
+<Section variant="intro" eyebrow="Переговоры о ширине" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Раскладка — это переговоры. Контейнер говорит, сколько у него места. Содержимое
+    говорит, уже чего ему нельзя и сколько ему хотелось бы. flex и grid — два свода правил
+    для этих переговоров, и оба записаны в спецификации как алгоритм. **Почти все сюрпризы
+    идут из одного числа — минимального размера содержимого.**
+
+  </Callout>
+
+  Когда вы пишете `display: flex`, браузер не подбирает ширины «на глаз». На шаге layout
+  он проходит по алгоритму: спрашивает у каждого элемента его размеры, складывает, сравнивает
+  с контейнером и раздаёт разницу. Иногда — в несколько проходов. Если знать эти шаги,
+  переполнение и «неравные равные» колонки можно предсказать заранее, а не подбирать
+  `min-width: 0` наугад.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYOUT} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Два размера, которые называет содержимое"
+  lead="Прежде чем делить место, браузер спрашивает у содержимого два числа. min-content — самая узкая ширина, при которой ничего не вылезает: текст переносится везде, где можно. max-content — ширина без единого переноса. Ширина текста между ними зависит от того, сколько места дали."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRINSIC} />
+
+  <Card title="Один абзац — четыре ширины" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INTRINSIC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['ширина', 'вышло, px', 'строк', 'почему']}
+    rows={INTRINSIC_ROWS.map((r) => [r.k, px(r.w), String(r.h / 20), r.d])}
+    kinds={['prose', 'mono', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(90px,.4fr) minmax(60px,.3fr) minmax(260px,1.6fr)"
+    minWidth={640}
+  />
+
+  <Md text={INTRINSIC_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Рост: как flex раздаёт свободное место"
+  lead="Флекс-контейнер сначала ставит каждому элементу базовый размер. Потом считает, сколько места осталось, и раздаёт остаток по долям `flex-grow`. Если кто-то при этом упёрся в `max-width`, его замораживают на границе, а излишек делят заново."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GROW} />
+
+  <CardGrid min={240} gap={14} align="start">
+    {FLEX_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Раздача по спецификации" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FLEX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={FLEX_CODE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Три расчёта против Chromium
+
+  <Table
+    head={['фикстура', 'как получилось', 'Chromium, px']}
+    rows={GROW_ROWS}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(200px,1fr) minmax(300px,1.8fr) minmax(130px,.6fr)"
+    minWidth={680}
+  />
+
+  ### `flex: 1` и `flex: auto`
+
+  Сокращение `flex` задаёт три свойства сразу, и разница между привычными значениями —
+  в третьем, базовом размере. Так их разворачивает Chromium:
+
+  <Table
+    head={['значение', 'flex-grow', 'flex-shrink', 'flex-basis']}
+    rows={SHORTHAND_ROWS.map((r) => [r.flex, r.grow, r.shrink, r.basis])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(160px,1fr) minmax(90px,.5fr) minmax(90px,.5fr) minmax(90px,.5fr)"
+    minWidth={480}
+  />
+
+  <Md text={SHORTHAND_NOTE} />
+
+  <Table
+    head={['фикстура', 'как получилось', 'Chromium, px']}
+    rows={BASIS_ROWS}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(200px,1fr) minmax(300px,1.8fr) minmax(130px,.6fr)"
+    minWidth={680}
+  />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Сжатие и `min-width: auto`"
+  lead="Когда базовые размеры не влезают, элементы сжимаются — но не поровну. Нехватка делится по весу `flex-shrink` × базовый размер: широкий элемент отдаёт больше. И ниже своего минимума элемент не сожмётся, а по умолчанию этот минимум — ширина самого длинного слова."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHRINK} />
+
+  <Table
+    head={['фикстура', 'как получилось', 'Chromium, px']}
+    rows={SHRINK_ROWS}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(200px,1fr) minmax(300px,1.8fr) minmax(130px,.6fr)"
+    minWidth={680}
+  />
+
+  ### Откуда минимум
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={MIN_AUTO_NOTE} />
+
+    <Card tone="neutral" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={MIN_AUTO_COMPUTED_NOTE} />
+  </CardGrid>
+
+  ### Как дать ссылке сжаться
+
+  Ссылка `example.com/very/long/path` и короткое «ok» в контейнере 300 px, у обоих
+  `flex: 0 1 200px`. Меняется одно свойство у ссылки:
+
+  <Table
+    head={['что поставили', 'ширина ссылки, px', 'строк', 'что видно']}
+    rows={FIX_ROWS.map((r) => [r.k, px(r.w), String(r.lines), r.d])}
+    tones={FIX_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'prose']}
+    cols="minmax(190px,1fr) minmax(110px,.5fr) minmax(60px,.3fr) minmax(260px,1.6fr)"
+    minWidth={660}
+  />
+
+  <Md text={FIX_NOTE} />
+
+  ### Проход за проходом
+
+  <FlexLab client:visible code={FLEX_CODE} scenarios={DEMO_SCENARIOS} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Grid: треки и `fr`"
+  lead="Грид сначала считает треки — колонки и строки, — а потом ставит элементы в клетки. `fr` — доля места, которое осталось после колонок в пикселях и промежутков. Но у `1fr` есть нижняя граница, и она снова — min-content содержимого."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FR} />
+
+  <Card title="Размер одной доли" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['сетка', 'как получилось', 'Chromium, px']}
+    rows={FR_ROWS}
+    kinds={['prose', 'prose', 'mono']}
+    cols="minmax(200px,1fr) minmax(300px,1.8fr) minmax(130px,.6fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FR_NOTE} />
+
+    <Card tone="neutral" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FR_VS_FLEX_NOTE} />
+  </CardGrid>
+
+  ### `auto-fill` и `auto-fit`
+
+  Сетка 700 px с `gap: 10px` и двумя элементами. Обе записи считают одинаковое число
+  колонок; различаются они тем, что делают с пустыми.
+
+  <Table
+    head={['колонки', 'ширины двух элементов, px', 'почему']}
+    rows={REPEAT_FIXTURES.map((r) => [r.css, r.measured.map(px).join(' · '), r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(220px,1fr) minmax(130px,.6fr) minmax(300px,1.8fr)"
+    minWidth={680}
+  />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Авторасстановка: куда встанет элемент"
+  lead="Элементы без явной позиции грид расставляет сам. Он идёт по строкам слева направо и ставит каждый элемент в первое место, куда тот помещается. Курсор при этом движется только вперёд: дыры позади остаются пустыми, пока не попросить `dense`."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сетка и элементы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PLACE_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Расстановка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PLACE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <PlaceGrid code={PLACE_CODE} columns={PLACE_COLUMNS} spans={PLACE_SPANS} names={PLACE_NAMES} />
+
+  <Md text={PLACE_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PLACE_WARN} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Сначала спросите у содержимого, какой у него минимум.** У флекс-элемента это
+      `min-width: auto`, у колонки `1fr` — `minmax(auto, 1fr)`, и в обоих случаях там
+      min-content. Пока минимумы влезают, flex и grid делят место по долям. Как только
+      не влезают — доли перестают работать, и решает самое длинное слово.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

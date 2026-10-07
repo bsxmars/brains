@@ -1,0 +1,372 @@
+---
+title: "Цикл событий Node: фазы libuv"
+headingWidth: 24
+order: 18
+lead: "Цикл событий Node — это функция `uv_run` из библиотеки libuv: круг из шести фаз, и между любыми двумя колбэками Node вклинивает свои очереди — `process.nextTick` и микрозадачи. Отсюда предсказуемые и непредсказуемые порядки, голодание цикла, сон в фазе poll, общий пул из четырёх потоков и момент, когда процессу больше нечего ждать."
+leadWidth: 66
+summary: "`uv_run` по строкам исходника; `nextTick` и микрозадачи после каждого колбэка; `setTimeout(0)` против `setImmediate` — где гонка, а где порядок гарантирован; задержка 1 мс; сколько спит poll; что идёт в пул потоков и как он виден по порядку колбэков; `unref`, `beforeExit` и выход процесса."
+verifiedOn: "Node 24.11.0 (libuv 1.51.0) и 26.8.2, октябрь 2026: сценарии темы исполняет tests/unit/node-event-loop.test.ts в отдельных процессах Node и сверяет с учебной моделью; частоты гонок — сотни отдельных запусков на стенде; пул — по порядку колбэков при UV_THREADPOOL_SIZE 1, 2, 4, 5. Без таймерных замеров"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Оборот uv_run }
+  - { id: s2, label: Модель }
+  - { id: s3, label: Между колбэками }
+  - { id: s4, label: setTimeout и setImmediate }
+  - { id: s5, label: Poll }
+  - { id: s6, label: Пул потоков }
+  - { id: s7, label: Выход процесса }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import LoopLab from '@/widgets/libuv-lab/ui/LoopLab.vue';
+import PoolLab from '@/widgets/libuv-lab/ui/PoolLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_LOOP,
+  PREREQ,
+  PREREQ_NOTE,
+  UV_RUN_SHAPE,
+  UV_RUN_NOTE,
+  PHASE_ROWS,
+  PLAIN_TWO_QUEUES,
+  LOOP_PRELUDE,
+  LOOP_CODE,
+  LOOP_SCENARIOS,
+  LOOP_DEMO_NOTE,
+  DRAIN_STEPS,
+  DRAIN_NOTE,
+  STARVE_NOTE,
+  TIMER_PROBE_CODE,
+  TIMER_ROWS,
+  TIMER_NOTE,
+  RACE_FACTS,
+  PLAIN_POLL,
+  POLL_RULES,
+  POLL_NOTE,
+  IDLE_CODE,
+  IDLE_OUT,
+  IDLE_NOTE,
+  PLAIN_POOL,
+  POOL_PROBE_CODE,
+  POOL_PROBE_OUT,
+  POOL_PROBE_NOTE,
+  POOL_ROWS,
+  POOL_CODE,
+  POOL_ORDER_SCENE,
+  POOL_TASKS,
+  POOL_STAND,
+  POOL_DEMO_NOTE,
+  POOL_SIZE_FACTS,
+  ALIVE_CODE,
+  ALIVE_OUT,
+  ALIVE_NOTE,
+  EXIT_FACTS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Шесть фаз и две очереди" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Порядок колбэков в Node не загадка: libuv обходит фазы всегда одним кругом, а Node после
+    каждого колбэка сливает две свои очереди. Непредсказуемо ровно одно — успела ли пройти
+    миллисекунда, — и по коду видно, где это решает исход.
+
+  </Callout>
+
+  Когда Node дочитал ваш файл, работа только начинается: колбэки таймеров, ответы сети,
+  прочитанные файлы приходят потом, по одному, из цикла событий. Сам цикл написан не на JS,
+  а на C, в библиотеке libuv. Node добавляет к нему две очереди, о которых libuv не знает,
+  и пул потоков для работы, которую операционная система не умеет делать «по готовности».
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOOP} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Оборот цикла — это функция uv_run"
+  lead="Node запускает `uv_run` и ждёт, пока она вернётся. Внутри — цикл `while`, в котором фазы вызываются одна за другой. Порядок фаз — это просто порядок строк в этой функции."
+  leadWidth={72}
+>
+  <Card title="Скелет uv_run" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={UV_RUN_SHAPE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={UV_RUN_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['фаза', 'что выполняет libuv', 'что там делает Node']}
+    rows={PHASE_ROWS.map((r) => [`\`${r.phase}\``, r.who, r.node])}
+    tones={PHASE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(140px,.7fr) minmax(190px,1fr) minmax(280px,1.8fr)"
+    minWidth={680}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_QUEUES} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Модель оборота против настоящего Node"
+  lead="Сто тридцать строк JS повторяют `uv_run` и две очереди Node. Модель исполняет тот же код сценария, что и Node, — с подменёнными `setTimeout`, `setImmediate`, `fs.stat` и виртуальными часами. Если её вывод совпадает с выводом Node, правило из текста работает."
+  leadWidth={72}
+>
+  <Card title="Общая шапка сценариев" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOOP_PRELUDE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    Сценарий — это шапка и несколько строк под ней, файл `.cjs`. `work(ms)` нужен, чтобы
+    занять поток на заданное время: так видно, как порядок зависит от прошедших миллисекунд.
+
+  </Card>
+
+  <Card title="Модель: uv_run, nextTick и микрозадачи" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOOP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Сценарии по кругам
+
+  <LoopLab client:visible code={LOOP_CODE} scenarios={LOOP_SCENARIOS} caption={LOOP_DEMO_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Между колбэками: nextTick, потом микрозадачи"
+  lead="Очереди `nextTick` и микрозадач — не фазы. Node сливает их после **каждого** колбэка, который сам вызвал: после модуля, каждого таймера, каждого ответа ввода-вывода, каждого `setImmediate`."
+  leadWidth={72}
+>
+  <CardGrid min={240} gap={14} align="start">
+    {DRAIN_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={DRAIN_NOTE} />
+
+  ### Голод и его отсутствие
+
+  Сценарии «голод: nextTick» и «без голода: setImmediate» в демо делают одну и ту же
+  работу — сто шагов по миллисекунде. Разница только в том, куда ставится следующий шаг.
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={STARVE_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="setTimeout(0) против setImmediate"
+  lead="Таймер на ноль — на деле таймер на 1 мс, отсчитанную от вызова. `setImmediate` — колбэк фазы check. Кто первый, зависит от того, из какой фазы их поставили и прошла ли та миллисекунда."
+  leadWidth={72}
+>
+  <Card title="Какую задержку запоминает Node" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TIMER_PROBE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['вызов', '`_idleTimeout`', 'stderr']}
+    rows={TIMER_ROWS.map((r) => [`\`${r.call}\``, `\`${r.stored}\``, r.warning === '—' ? '—' : `\`${r.warning}\``])}
+    tones={TIMER_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(200px,1fr) minmax(110px,.5fr) minmax(220px,1fr)"
+    minWidth={560}
+  />
+
+  <Md text={TIMER_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {RACE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Poll: сколько цикл спит"
+  lead="Перед poll libuv считает таймаут — сколько можно ждать ОС, ничего не упустив. Таймаут ноль значит «заглянуть и дальше», минус один — «спать, пока не разбудят»."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POLL} />
+
+  <Table
+    head={['что есть у цикла', 'таймаут poll']}
+    rows={POLL_RULES.map((r) => [r.k, r.v])}
+    tones={POLL_RULES.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(280px,1.4fr) minmax(220px,1fr)"
+    minWidth={540}
+  />
+
+  <Md text={POLL_NOTE} />
+
+  <Card title="Сон видно по eventLoopUtilization" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={IDLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['запуск', 'вывод']}
+    rows={IDLE_OUT.map((r) => [r.k, `\`${r.out}\``])}
+    tones={IDLE_OUT.map((r) => r.tone)}
+    kinds={['prose', 'mono']}
+    cols="minmax(240px,1fr) minmax(220px,1fr)"
+    minWidth={500}
+  />
+
+  <Md text={IDLE_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6 · демо"
+  eyebrowTone="demo"
+  title="Пул потоков: кто в нём ждёт"
+  lead="В пуле libuv четыре потока и одна общая очередь. Пул не виден ни в коде, ни в задержке цикла — но виден по **порядку**, в котором приходят колбэки, если занять его чем-то долгим."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POOL} />
+
+  <Card title="Пул из одного потока, занятый хешем" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={POOL_PROBE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={'$ UV_THREADPOOL_SIZE=1 node probe.cjs\n' + POOL_PROBE_OUT.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={POOL_PROBE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['операция', 'в пул', 'почему']}
+    rows={POOL_ROWS.map((r) => [r.k, r.pool, r.why])}
+    tones={POOL_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(230px,1.2fr) minmax(60px,.3fr) minmax(260px,1.5fr)"
+    minWidth={640}
+  />
+
+  ### Пять хешей и одно чтение
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сценарий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={POOL_ORDER_SCENE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Модель пула" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={POOL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <PoolLab client:visible code={POOL_CODE} tasks={POOL_TASKS} stand={POOL_STAND} caption={POOL_DEMO_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {POOL_SIZE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Когда процесс выходит"
+  lead="`uv_run` возвращается, когда у цикла не осталось ничего, что его держит: активных хендлов с ref, запросов в работе и закрываемых хендлов. Тогда Node выдаёт `beforeExit`, и если никто не поставил новую работу — процесс завершается."
+  leadWidth={72}
+>
+  <Card title="Что держит процесс" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ALIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CodeBlock code={ALIVE_OUT.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ALIVE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {EXIT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Порядок в Node выводится из трёх вещей:** в какой фазе стоит колбэк, что Node сливает
+      после каждого колбэка (`nextTick`, потом микрозадачи) и кто выполняет работу — цикл
+      или пул. Всё остальное — гонка с часами, и её не лечат версией Node: её убирают, ставя
+      колбэки из той фазы, где порядок гарантирован.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

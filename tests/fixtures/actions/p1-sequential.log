@@ -1,0 +1,48 @@
+time="2026-09-15T15:56:25+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[p1-sequential/pipeline] ⭐ Run Set up job
+[p1-sequential/pipeline] 🚀  Start image=node:22-slim
+[p1-sequential/pipeline]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[p1-sequential/pipeline]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p1-sequential/pipeline]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[p1-sequential/pipeline]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[p1-sequential/pipeline]   ✅  Success - Set up job
+[p1-sequential/pipeline] ⭐ Run Main install
+[p1-sequential/pipeline]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/install] user= workdir=
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|install|begin|1789476986155
+[p1-sequential/pipeline]   | installed 300 files, hash 155e7592ad19
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|install|end|1789476986228
+[p1-sequential/pipeline]   ✅  Success - Main install [162.44125ms]
+[p1-sequential/pipeline]   ⚙  ::set-env:: DEPS_HASH=155e7592ad19
+[p1-sequential/pipeline]   ⚙  ::set-output:: count=300
+[p1-sequential/pipeline] ⭐ Run Main lint
+[p1-sequential/pipeline]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/1] user= workdir=
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|lint|begin|1789476986396
+[p1-sequential/pipeline]   | lint: scanned 300 files, DEPS_HASH from previous step = [155e7592ad19]
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|lint|end|1789476986399
+[p1-sequential/pipeline]   ✅  Success - Main lint [105.773666ms]
+[p1-sequential/pipeline] ⭐ Run Main test
+[p1-sequential/pipeline]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/2] user= workdir=
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|test|begin|1789476986566
+[p1-sequential/pipeline]   | test: 300 assertions passed
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|test|end|1789476986600
+[p1-sequential/pipeline]   ✅  Success - Main test [138.147958ms]
+[p1-sequential/pipeline] ⭐ Run Main build
+[p1-sequential/pipeline]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/3] user= workdir=
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|build|begin|1789476986780
+[p1-sequential/pipeline]   | build: bundle 12080 bytes
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|build|end|1789476986786
+[p1-sequential/pipeline]   ✅  Success - Main build [119.231125ms]
+[p1-sequential/pipeline] ⭐ Run Main deploy
+[p1-sequential/pipeline]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/4] user= workdir=
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|deploy|begin|1789476986955
+[p1-sequential/pipeline]   | deploy: env-file carried DEPS_HASH=[155e7592ad19]
+[p1-sequential/pipeline]   | deploy: step output count=[300]
+[p1-sequential/pipeline]   | deploy: workspace still has dist? [yes]
+[p1-sequential/pipeline]   ❓  ::mark::pipeline|deploy|end|1789476986957
+[p1-sequential/pipeline]   ✅  Success - Main deploy [103.92025ms]
+[p1-sequential/pipeline] ⭐ Run Complete job
+[p1-sequential/pipeline] Cleaning up container for job pipeline
+[p1-sequential/pipeline]   ✅  Success - Complete job
+[p1-sequential/pipeline] 🏁  Job succeeded

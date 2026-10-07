@@ -1,0 +1,402 @@
+---
+title: Микрофронтенды и Module Federation
+heading: "Микрофронтенды и Module Federation: чужой код в вашем бандле во время работы"
+headingWidth: 26
+order: 5
+kicker: сборка и инструменты
+lead: "Корзину выкатывает одна команда, каталог — другая, а встречаются они впервые в браузере пользователя. Загрузить чужой модуль по адресу просто; трудно договориться, чья копия React на странице работает, — и не уронить всё, когда соседняя команда выкатит новый мажор."
+leadWidth: 66
+summary: "Зачем микрофронтенды и чем за них платят; способы собрать страницу из частей — от пакетов до iframe и import maps; контейнер Module Federation с `init` и `get`; shareScope и выбор общей версии: `singleton`, `requiredVersion`, `strictVersion`, `eager`; почему две копии React ломают рендер; упавший и зависший remote, рассинхрон выкатов и кеш `remoteEntry.js`."
+verifiedOn: "Учебная федерация исполняется демо и tests/unit/module-federation.test.ts, её semver сверен с пакетом semver 7.8.5; две копии модуля — стенд node:http (127.0.0.1:49231 и :49232) в Chromium 153.0.8010.12 (Playwright 1.63) и те же строки в Node 26.8.2; две копии React 19.3.0 — Node 26.8.2, обе сборки. Правила выбора версии и тексты предупреждений сверены с исходником webpack v5.111.1 (lib/sharing); настоящий рантайм не запускался. Сентябрь 2026"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Зачем и чем платят }
+  - { id: s2, label: "Контейнер: init и get" }
+  - { id: s3, label: Общие зависимости }
+  - { id: s4, label: Устойчивость }
+  - { id: s5, label: Контракты и стили }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MfShareScope from '@/widgets/mf-share-scope/ui/MfShareScope.vue';
+import {
+  GLOSSARY,
+  PLAIN_FEDERATION,
+  PREREQ,
+  WHY_FACTS,
+  WAYS_ROWS,
+  WAYS_NOTE,
+  MF_CONFIG_CODE,
+  CONTAINER_CODE,
+  HOST_CODE,
+  CONTAINER_FACTS,
+  PLAIN_SHARE_SCOPE,
+  SEMVER_MIN_CODE,
+  SCOPE_CODE,
+  STAND_CODE,
+  FEDERATION_CODE,
+  SHARE_OPTIONS,
+  CONSUME_TABLE,
+  CONSUME_TONES,
+  PLAIN_TWO_COPIES,
+  SINGLETON_NOTE,
+  DEMO_CAPTION,
+  DEMO_VERSIONS,
+  DEMO_TIMEOUT_MS,
+  DEMO_DEFAULT,
+  DEMO_PRESETS,
+  STAND_LIB_CODE,
+  STAND_REMOTE_CODE,
+  STAND_HOST_CODE,
+  STAND_RUNS,
+  STAND_TABLE,
+  STAND_NOTE,
+  REACT_TWIN_CODE,
+  REACT_TWIN_RUNS,
+  REACT_TWIN_NOTE,
+  FAILURE_FACTS,
+  RETRY_RUNS,
+  SKEW_ROWS,
+  CACHE_ROWS,
+  CACHE_NOTE,
+  CONTRACT_FACTS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  SHARE_SCENE_CODE,
+  SHARE_SCENE_NOTE,
+  SHARE_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Чужой код во время работы" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Module Federation позволяет странице загрузить модуль **из чужой сборки** по адресу —
+    уже во время работы, без пересборки своей. Сама загрузка — обычный `import()`. Вся механика
+    федерации существует ради другого: у host и у remote есть своя копия React, и на странице
+    должна работать **одна**. Две копии одной и той же версии 19.3.0 роняют рендер
+    ошибкой `Cannot read properties of null (reading 'useState')`.
+
+  </Callout>
+
+  Микрофронтенды — организационное решение: каждая часть интерфейса принадлежит своей команде
+  и выкатывается её конвейером. Технически это значит, что страница собирается из частей,
+  которые никогда не собирались вместе, и договор между ними проверяется только в браузере.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FEDERATION} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Зачем и чем платят"
+  lead="Микрофронтенды покупают одно — независимый выкат частей интерфейса. Платят за это интеграцией, которая переезжает из CI в браузер, лишними байтами и общим на всех документом."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {WHY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Как собрать страницу из частей
+
+  <Table
+    head={['способ', 'когда собирается', 'изоляция', 'общие зависимости', 'цена']}
+    rows={WAYS_ROWS.map((r) => [r.k, r.when, r.iso, r.shared, r.cost])}
+    kinds={['mono', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(130px,.6fr) minmax(120px,.6fr) minmax(160px,.9fr) minmax(180px,1fr) minmax(260px,1.6fr)"
+    minWidth={940}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={WAYS_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Контейнер: `init` и `get`"
+  lead="Remote при сборке кладёт рядом с чанками контейнер — `remoteEntry.js`. Host загружает его, отдаёт ему общий shareScope через `init` и просит модуль по публичному имени через `get`. В ответ приходит не модуль, а фабрика — функция, которая исполнит модуль, когда её вызовут."
+  leadWidth={72}
+>
+  <Card title="Как это выглядит в конфиге webpack" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MF_CONFIG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text="Конфиг говорит две вещи: что remote отдаёт наружу (`exposes`) и какие пакеты сборки готовы делить с соседями (`shared`). Ниже — во что это превращается в браузере, учебным кодом, который исполняет демо этой темы." />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Контейнер remote" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CONTAINER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Host: загрузить, отдать scope, попросить модуль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={HOST_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {CONTAINER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Общие зависимости: чья копия работает"
+  lead="Каждая сборка кладёт в shareScope свою версию пакета и при потреблении выбирает одну по своим правилам. Выбор зависит от диапазона, от флагов `singleton` и `strictVersion` и от того, какая копия уже взята раньше."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHARE_SCOPE} />
+
+  <Table
+    head={['флаг', 'по умолчанию', 'что делает']}
+    rows={SHARE_OPTIONS.map((r) => [r.k, r.def, r.what])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(170px,.8fr) minmax(320px,2fr)"
+    minWidth={700}
+  />
+
+  <Card title="Регистрация и выбор версии" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCOPE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text="Условие в `register` и выбор singleton повторяют рантайм webpack 5.111. Неочевидное место: нестрогий выбор без подходящей версии берёт просто старшую — даже если другая уже загружена. Проверку диапазонов код берёт из блока ниже." />
+    </CardNote>
+  </Card>
+
+  <Card title="semver в объёме, нужном выбору" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={SEMVER_MIN_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text="Ответы совпадают с пакетом `semver` на диапазонах вида `^`, `~`, `>=` и точной версии; пререлизы и `||` код не разбирает и бросает. Как устроены диапазоны целиком — в [«Пакетных менеджерах», раздел «Semver и диапазоны»](/tooling/package-managers/#s1)." />
+    </CardNote>
+  </Card>
+
+  ### Одна история: корзина переходит на React 19
+
+  <CodeBlock code={SHARE_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={SHARE_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {SHARE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Какую версию получит сборка
+
+  <Table
+    head={['singleton', 'strictVersion', 'требует', 'уже взята', 'получит', 'чья копия', 'почему']}
+    rows={CONSUME_TABLE}
+    tones={CONSUME_TONES}
+    toneColumn={4}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono', 'prose', 'prose']}
+    cols="minmax(80px,.5fr) minmax(100px,.6fr) minmax(90px,.5fr) minmax(80px,.5fr) minmax(80px,.5fr) minmax(100px,.6fr) minmax(260px,1.8fr)"
+    minWidth={900}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text="Во всех строках в shareScope лежат `18.3.1` от host и `19.1.0` от cart; каждую строку посчитал `consume` из блока выше. Главное читается по колонке «получит»: `singleton` без `strictVersion` не спорит с диапазоном: отдаёт уже взятую копию, а если такой нет — старшую, и только предупреждает." />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_COPIES} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SINGLETON_NOTE} />
+
+  ### Host и два remote
+
+  <Card title="Стенд демо: копия библиотеки и сеть" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={STAND_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <MfShareScope
+    client:visible
+    code={FEDERATION_CODE}
+    versions={DEMO_VERSIONS}
+    presets={DEMO_PRESETS}
+    initial={DEMO_DEFAULT}
+    timeoutMs={DEMO_TIMEOUT_MS}
+    caption={DEMO_CAPTION}
+  />
+
+  ### Две копии на самом деле
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`lib.js` — у host и у remote" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STAND_LIB_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="`remoteEntry.js`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STAND_REMOTE_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="`app.js` — host" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={STAND_HOST_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['сценарий', 'адрес контейнера', 'исполнений `lib.js`', 'запросов `lib.js`', '`instanceof`']}
+    rows={STAND_TABLE}
+    tones={STAND_RUNS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(200px,1.1fr) minmax(230px,1.2fr) minmax(200px,1.2fr) minmax(90px,.5fr) minmax(90px,.5fr)"
+    minWidth={900}
+  />
+
+  <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={STAND_NOTE} />
+
+  <Card title="Две копии React одной версии" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={REACT_TWIN_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['сборка React 19.3.0', 'исключение', '`console.error`']}
+    rows={REACT_TWIN_RUNS.map((r) => [r.build, r.thrown, r.console])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(170px,.8fr) minmax(280px,1.4fr) minmax(260px,1.3fr)"
+    minWidth={760}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={REACT_TWIN_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Устойчивость: упавший remote и рассинхрон выкатов"
+  lead="Remote — это сервер другой команды, и он бывает недоступен, медленен или уже на другой версии. Host обязан пережить все три случая сам: рантайм федерации ни таймаута, ни заглушки за него не поставит."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {FAILURE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={['вызов', 'запрос на сервер', 'результат']}
+    rows={RETRY_RUNS.map((r) => [r.k, r.request, r.result])}
+    tones={RETRY_RUNS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(150px,.8fr) minmax(280px,1.5fr)"
+    minWidth={680}
+  />
+
+  ### Host и remote на разных версиях
+
+  <Table
+    head={['что сделал remote', 'что происходит с host']}
+    rows={SKEW_ROWS.map((r) => [r.k, r.what])}
+    tones={SKEW_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,.8fr) minmax(360px,2fr)"
+    minWidth={640}
+  />
+
+  ### Кеш контейнера и чанков
+
+  <Table
+    head={['файл', 'заголовок', 'почему']}
+    rows={CACHE_ROWS.map((r) => [r.k, r.header, r.why])}
+    tones={CACHE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(170px,.8fr) minmax(220px,1fr) minmax(320px,1.8fr)"
+    minWidth={760}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CACHE_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Remote — это зависимость, которая обновляется без вашего ведома.** Всё, что в монолите
+      решает lock-файл, — какая версия, совместима ли, есть ли она вообще, — здесь решается
+      в браузере пользователя, и ответ «нет» host обязан уметь показать.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Контракты, типы и стили"
+  lead="Контейнер знает имена модулей и больше ничего: ни типов пропсов, ни стилей, ни того, кто владеет адресной строкой. Всё это — договорённость команд, и чем она уже, тем реже ломается."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {CONTRACT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

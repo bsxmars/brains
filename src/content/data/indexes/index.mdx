@@ -1,0 +1,491 @@
+---
+title: Индексы Postgres и EXPLAIN
+heading: "Индексы Postgres и EXPLAIN: почему запрос не берёт индекс"
+headingWidth: 24
+order: 1
+kicker: данные и бэкенд
+lead: "Индекс создан, а `EXPLAIN` упрямо пишет `Seq Scan`. Иногда Postgres прав, и индекс правда хуже чтения всей таблицы. Иногда индекс не подходит к запросу: функция над столбцом, не тот тип, не тот столбец составного индекса. А иногда планировщик просто ошибся в числе строк. Как различить эти случаи по плану и что делать в каждом."
+leadWidth: 66
+summary: "Таблица как набор страниц и Seq Scan; B-дерево: уровни, листья, поиск и диапазон, расщепление страниц; как читать `EXPLAIN (ANALYZE, BUFFERS)` — узлы, оценка против факта, `cost`, `loops`; как планировщик выбирает между Seq, Index и Bitmap Scan; почему индекс не берётся; Index Only Scan, `INCLUDE`, частичные индексы и индексы по выражению; цена индекса на запись."
+verifiedOn: "@electric-sql/pglite 0.5.8 (PostgreSQL 18.3 в WebAssembly) с pageinspect, Node 24.11.0, октябрь 2026: планы, прочитанные страницы, уровни и листья B-дерева, цены вариантов плана и цена записи сняты стендом и пересобираются tests/unit/indexes.test.ts; мини-B-дерево сверено с pageinspect и SQL, модель стоимости — с выбором и ценами EXPLAIN на 17 запросах. По документации Postgres: text_pattern_ops для LIKE в сортировке не C, отсутствие дедупликации у индексов с INCLUDE, появление skip scan в версии 18, пороги автоматического ANALYZE"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Таблица — это страницы }
+  - { id: s2, label: B-дерево }
+  - { id: s3, label: Как читать EXPLAIN }
+  - { id: s4, label: Выбор плана }
+  - { id: s5, label: Почему индекс не берётся }
+  - { id: s6, label: Index Only Scan и особые индексы }
+  - { id: s7, label: Цена на запись }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import BtreeLab from '@/widgets/index-lab/ui/BtreeLab.vue';
+import PlanLab from '@/widgets/index-lab/ui/PlanLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_HEAP,
+  PREREQ,
+  PREREQ_NOTE,
+  SETUP_SQL,
+  SETUP_NOTE,
+  CTID_SQL,
+  CTID_ROWS,
+  CTID_NOTE,
+  EMAIL_QUERY,
+  PLAN_SEQ,
+  SEQ_NOTE,
+  PLAIN_BTREE,
+  INDEX_SQL,
+  PLAN_INDEX,
+  INDEX_NOTE,
+  BTREE_TEXT,
+  TREE_ROWS,
+  TREE_NOTE,
+  BTREE_CODE,
+  BTREE_NOTE,
+  BTREE_SCENARIOS,
+  BTREE_CAPTION,
+  RANGE_SQL,
+  PLAN_RANGE,
+  RANGE_NOTE,
+  ORDERS_SQL,
+  LOOPS_SQL,
+  PLAN_LOOPS,
+  PLAIN_PLAN,
+  EXPLAIN_PARTS,
+  EXPLAIN_NOTE,
+  EXPLAIN_TIPS,
+  PLAIN_PLANNER,
+  SCAN_KINDS,
+  PLAN_LEAD_TEXT,
+  PLANNER_CODE,
+  PLANNER_NOTE,
+  PLAN_COLUMNS,
+  PLAN_CAPTION,
+  SELECTIVITY_FACTS,
+  WHY_CASES,
+  whyCode,
+  STALE_SQL,
+  PLAN_STALE,
+  PLAN_FRESH,
+  PLAIN_STATS,
+  STALE_NOTE,
+  STALE_FACTS,
+  PLAIN_VISIBILITY,
+  IOS_SQL,
+  IOS_TEXT,
+  IOS_ROWS,
+  IOS_NOTE,
+  INCLUDE_SQL,
+  PLAN_INCLUDE_BEFORE,
+  PLAN_INCLUDE_AFTER,
+  INCLUDE_NOTE,
+  PARTIAL_SQL,
+  PLAN_PARTIAL,
+  PARTIAL_NOTE,
+  SPECIAL_FACTS,
+  WRITE_ROWS,
+  WRITE_TEXT,
+  WRITE_NOTE,
+  UNUSED_SQL,
+  UNUSED_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Страницы и индексы" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Планировщик Postgres не «забывает» про индекс. Он считает цену каждого способа прочитать
+    данные и берёт самый дешёвый. Если выбран `Seq Scan`, значит либо индекс к запросу
+    **не подходит**, либо **правда дороже**, либо планировщик **неверно угадал** число строк.
+    План показывает, какой из трёх случаев ваш.
+
+  </Callout>
+
+  Postgres хранит таблицу и каждый индекс в файлах, нарезанных на страницы по 8 КБ, и любая
+  работа запроса — это чтение страниц. Индекс экономит страницы, когда нужно мало строк и они
+  лежат кучно. Когда строк много или они рассыпаны по таблице, индекс заставляет прыгать
+  по страницам вразброс — и проигрывает простому чтению подряд.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HEAP} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Таблица — это страницы"
+  lead="Пример на всю тему — таблица пользователей на 30 000 строк. В файле она лежит страницами по 8 КБ, строки — в порядке вставки. Без индекса найти строку можно одним способом: прочитать все страницы."
+  leadWidth={72}
+>
+  <Card title="Таблица users" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SETUP_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={SETUP_NOTE} />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Где лежит строка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CTID_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <Table
+        head={['`ctid`', '`id`']}
+        rows={CTID_ROWS.map((r) => [`\`${r.ctid}\``, String(r.id)])}
+        kinds={['mono', 'prose']}
+        cols="minmax(120px,1fr) minmax(100px,1fr)"
+        minWidth={240}
+      />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CTID_NOTE} />
+  </CardGrid>
+
+  ### Поиск без индекса
+
+  <Card title="EXPLAIN (ANALYZE, BUFFERS)" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={EMAIL_QUERY + ';'} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock code={PLAN_SEQ} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={SEQ_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="B-дерево: строка за три страницы"
+  lead="Индекс — отдельный файл из таких же страниц, только данные в нём отсортированы и разложены по уровням. Поиск идёт сверху вниз и на каждом уровне читает одну страницу."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BTREE} />
+
+  <Card title="Тот же запрос с индексом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INDEX_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock code={PLAN_INDEX} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={INDEX_NOTE} />
+  </Card>
+
+  <Md text={BTREE_TEXT} />
+
+  <Table
+    head={['индекс', 'уровней', 'листьев', 'что видно']}
+    rows={TREE_ROWS.map((r) => [r.k, String(r.levels), String(r.leaves), r.note])}
+    kinds={['prose', 'mono', 'mono', 'prose']}
+    cols="minmax(200px,1.2fr) minmax(80px,.4fr) minmax(80px,.4fr) minmax(240px,1.6fr)"
+    minWidth={640}
+  />
+
+  <Md text={TREE_NOTE} />
+
+  ### Как дерево растёт
+
+  <Card title="Мини-B-дерево: вставка, поиск, диапазон" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BTREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={BTREE_NOTE} />
+  </Card>
+
+  <BtreeLab client:visible btreeCode={BTREE_CODE} scenarios={BTREE_SCENARIOS} caption={BTREE_CAPTION} />
+
+  ### Диапазон
+
+  <Card title="BETWEEN по первичному ключу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RANGE_SQL + ';'} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock code={PLAN_RANGE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={RANGE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Как читать EXPLAIN"
+  lead="`EXPLAIN` печатает план — дерево шагов. С `ANALYZE` запрос по-настоящему выполняется, и рядом с каждой оценкой появляется факт. С `BUFFERS` — сколько страниц прочитал каждый шаг."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PLAN} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Вторая таблица: заказы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ORDERS_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Запрос" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LOOPS_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="План" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PLAN_LOOPS} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['что в плане', 'что значит']}
+    rows={EXPLAIN_PARTS.map((r) => [r.k, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(200px,.8fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={EXPLAIN_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {EXPLAIN_TIPS.map((tip) => (
+      <Card tone={tip.tone ?? 'neutral'} title={tip.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={tip.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Как планировщик выбирает план"
+  lead="Для одной таблицы у Postgres обычно три способа прочитать нужные строки. Для каждого он считает цену по формулам и статистике и берёт самый дешёвый. Индекс выигрывает не всегда — это видно прямо по ценам."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PLANNER} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {SCAN_KINDS.map((s) => (
+      <Card title={s.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={s.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={PLAN_LEAD_TEXT} />
+
+  ### Цена трёх планов
+
+  <Card title="Модель стоимости" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PLANNER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={PLANNER_NOTE} />
+  </Card>
+
+  <PlanLab client:visible plannerCode={PLANNER_CODE} columns={PLAN_COLUMNS} caption={PLAN_CAPTION} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SELECTIVITY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Почему индекс не берётся"
+  lead="Индекс есть, запрос по нужному столбцу, а в плане `Seq Scan`. Причин немного, и каждая оставляет след в плане: условие в `Filter` вместо `Index Cond`, оценка строк, далёкая от факта, или честно посчитанная цена, в которой индекс проигрывает."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    {WHY_CASES.map((c) => (
+      <Card tone={c.tone ?? 'neutral'} title={c.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+        <CodeBlock code={whyCode(c)} size={11.5} lh={1.65} pad="14px 16px" />
+        <Md text={c.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Устаревшая статистика
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STATS} />
+
+  <Card title="Новое значение, старая статистика" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STALE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card tone="err" title="До ANALYZE" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PLAN_STALE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="После ANALYZE users" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PLAN_FRESH} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={STALE_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {STALE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Index Only Scan, INCLUDE, частичные индексы"
+  lead="Индекс можно сделать таким, чтобы таблица не понадобилась вовсе, или таким, чтобы в нём лежали только нужные строки. Оба приёма экономят страницы, у обоих есть условия."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VISIBILITY} />
+
+  <Md text={IOS_TEXT} />
+
+  <Card title="Только из индекса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={IOS_SQL + ';'} size={11.5} lh={1.65} pad="14px 16px" />
+    <Table
+      head={['когда', '`Heap Fetches`', 'страниц', 'почему']}
+      rows={IOS_ROWS.map((r) => [r.k, String(r.heapFetches), String(r.pages), r.d])}
+      kinds={['prose', 'mono', 'mono', 'prose']}
+      cols="minmax(200px,1fr) minmax(100px,.4fr) minmax(80px,.4fr) minmax(220px,1.4fr)"
+      minWidth={620}
+    />
+  </Card>
+
+  <Md text={IOS_NOTE} />
+
+  ### INCLUDE: столбец для чтения, не для поиска
+
+  <Card title="Запрос и индекс" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INCLUDE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card tone="warn" title="Индекс только по дате" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PLAN_INCLUDE_BEFORE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Дата и INCLUDE (city)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PLAN_INCLUDE_AFTER} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={INCLUDE_NOTE} />
+
+  ### Частичный индекс
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Индекс по редким строкам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PARTIAL_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="План" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PLAN_PARTIAL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={PARTIAL_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {SPECIAL_FACTS.map((fact, i) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+        {i === 2 && (
+          <CardNote tone="info">
+            <Md text="Где разобрано: [«Миграции базы без простоя», раздел «Перезапись и проходы»](/delivery/db-migrations/#s4)." />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Цена индекса на запись"
+  lead="Индекс ускоряет чтение, а платит за это запись: каждый `INSERT` кладёт ключ в каждый индекс таблицы. Цену видно в тех же единицах — страницах и записях журнала."
+  leadWidth={72}
+>
+  <Md text={WRITE_TEXT} />
+
+  <Table
+    head={['индексов', 'страниц на строку', 'записей WAL', 'байт WAL', 'страниц на 1000 строк', 'байт WAL на 1000']}
+    rows={WRITE_ROWS.map((r) => [String(r.indexes), String(r.rowPages), String(r.walRecords), String(r.walBytes), String(r.bulkPages), r.bulkWalBytes.toLocaleString('ru-RU')])}
+    kinds={['mono', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(90px,.6fr) minmax(110px,.8fr) minmax(100px,.8fr) minmax(90px,.7fr) minmax(130px,1fr) minmax(130px,1fr)"
+    minWidth={700}
+  />
+
+  <Md text={WRITE_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Какие индексы не нужны" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={UNUSED_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={UNUSED_NOTE} />
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Индекс — это не галочка «ускорить», а ставка на конкретные запросы.** Он помогает,
+      когда условие запроса совпадает с тем, что в индексе лежит, отбирает мало строк и
+      планировщик об этом знает из свежей статистики. Проверка всегда одна:
+      `EXPLAIN (ANALYZE, BUFFERS)` — сравнить оценку строк с фактом и посмотреть, сколько
+      страниц прочитано.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

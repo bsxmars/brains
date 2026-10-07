@@ -1,0 +1,678 @@
+---
+title: Event Loop
+order: 3
+lead: "Цикл событий решает, какой код выполнится следующим: обработчик клика, таймер, ответ сети или продолжение промиса. Сам язык его почти не описывает: в спецификации ECMAScript есть только очередь для промисов (Job Queue) и правило «начатое выполняется до конца» (run-to-completion). Очереди задач, таймеры и отрисовку добавляет **хост** — браузер по HTML Standard или Node через библиотеку libuv."
+leadWidth: 66
+summary: "Один оборот цикла по шагам: источники задач, checkpoint, таймеры, фазы libuv в Node."
+verifiedOn: Node 24.11
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Оборот }
+  - { id: s2, label: Источники задач }
+  - { id: s3, label: Checkpoint }
+  - { id: s4, label: Таймеры }
+  - { id: s5, label: Node }
+  - { id: s6, label: Агенты }
+  - { id: s7, label: Тонкости }
+  - { id: s8, label: Литература }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import TimerClamp from '@/widgets/timer-clamp/ui/TimerClamp.vue';
+import EventLoopTurn from '@/widgets/event-loop-turn/ui/EventLoopTurn.vue';
+import CheckpointDemo from '@/widgets/checkpoint-demo/ui/CheckpointDemo.vue';
+import NodeLoop from '@/widgets/node-loop/ui/NodeLoop.vue';
+import {
+  TURN_CODE,
+  TURN,
+  CHECKPOINT,
+  MICRO_ROWS,
+  QM_ROWS,
+  TIMER_FACTS,
+  NODE_PHASES,
+  NODE_CODE,
+  NODE_CJS,
+  NODE_ESM,
+  NODE_FACTS,
+  AGENT_ROWS,
+  SOURCE_ROWS,
+  SOURCE_FACTS,
+  PITFALLS,
+  NEXTTICK_POSITION_NOTE,
+  INTERVIEW_CODE,
+  INTERVIEW_FACTS,
+  NEXTTICK_CODE,
+  NEXTTICK_NOTE,
+  IDLE_FACTS,
+  SOURCES,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  TIMER_DEMO_NOTE,
+  TURN_DEMO_NOTE,
+  CHECKPOINT_CODE,
+  CHECKPOINT_DEMO_NOTE,
+  NODE_DEMO_NOTE,
+  PROBE_DEMO_NOTE,
+  PLAIN_TURN,
+  PLAIN_MICROTASK,
+  PLAIN_RENDER,
+  PLAIN_PHASES,
+  TICK_SCENE_CODE,
+  TICK_SCENE_NOTE,
+  TICK_STEPS,
+  POOL_SCENE_CODE,
+  POOL_SCENE_NOTE,
+  POOL_STEPS,
+  PLAIN_POOL,
+} from './data';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
+
+<Section
+  variant="intro"
+  eyebrow="Зачем цикл вообще существует"
+  lead="Поток у JavaScript один, а работы, которая **ждёт** внешний мир — сеть, таймер, клик, — много. Совместить одно с другим можно тремя способами."
+  leadWidth={68}
+  gap={24}
+>
+  <CardGrid min={270} gap={14}>
+    <Card tone="err" label="вариант 1 · отвергнут" labelTone="tone" labelSize={11} title="Блокирующая модель" titleSize={18} pad={20} gap={11}>
+
+      «Отправил запрос, стою здесь же и жду». Пока ждём, поток занят: страница не рисуется
+      и не реагирует на клики. Так работал синхронный XHR-запрос, и поэтому от него отказались.
+
+    </Card>
+    <Card tone="err" label="вариант 2 · отвергнут" labelTone="tone" labelSize={11} title="Много потоков, которые прерывают друг друга" titleSize={18} pad={20} gap={11}>
+
+      Это вытесняющая многопоточность: операционная система переключает потоки в любой момент,
+      даже посреди функции. Тогда DOM пришлось бы защищать от одновременной записи из разных
+      потоков, а в прикладном коде — расставлять блокировки (локи) и ловить гонки. Для языка
+      интерфейсов это слишком дорого.
+
+    </Card>
+    <Card tone="ok" color="tone" emphasis label="вариант 3 · выбран" labelTone="tone" labelSize={11} title="Один поток, который уступает сам" titleSize={18} pad={20} gap={11}>
+
+      Это кооперативная однопоточность. Код никто не прерывает насильно, зато он обязан **сам**
+      быстро вернуть управление. События копятся в очередях, а цикл разбирает их по одному
+      за оборот.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TURN} />
+
+  <Callout size={19} pad="22px 24px">
+
+    Договор такой: <b>блокировки писать не нужно, а взамен вы не занимаете поток надолго.</b>
+    Всё остальное в теме вытекает из этого договора.
+
+  </Callout>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Один оборот цикла, по шагам"
+  lead="Сценарий: пользователь кликнул мышью по кнопке, **пока** выполнялся скрипт. Проследите, где управление уходит обратно в цикл и где возвращается в ваш код."
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MICROTASK} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TURN_DEMO_NOTE} />
+  </Card>
+
+  <EventLoopTurn client:visible code={TURN_CODE} steps={TURN} />
+
+  <CardGrid min={260} gap={14}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Между обработчиком клика и таймером управление возвращалось в цикл.** Обработчик
+      закончился, стек опустел — и микрозадачи выполнились раньше, чем цикл взял следующую
+      задачу, таймер.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Кто раньше — клик или таймер, — спецификация не обещает.** Они лежат в разных очередях.
+      Chrome обслуживает ввод раньше, но полагаться на это в коде нельзя: этим можно только
+      объяснить то, что вы видите.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Микрозадача из `requestAnimationFrame` выполняется до отрисовки.** После каждого
+      колбэка `rAF` браузер выполняет накопившиеся микрозадачи и только потом пересчитывает
+      стили и раскладку (layout). Поэтому из такой микрозадачи видна ещё старая раскладка,
+      а запись в стили не заставит браузер пересчитать её лишний раз.
+
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Кто вообще кладёт задачу в очередь"
+  lead="Задачу в очередь ставит не ваш код, а **источник**: системный таймер, процесс браузера, сетевой поток. Общей очереди на всех нет, и от источника зависит, какой порядок вам гарантирован."
+>
+  <Card tone="err" title="Одной «очереди макрозадач» не существует" titleSize={17} pad={20} gap={12} size={16.5} lh={1.6}>
+
+    Макрозадачей в статьях называют обычную задачу — в отличие от микрозадачи. Спецификация
+    описывает много очередей задач (task queues), и браузер может взять следующую задачу
+    из любой непустой. Отсюда два правила.
+
+  </Card>
+
+  <CardGrid min={290} gap={16}>
+    <Card tone="ok" color="tone" label="правило 1 · гарантировано" labelTone="tone" labelSize={11} title="Внутри одного источника — строго FIFO" titleSize={18} pad={20} gap={10}>
+
+      Два `setTimeout` с одинаковой задержкой выполнятся в порядке вызова. Всегда.
+
+    </Card>
+    <Card tone="err" color="tone" label="правило 2 · не гарантировано ничем" labelTone="tone" labelSize={11} title="Между источниками порядок не определён" titleSize={18} pad={20} gap={10}>
+
+      Если задачи пришли из разных источников, понятия «следующая задача» **не существует**.
+      На вопрос «что раньше, таймер или клик» ответ один: зависит от браузера. Если порядок
+      важен, свяжите шаги явно — второй запускайте из первого.
+
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['источник', 'кто ставит задачу', 'примеры']}
+    rows={SOURCE_ROWS}
+    kinds={['mono', 'muted', 'mono']}
+    cols="minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr)"
+    minWidth={560}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {SOURCE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={16} radius={4} gap={8} size={15}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### `requestIdleCallback`: что это и чем не `rAF`
+
+  <CardGrid min={260} gap={12}>
+    {IDLE_FACTS.map((fact) => (
+      <Card label={fact.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Микрозадачи выполняются, когда пустеет стек, а не «после задачи»"
+  lead="Обработчик клика разрешил промис — когда выполнится его `then`? Привычный ответ «после задачи» верен не всегда. Микрозадачи выполняются в **checkpoint** — момент, когда опустел стек вызовов: скрипт или обработчик доработал, и под ним ничего нет. В спецификации он так и называется — «perform a microtask checkpoint». Вложенным он не бывает: если микрозадачи уже выполняются, повторный вызов ничего не делает."
+>
+  <CodeBlock code={CHECKPOINT_CODE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CHECKPOINT_DEMO_NOTE} />
+  </Card>
+
+  <CheckpointDemo client:visible modes={CHECKPOINT} />
+
+  <Callout size={18.5} pad="22px 24px">
+
+    Одной фразой: <b>обработчик, который вызвали из вашего кода, — часть вашей задачи,
+    а обработчик, который вызвал сам цикл, — отдельная задача.</b>
+  </Callout>
+
+  <Card pad="18px 20px" radius={5} size={16.5} lh={1.6}>
+
+    **Почему так.** `btn.click()` рассылает событие синхронно, прямо внутри вашего вызова:
+    под слушателем на стеке лежат рассылка и ваш скрипт. Слушатель закончился, а стек
+    не пуст — значит, checkpoint не наступает, и микрозадачи ждут, пока доработает весь
+    скрипт. Настоящий клик доставляет сам цикл: под слушателем пусто, и checkpoint случается
+    после каждого. Так же синхронно рассылают события `dispatchEvent(e)`, `el.focus()`
+    (события `focus` и `focusin`) и `form.requestSubmit()` (событие `submit`): их слушатели
+    выполняются внутри вашей задачи.
+
+  </Card>
+
+  <Card tone="warn" color="tone" pad="18px 20px" radius={5} size={16.5} lh={1.6}>
+
+    Поэтому одна и та же логика ведёт себя по-разному в тесте, где кнопку обычно нажимают через
+    `.click()`, и в браузере, где кликают руками. Отсюда нестабильные (flaky) тесты и ситуация
+    «в тесте всё зелёное, а у пользователей баг».
+
+  </Card>
+
+  ### Что попадает в микрозадачи, а что только выглядит похоже
+
+  {/* Три тона, а не два: `ahead` — это `process.nextTick`, который не микрозадача,
+      но выполняется раньше них. С булевым флагом он красился как `rAF`, хотя стоит
+      на противоположном конце шкалы. */}
+  <Table
+    head={['что', 'когда выполняется']}
+    rows={MICRO_ROWS.map((r) => [r.k, r.v])}
+    tones={MICRO_ROWS.map((r) => (r.ok === true ? 'info' : r.ok === 'ahead' ? 'warn' : 'err'))}
+    kinds={['mono', 'prose']}
+    cols="minmax(0,1fr) minmax(0,1.5fr)"
+    minWidth={520}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={NEXTTICK_POSITION_NOTE} />
+  </Card>
+
+  ### Проверьте сами, а не по таблице
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PROBE_DEMO_NOTE} />
+  </Card>
+
+  <MicroProbe client:visible />
+
+  <CardGrid min={280} gap={12}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **MutationObserver сделан микрозадачей намеренно.** Наблюдатель должен увидеть DOM
+      в итоговом виде: задача уже закончила его менять, а пользователь ещё ничего не увидел.
+      Отсюда же склейка вызовов: сто вставок дают **один** вызов со списком из ста записей.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **ResizeObserver и IntersectionObserver — не микрозадачи.** Они сообщают **посчитанные**
+      размеры, а размеры появляются только после расчёта раскладки (layout). В момент, когда
+      выполняются микрозадачи, раскладка ещё не пересчитана.
+
+    </Card>
+  </CardGrid>
+
+  ### Голодание: очередь, которая не кончается
+
+  <Card tone="err" pad={20} gap={13}>
+    <CardGrid min={270} gap={14}>
+      <Card tone="err" color="tone" pad={0} radius={0} gap={9} size={15}>
+        <CodeBlock code={'function starve() {\n  queueMicrotask(starve);\n}'} />
+
+        **Вкладка зависает.** Браузер перестаёт выполнять микрозадачи, только когда их очередь
+        пуста, а здесь она не пустеет никогда. Страница не рисуется, не отвечает на клики,
+        таймеры не срабатывают, одно ядро процессора загружено полностью.
+
+      </Card>
+      <Card tone="ok" color="tone" pad={0} radius={0} gap={9} size={15}>
+        <CodeBlock code={'function ok() {\n  setTimeout(ok, 0);\n}'} />
+
+        **Вкладка работает.** Колбэк ставит **задачу**, а между задачами цикл успевает
+        и рисовать, и обрабатывать ввод. Вкладка живая, просто нагруженная.
+
+      </Card>
+    </CardGrid>
+
+
+    Вывод: самодельный планировщик работы должен уступать поток через **задачу** —
+    `MessageChannel`, `scheduler.yield()` или `setTimeout`, но не через `queueMicrotask`. В Node
+    так же ведёт себя рекурсивный `process.nextTick`: он вешает процесс целиком. Процессор при этом
+    занят «полезной» работой, поэтому в мониторинге проблему легко не заметить.
+
+  </Card>
+
+  ### `queueMicrotask` против `Promise.resolve().then`
+
+  <Table
+    head={['', 'queueMicrotask(fn)', 'Promise.resolve().then(fn)']}
+    rows={QM_ROWS}
+    kinds={['prose', 'ok', 'warn']}
+    cols="minmax(160px,1fr) minmax(200px,1.3fr) minmax(200px,1.3fr)"
+    minWidth={580}
+  />
+
+  <Card tone="err" color="tone" pad={16} radius={4} size={15.5}>
+
+    Брошенное исключение уходит в **разные каналы**: из `queueMicrotask` — в обычное событие
+    `error`, из промиса — в `unhandledrejection`. Если сбор ошибок подписан только на первое,
+    вторую ошибку вы не увидите.
+
+  </Card>
+
+  ### Цена в тиках — коротко
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Считать полезно не «синхронно или асинхронно», а **сколько раз код встаёт в очередь
+    микрозадач**: одна постановка — один тик. `await` нативного промиса стоит 1 тик (до V8 7.2
+    и Node 12 было 3 — отсюда неверные ответы в старых статьях), а `return await p`
+    в `async`-функции на тик дешевле, чем `return p`. Линейка, которой это меряют в своём
+    браузере, и разбор по операциям спецификации — в [«Промис изнутри», раздел
+    «Линейка»](/js/promise-internals/#s3).
+
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Таймеры: почему `0` это не ноль"
+  lead="`setTimeout` не «запускает поток» и не «ждёт». Он добавляет запись в список таймеров браузера или Node и сразу возвращает управление. Задержка в аргументе означает «не раньше чем», а не «ровно через»."
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TIMER_DEMO_NOTE} />
+  </Card>
+
+  <TimerClamp client:visible />
+
+  <CardGrid min={260} gap={14}>
+    {TIMER_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={16} radius={4} gap={8} size={15}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Кламп — правило только для таймеров. Сообщение порта `MessageChannel` приходит задачей
+  другого источника, и 4 мс на него не действуют; поэтому самодельные планировщики строят
+  на нём — [«MessageChannel», раздел «Почему планировщик React построен не на `setTimeout`»](/js/message-channel/#s2).
+
+  ### Рендер-шаги: где живёт `requestAnimationFrame`
+
+  Здесь цикл встречается с отрисовкой. Что происходит дальше — style, layout, paint, composite —
+  разобрано по шагам в [теме про кадр браузера](/render/render-pipeline/).
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RENDER} />
+
+  <Card pad={22} radius={5} gap={18}>
+    <FlowChips
+      chips={[
+        { label: 'task' },
+        { label: 'µtasks', tone: 'info' },
+        { label: 'rAF → µ', tone: 'warn' },
+        { label: 'rAF → µ', tone: 'warn' },
+        { label: 'style → layout → paint → composite', tone: 'ok' },
+        { label: 'rIC', tone: 'dashed' },
+      ]}
+    />
+
+
+    **Зачем отрисовка идёт отдельным шагом.** Если бы браузер перерисовывал экран после каждого
+    изменения DOM, цикл из ста `appendChild` дал бы сто пересчётов раскладки. А пользователю
+    нужен один, итоговый. Поэтому изменение стиля и не видно сразу: на экран оно попадёт только
+    после конца текущей задачи.
+
+  </Card>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Чтение размеров после записи в стиль обходится дорого.** Запись только помечает
+    раскладку «пересчитать потом», а чтение `offsetWidth` требует ответа сейчас — и браузер
+    пересчитывает раскладку немедленно. Чередование в цикле даёт N пересчётов вместо одного
+    (layout thrashing). Лечится разведением: сначала все чтения, потом все записи. Разбор
+    с демо — в [«Кадр браузера», раздел «Чтение и запись»](/render/render-pipeline/#s3).
+
+  </Card>
+
+  <Card title="Почему анимации появления нужны два `requestAnimationFrame`" titleSize={16.5} pad={18} gap={11} size={16} lh={1.6}>
+
+    CSS-переход (transition) запускается, только если вычисленное значение стиля **изменилось**
+    между двумя моментами, когда браузер считал стили. Только что вставленный элемент ещё
+    ни разу через такой подсчёт не проходил, значит, состояния «до» у него нет. Первый `rAF`
+    срабатывает в кадре, где стиль элемента ещё не считался. Второй — уже после того, как
+    начальное состояние записано.
+
+    <CodeBlock code={"el.classList.add('start');\nrequestAnimationFrame(() =>\n  requestAnimationFrame(() => el.classList.add('end')));"} />
+
+
+    Другой способ — прочитать стиль вручную: `getComputedStyle(el).opacity` заставляет браузер
+    посчитать стиль сейчас, и состояние «до» тоже появляется. Двойной `rAF` надёжнее: ему
+    не важно, какое свойство читать.
+
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="Node: тот же принцип, другая машина"
+  lead="В браузере цикл берёт задачу из любой непустой очереди. В Node оборот жёстко разбит на **фазы**. Отсюда главное отличие: **в Node порядок между категориями коллбэков предсказуем, в браузере — нет.**"
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PHASES} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={NODE_DEMO_NOTE} />
+  </Card>
+
+  <NodeLoop client:visible phases={NODE_PHASES} code={NODE_CODE} cjs={NODE_CJS} esm={NODE_ESM} />
+
+  <CardGrid min={270} gap={14}>
+    {NODE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Служебные очереди между двумя таймерами
+
+  <CodeBlock code={TICK_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={TICK_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {TICK_STEPS.map((v) => (
+      <Card title={v.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда разбираются очереди:** ${v.when}.`} />
+        <Md text={v.what} />
+        <Md text={`**Что из этого следует:** ${v.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Пул потоков: пять хешей на четыре потока
+
+  <CodeBlock code={POOL_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={POOL_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {POOL_STEPS.map((v) => (
+      <Card title={v.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${v.when}.`} />
+        <Md text={v.what} />
+        <Md text={`**Что из этого следует:** ${v.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POOL} />
+
+  Лечится это двумя путями. Размер пула задаёт переменная окружения `UV_THREADPOOL_SIZE` —
+  больше потоков, больше одновременных хешей и чтений. А тяжёлые вычисления, которым пул
+  вообще не место, уносят в `worker_threads`, как сказано в карточке «Куда выносить CPU».
+
+  ### Очередь `nextTick` выполняется до конца — вместе с добавленным по ходу
+
+  Слова «у `nextTick` приоритет» легко понять как «один вызов пройдёт раньше». На самом деле
+  Node выполняет **всю** очередь, включая то, что в неё добавили, пока она выполнялась.
+
+  <Card pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={NEXTTICK_CODE} size={12} />
+
+    <Md text={NEXTTICK_NOTE} />
+  </Card>
+
+  <DarkPanel eyebrow="Диагностика на боевом сервере · задержка цикла (event loop lag)">
+    <CodeBlock
+      tone="deep"
+      code={"const { monitorEventLoopDelay } = require('node:perf_hooks');\nconst h = monitorEventLoopDelay({ resolution: 10 }); h.enable();\nsetInterval(() => console.log('p99 lag ms', h.percentile(99) / 1e6), 5000);"}
+      pad="14px 16px"
+    />
+
+    <FlowChips
+      minWidth={0}
+      chips={[
+        { label: 'около шага resolution (здесь 10 мс) — простой', tone: 'ok' },
+        { label: 'десятки — уже проблема', tone: 'warn' },
+        { label: 'сотни — блокирующая работа в цикле', tone: 'dashed' },
+      ]}
+    />
+
+    <DarkText>
+
+      Задержка цикла — насколько позже положенного цикл берёт задачу, потому что поток занят.
+      Признак беды: время ответа растёт у **всех** эндпоинтов сразу (смотрят 99-й перцентиль,
+      p99), а процессорное время на каждый запрос в норме. Значит, тормозит цикл, а не код
+      конкретного обработчика. Подозреваемые: синхронная криптография, `JSON.parse` на мегабайты,
+      `fs.*Sync`, регулярное выражение с катастрофическим перебором (backtracking).
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Кто с кем делит цикл"
+  lead="В спецификации то, у чего есть собственный цикл событий, называется **агентом**. У агента своя память (куча) и свои очереди, общих объектов с соседями нет. Окно — агент, каждый воркер — отдельный агент. На практике отсюда важен один вопрос: **кто может подвесить кого.**"
+  leadWidth={70}
+>
+  <Table
+    head={['что', 'свой цикл', 'делит поток с вами']}
+    rows={AGENT_ROWS}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(200px,1.3fr) minmax(140px,.9fr) minmax(220px,1.4fr)"
+  />
+
+  <Card tone="err" title="По-настоящему унести работу с главного цикла можно только воркером" titleSize={17} pad={20} gap={12} size={16.5} lh={1.6}>
+
+    `setTimeout`, `requestIdleCallback`, `scheduler.postTask` потоков не добавляют — они лишь
+    иначе нарезают работу внутри того же цикла. Задача на 500 мс, разрезанная на десять кусков
+    по 50 мс, занимает главный поток столько же. Просто теперь между кусками успевают кадры
+    и ввод. Как работает воркер и во что обходится передача ему данных — в [теме про
+    воркеры](/js/workers/).
+
+    Задачу дольше 50 мс называют длинной (long task): как её находят у настоящих
+    пользователей и как она складывается в метрику отклика INP — [«Планирование задач»,
+    раздел «Long Task, INP и когда уступать»](/js/task-scheduling/#s3). Как нарезать работу
+    с приоритетом через `scheduler.postTask` и `scheduler.yield()` — там же, раздел
+    [«Чем возвращать управление циклу»](/js/task-scheduling/#s1).
+
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **У воркера свой цикл с теми же правилами.** У него свои задачи, свои микрозадачи, свой
+      `queueMicrotask`. Своей отрисовки у воркера нет, но `requestAnimationFrame` у обычного
+      (dedicated) воркера есть — им пользуются, когда рисуют в `OffscreenCanvas`. У shared
+      и service worker его нет.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Обмен только сообщениями.** `postMessage` копирует данные (структурное клонирование)
+      или передаёт владение ими (transferable-объекты); отдельный путь — общая память через
+      `SharedArrayBuffer` и `Atomics`. Общих объектов и общего DOM нет.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Сообщение от воркера — обычная задача.** Оно встаёт в очередь (источник «posted
+      message») наравне с остальными и ждёт, пока главный поток освободится. Прервать главный
+      поток воркер не может.
+
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  ### Вся картина разом
+
+  Кусок кода, где правила этой темы встречаются все сразу, — тот самый пример, который
+  любят на собеседованиях. Если порядок восьми строк вывода понятен без запуска, тема усвоена.
+
+  <Card pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={INTERVIEW_CODE} size={12} />
+
+    <CardGrid min={250} gap={12}>
+      {INTERVIEW_FACTS.map((fact) => (
+        <Card tone="info" color="tone" label={fact.k} labelTone="tone" labelSize={12.5} pad={14} radius={4} gap={7} size={14.5} text={fact.d} />
+
+      ))}
+
+    </CardGrid>
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Литература и смежные темы"
+>
+  <Card title="Источники" titleSize={17} pad={20} gap={12}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [промис изнутри](/js/promise-internals/) — те же микрозадачи, но со
+    стороны состояний и реакций, линейка тиков и `await` в цикле. [Планирование работы](/js/task-scheduling/) — как уступать
+    поток и чем меряют отзывчивость. [Обмен сообщениями](/js/message-channel/) — задача
+    без обязательных 4 мс. [Кадр браузера](/render/render-pipeline/) — что происходит между оборотами.
+    [Цикл событий Node](/js/node-event-loop/) — фазы libuv по исходнику, сон в poll и пул потоков.
+
+  </Card>
+</Section>

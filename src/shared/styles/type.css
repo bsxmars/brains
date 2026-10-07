@@ -1,0 +1,172 @@
+/**
+ * Типографика курса: роли текста, выраженные классами.
+ *
+ * Размеры берутся только из ступеней `--fs-1…--fs-8` и `--fs-h1…--fs-h3` (см. `shared/ui/theme.ts`).
+ * Своего `font-size` в пикселях здесь нет и в компонентах быть не должно: общий масштаб курса —
+ * одно число `--fs-scale`, и работает оно лишь пока все размеры идут через ступени.
+ *
+ * Классы, а не только компонент: один и тот же росчерк нужен в `.astro`, в островах на Vue и в MDX.
+ * Компонент `shared/ui/Text` — тонкая обёртка ровно над этими классами, чтобы в разметке
+ * писалось `<Text variant="lead">`, а не `class="t-lead"`; оба способа дают один результат.
+ *
+ * Слоя нет намеренно: это классы приложения, и они обязаны выигрывать у `@layer aura`.
+ */
+
+/* ---- Заголовки ---- */
+
+.t-h1 {
+  font-size: var(--fs-h1);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  /* На узком экране заголовок обязан переноситься. Нижняя граница `clamp` — 40px, и одно
+     длинное слово («Профилирование») на такой кегле шире телефона: без переноса оно утаскивало
+     вбок всю страницу. Дефис — по правилам языка, он объявлен в `lang="ru"`. */
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.t-h2 {
+  font-size: var(--fs-h2);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+  /* То же, что у `.t-h1`: после `--fs-scale` 1.18 «Катастрофический» в H2 перестал помещаться в 320px. */
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.t-h3 {
+  font-size: var(--fs-h3);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* ---- Проза ---- */
+
+/* Лид раздела: абзац под H2, которым раздел объясняет сам себя. */
+.t-lead {
+  /* Лид раздела набран так же, как проза под ним (решение автора курса 2026-09-30:
+     «шрифт везде разный, нужен единый для одинаковых блоков»). Раньше --fs-7 и 1.68. */
+  font-size: var(--fs-6);
+  line-height: 1.6;
+  color: var(--prose);
+}
+
+/* Абзац внутри блока — самый частый текст курса. */
+.t-body {
+  font-size: var(--fs-6);
+  line-height: 1.55;
+  color: var(--prose);
+}
+
+/* Строка интерфейса: ячейка таблицы, подпись под демо. */
+.t-ui {
+  font-size: var(--fs-5);
+  line-height: 1.5;
+  color: var(--prose);
+}
+
+/* Сноска: вторая строка карточки, уточнение под примером. */
+.t-note {
+  font-size: var(--fs-4);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* Врезка-акцент и крупная цифра. */
+.t-display {
+  font-size: var(--fs-8);
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+/* ---- Моно-росчерки ---- */
+
+/* Надзаголовок раздела: моно, разрядка, верхний регистр. Цвет говорит, что за раздел.
+   Ступенью крупнее и жирнее, чем в оригинале: там надзаголовок стоял на сером фоне и работал
+   как шёпот, а на белом просто терялся — читатель не видел, где начинается раздел. */
+.t-eyebrow {
+  font-family: var(--mono);
+  font-size: var(--fs-3);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+/* Раздел с демо — янтарный и чуть плотнее. */
+.t-eyebrow--demo {
+  letter-spacing: 0.16em;
+  color: var(--tone-warn-accent);
+}
+/* Вводный раздел — серый. */
+.t-eyebrow--muted {
+  letter-spacing: 0.16em;
+  color: var(--text-faint);
+}
+/* Надзаголовок панели: внутри блока, а не над разделом. */
+.t-eyebrow--panel {
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+}
+/* Он же на тёмной панели. */
+.t-eyebrow--on-ink {
+  letter-spacing: 0.14em;
+  color: var(--tone-info-on-ink);
+}
+
+/* Микроподпись колонки. */
+.t-label {
+  font-family: var(--mono);
+  /* Было --fs-1 (10.8px): замер 2026-09-29 нашёл 682 таких подписи над демо и таблицами —
+     самый крупный остаток мелкого текста. Ступень та же, что у моно-шапки `Table`. */
+  font-size: var(--fs-2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Моно-чип: «пилюля», имя операции, короткий код в строке демо. */
+.t-chip {
+  font-family: var(--mono);
+  font-size: var(--fs-3);
+  line-height: 1.45;
+}
+
+/* Самая мелкая подпись: деления оси, номер шага. */
+.t-micro {
+  font-family: var(--mono);
+  font-size: var(--fs-1);
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+.t-mono {
+  font-family: var(--mono);
+}
+
+/* ---- Цвет текста ---- */
+/* Отдельными классами, потому что роль и цвет в курсе не совпадают: лид бывает и прозой,
+   и чернилами, и светлым на тёмной панели. */
+
+.t-ink {
+  color: var(--ink);
+}
+.t-prose {
+  color: var(--prose);
+}
+.t-muted {
+  color: var(--text-muted);
+}
+.t-faint {
+  color: var(--text-faint);
+}
+.t-accent {
+  color: var(--accent);
+}
+.t-on-ink {
+  color: var(--on-ink);
+}

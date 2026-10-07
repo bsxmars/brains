@@ -1,0 +1,457 @@
+---
+title: "Слои кеша в Next.js: от fetch до роутера"
+heading: "Слои кеша в Next.js: от fetch до роутера"
+headingWidth: 22
+order: 20
+kicker: фреймворки изнутри
+lead: "Данные в базе поменялись, а страница показывает старое. В Next.js это почти никогда не «баг кеша»: кешей четыре, они стоят друг за другом, и у каждого свой срок и свой способ сброса. Вопрос «почему не обновилось» — это вопрос, какой из четырёх держит данные."
+leadWidth: 66
+summary: "Склейка одинаковых `fetch` в рендере, кеш данных (`force-cache`, `revalidate`, теги, `unstable_cache`), кеш маршрута (статика, ISR, `x-nextjs-cache`: `HIT`, `STALE`, `MISS`), кеш роутера во вкладке (префетч, переходы без запроса), `revalidateTag`, `updateTag`, `revalidatePath`, что сменилось по умолчанию в 15-й версии и новая модель `'use cache'`. Учебная модель четырёх слоёв сверена тестом с журналом настоящего Next 16.3.8."
+verifiedOn: "next 16.3.8 (Turbopack), React 19.3.0, Node 24.11.0, Chromium 153 (Playwright 1.63), октябрь 2026: приложение темы собрано next build и запущено next start рядом со счётчиком-бэкендом; запросы к бэкенду, x-nextjs-cache, Cache-Control, содержимое страниц и запросы вкладки пересобирает tests/unit/next-cache-stand.test.ts, модель четырёх слоёв сверена с этим журналом шаг в шаг. История значений по умолчанию, сроки кеша роутера числами и поведение next dev — по документации 16.3.8"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Четыре слоя }
+  - { id: s2, label: Запрос в рендере }
+  - { id: s3, label: Кеш данных }
+  - { id: s4, label: Кеш маршрута }
+  - { id: s5, label: Инвалидация }
+  - { id: s6, label: Кеш роутера }
+  - { id: s7, label: Модель четырёх слоёв }
+  - { id: s8, label: "'use cache'" }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import NextCacheLab from '@/widgets/next-cache-lab/ui/NextCacheLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_LAYERS,
+  PREREQ,
+  PREREQ_NOTE,
+  LAYERS,
+  LAYERS_NOTE,
+  STAND_INTRO,
+  APP_FILES,
+  BUILD_TABLE,
+  BUILD_NOTE,
+  PLAIN_MEMO,
+  MEMO_FACTS,
+  MEMO_LINK,
+  PLAIN_DATA,
+  FETCH_ROWS,
+  DEFAULT_HISTORY,
+  DATA_FACTS,
+  PLAIN_ROUTE,
+  DYNAMIC_TRIGGERS,
+  XCACHE_ROWS,
+  ISR_NOTE,
+  CC_NOTE,
+  PLAIN_INVALIDATE,
+  INVALIDATE_ROWS,
+  TAG_NOTE,
+  PATH_NOTE,
+  PLAIN_ROUTER,
+  ROUTER_FACTS,
+  ROUTER_LINKS,
+  ROUTES_CODE,
+  SERVER_MODEL_CODE,
+  ROUTER_MODEL_CODE,
+  MODEL_NOTE,
+  SCENARIOS,
+  DEMO_CAPTION,
+  USE_CACHE_NOTE,
+  APP2_FILES,
+  APP2_BUILD_TABLE,
+  USE_CACHE_FACTS,
+  CACHELIFE_ROWS,
+  CACHELIFE_NOTE,
+  journalRows,
+  routerRows,
+  app2Rows,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Почему не обновилось" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Старые данные на экране — значит, их отдал один из четырёх кешей: склейка запросов
+    в рендере, кеш данных на сервере, готовый снимок страницы или память роутера во вкладке.
+    Одной кнопки «сбросить кеш» нет: у каждого слоя свой срок и свой рычаг.
+
+  </Callout>
+
+  Next.js кеширует много и по умолчанию. Это делает статические страницы быстрыми, а запросы
+  к базе — редкими. Цена — вопрос, который рано или поздно задаёт каждый: «я обновил данные,
+  почему страница старая?» Ответ зависит от того, где именно лежит старая копия, и найти её
+  можно только зная, как слои устроены и в каком порядке их спрашивают.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYERS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Четыре слоя и в каком порядке их спрашивают"
+  lead="Два слоя живут на сервере и хранят данные, один — на сервере и хранит готовые страницы, один — во вкладке браузера. Один запрос может пройти их все, а может остановиться на первом."
+  leadWidth={72}
+>
+  <Table
+    head={['слой', 'где живёт', 'сколько живёт', 'что сбрасывает']}
+    rows={LAYERS.map((r) => [r.k, r.where, r.life, r.reset])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(170px,1fr) minmax(170px,1fr) minmax(200px,1.2fr)"
+    minWidth={720}
+  />
+
+  <Md text={LAYERS_NOTE} />
+
+  ### Стенд: четыре страницы и счётчик
+
+  <Md text={STAND_INTRO} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="app/lib.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_FILES['app/lib.js']} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="app/isr/page.jsx" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_FILES['app/isr/page.jsx']} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="app/tagged/page.jsx" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_FILES['app/tagged/page.jsx']} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="app/tagged/actions.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_FILES['app/tagged/actions.js']} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Что сказал next build" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BUILD_TABLE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={BUILD_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Слой 1: одинаковый запрос в одном рендере"
+  lead="Пока сервер рендерит одну страницу, одинаковые `fetch` из разных компонентов уходят один раз. Это не кеш между запросами: следующий посетитель начнёт с чистого листа."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MEMO} />
+
+  <Card title="app/static/page.jsx" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={APP_FILES['app/static/page.jsx']} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {MEMO_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={MEMO_LINK} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Слой 2: кеш данных"
+  lead="Ответы `fetch` на сервере Next может сохранить между запросами — на диск, общий для всех посетителей. Что сохранять и насколько, решает каждый `fetch` своими опциями. Для запросов не через `fetch` — `unstable_cache`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DATA} />
+
+  <Card title="app/dynamic/page.jsx" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={APP_FILES['app/dynamic/page.jsx']} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['опции `fetch`', 'на динамическом маршруте', 'на статическом']}
+    rows={FETCH_ROWS.map((r) => [r.k, r.dyn, r.snap])}
+    tones={FETCH_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(190px,.9fr) minmax(250px,1.3fr) minmax(220px,1.1fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" title="Что сменилось в 15-й версии" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DEFAULT_HISTORY} />
+
+  ### Журнал: /dynamic
+
+  <Table
+    head={['шаг', 'до бэкенда', '`x-nextjs-cache`', 'на экране']}
+    rows={journalRows('dynamic')}
+    kinds={['prose', 'prose', 'mono', 'prose']}
+    cols="minmax(210px,1fr) minmax(200px,1fr) minmax(110px,.5fr) minmax(260px,1.4fr)"
+    minWidth={800}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {DATA_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Слой 3: готовая страница"
+  lead="Статическую страницу Next рендерит один раз и дальше отдаёт снимок: HTML для первого захода и RSC-ответ для переходов. Пока снимок годен, рендера нет — и до кеша данных, и тем более до бэкенда запрос не доходит."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROUTE} />
+
+  <Md text={DYNAMIC_TRIGGERS} />
+
+  <Table
+    head={['`x-nextjs-cache`', 'что произошло']}
+    rows={XCACHE_ROWS.map((r) => [r.k, r.d])}
+    tones={XCACHE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(140px,.5fr) minmax(320px,2fr)"
+    minWidth={520}
+  />
+
+  ### ISR: срок 3 секунды
+
+  <Table
+    head={['шаг', 'до бэкенда', '`x-nextjs-cache`', 'на экране']}
+    rows={journalRows('isr')}
+    kinds={['prose', 'prose', 'mono', 'prose']}
+    cols="minmax(150px,.8fr) minmax(170px,.9fr) minmax(110px,.5fr) minmax(140px,.8fr)"
+    minWidth={600}
+  />
+
+  <Md text={ISR_NOTE} />
+
+  <Md text={CC_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Инвалидация: теги и пути"
+  lead="Ждать срока не обязательно. Три функции сбрасывают кеш данных и кеш маршрута по команде — после записи в базу или по вебхуку из CMS. Разница между ними в том, что получит следующий посетитель: старое или свежее."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INVALIDATE} />
+
+  <Card title="app/api/revalidate/route.js" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={APP_FILES['app/api/revalidate/route.js']} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['вызов', 'где можно', 'следующий запрос']}
+    rows={INVALIDATE_ROWS.map((r) => [r.k, r.where, r.next])}
+    tones={INVALIDATE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(230px,1fr) minmax(170px,.8fr) minmax(280px,1.4fr)"
+    minWidth={700}
+  />
+
+  ### Журнал: /tagged
+
+  <Table
+    head={['шаг', 'до бэкенда', '`x-nextjs-cache`', 'на экране']}
+    rows={journalRows('tag')}
+    kinds={['prose', 'prose', 'mono', 'prose']}
+    cols="minmax(250px,1.2fr) minmax(170px,.8fr) minmax(110px,.5fr) minmax(120px,.6fr)"
+    minWidth={680}
+  />
+
+  <Md text={TAG_NOTE} />
+
+  ### Журнал: revalidatePath
+
+  <Table
+    head={['шаг', 'до бэкенда', '`x-nextjs-cache`', 'на экране']}
+    rows={journalRows('path')}
+    kinds={['prose', 'prose', 'mono', 'prose']}
+    cols="minmax(220px,1.1fr) minmax(200px,1fr) minmax(110px,.5fr) minmax(200px,1fr)"
+    minWidth={720}
+  />
+
+  <Md text={PATH_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Слой 4: кеш роутера во вкладке"
+  lead="Роутер Next держит в памяти вкладки RSC-ответы страниц, по которым уже ходили или которые скачал заранее. Переход по ссылке на такую страницу не доходит до сервера — ни до одного серверного слоя."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROUTER} />
+
+  <Table
+    head={['шаг во вкладке', 'запросы к серверу', 'до бэкенда', 'на экране']}
+    rows={routerRows()}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(200px,1fr) minmax(200px,1fr) minmax(260px,1.3fr)"
+    minWidth={880}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {ROUTER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={ROUTER_LINKS} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Модель четырёх слоёв"
+  lead="Все правила из журналов выше помещаются в две с половиной сотни строк: четыре таблицы, часы и порядок, в котором слои спрашивают друг друга. На входе — те же маршруты, что у стенда, только вместо кода страниц — опции их `fetch`."
+  leadWidth={72}
+>
+  <Card title="Маршруты стенда" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ROUTES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Сервер: слои 1–3" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SERVER_MODEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Вкладка: слой 4 и шаги" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ROUTER_MODEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={MODEL_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Четыре слоя в работе
+
+  <NextCacheLab client:visible codes={{ routes: ROUTES_CODE, server: SERVER_MODEL_CODE, router: ROUTER_MODEL_CODE }} scenarios={SCENARIOS} caption={DEMO_CAPTION} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Искать старую копию надо сверху вниз.** Видно ли новое после перезагрузки — если да,
+      держал кеш роутера. Что пришло в `x-nextjs-cache` — `HIT` и `STALE` значат, что ответил
+      снимок страницы. Дошёл ли запрос до бэкенда — если нет, ответил кеш данных. И только
+      если дошёл, а данные старые, — дело не в Next.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Новая модель: 'use cache'"
+  lead="Флаг `cacheComponents` меняет правило по умолчанию: кешируется только то, что помечено, а всё остальное считается динамическим. Слои при этом остаются те же — меняется рычаг."
+  leadWidth={72}
+>
+  <Md text={USE_CACHE_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="app/cached/page.jsx" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP2_FILES['app/cached/page.jsx']} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="next build" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP2_BUILD_TABLE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['шаг', 'до бэкенда', 'на экране']}
+    rows={app2Rows()}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(170px,.9fr) minmax(170px,.9fr)"
+    minWidth={600}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {USE_CACHE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Профили cacheLife
+
+  <Table
+    head={['профиль', '`stale`', '`revalidate`', '`expire`']}
+    rows={CACHELIFE_ROWS.map((r) => [r.k, r.stale, r.rev, r.exp])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(120px,.8fr) minmax(90px,.6fr) minmax(90px,.6fr) minmax(90px,.6fr)"
+    minWidth={440}
+  />
+
+  <Md text={CACHELIFE_NOTE} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

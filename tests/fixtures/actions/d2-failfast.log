@@ -1,0 +1,72 @@
+time="2026-09-15T15:54:17+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[d2-failfast/grid-2] ⭐ Run Set up job
+[d2-failfast/grid-2] 🚀  Start image=node:22-slim
+[d2-failfast/grid-3] ⭐ Run Set up job
+[d2-failfast/grid-3] 🚀  Start image=node:22-slim
+[d2-failfast/grid-1] ⭐ Run Set up job
+[d2-failfast/grid-1] 🚀  Start image=node:22-slim
+[d2-failfast/grid-4] ⭐ Run Set up job
+[d2-failfast/grid-4] 🚀  Start image=node:22-slim
+[d2-failfast/grid-3]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[d2-failfast/grid-4]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[d2-failfast/grid-2]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[d2-failfast/grid-1]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[d2-failfast/grid-3]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d2-failfast/grid-1]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d2-failfast/grid-2]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d2-failfast/grid-4]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d2-failfast/grid-1]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d2-failfast/grid-2]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d2-failfast/grid-4]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d2-failfast/grid-3]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d2-failfast/grid-2]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[d2-failfast/grid-1]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[d2-failfast/grid-4]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[d2-failfast/grid-3]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[d2-failfast/grid-2]   ✅  Success - Set up job
+[d2-failfast/grid-3]   ✅  Success - Set up job
+[d2-failfast/grid-4]   ✅  Success - Set up job
+[d2-failfast/grid-2] 🧪  Matrix: map[n:2]
+[d2-failfast/grid-3] 🧪  Matrix: map[n:3]
+[d2-failfast/grid-4] 🧪  Matrix: map[n:4]
+[d2-failfast/grid-1]   ✅  Success - Set up job
+[d2-failfast/grid-1] 🧪  Matrix: map[n:1]
+[d2-failfast/grid-3] ⭐ Run Main work
+[d2-failfast/grid-2] ⭐ Run Main work
+[d2-failfast/grid-4] ⭐ Run Main work
+[d2-failfast/grid-1] ⭐ Run Main work
+[d2-failfast/grid-2]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[d2-failfast/grid-4]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[d2-failfast/grid-3]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[d2-failfast/grid-1]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[d2-failfast/grid-2]   | start n=2 at 1789476858.582933210
+[d2-failfast/grid-2]   | n=2 fails fast
+[d2-failfast/grid-4]   | start n=4 at 1789476858.582838794
+[d2-failfast/grid-3]   | start n=3 at 1789476858.584932960
+[d2-failfast/grid-2]   ❌  Failure - Main work [118.261125ms]
+[d2-failfast/grid-1]   | start n=1 at 1789476858.593879085
+[d2-failfast/grid-2] exitcode '1': failure
+[d2-failfast/grid-2] ⭐ Run Complete job
+[d2-failfast/grid-2]   ✅  Success - Complete job
+[d2-failfast/grid-2] 🏁  Job failed
+[d2-failfast/grid-4]   | finished n=4 at 1789476862.593597629
+[d2-failfast/grid-3]   | finished n=3 at 1789476862.593060129
+[d2-failfast/grid-1]   | finished n=1 at 1789476862.598798837
+[d2-failfast/grid-3]   ✅  Success - Main work [4.129274958s]
+[d2-failfast/grid-4]   ✅  Success - Main work [4.132175333s]
+[d2-failfast/grid-1]   ✅  Success - Main work [4.117277958s]
+[d2-failfast/grid-4] ⭐ Run Complete job
+[d2-failfast/grid-4] Cleaning up container for job grid
+[d2-failfast/grid-1] ⭐ Run Complete job
+[d2-failfast/grid-1] Cleaning up container for job grid
+[d2-failfast/grid-3] ⭐ Run Complete job
+[d2-failfast/grid-3] Cleaning up container for job grid
+[d2-failfast/grid-4]   ✅  Success - Complete job
+[d2-failfast/grid-4] 🏁  Job failed
+[d2-failfast/grid-1]   ✅  Success - Complete job
+[d2-failfast/grid-1] 🏁  Job failed
+[d2-failfast/grid-3]   ✅  Success - Complete job
+[d2-failfast/grid-3] 🏁  Job failed
+Error: Job 'grid' failed

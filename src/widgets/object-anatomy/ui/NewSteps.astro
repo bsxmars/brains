@@ -1,0 +1,126 @@
+---
+/**
+ * Что делает `new` — четыре шага, и рядом с каждым состояние объекта.
+ *
+ * Вторая колонка и есть смысл блока: видно, что на первом шаге объекта ещё нет, а связь
+ * с прототипом ставится на втором — один раз и навсегда. Из этого потом выводится, почему
+ * переприсваивание `Dog.prototype` не трогает уже созданные экземпляры и почему
+ * `instanceof` врёт после такой правки.
+ */
+import { inlineMd } from '@/shared/lib/format';
+import type { NewStep } from '../model/types';
+
+interface Props {
+  steps: NewStep[];
+}
+
+const { steps } = Astro.props;
+---
+
+<ol class="steps">
+  {
+    steps.map((step, i) => (
+      <li class="step">
+        <span class="step__n">{i + 1}</span>
+
+        <div class="step__body">
+          <span class="step__title">{step.title}</span>
+          <span class="step__text" set:html={inlineMd(step.text)} />
+        </div>
+
+        <div class="state" data-empty={step.state.length ? 'no' : 'yes'}>
+          {step.state.length ? (
+            step.state.map((line) => <span class="state__line">{line}</span>)
+          ) : (
+            <span class="state__line state__line--empty">объекта ещё не существует</span>
+          )}
+        </div>
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+    padding: 16px 18px;
+    border-radius: var(--r3);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+  }
+
+  .step__n {
+    padding-top: 1px;
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .step__body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .step__title {
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .step__text {
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+  .step__text :global(b) {
+    color: var(--ink);
+  }
+
+  /* Состояние объекта — утопленная колонка: это не текст, а снимок памяти на момент шага. */
+  .state {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 11px 13px;
+    border-radius: var(--r2);
+    background: var(--surface-2);
+    min-width: 0;
+  }
+  .state[data-empty='yes'] {
+    background: var(--sunk-dim);
+  }
+  .state__line {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.5;
+    color: var(--chip-text);
+    overflow-wrap: anywhere;
+  }
+  .state__line--empty {
+    font-style: italic;
+    color: var(--ghost);
+  }
+
+  @media (max-width: 720px) {
+    .step {
+      grid-template-columns: 26px minmax(0, 1fr);
+    }
+    .state {
+      grid-column: 2;
+    }
+  }
+</style>

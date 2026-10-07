@@ -1,0 +1,86 @@
+---
+/**
+ * Цепочка следствий: одно вытекает из другого, сверху вниз.
+ *
+ * В уроке их две, и они зеркальные: «почему зависший скрипт вешает соседа» и «ради чего
+ * вообще затевалась изоляция». Смысл формы в том, что это не список фактов, а вывод:
+ * каждая ступень обязана следовать из предыдущей, и стрелка между ними — часть утверждения.
+ */
+interface Props {
+  title: string;
+  steps: string[];
+  tone?: 'err' | 'ok';
+}
+
+const { title, steps, tone = 'err' } = Astro.props;
+---
+
+<div class="chain" data-tone={tone}>
+  <div class="title">{title}</div>
+
+  {
+    steps.map((step, i) => (
+      <>
+        <div class="step">{step}</div>
+        {i < steps.length - 1 && <div class="arrow">⇓</div>}
+      </>
+    ))
+  }
+</div>
+
+<style>
+  .chain {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    border-radius: var(--r3);
+  }
+  .chain[data-tone='err'] {
+    border: 1px solid var(--tone-err-line);
+    background: var(--tone-err-bg);
+  }
+  .chain[data-tone='ok'] {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+  }
+
+  .title {
+    padding-bottom: 12px;
+    font-size: var(--fs-7);
+    font-weight: 500;
+  }
+  .chain[data-tone='err'] .title {
+    color: var(--tone-err-text);
+  }
+  .chain[data-tone='ok'] .title {
+    color: var(--tone-ok-text);
+  }
+
+  .step {
+    padding: 10px 12px;
+    border-radius: var(--r2);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.5;
+  }
+  .chain[data-tone='err'] .step {
+    border: 1px solid var(--tone-err-line-muted);
+    color: var(--prose);
+  }
+  .chain[data-tone='ok'] .step {
+    border: 1px solid var(--tone-ok-line);
+    color: var(--tone-ok-text);
+  }
+
+  .arrow {
+    padding: 4px 0 4px 18px;
+    font-size: var(--fs-3);
+  }
+  .chain[data-tone='err'] .arrow {
+    color: var(--tone-err-strong);
+  }
+  .chain[data-tone='ok'] .arrow {
+    color: var(--tone-ok-strong);
+  }
+</style>

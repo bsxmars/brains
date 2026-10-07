@@ -1,0 +1,413 @@
+---
+title: "Debounce, throttle и token bucket"
+heading: "Debounce, throttle и token bucket: бюджет событий во времени"
+headingWidth: 24
+order: 6
+kicker: алгоритмы во фронтенде
+lead: "Поле поиска шлёт событие на каждую букву, прокрутка — десятки в секунду, кнопка «повторить» — сколько успеет нажать палец. Debounce, throttle, ведро жетонов и окна решают одну задачу: сколько событий пропустить за отрезок времени и что сделать с остальными. Здесь все они написаны на виртуальных часах, а debounce и throttle сверены с lodash."
+leadWidth: 66
+summary: "Debounce с `leading`, `trailing` и `maxWait`, почему throttle в lodash — это debounce с `maxWait = wait`, обёртка на `requestAnimationFrame`, ведро жетонов и дырявое ведро, фиксированное окно с всплеском вдвое на границе, скользящий журнал и скользящий счётчик — как один бюджет событий во времени."
+verifiedOn: "lodash-es 4.18.1, vitest 5.0.0 (vi.useFakeTimers), Node 24.11.0, октябрь 2026: debounce и throttle темы на виртуальных часах сверены с lodash-es на фальшивых таймерах — одни и те же ленты, одинаковые вызовы; ограничители проверены на свойствах в tests/unit/rate-limiting.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Часы }
+  - { id: s2, label: Debounce }
+  - { id: s3, label: Throttle }
+  - { id: s4, label: Раз в кадр }
+  - { id: s5, label: Ведро жетонов }
+  - { id: s6, label: Дырявое ведро }
+  - { id: s7, label: Окна }
+  - { id: s8, label: Один бюджет }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import RateLab from '@/widgets/rate-lab/ui/RateLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_BUDGET,
+  PREREQ,
+  PREREQ_NOTE,
+  CLOCK_CODE,
+  PLAIN_CLOCK,
+  USAGE_CODE,
+  CLOCK_NOTE,
+  DEBOUNCE_CODE,
+  DEBOUNCE_NOTE,
+  TYPING_NOTE,
+  DEBOUNCE_ROWS,
+  PLAIN_MAXWAIT,
+  STEADY_ROWS,
+  MAXWAIT_NOTE,
+  LODASH_THROTTLE_SRC,
+  THROTTLE_CODE,
+  THROTTLE_NOTE,
+  THROTTLE_QUIRK,
+  QUIRK_NOTE,
+  QUIRK_TABLE,
+  RAF_CODE,
+  RAF_FACTS,
+  RAF_NOTE,
+  TAPES,
+  WRAP_CAPTION,
+  PLAIN_TOKEN,
+  TOKEN_CODE,
+  TOKEN_NOTE,
+  TOKEN_FACTS,
+  PLAIN_LEAKY,
+  LEAKY_CODE,
+  LEAKY_NOTE,
+  LEAKY_METER_NOTE,
+  NGINX_NOTE,
+  PLAIN_WINDOW,
+  FIXED_CODE,
+  SLIDING_LOG_CODE,
+  SLIDING_COUNTER_CODE,
+  EDGE_ROWS,
+  WINDOW_STATS,
+  WINDOW_NOTE,
+  LIMIT_CAPTION,
+  BUDGET_ROWS,
+  BUDGET_NOTE,
+  SERVER_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  RATE_CODE,
+  fmtCalls,
+} from './data';
+
+<Section variant="intro" eyebrow="Бюджет во времени" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Все алгоритмы темы отвечают на два вопроса: **сколько событий пропустить за отрезок
+    времени** и **что сделать с лишними**. Debounce сливает серию в один вызов, throttle —
+    в вызов на каждые `wait` миллисекунд, ведро жетонов отказывает, дырявое ведро ставит
+    в очередь. Разные бюджеты, одна идея.
+
+  </Callout>
+
+  Обработчик события зовут столько раз, сколько событие пришло. Для клика это нормально, для
+  ввода и прокрутки — нет: запрос к серверу на каждую букву, пересчёт раскладки на каждый
+  пиксель прокрутки. Нужен посредник, который принимает все события, а работу делает реже.
+  Как именно реже — и есть выбор алгоритма.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUDGET} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Виртуальные часы"
+  lead="Чтобы сравнивать алгоритмы, время должно идти одинаково при каждом запуске. Настоящие таймеры этого не дают: машина занята, таймер опаздывает на пару миллисекунд, и вызовы съезжают. Поэтому весь код темы работает на часах, которые двигает сам код."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLOCK} />
+
+  <Card title="Часы с таймерами и кадрами" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLOCK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Лента событий на этих часах" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={USAGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CLOCK_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Debounce: leading, trailing, maxWait"
+  lead="Базовый debounce ждёт тишины длиной `wait` и зовёт функцию один раз в конце серии. У lodash к этому три настройки, и каждая заметно меняет поведение на одной и той же ленте."
+  leadWidth={72}
+>
+  <Card title="Debounce целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DEBOUNCE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={DEBOUNCE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Одна лента — четыре настройки
+
+  <Md text={TYPING_NOTE} />
+
+  <Table
+    head={['вызов', 'когда и с чем', 'что произошло']}
+    rows={DEBOUNCE_ROWS.map((r) => [r.k, fmtCalls(r.calls), r.d])}
+    tones={DEBOUNCE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(170px,.9fr) minmax(280px,1.7fr)"
+    minWidth={680}
+  />
+
+  ### Поток без пауз
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MAXWAIT} />
+
+  Сорок событий подряд раз в 100 мс — так выглядит прокрутка или долгий набор текста.
+
+  <Table
+    head={['вызов', 'когда и с чем', 'что произошло']}
+    rows={STEADY_ROWS.map((r) => [r.k, fmtCalls(r.calls), r.d])}
+    tones={STEADY_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(220px,1.1fr) minmax(260px,1.5fr)"
+    minWidth={660}
+  />
+
+  <Md text={MAXWAIT_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Throttle — это debounce с потолком"
+  lead="Throttle обещает «не чаще раза в `wait`». В lodash он не написан отдельно: это вызов debounce, где `maxWait` равен самому `wait`."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="lodash-es/throttle.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LODASH_THROTTLE_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="То же на часах темы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={THROTTLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={THROTTLE_NOTE} />
+
+  ### Стык серий
+
+  <Table
+    head={QUIRK_TABLE.head}
+    rows={QUIRK_TABLE.rows}
+    tones={QUIRK_TABLE.tones}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(280px,1.6fr)"
+    minWidth={520}
+  />
+
+  <Md text={QUIRK_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Раз в кадр: rAF"
+  lead="Для всего, что двигает картинку, удобный шаг задаёт сам экран. Обёртка на `requestAnimationFrame` копит события до ближайшего кадра и зовёт функцию один раз — с последними данными."
+  leadWidth={72}
+>
+  <Card title="rAF-throttle" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RAF_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {RAF_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Три обёртки на одной ленте
+
+  <Md text={RAF_NOTE} />
+
+  <RateLab client:visible mode="wrappers" code={RATE_CODE} tapes={TAPES} start="typing" caption={WRAP_CAPTION} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Ведро жетонов"
+  lead="Обёртки сливают лишние события в один вызов. Ограничитель поступает иначе: каждое событие либо проходит, либо получает отказ. Самый распространённый из них — ведро жетонов: запас на всплеск и постоянная скорость пополнения."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOKEN} />
+
+  <Card title="Ведро жетонов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TOKEN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TOKEN_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {TOKEN_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Дырявое ведро"
+  lead="Ведро жетонов пропускает всплеск сразу. Дырявое ведро всплесков не пропускает вовсе: запросы встают в очередь и выходят из неё с постоянной скоростью."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LEAKY} />
+
+  <Card title="Ведро-очередь" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LEAKY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={LEAKY_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={14} align="start">
+    <Card title="Ведро без очереди" titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={LEAKY_METER_NOTE} />
+    <Card title="limit_req в nginx" titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={NGINX_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Окна: фиксированное и скользящее"
+  lead="Самый простой лимит — счётчик: «не больше пяти за секунду». Весь вопрос в том, что считать секундой: отрезок по часам или последние 1000 мс от текущего момента."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WINDOW} />
+
+  <Card title="Фиксированное окно" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FIXED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Скользящий журнал" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SLIDING_LOG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Скользящий счётчик" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SLIDING_COUNTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Всплеск на границе
+
+  Десять событий с 900 по 1080 мс, лимит — пять в секунду.
+
+  <Table
+    head={['алгоритм', 'прошло', 'почему']}
+    rows={EDGE_ROWS.map((r) => [r.k, String(r.passed), r.d])}
+    tones={EDGE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(70px,.3fr) minmax(300px,1.8fr)"
+    minWidth={640}
+  />
+
+  ### Худшая секунда
+
+  <Table
+    head={['алгоритм', 'худшие 1000 мс', 'память на ключ']}
+    rows={WINDOW_STATS.map((r) => [r.k, String(r.worst), r.memory])}
+    tones={WINDOW_STATS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(200px,1fr) minmax(130px,.6fr) minmax(180px,1fr)"
+    minWidth={540}
+  />
+
+  <Md text={WINDOW_NOTE} />
+
+  ### Пять ограничителей на одной ленте
+
+  <RateLab client:visible mode="limiters" code={RATE_CODE} tapes={TAPES} start="edge" caption={LIMIT_CAPTION} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Один бюджет"
+  lead="Семь алгоритмов — семь ответов на один вопрос. Различаются они размером бюджета и тем, что происходит с событием, которому бюджета не хватило."
+  leadWidth={72}
+>
+  <Table
+    head={['алгоритм', 'бюджет', 'лишнее событие', 'где во фронтенде']}
+    rows={BUDGET_ROWS.map((r) => [r.k, r.budget, r.extra, r.where])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(200px,1fr) minmax(200px,1fr) minmax(220px,1.1fr)"
+    minWidth={780}
+  />
+
+  <Md text={BUDGET_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SERVER_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Выбирайте по судьбе лишнего события.** Нужен последний результат — обёртка: debounce,
+      если работа имеет смысл только после паузы, throttle или rAF, если обновлять надо на ходу.
+      Нужно, чтобы каждое событие было либо выполнено, либо явно отклонено, — ограничитель:
+      ведро жетонов, если всплески допустимы, дырявое ведро, если нет.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

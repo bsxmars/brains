@@ -1,0 +1,474 @@
+---
+title: Секреты и конфигурация
+heading: "Секреты и конфигурация: что попадает в бандл"
+headingWidth: 24
+order: 13
+kicker: доставка
+lead: "Сборщик вписывает переменные окружения в бандл строкой, и после этого их читает каждый посетитель. Префикс `VITE_` не прячет значение — он только решает, согласится ли Vite его вписать. А на сервере переменная окружения течёт в дочерние процессы, в `/proc`, в отчёты о падении и в историю git."
+leadWidth: 66
+summary: "Конфигурация против секрета; 12 факторов; как `import.meta.env.VITE_*`, `process.env.NEXT_PUBLIC_*` и `define` вписывают значения в бандл и как обходят защиту префиксом; порядок `.env`-файлов в Vite; конфиг при сборке против конфига при запуске; переменная окружения против файла, `/proc/<pid>/environ`, Secret в Kubernetes; история git, сканер утечек и ротация."
+verifiedOn: "Vite 8.3.0, esbuild 0.28.2, Node 24.11.0, kubectl 1.30.5, git 2.44.0, октябрь 2026: бандлы, порядок .env-файлов (768 сочетаний против loadEnv), выводы Node, YAML Secret, история git и находки сканера на бандлах Vue, React и d3 пересобираются tests/unit/secrets-config.test.ts. /proc/<pid>/environ и docker inspect сняты в Docker 27.4 (node:24-alpine) без повтора в тесте; порядок файлов Next, хранение Secret в etcd и ротация — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Конфиг и секрет }
+  - { id: s2, label: Что попадает в бандл }
+  - { id: s3, label: .env-файлы }
+  - { id: s4, label: Сборка или запуск }
+  - { id: s5, label: Секрет на сервере }
+  - { id: s6, label: Утечка и ротация }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import EnvLab from '@/widgets/env-lab/ui/EnvLab.vue';
+import ScanLab from '@/widgets/env-lab/ui/ScanLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_SECRET,
+  PREREQ,
+  PREREQ_NOTE,
+  TWELVE_TEXT,
+  PUBLIC_TABLE,
+  PUBLIC_NOTE,
+  PLAIN_INLINE,
+  BUNDLE_ENV,
+  BUNDLE_ROWS,
+  BUNDLE_NOTE,
+  VITE_CONFIG_LEAK_CODE,
+  LEAK_NOTE,
+  ENVPREFIX_ERROR,
+  ENVPREFIX_NOTE,
+  ESBUILD_SRC,
+  ESBUILD_TABLE,
+  ESBUILD_NOTE,
+  PLAIN_ENV_ORDER,
+  ORDER_TABLE,
+  ORDER_NOTE,
+  LOAD_ENV_CODE,
+  LOAD_ENV_NOTE,
+  ENV_FILES,
+  ENV_MODES,
+  SHELL_VAR,
+  ENV_PREFIX_SETS,
+  ENV_DEMO_CAPTION,
+  ENV_FACTS,
+  PLAIN_RUNTIME,
+  RUNTIME_TEXT,
+  RENDER_CONFIG_CODE,
+  RUNTIME_OUT,
+  RUNTIME_HTML,
+  ENTRYPOINT_CODE,
+  RUNTIME_TABLE,
+  RUNTIME_NOTE,
+  PLAIN_ENVIRON,
+  ENV_STRINGS_CODE,
+  ENV_STRINGS_OUT,
+  ENV_STRINGS_NOTE,
+  CHILD_ENV_CODE,
+  CHILD_ENV_OUT,
+  CHILD_ENV_NOTE,
+  PROC_TRANSCRIPT,
+  PROC_NOTE,
+  REPORT_CODE,
+  REPORT_NOTE,
+  SECRET_YAML,
+  SECRET_YAML_NOTE,
+  POD_YAML,
+  ENV_VS_FILE_TABLE,
+  ENV_VS_FILE_NOTE,
+  GIT_TRANSCRIPT,
+  GIT_NOTE,
+  CI_NOTE,
+  PLAIN_ENTROPY,
+  SCAN_CODE,
+  SCAN_NOTE,
+  SCAN_SAMPLES,
+  SCAN_THRESHOLDS,
+  SCAN_DEMO_CAPTION,
+  SCAN_STATS_TABLE,
+  SCAN_STATS_NOTE,
+  ROTATION_STEPS,
+  ROTATION_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Конфиг и секрет" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Всё, что попало в клиентский бандл, **публично** — с префиксом и без, при сборке или при
+    запуске. Секрету во фронтенде не место вовсе. А на сервере переменная окружения — самое
+    удобное и самое разговорчивое место для секрета: её копируют, печатают и хранят дольше, чем
+    кажется.
+
+  </Callout>
+
+  Браузер не умеет читать переменные окружения, поэтому сборщик подставляет их значения прямо
+  в код. Это удобно для адреса API и смертельно для пароля базы. Защита у сборщиков одна —
+  список имён, которые разрешено подставлять, — и её легко снять одной строкой конфига, даже
+  не заметив.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SECRET} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Конфигурация и секрет"
+  lead="Код один на все окружения, отличия приходят снаружи. Но «снаружи» ещё не значит «тайно»: часть конфигурации обязана дойти до браузера, а часть не должна покидать сервер никогда."
+  leadWidth={72}
+>
+  <Md text={TWELVE_TEXT} />
+
+  <Table
+    head={PUBLIC_TABLE.head}
+    rows={PUBLIC_TABLE.rows}
+    tones={PUBLIC_TABLE.tones}
+    kinds={PUBLIC_TABLE.kinds}
+    cols={PUBLIC_TABLE.cols}
+    minWidth={PUBLIC_TABLE.minWidth}
+  />
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PUBLIC_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Что сборщик вписывает в бандл"
+  lead="В браузере нет `process` и нет файлов `.env`. Поэтому сборщик подставляет значения при сборке — строкой, прямо в JS. После этого значение — часть файла, который скачивает каждый посетитель."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INLINE} />
+
+  <Card title=".env фикстуры" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BUNDLE_ENV} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Девять сборок одного файла
+
+  <CardGrid min={300} gap={14} align="start">
+    {BUNDLE_ROWS.map((row) => (
+      <Card tone={row.tone} pad={18} radius={5} gap={10} size={15.5} lh={1.6}>
+        <CodeBlock code={'// src/main.js' + (row.config?.envPrefix ? " + envPrefix: ['VITE_', 'DB_']" : row.config?.leakConfig ? ' + vite.config.js ниже' : '') + '\n' + row.src} size={11.5} lh={1.65} pad="12px 14px" />
+        <CodeBlock code={'// в бандле\n' + row.out} size={11.5} lh={1.65} pad="12px 14px" />
+        <Md text={row.verdict} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Md text={BUNDLE_NOTE} />
+
+  ### Как снимают защиту префиксом
+
+  <Card title="Конфиг, который вписал всё окружение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VITE_CONFIG_LEAK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={LEAK_NOTE} />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="envPrefix: ''" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ENVPREFIX_ERROR} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ENVPREFIX_NOTE} />
+  </CardGrid>
+
+  ### esbuild и `define` напрямую
+
+  <Card title="Исходник" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ESBUILD_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={ESBUILD_TABLE.head}
+    rows={ESBUILD_TABLE.rows}
+    tones={ESBUILD_TABLE.tones}
+    kinds={ESBUILD_TABLE.kinds}
+    cols={ESBUILD_TABLE.cols}
+    minWidth={ESBUILD_TABLE.minWidth}
+  />
+
+  <Md text={ESBUILD_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title=".env-файлы: кто кого перебивает"
+  lead="Vite читает до четырёх файлов, и каждый следующий перебивает предыдущий. Порядок легко запомнить неверно — особенно если раньше работали с Next."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENV_ORDER} />
+
+  <Table
+    head={ORDER_TABLE.head}
+    rows={ORDER_TABLE.rows}
+    kinds={ORDER_TABLE.kinds}
+    cols={ORDER_TABLE.cols}
+    minWidth={ORDER_TABLE.minWidth}
+  />
+
+  <Md text={ORDER_NOTE} />
+
+  <Card title="Загрузка по режиму с фильтром по префиксу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOAD_ENV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={LOAD_ENV_NOTE} />
+  </Card>
+
+  <EnvLab
+    client:visible
+    loadEnvCode={LOAD_ENV_CODE}
+    files={ENV_FILES}
+    modes={ENV_MODES}
+    shellVar={SHELL_VAR}
+    prefixSets={ENV_PREFIX_SETS}
+    caption={ENV_DEMO_CAPTION}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {ENV_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Сборка или запуск"
+  lead="Значение, вписанное при сборке, заморожено в образе. Конфиг при запуске позволяет собрать образ один раз — но не делает значения ни на бит секретнее."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RUNTIME} />
+
+  <Md text={RUNTIME_TEXT} />
+
+  <Card title="Файл конфига из окружения" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RENDER_CONFIG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock code={'// renderConfig(env) в контейнере с API_URL, SENTRY_DSN, FEATURE_NEW_CART, DB_PASSWORD, HOME\n' + RUNTIME_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Страница и приложение" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RUNTIME_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Старт контейнера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ENTRYPOINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={RUNTIME_TABLE.head}
+    rows={RUNTIME_TABLE.rows}
+    kinds={RUNTIME_TABLE.kinds}
+    cols={RUNTIME_TABLE.cols}
+    minWidth={RUNTIME_TABLE.minWidth}
+  />
+
+  <Md text={RUNTIME_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Секрет на сервере: переменная или файл"
+  lead="Серверу секрет нужен, и обычно его кладут в переменную окружения. Это удобно — и течёт в большее число мест, чем кажется: окружение строковое, наследуется, лежит в `/proc` и попадает в отчёты."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENVIRON} />
+
+  ### Окружение — это строки
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Код" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ENV_STRINGS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ENV_STRINGS_OUT} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={ENV_STRINGS_NOTE} />
+
+  ### Дочерний процесс получает всё
+
+  <Card title="Наследование окружения" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CHILD_ENV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock code={CHILD_ENV_OUT} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={CHILD_ENV_NOTE} />
+  </Card>
+
+  ### /proc и docker inspect
+
+  <Card title="Контейнер с паролем в окружении" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PROC_TRANSCRIPT} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={PROC_NOTE} />
+  </Card>
+
+  ### Отчёт о падении
+
+  <Card title="process.report" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REPORT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={REPORT_NOTE} />
+  </Card>
+
+  ### Secret в Kubernetes
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Secret" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SECRET_YAML} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SECRET_YAML_NOTE} />
+  </CardGrid>
+
+  <Card title="Переменной и файлом в одном поде" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={POD_YAML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={ENV_VS_FILE_TABLE.head}
+    rows={ENV_VS_FILE_TABLE.rows}
+    kinds={ENV_VS_FILE_TABLE.kinds}
+    cols={ENV_VS_FILE_TABLE.cols}
+    minWidth={ENV_VS_FILE_TABLE.minWidth}
+  />
+
+  <Md text={ENV_VS_FILE_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6 · демо"
+  eyebrowTone="demo"
+  title="Утечка: найти и сменить"
+  lead="Утёкший секрет не прячут, а меняют. Удалённая строка остаётся в истории git, в старых бандлах на CDN и в чужих копиях. Поиск нужен, чтобы понять, что именно менять и с какого момента."
+  leadWidth={72}
+>
+  ### История git
+
+  <Card title="Удалили файл — и нашли его" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GIT_TRANSCRIPT} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={GIT_NOTE} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={CI_NOTE} />
+  </Card>
+
+  ### Сканер по бандлу
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENTROPY} />
+
+  <Card title="Правила и энтропия" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Md text={SCAN_NOTE} />
+  </Card>
+
+  <ScanLab
+    client:visible
+    scanCode={SCAN_CODE}
+    samples={SCAN_SAMPLES}
+    thresholds={SCAN_THRESHOLDS}
+    caption={SCAN_DEMO_CAPTION}
+  />
+
+  <Table
+    head={SCAN_STATS_TABLE.head}
+    rows={SCAN_STATS_TABLE.rows}
+    tones={SCAN_STATS_TABLE.tones}
+    kinds={SCAN_STATS_TABLE.kinds}
+    cols={SCAN_STATS_TABLE.cols}
+    minWidth={SCAN_STATS_TABLE.minWidth}
+  />
+
+  <Md text={SCAN_STATS_NOTE} />
+
+  ### Ротация
+
+  <CardGrid min={260} gap={14} align="start">
+    {ROTATION_STEPS.map((step) => (
+      <Card tone={step.tone} title={step.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={ROTATION_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Вопрос «секрет ли это» решается до сборки, по смыслу значения.** Если браузеру значение
+      нужно — оно публично, и защищают его ограничениями на стороне сервиса. Если не нужно — оно
+      живёт только на сервере, лучше файлом, чем переменной, и у него есть отработанная процедура
+      замены. Префиксы, маскирование и сканеры — страховка от ошибок, а не способ хранить секрет.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

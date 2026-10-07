@@ -1,0 +1,554 @@
+---
+title: Безопасность бэкенда глазами фронтенда
+headingWidth: 24
+order: 10
+kicker: сеть и безопасность
+lead: "API-роут в Next, Nuxt или Astro — настоящий сервер: у него секреты, база и доступ во внутреннюю сеть. Четыре проверки, которые должны стоять в каждом обработчике, — владелец объекта, адрес исходящего запроса, параметры вместо склейки и список разрешённых полей, — и тест на каждую, который падает на наивной версии."
+leadWidth: 66
+summary: "Доступ к чужому объекту по id и проверка владельца в запросе к базе; исходящий запрос на адрес пользователя (SSRF): разбор URL, адреса после резолва, проверка в lookup соединения и редиректы — с калькулятором, где рядом работает чёрный список строк; параметры SQL, экранирование HTML и execFile вместо exec; лишние поля в теле запроса и схема zod; ошибки без стека и секреты вне бандла; lock-файл глазами сервера. Весь код исполняется тестом темы."
+verifiedOn: "Node 26.8.2: node:sqlite, child_process (exec, execFile, shell: true и DEP0190), http.get с опцией lookup на своём сервере 127.0.0.1, парсер WHATWG URL; zod 4.6.2; package-lock.json этого курса; npm 11.19.1 (только справка npm audit). Сентябрь 2026. Agent из undici 8.10.2 с connect.lookup — тем же тестом. Реестры специальных адресов IANA, OWASP, Server Actions и бюллетень CVE-2025-29927, префиксы публичных переменных Vite, Next.js, Nuxt и Astro, адрес сервиса метаданных AWS, Google Cloud и Azure — сверены с первоисточниками 29 сентября 2026"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Чужой объект по id }
+  - { id: s2, label: Запрос на адрес пользователя }
+  - { id: s3, label: Инъекции }
+  - { id: s4, label: Лишние поля }
+  - { id: s5, label: Ошибки и секреты }
+  - { id: s6, label: Цепочка поставок }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import BsEgressCheck from '@/widgets/bs-egress-check/ui/BsEgressCheck.vue';
+import BsFieldAllowlist from '@/widgets/bs-field-allowlist/ui/BsFieldAllowlist.vue';
+import PollutionLab from '@/widgets/pollution-lab/ui/PollutionLab.vue';
+import {
+  INTRO_THESIS,
+  PLAIN_SERVER,
+  GLOSSARY,
+  PREREQ,
+  SEED_CODE,
+  ALICE,
+  PLAIN_IDOR,
+  NAIVE_IDOR_CODE,
+  SAFE_IDOR_CODE,
+  CHECK_IDOR_CODE,
+  IDOR_CASES,
+  IDOR_WHO,
+  IDOR_NOTES,
+  PLAIN_SSRF,
+  NAIVE_EGRESS_CODE,
+  EGRESS_CODE,
+  NAIVE_FETCH_CODE,
+  ALLOW_HOSTS,
+  DNS_CHOICES,
+  EGRESS_CASES,
+  PARSER_ROWS,
+  PARSER_NOTE,
+  EGRESS_STEPS,
+  EGRESS_DEMO_CAPTION,
+  REBIND_NOTE,
+  GUARD_RUN_NOTE,
+  PLAIN_PARAMS,
+  NAIVE_SQL_CODE,
+  SAFE_SQL_CODE,
+  CHECK_SQL_CODE,
+  SQL_RUN,
+  SQL_NOTES,
+  ESCAPE_CODE,
+  ESCAPE_NOTE,
+  NAIVE_EXEC_CODE,
+  SAFE_EXEC_CODE,
+  CHECK_EXEC_CODE,
+  EXEC_NOTE,
+  PLAIN_MASS,
+  NAIVE_MASS_CODE,
+  SAFE_MASS_CODE,
+  PICK_CODE,
+  CHECK_MASS_CODE,
+  FIELD_CASES,
+  MASS_NOTES,
+  POLLUTION_LEAD,
+  POLLUTION_CODE,
+  POLLUTION_AFTER,
+  POLLUTION_WALK,
+  POLLUTION_DEFENSES,
+  FIELD_DEMO_CAPTION,
+  NAIVE_ERROR_CODE,
+  SAFE_ERROR_CODE,
+  CHECK_ERROR_CODE,
+  ERROR_NOTES,
+  FIND_LEAKS_CODE,
+  SECRETS_NOTE,
+  LOCK_CHECK_CODE,
+  CI_CODE,
+  SUPPLY_CARDS,
+  TAKEAWAY,
+  PITFALLS,
+  SOURCES,
+  HOOK_SCENE_CODE,
+  HOOK_SCENE_NOTE,
+  HOOK_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Обработчик верит только себе" gap={24}>
+  <Callout size={19} pad="24px 26px">
+    <Md text={INTRO_THESIS} />
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SERVER} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Сквозной пример: база магазина" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={SEED_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="info">
+      <Md text={`Алиса — \`${ALICE.id}\`, Борис — \`u2\`. Заказы 1 и 2 — Алисы, заказ 3 — Бориса.`} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Чужой объект по id"
+  lead="Адрес `/api/orders/3` — это просьба «дайте заказ 3», а не доказательство, что заказ ваш. Сервер, который проверил только вход, отдаст заказ любому вошедшему: достаточно поменять число в адресе."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IDOR} />
+
+  <CardGrid min={340} gap={16} align="start">
+    <Card tone="err" title="Как бывает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_IDOR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Как правильно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SAFE_IDOR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Оба варианта на сквозной базе
+
+  <Table
+    head={['кто', 'вызов', 'защищённый', 'наивный', 'что это']}
+    rows={IDOR_CASES.map((c) => [IDOR_WHO[String(c.who)], `\`${c.call}(${c.id})\``, String(c.safe), String(c.naive), c.note])}
+    tones={IDOR_CASES.map((c) => (c.safe !== c.naive ? 'err' : undefined))}
+    toneColumn={3}
+    kinds={['prose', 'mono', 'mono', 'mono', 'muted']}
+    cols="minmax(80px,.5fr) minmax(150px,.9fr) minmax(90px,.5fr) minmax(80px,.5fr) minmax(200px,1.4fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {IDOR_NOTES.map((note) => (
+      <Card pad={18} radius={5} size={15.5} lh={1.6} text={note} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Как проверить
+
+  <Card title="Тест: каждый просит чужое" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={CHECK_IDOR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="ok">
+      <Md text="На защищённой версии тест зелёный. На наивной он падает на второй строке таблицы — `cancelOrder(1) от u2`, ответ 200 вместо 404: проверка в `getOrder` есть, в `cancelOrder` её забыли. Таблица «кто просит что» пишется один раз и прогоняется по **всем** обработчикам — новый обработчик без проверки краснеет сразу." />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Запрос на адрес пользователя"
+  lead="Вебхук, превью ссылки, «загрузить картинку по URL» — сервер идёт туда, куда ему сказали. Снаружи до `localhost`, внутренней сети и сервиса метаданных облака не дойти, а изнутри сервера — можно. Проверять надо не строку адреса, а IP, с которым сервер соединится."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SSRF} />
+
+  <Card title="Пять шагов защитной проверки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={EGRESS_STEPS} size={15} />
+  </Card>
+
+  <Card tone="ok" title="Как правильно: EGRESS_CODE" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={EGRESS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card tone="err" title="Как бывает: чёрный список строк" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={NAIVE_EGRESS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Можно ли серверу сходить по этому адресу
+
+  <BsEgressCheck
+    client:visible
+    code={EGRESS_CODE}
+    naiveCode={NAIVE_EGRESS_CODE}
+    cases={EGRESS_CASES}
+    choices={DNS_CHOICES}
+    allowHosts={ALLOW_HOSTS}
+    caption={EGRESS_DEMO_CAPTION}
+  />
+
+  <Table
+    head={['случай', 'адрес', 'ответ DNS', '`checkOutgoing`', '`naiveCheck`']}
+    rows={EGRESS_CASES.map((c) => [
+      c.label,
+      `\`${c.url}\``,
+      DNS_CHOICES.find((d) => d.id === c.dns)?.label ?? '',
+      c.safe === 'ok' ? 'можно' : `нельзя · ${c.stage === 'url' ? 'строка' : c.stage === 'ip' ? 'адрес' : 'DNS'}`,
+      c.naive === 'ok' ? 'можно' : 'нельзя',
+    ])}
+    tones={EGRESS_CASES.map((c) => (c.safe === 'block' && c.naive === 'ok' ? 'err' : undefined))}
+    toneColumn={4}
+    kinds={['prose', 'mono', 'mono', 'prose', 'prose']}
+    cols="minmax(140px,.9fr) minmax(220px,1.4fr) minmax(130px,.8fr) minmax(110px,.6fr) minmax(90px,.5fr)"
+    minWidth={780}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+
+    Ответ DNS в строках с адресом-литералом не участвует: хост уже IP, резолвить нечего.
+    Строки «имя → частный адрес» и «имя → два адреса» — одно и то же имя `hooks.example.com`
+    с разными ответами: строка адреса у них совпадает символ в символ, и ни одна проверка строки
+    их не различит.
+
+  </Card>
+
+  ### Что парсер делает с хостом
+
+  <Table
+    head={['в адресе', '`new URL(…).hostname`']}
+    rows={PARSER_ROWS.map((r) => [`\`${r.input}\``, `\`${r.host}\``])}
+    kinds={['mono', 'mono']}
+    cols="minmax(220px,1fr) minmax(160px,.8fr)"
+    minWidth={420}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={PARSER_NOTE} />
+
+  ### Проверка и соединение — один ответ DNS
+
+  <CodeBlock code={HOOK_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={HOOK_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {HOOK_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={REBIND_NOTE} />
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card tone="err" title="Как бывает: редирект без проверки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_FETCH_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Как проверить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={GUARD_RUN_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Инъекции: SQL, HTML и командная строка"
+  lead="Одна ошибка в трёх местах: значение от пользователя вклеивают в текст, который потом разбирает другой язык — SQL, HTML, оболочка. Разборщик не знает, где кончился ваш текст и началось значение. Лечение одно: передать значение отдельно от текста."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PARAMS} />
+
+  ### SQL
+
+  <CardGrid min={340} gap={16} align="start">
+    <Card tone="err" title="Как бывает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_SQL_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Как правильно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SAFE_SQL_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['`status` от Алисы', 'склейка', 'параметры']}
+    rows={SQL_RUN.map((r) => [r.value, r.naive, r.safe])}
+    tones={SQL_RUN.map((r) => r.tone)}
+    toneColumn={1}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(260px,1.4fr) minmax(90px,.5fr)"
+    minWidth={560}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SQL_NOTES.map((note) => (
+      <Card pad={18} radius={5} size={15.5} lh={1.6} text={note} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Как проверить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={CHECK_SQL_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### HTML, собранный на сервере
+
+  <Card tone="ok" title="Как правильно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={ESCAPE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ESCAPE_NOTE} />
+
+  ### Командная строка
+
+  <CardGrid min={340} gap={16} align="start">
+    <Card tone="err" title="Как бывает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_EXEC_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Как правильно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SAFE_EXEC_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Как проверить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={CHECK_EXEC_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="warn">
+      <Md text={EXEC_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Лишние поля в теле запроса"
+  lead="Форма профиля шлёт `name` и `bio`. Тело запроса пишет не форма, а тот, кто его отправил, — и в нём может оказаться `role`, `id` или `__proto__`. Запись принимает только поля из явного списка, а их значения проверяет схема."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MASS} />
+
+  <CardGrid min={340} gap={16} align="start">
+    <Card tone="err" title="Как бывает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_MASS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Как правильно: схема" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SAFE_MASS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Без библиотеки: список имён" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={PICK_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Что попадёт в запись Алисы
+
+  <BsFieldAllowlist
+    client:visible
+    naiveCode={NAIVE_MASS_CODE}
+    pickCode={PICK_CODE}
+    record={ALICE}
+    cases={FIELD_CASES}
+    caption={FIELD_DEMO_CAPTION}
+  />
+
+  <Table
+    head={['тело запроса', '`Object.assign`', 'схема zod', 'список имён']}
+    rows={FIELD_CASES.map((c) => [`\`${c.body}\``, c.naive, c.schema, c.pick])}
+    tones={FIELD_CASES.map((c) => c.tone)}
+    toneColumn={1}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1.1fr) minmax(190px,1fr) minmax(170px,.9fr) minmax(170px,.9fr)"
+    minWidth={780}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {MASS_NOTES.map((note) => (
+      <Card pad={18} radius={5} size={15.5} lh={1.6} text={note} />
+
+    ))}
+
+  </CardGrid>
+
+  {/* ⚠️ Подраздел переехал из «Объектной модели» 2026-10-03: там атака стояла среди устройства
+      прототипов, а здесь у неё рамка — тело запроса пишет тот, кто его прислал. Демо
+      `PollutionLab` переехало вместе с текстом; его тесты — в `backend-security.test.ts`. */}
+  ### Глубокое слияние: `__proto__` достаётся всем
+
+  <Md text={POLLUTION_LEAD} />
+
+  <CodeBlock code={POLLUTION_CODE} size={12.5} />
+
+  <Md text={POLLUTION_AFTER} />
+
+  <NumberedList items={POLLUTION_WALK} size={15.5} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {POLLUTION_DEFENSES.map((item) => (
+      <Card title={item.t} titleSize={16} pad={16} radius={4} gap={9} size={15} lh={1.55} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <PollutionLab client:visible />
+
+  <Card title="Как проверить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={CHECK_MASS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Ошибки и секреты"
+  lead="Исключение знает о сервере всё: имена таблиц, внутренние адреса, пути к файлам. Секрет знает ещё больше. Ни то ни другое не должно доехать до клиента — ни в теле ответа 500, ни строкой в бандле."
+  leadWidth={72}
+>
+  <CardGrid min={340} gap={16} align="start">
+    <Card tone="err" title="Как бывает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_ERROR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Как правильно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SAFE_ERROR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {ERROR_NOTES.map((note) => (
+      <Card pad={18} radius={5} size={15.5} lh={1.6} text={note} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Как проверить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={CHECK_ERROR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Секрет в бандле
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={SECRETS_NOTE} />
+
+  <Card title="Как проверить: значения секретов против файлов клиента" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={FIND_LEAKS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Цепочка поставок"
+  lead="Код сервера — ваш код плюс сотни пакетов, которые исполняются с теми же правами: читают те же секреты и ходят в ту же внутреннюю сеть."
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={14} align="start">
+    {SUPPLY_CARDS.map((card) => (
+      <Card tone={card.tone} title={card.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={card.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={340} gap={16} align="start">
+    <Card title="Как проверить: lock-файл" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LOCK_CHECK_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Шаг в CI" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CI_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={TAKEAWAY} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+  <CardGrid min={320} gap={16} align="start">
+    {SOURCES.map((group) => (
+      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
+        {group.items.map((item) => (
+          <Md text={item} />
+        ))}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [Безопасность фронтенда](/platform/security/) — браузерная половина:
+    источник, [CORS](/platform/security/#s2), [XSS и CSP](/platform/security/#s4),
+    [CSRF](/platform/security/#s5), [куки и JWT](/platform/security/#s6).
+    [Пакетные менеджеры](/tooling/package-managers/#s6) — скрипты установки, порог возраста
+    версии и `npm audit`. [Модули и сборка](/tooling/modules/#s6) — как значение переменной
+    окружения оказывается строкой в бандле. [Объектная модель](/js/object-model/#s2) —
+    прототипы и prototype pollution.
+
+  </Card>
+</Section>

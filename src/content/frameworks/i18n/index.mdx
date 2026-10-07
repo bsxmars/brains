@@ -1,0 +1,458 @@
+---
+title: "Интернационализация: ICU MessageFormat и словари"
+heading: "Интернационализация во фронтенде: ICU MessageFormat и словари"
+headingWidth: 24
+order: 24
+kicker: фреймворки изнутри
+lead: "«Удалить 1 файлов?» — так выглядит перевод, собранный из кусков. В русском у слова при числе три формы, глагол меняется по роду, а в японском число стоит посреди фразы. Поэтому переводчику отдают не обрывки, а сообщение целиком — маленькую программу с ветками по числу и роду. Как устроен язык ICU MessageFormat, как его разобрать своими руками, когда разбирать — в браузере или при сборке, что делает vue-i18n со словарями и как выбрать локаль, не сломав поиск и гидратацию."
+leadWidth: 66
+summary: "Почему склейка строк ломается: порядок слов, число, род, падеж. ICU MessageFormat: аргументы, `select`, `plural` с категориями CLDR, `=N`, `offset`, `#`, `selectordinal`, вложенность, апострофы; учебный разбор и формат, сверенный с `intl-messageformat` и `@messageformat/core`. Разбор в браузере против сборки заранее — в байтах. MessageFormat 2 коротко. vue-i18n: свой формат, правило множественного числа, ленивые словари, цепочка запасных локалей, реактивность. Выбор локали: адрес, cookie, `Accept-Language`, `hreflang`, RTL."
+verifiedOn: "intl-messageformat 12.1.2, @messageformat/core 3.4.0, vue-i18n 11.4.12, Vue 3.5.42, esbuild 0.28.2, Node 24.11.0 (ICU 77.1, CLDR 47.0), Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: учебный разбор ICU сверен с двумя библиотеками на 34 506 сочетаниях сообщений, чисел и шести локалей; байты бандлов, вывод compileModule, поведение vue-i18n и Chromium пересобирает tests/unit/i18n.test.ts. MessageFormat 2 — по спецификации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Склейка }
+  - { id: s2, label: Синтаксис ICU }
+  - { id: s3, label: Свой парсер }
+  - { id: s4, label: Сборка }
+  - { id: s5, label: MessageFormat 2 }
+  - { id: s6, label: vue-i18n }
+  - { id: s7, label: Выбор локали }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import I18nLab from '@/widgets/i18n-lab/ui/I18nLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_MESSAGE,
+  PREREQ,
+  PREREQ_NOTE,
+  CONCAT_CODE,
+  CONCAT_NOTE,
+  BREAK_CARDS,
+  PLAIN_CONCAT,
+  GENDER_CODE,
+  ICU_ROWS,
+  ICU_NOTE,
+  PLURAL_LINK,
+  PLAIN_OFFSET,
+  FORMAT_CODE,
+  FORMAT_NOTE,
+  ICU_CODE,
+  PLAIN_PARSER,
+  PARSER_STEPS,
+  ICU_TEST_NOTE,
+  DEMO_PRESETS,
+  DEMO_LOCALES,
+  DEMO_CAPTION,
+  DIRECTION_CODE,
+  AST_CODE,
+  AST_NOTE,
+  MF_MODULE_CODE,
+  MF_MODULE_OUT,
+  MF_MODULE_NOTE,
+  SIZE_ROWS,
+  SIZE_TABLE,
+  SIZE_NOTE,
+  COMPILE_CARDS,
+  CSP_LINK,
+  MF2_CODE,
+  MF2_FACTS,
+  VI_SYNTAX_ROWS,
+  VI_SYNTAX_NOTE,
+  VI_PLURAL_CODE,
+  VI_PLURAL_NOTE,
+  VI_ICU_CODE,
+  VI_ICU_NOTE,
+  VI_LAZY_CODE,
+  VI_LAZY_NOTE,
+  VI_REACT_FACTS,
+  FALLBACK_ROWS,
+  FALLBACK_NOTE,
+  LOCALE_SOURCES,
+  LOCALE_NOTE,
+  NEGOTIATE_CODE,
+  NEGOTIATE_NOTE,
+  SSR_FACTS,
+  HREFLANG_HTML,
+  HREFLANG_NOTE,
+  LOGICAL_CSS,
+  RTL_NOTE,
+  PLAIN_RTL,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Фраза целиком" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Перевод интерфейса — не замена слов. Фраза с числом или именем внутри — это маленькая
+    программа: в ней есть ветки по числу, роду, порядковому номеру. Переводчик пишет все
+    ветки целиком на своём языке, а код только передаёт значения и получает готовую строку.
+
+  </Callout>
+
+  Код, который собирает фразу сам — `'Удалить ' + n + ' файлов'`, — решает за переводчика,
+  в каком порядке идут слова и какая у слова форма. Для английского такое решение обычно
+  верно. Для русского оно ошибается на «1 файлов», для японского — на порядке слов. ICU
+  MessageFormat — общий язык таких сообщений: его понимают библиотеки, сервисы перевода
+  и сами переводчики.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MESSAGE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Почему склейка строк ломается"
+  lead="Сквозной пример темы — вопрос перед удалением: «Удалить 3 файла из папки «Загрузки»?». Собранный в коде из кусков, он ошибается в русском на каждом втором числе и не переводится на японский вовсе. Записанный сообщением — переводится на любой язык без правки кода."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONCAT} />
+
+  <Card title="Склейка против сообщения" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CONCAT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CONCAT_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {BREAK_CARDS.map((c) => (
+      <Card title={c.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={c.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Род — тоже аргумент
+
+  <Card title="select по роду" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GENDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Синтаксис ICU MessageFormat"
+  lead="Сообщение — обычный текст, в котором фигурные скобки отмечают места для значений. Внутри скобок — имя аргумента и, по желанию, тип: `select` выбирает ветку по значению, `plural` — по форме числа, `selectordinal` — по порядковому номеру. Ветка — снова сообщение, поэтому их можно вкладывать."
+  leadWidth={72}
+>
+  <Table
+    head={['что', 'сообщение', 'значения', 'результат', 'зачем']}
+    rows={ICU_ROWS.map((r) => [r.k, r.msg, r.args + (r.locale === 'ru' ? '' : `, локаль ${r.locale}`), r.out, r.d])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(110px,.5fr) minmax(260px,1.6fr) minmax(120px,.6fr) minmax(150px,.8fr) minmax(240px,1.3fr)"
+    minWidth={980}
+  />
+
+  <Md text={ICU_NOTE} />
+
+  ### Категории числа и offset
+
+  <Md text={PLURAL_LINK} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OFFSET} />
+
+  ### Числа и даты внутри
+
+  <Card title="number, date, скелеты" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FORMAT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={FORMAT_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Разбор своими руками"
+  lead="Синтаксис перестаёт пугать, когда его разберёшь сам. Сотня строк превращает сообщение в дерево, выбирает ветку и собирает строку. Это рекурсивный спуск: каждая конструкция языка — своя функция, а вложенность получается сама, потому что функции вызывают друг друга."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PARSER} />
+
+  <Card title="parse, pick, format" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ICU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ICU_TEST_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {PARSER_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Сообщение, дерево, строка
+
+  <I18nLab client:visible icuCode={ICU_CODE} directionCode={DIRECTION_CODE} presets={DEMO_PRESETS} locales={DEMO_LOCALES} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Разбирать при сборке"
+  lead="Строку сообщения нужно разобрать хотя бы раз. Вопрос — где: в браузере у каждого пользователя или один раз при сборке. Во втором случае парсер не едет в бандл, а ошибка в переводе ломает сборку, а не экран."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Готовое дерево: formatjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={AST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <Md text={AST_NOTE} />
+      </CardNote>
+    </Card>
+
+    <Card title="Модуль функций: messageformat" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MF_MODULE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CodeBlock code={MF_MODULE_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CardNote tone="prose">
+        <Md text={MF_MODULE_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Цена в байтах
+
+  <Table
+    head={['что в бандле', 'как', 'байт', 'gzip']}
+    rows={SIZE_TABLE}
+    tones={SIZE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'mono', 'mono']}
+    cols="minmax(200px,1fr) minmax(260px,1.5fr) minmax(80px,.4fr) minmax(80px,.4fr)"
+    minWidth={680}
+  />
+
+  <Md text={SIZE_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {COMPILE_CARDS.map((c) => (
+      <Card tone={c.tone ?? 'neutral'} title={c.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={c.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={CSP_LINK} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="MessageFormat 2"
+  lead="Вторая версия языка сообщений, закреплённая в стандарте Unicode, исправляет главное неудобство первой: ветки больше не прячутся внутри фразы. Исполнять её пока нечем — ни браузеры, ни популярные библиотеки её не поддерживают, поэтому пример написан по тексту спецификации."
+  leadWidth={72}
+>
+  <Card title="То же сообщение на MF2" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MF2_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {MF2_FACTS.map((f) => (
+      <Card tone={f.tone ?? 'neutral'} title={f.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={f.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="vue-i18n: словари во Vue"
+  lead="vue-i18n хранит словари по локалям, отдаёт `t()` и `$t` в компоненты и перерисовывает их, когда меняется язык. Сообщения у него — не ICU, а свой формат, и правило множественного числа по умолчанию к русскому не подходит."
+  leadWidth={72}
+>
+  <Table
+    head={['что', 'ICU', 'vue-i18n']}
+    rows={VI_SYNTAX_ROWS.map((r) => [r.k, r.icu, r.vi])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(200px,1fr) minmax(240px,1.3fr)"
+    minWidth={600}
+  />
+
+  <Md text={VI_SYNTAX_NOTE} />
+
+  ### Множественное число
+
+  <Card title="Правило по умолчанию и своё" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VI_PLURAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VI_PLURAL_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Словари на ICU" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VI_ICU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VI_ICU_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Ленивые словари
+
+  <Card title="Загрузить язык по требованию" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VI_LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VI_LAZY_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {VI_REACT_FACTS.map((f) => (
+      <Card tone={f.tone ?? 'neutral'} title={f.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={f.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Запасные локали
+
+  <Table
+    head={['локаль', 'fallbackLocale', 'цепочка', 'что видно']}
+    rows={FALLBACK_ROWS.map((r) => [r.start, r.fallback, r.chain.join(' → '), r.d])}
+    tones={FALLBACK_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(100px,.5fr) minmax(220px,1.2fr) minmax(200px,1fr) minmax(240px,1.3fr)"
+    minWidth={820}
+  />
+
+  <Md text={FALLBACK_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Как выбрать локаль"
+  lead="Язык страницы можно взять из адреса, из cookie, из заголовка запроса или из настроек браузера. Источники отвечают разное, видны разным сторонам и по-разному сказываются на поиске и кеше."
+  leadWidth={72}
+>
+  <Table
+    head={['источник', 'кто видит', 'что важно']}
+    rows={LOCALE_SOURCES.map((r) => [r.k, r.who, r.d])}
+    tones={LOCALE_SOURCES.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(140px,.6fr) minmax(300px,1.8fr)"
+    minWidth={640}
+  />
+
+  <Md text={LOCALE_NOTE} />
+
+  <Card title="Accept-Language → локаль" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NEGOTIATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={NEGOTIATE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {SSR_FACTS.map((f) => (
+      <Card tone={f.tone ?? 'neutral'} title={f.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={f.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="hreflang: версии одной страницы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HREFLANG_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={HREFLANG_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Справа налево
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RTL} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Направление по локали" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DIRECTION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Логические свойства" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LOGICAL_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={RTL_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Код передаёт значения, текст пишет переводчик.** Всё, что зависит от языка — порядок
+      слов, форма при числе, род, направление строки, — живёт в сообщении и в данных локали,
+      а не в `if` и `+`. Тогда новый язык — это новый словарь, а не правка компонентов.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

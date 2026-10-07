@@ -1,0 +1,93 @@
+---
+/**
+ * Переход к соседнему уроку в конце страницы.
+ *
+ * В оригинальных бандлах уроки не знали друг о друге вовсе: дочитав до конца, читатель
+ * упирался в пустоту и закрывал вкладку. Порядок курса при этом был — просто им никто
+ * не пользовался: функция `neighbours()` лежала написанной и никем не вызванной.
+ *
+ * Название соседа стоит прямо в ссылке, а не прячется за «дальше»: выбор продолжить чтение
+ * зависит от того, что будет дальше, и скрывать это незачем.
+ */
+interface Props {
+  prev?: { href: string; title: string };
+  next?: { href: string; title: string };
+}
+
+const { prev, next } = Astro.props;
+---
+
+{
+  (prev || next) && (
+    <nav class="pager" aria-label="Соседние уроки">
+      {prev ? (
+        <a class="side" href={prev.href} data-dir="prev">
+          <span class="label">← предыдущий</span>
+          <span class="title">{prev.title}</span>
+        </a>
+      ) : (
+        <span />
+      )}
+      {next && (
+        <a class="side" href={next.href} data-dir="next">
+          <span class="label">следующий →</span>
+          <span class="title">{next.title}</span>
+        </a>
+      )}
+    </nav>
+  )
+}
+
+<style>
+  .pager {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    margin-top: 72px;
+    padding-top: 28px;
+    border-top: 1px solid var(--ink);
+  }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 18px 20px;
+    border-radius: var(--r2);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.18s;
+  }
+  .side:hover {
+    box-shadow: var(--shadow-2);
+  }
+  .side:hover .title {
+    color: var(--accent);
+  }
+  /* Ссылка «вперёд» прижата к правому краю — направление читается раньше текста. */
+  .side[data-dir='next'] {
+    text-align: end;
+  }
+
+  .label {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--text-faint);
+  }
+  .title {
+    font-size: var(--fs-7);
+    line-height: 1.3;
+    transition: color 0.18s;
+  }
+
+  @media (max-width: 640px) {
+    .pager {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .side[data-dir='next'] {
+      text-align: start;
+    }
+  }
+</style>

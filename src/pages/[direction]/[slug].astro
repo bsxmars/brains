@@ -1,0 +1,78 @@
+---
+import { withBase } from '@/shared/lib/url';
+/**
+ * Страница урока — одна на все направления.
+ *
+ * Направление приходит параметром маршрута, поэтому копии страницы на каждое из них не нужно:
+ * уроки устроены одинаково, чем бы они ни занимались. Адреса первых двенадцати уроков при этом
+ * не меняются — `/js/<slug>/` собирается тем же маршрутом при `direction = 'js'`.
+ *
+ * Слой `pages` остаётся тонким: собрать шапку, навигацию, содержимое и пейджер — и всё.
+ */
+import { render } from 'astro:content';
+import { DIRECTIONS, lessonHref, type Direction } from '@/entities/direction';
+import { getDirectionLessons, neighbours, type Lesson } from '@/entities/lesson';
+import BaseLayout from '@/shared/ui/BaseLayout.astro';
+import LessonBack from '@/widgets/lesson-back/ui/LessonBack.astro';
+import LessonHero from '@/widgets/lesson-hero/ui/LessonHero.astro';
+import LessonNav from '@/widgets/lesson-nav/ui/LessonNav.astro';
+import LessonPager from '@/widgets/lesson-pager/ui/LessonPager.astro';
+
+export async function getStaticPaths() {
+  const byDirection = await Promise.all(
+    DIRECTIONS.map(async (direction) => {
+      const lessons = await getDirectionLessons(direction);
+      return lessons.map((lesson) => {
+        // Соседи считаются здесь, а не в теле страницы: иначе коллекция читалась бы заново
+        // на каждый из десятков маршрутов.
+        const { prev, next } = neighbours(lessons, lesson.id);
+        return {
+          params: { direction: direction.id, slug: lesson.id },
+          props: { lesson, direction, prev, next },
+        };
+      });
+    }),
+  );
+  return byDirection.flat();
+}
+
+interface Props {
+  lesson: Lesson;
+  direction: Direction;
+  prev?: Lesson;
+  next?: Lesson;
+}
+
+const { lesson, direction, prev, next } = Astro.props as Props;
+const { Content } = await render(lesson);
+const data = lesson.data;
+
+const link = (item?: Lesson) =>
+  item ? { href: lessonHref(direction, item.id), title: item.data.title } : undefined;
+---
+
+<BaseLayout title={`${data.title} — ${direction.title}`} description={data.summary}>
+  <LessonNav slot="top" title={data.title} items={data.nav} />
+  {/* Тоже в слот «top»: он идёт до колонки текста, поэтому ссылка стоит у края страницы. */}
+  {/* Стрелка тоже липкая, но встаёт под полосой разделов: её высота — 60px, измерено
+      на 1280 и 390px. Число живёт здесь, потому что только страница знает обе полосы. */}
+  <LessonBack
+    slot="top"
+    href={withBase(direction.base)}
+    label={`все темы · ${direction.title.toLowerCase()}`}
+    sticky
+    stickyTop={60}
+  />
+
+  <LessonHero
+    kicker={data.kicker ?? direction.kicker}
+    heading={data.heading ?? data.title}
+    headingWidth={data.headingWidth}
+    lead={data.lead}
+    leadWidth={data.leadWidth}
+  />
+
+  <Content />
+
+  <LessonPager prev={link(prev)} next={link(next)} />
+</BaseLayout>

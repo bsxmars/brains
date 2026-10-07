@@ -1,0 +1,510 @@
+---
+title: "Память в Node"
+order: 13
+headingWidth: 18
+lead: "Процесс на Node, который съел слишком много памяти, убивает не V8, а ядро операционной системы. Смотрит оно на `rss` — всю память процесса. Поэтому при разборе сначала выясняют, **что растёт: куча JS или всё остальное**. Если течёт вне кучи, снимок кучи ничего не покажет."
+leadWidth: 66
+summary: "Что значат пять полей memoryUsage, как читать лог --trace-gc, как снять снимок с работающего процесса и как подогнать потолок кучи под лимит контейнера."
+verifiedOn: "Node 24.11 и 26.8 · V8 13.6 и 14.6 · плюс контейнеры node:18/20/24-alpine с cgroup-лимитом"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Пять полей }
+  - { id: s2, label: Развилка }
+  - { id: s3, label: trace-gc }
+  - { id: s4, label: Лимиты }
+  - { id: s5, label: Снимки }
+  - { id: s6, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkCard from '@/shared/ui/DarkCard.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import FlagSheet from '@/widgets/flag-sheet/ui/FlagSheet.astro';
+import GcLine from '@/widgets/gc-line/ui/GcLine.vue';
+import GrowthTriage from '@/widgets/growth-triage/ui/GrowthTriage.vue';
+import HeapChart from '@/widgets/heap-chart/ui/HeapChart.vue';
+import MemoryBudget from '@/widgets/memory-budget/ui/MemoryBudget.vue';
+import MemoryFields from '@/widgets/memory-fields/ui/MemoryFields.vue';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import { HEAP_PRESETS } from '@/widgets/heap-chart/model/presets';
+import {
+  FIELDS,
+  OUTSIDE,
+  SNAPSHOT_NOTE,
+  MODEL_CARDS,
+  IDLE_PROBE,
+  IDLE_PROBE_OUT,
+  SPACE_PROBE,
+  SPACE_PROBE_OUT,
+  SPACE_NOTE,
+  TRIAGE_STAMPS,
+  CASES,
+  THREAD_PROBE,
+  THREAD_PROBE_OUT,
+  GC_SOURCE,
+  GC_TOKENS,
+  GC_SAMPLES,
+  FORCE_GC_NOTE,
+  FATAL_LOG,
+  SNAPSHOT_CODE,
+  NEAR_LIMIT_FLAG,
+  SNAPSHOT_COST,
+  SNAPSHOT_KILL,
+  LIMIT_PROBE,
+  LIMIT_ROWS,
+  BUDGETS,
+  BUDGET_NOTE,
+  FLAGS,
+  SEMI_SPACE_NOTE,
+  CRASH_CARDS,
+  PITFALLS,
+  ALLOCATOR_PROBE,
+  ARENA_ROWS,
+  WORKER_LIMITS_CODE,
+  WORKER_LIMITS_OUT,
+  SOURCES,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  HEAP_CHART_DEMO_NOTE,
+  FIELDS_DEMO_NOTE,
+  TRIAGE_DEMO_NOTE,
+  GCLINE_DEMO_NOTE,
+  BUDGET_DEMO_NOTE,
+  PLAIN_RSS,
+  PLAIN_ISOLATE,
+  PLAIN_AFTER_ARROW,
+  PLAIN_TWO_CEILINGS,
+  PLAIN_ARENA,
+  CEILINGS_SCENE,
+  CEILINGS_OUTCOMES,
+  PLAIN_CEILINGS_ORDER,
+  RSS_STAYS_SCENE,
+  RSS_STAYS_SUSPECTS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Что входит в память процесса"
+  lead="В браузере «память вкладки» и куча JS (JS heap) — почти одно и то же. В Node это разные числа, и расходятся они в разы: только что запущенный процесс занимает около 40 МБ, а куча JS из них — около пяти (Node 24.11, macOS arm64)."
+  leadWidth={72}
+  gap={24}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RSS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Пять полей `process.memoryUsage()`"
+  lead="Под убит с `OOMKilled`, а `heapUsed` в логах всё это время показывал скромные числа — значит, смотрели не на то поле. Поля идут не по важности, а по вложенности: `rss` охватывает всё, `heapTotal` включает `heapUsed`, `external` включает `arrayBuffers`."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={FIELDS_DEMO_NOTE} />
+  </Card>
+
+  <MemoryFields client:visible fields={FIELDS} outside={OUTSIDE} snapshotNote={SNAPSHOT_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {MODEL_CARDS.map((card) => (
+      <Card tone={card.tone} title={card.t} titleSize={17} pad={20} gap={10} size={15.5} lh={1.6}>
+        <Md text={card.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Разрыв между `rss` и суммой полей — замер
+
+  <CodeBlock code={IDLE_PROBE} size={11.5} />
+  <CodeBlock code={IDLE_PROBE_OUT} size={11.5} tone="ok" />
+
+  Вывод снят на Node 24.11 (macOS arm64); на Node 26.8 та же команда даёт `rss` около 36 МБ
+  при куче 4.6 МБ. Повторяется не число, а разрыв. **Машинного кода в нём нет**, хотя его часто
+  относят именно сюда: он лежит в `code_space` и уже посчитан в `heapTotal`. Тысяча прогретых
+  (много раз вызванных) функций подняла `code_space` с 30 до 2199 КБ (Node 24.11).
+
+  ### Из чего состоит `heapTotal`, можно спросить у самого движка
+
+  <CodeBlock code={SPACE_PROBE} size={11.5} />
+  <CodeBlock code={SPACE_PROBE_OUT} size={11.5} tone="ok" />
+
+  <Md text={SPACE_NOTE} />
+
+  Список меняется от версии к версии, поэтому его не заучивают, а спрашивают у своей сборки.
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Развилка: какая часть памяти растёт"
+  lead="Разбор утечки начинается с вопроса: какая часть памяти растёт **быстрее остальных**? От ответа зависит, какой инструмент вообще поможет: снимок кучи найдёт забытые объекты, но не покажет буфер, выделенный мимо неё. Поэтому в лог пишут все пять полей сразу, а не одно."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TRIAGE_DEMO_NOTE} />
+  </Card>
+
+  <GrowthTriage client:visible cases={CASES} stamps={TRIAGE_STAMPS} />
+
+  ### Четыре поля из пяти считаются по потоку, а не по процессу
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ISOLATE} />
+
+  <CodeBlock code={THREAD_PROBE} size={11.5} />
+  <CodeBlock code={THREAD_PROBE_OUT} size={11.5} tone="ok" />
+
+  На практике: в сервисе с воркерами `memoryUsage()` пишут в лог **из каждого воркера**,
+  с его номером. Метрика из одного главного потока покажет его кучу и общий `rss` —
+  и ничего о том, какой воркер растёт.
+
+  ### Растёт только `rss`: системный аллокатор
+
+  Симптом знакомый: нагрузка схлынула, куча и буферы вернулись к прежним числам, а `rss`
+  так и остался высоким. Всё, что Node и нативные модули выделяют мимо кучи V8,
+  проходит через системный аллокатор — библиотеку, которая раздаёт процессу память кусками
+  и принимает её обратно. Освобождённый блок аллокатор вправе оставить себе под следующий
+  запрос, и тогда `rss` не падает, хотя живых данных стало меньше. Это и есть фрагментация:
+  плато, а не бесконечный рост.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ARENA} />
+
+  Отсюда рецепт `MALLOC_ARENA_MAX=2`: не больше двух арен на весь процесс. Но аллокатор —
+  не часть Node, он приходит с образом: в Debian-образах это glibc, в Alpine — musl, и арены
+  есть только у первого. Какой аллокатор под процессом, скажет сам процесс:
+
+  <CodeBlock code={ALLOCATOR_PROBE} size={11.5} />
+
+  В образе `node:22` это печатает `2.36`, в `node:22-alpine` и на macOS — вторую строку.
+
+  Помогает ли рецепт, видно по замеру. Образ `node:22` (Node 22.23, glibc 2.36, linux/arm64,
+  8 ядер), пул из 16 потоков (`UV_THREADPOOL_SIZE=16`) одновременно сжимает 64 куска по 1 МБ
+  через `zlib.gzip`; после работы и полной сборки считаем дополнительные арены и `rss`,
+  по два-три прогона на строку.
+
+  <Table
+    head={['MALLOC_ARENA_MAX', 'арен сверх главной', 'rss после сборки']}
+    rows={ARENA_ROWS}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(0,1.4fr) minmax(110px,.8fr) minmax(110px,.8fr)"
+    minWidth={480}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Переменная режет число арен ровно до `N − 1` дополнительных — но **`rss` на этой нагрузке
+    она не уменьшила**, с одной ареной он даже вырос. Рецепт помогает там, где много
+    долгоживущих потоков выделяют и освобождают память вразнобой. Проверяют его только
+    на своей нагрузке: минимумы `rss` за часы до и после. Замена аллокатора (jemalloc через
+    `LD_PRELOAD`) — тот же вопрос другой ценой; её в этой теме не мерили.
+
+  </Card>
+
+  ### Нагрузка ушла, `rss` остался: три подозреваемых
+
+  <Md text={RSS_STAYS_SCENE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {RSS_STAYS_SUSPECTS.map((c) => (
+      <Card title={c.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={c.where} />
+        <Md text={`**Признак:** ${c.sign}`} />
+        <Md text={`**Вывод:** ${c.verdict}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Как читать `--trace-gc`"
+  lead="Флаг `--trace-gc` печатает по строке на каждую сборку мусора. Это самый дешёвый источник данных о памяти: накладные расходы почти нулевые, и флаг можно держать включённым на боевом сервере постоянно."
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AFTER_ARROW} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={GCLINE_DEMO_NOTE} />
+  </Card>
+
+  <GcLine client:visible tokens={GC_TOKENS} source={GC_SOURCE} />
+
+  ### Норма и агония
+
+  <CardGrid min={290} gap={16} align="start">
+    {GC_SAMPLES.map((sample) => (
+      <Card tone={sample.tone} color="tone" title={sample.t} titleSize={16.5} pad={18} gap={10} size={15} lh={1.55}>
+        <CodeBlock code={sample.code} size={11} tone={sample.tone === 'ok' ? 'ok' : 'ink'} />
+        <Md text={sample.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Из лога — в график
+
+  Оставьте в логах только строки `Mark-Compact` и постройте график главного поля — дешевле
+  способа заметить утечку JS-объектов нет. Рядом держите частоту `Mark-Compact`
+  и `current mu`: они покажут агонию раньше, чем процесс упадёт.
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={HEAP_CHART_DEMO_NOTE} />
+  </Card>
+
+  <HeapChart client:visible presets={HEAP_PRESETS} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Лимиты и контейнеры"
+  lead="Потолок кучи задаёт V8, лимит контейнера — ядро. Эти два числа друг о друге не знают, и подогнать одно под другое можете только вы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_CEILINGS} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={BUDGET_DEMO_NOTE} />
+  </Card>
+
+  <MemoryBudget client:visible budgets={BUDGETS} note={BUDGET_NOTE} />
+
+  ### Кто подойдёт первым: один под, три исхода
+
+  {CEILINGS_SCENE.map((paragraph) => <Md text={paragraph} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {CEILINGS_OUTCOMES.map((o) => (
+      <Card title={o.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Кто первый:** ${o.who}.`} />
+        <Md text={o.what} />
+        <Md text={`**Что остаётся:** ${o.left}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CEILINGS_ORDER} />
+
+  ### Потолок надо спрашивать у процесса, а не выводить из версии
+
+  <CodeBlock code={LIMIT_PROBE} size={11.5} />
+
+  <Table
+    head={['версия', 'лимит контейнера', 'constrainedMemory()', 'heap_size_limit']}
+    rows={LIMIT_ROWS}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(110px,.8fr) minmax(120px,.8fr) minmax(160px,1fr) minmax(200px,1.4fr)"
+    minWidth={640}
+  />
+
+  **«Node видит память всей машины, а не лимит контейнера» — верно только для Node 18
+  и ранее.** Node 20 и 24 считают потолок от лимита контейнера, но в маленьком поде он
+  чуть **выше** всего лимита. Поэтому проверку запускают **в том же контейнере и с теми же
+  флагами**, что и приложение, — иначе узнаете потолок другого процесса.
+
+  ### Шпаргалка по флагам
+
+  <FlagSheet rows={FLAGS} min={300} />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SEMI_SPACE_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={FORCE_GC_NOTE} />
+  </Card>
+
+  ### Потолок воркера: четыре поля `resourceLimits`
+
+  Тяжёлую разовую работу — разбор большого файла, сборку отчёта — часто уносят в воркер,
+  чтобы она не съела память сервера. Но `--max-old-space-size` действует только на главный
+  поток. У каждого воркера своя куча, и её потолок задают при создании — полем
+  `resourceLimits`. Что в нём можно задать, видно по тому, что воркер вернёт сразу после
+  создания:
+
+  <CodeBlock code={WORKER_LIMITS_CODE} size={11.5} />
+  <CodeBlock code={WORKER_LIMITS_OUT} size={11.5} tone="ok" />
+
+  Полей четыре. `maxOldGenerationSizeMb` — старое поколение, `maxYoungGenerationSizeMb` —
+  молодое, `codeRangeSizeMb` — область под машинный код, `stackSizeMb` — стек потока
+  (по умолчанию 4 МБ). `-1` значит «решит V8».
+
+  **Главное здесь — первый потолок.** Воркер просил старое поколение в 32 МБ, а получил
+  кучу в 128 МБ. Молодое поколение по умолчанию
+  считается так же, как у главного потока, и прибавляет те же три полупространства. На Node
+  26.8 это 96 МБ, на 24.11 — 192, и тот же код там печатает 224. Задайте молодое поколение
+  явно — и потолок станет 44 МБ на обеих версиях.
+
+  Воркер, упёршийся в потолок, умирает с `ERR_WORKER_OUT_OF_MEMORY` и кодом 1, а процесс
+  живёт дальше: так прожорливую работу отгораживают от сервера. После выхода
+  `worker.resourceLimits` — пустой объект: спрашивать его надо, пока воркер жив.
+
+  <DarkPanel eyebrow="Как различить два падения по тексту">
+    <CardGrid min={250} gap={14}>
+      {CRASH_CARDS.map((card) => (
+        <DarkCard title={card.t} titleTone={card.tone}>
+          <Md text={card.d} />
+        </DarkCard>
+
+      ))}
+
+    </CardGrid>
+
+    <CodeBlock code={FATAL_LOG} size={11} tone="deep" />
+
+    <DarkText>
+      <b>Страховка, пока ищете причину:</b> перезапускать процесс, когда он перерос порог
+      памяти. Делает это не Node, а кто-то снаружи — Kubernetes (лимит плюс liveness probe)
+      или PM2. Порог ниже настоящего лимита оставляет время снять снимок до того, как процесс убьют.
+
+    </DarkText>
+  </DarkPanel>
+
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Снимок с живого процесса"
+  lead="Снимок кучи (heap snapshot) — файл со всеми объектами кучи и связями между ними. Снимают его с того самого процесса, который расследуют. Пока снимок пишется, процесс не отвечает на запросы, а его память на пике вырастает в разы."
+  leadWidth={70}
+>
+  ### По сигналу изнутри процесса
+
+  <CodeBlock code={SNAPSHOT_CODE} />
+
+  Обработчик ничего не стоит, пока сигнал не пришёл: `kill -USR2 <pid>` — и на диске файл,
+  без открытого порта и туннеля.
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    **Цена — запись идёт синхронно.** На куче в гигабайт это секунды, и всё это время процесс
+    не отвечает. Поэтому снимок снимают с экземпляра, выведенного из ротации (на него не идёт
+    трафик), либо сознательно соглашаются на всплеск ошибок.
+
+  </Card>
+
+  ### Сколько памяти съедает снимок — по замеру
+
+  <Table
+    head={['что мерили', 'macOS, куча 259 МБ', 'контейнер Linux, куча 99 МБ']}
+    rows={SNAPSHOT_COST}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(180px,1.2fr) minmax(150px,1fr) minmax(180px,1.1fr)"
+    minWidth={560}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    **Говорят, что снимок «примерно удваивает» потребление. Замер показывает намного больше.**
+    На macOS пик памяти процесса вырос в двенадцать раз: 4.19 ГБ против 346 МБ без снимка, —
+    откуда такой множитель, этот замер не объясняет, поэтому запас считают на своей платформе.
+    В контейнере Linux `rss` внутри процесса почти
+    не изменился, зато пик **контейнера** — 1711 МБ против 100 МБ
+    (`/sys/fs/cgroup/memory.peak`): лимит пода видит всплеск, которого не видит `memoryUsage()`.
+
+  </Card>
+
+  ### У предела кучи снимок снимает флаг, а не человек
+
+  <CodeBlock code={NEAR_LIMIT_FLAG} size={11.5} />
+
+  Вместо «под перезапустился ночью, воспроизвести не можем» у вас остаётся файл на диске.
+  Он больше кучи, с которой снят, — это текстовый JSON: процесс с потолком кучи 128 МБ
+  оставил файл на 310 МБ.
+
+  Вручную у предела лучше не снимать: чтобы записать снимок, движок строит полный граф
+  объектов, и память на это, как видно по таблице выше, берётся **в том же процессе**:
+
+  <CodeBlock code={SNAPSHOT_KILL} size={11} />
+
+  Флагу тоже нужно место: на диске — подключённый том, потому что рабочая директория
+  исчезает вместе с подом, и в памяти — в тесном контейнере тот же запуск оставил файл
+  **нулевого размера**.
+
+  ### `--inspect` — только на localhost
+
+  Третий способ — подключить к процессу DevTools и снять снимок во вкладке Memory, как
+  в браузере. Для этого процесс открывает порт протокола отладки (CDP), а протокол
+  не проверяет, кто подключился, — и не должен. Открыли `--inspect=0.0.0.0:9229`
+  «для удобства» — любой, кто достучится до порта, выполнит свой код в процессе на боевом
+  сервере (RCE). Правильно: `--inspect=127.0.0.1:9229` плюс SSH-туннель.
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Источники"
+>
+  <Card pad={20} gap={12}>
+
+    Документация Node отвечает на вопрос «что вызывать», документация ядра — на вопрос «кто
+    принимает решение». Одна другую не заменяет: у Node про `OOMKilled` не написано ничего,
+    а cgroup ничего не знает про `heapTotal`.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [«Память и GC»](/js/memory-gc/) — поколения, полупространства,
+    то, что сборщик считает живым, и как вызывать `gc()` в замерах. [Профилирование памяти](/js/memory-profiling/) — процедура
+    снимка целиком: сравнение снимков, удерживаемый размер (retained size), панель Retainers.
+    [Движок V8](/js/v8-engine/) — откуда в `code_space` берётся машинный код и почему его тем
+    больше, чем чаще вызывается функция. [Воркеры и параллелизм](/js/workers/) — почему
+    у каждого воркера своя куча и четыре поля из пяти считаются по потоку, а не по процессу.
+    [Непрерывное профилирование памяти](/js/continuous-profiling/) — память работающего сервиса изо дня в день:
+    выборочный профиль выделений, flame graph и метрики процесса вместо снимка.
+
+  </Card>
+</Section>

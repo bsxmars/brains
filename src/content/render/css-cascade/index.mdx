@@ -1,0 +1,885 @@
+---
+title: Каскад и вычисление стилей
+order: 2
+kicker: браузер и рендеринг
+lead: "Когда несколько правил задают элементу один и тот же `color`, браузер выбирает победителя не по принципу «кто конкретнее». Он сравнивает правила по **шести признакам по очереди**, и специфичность среди них только пятая. Поэтому правило так часто проигрывает «необъяснимо»: спор решился раньше, чем дошло до специфичности."
+leadWidth: 66
+summary: "Как браузер выбирает одно значение свойства из многих: шесть критериев каскада вживую, специфичность как тройка чисел, `inherit`/`initial`/`unset`/`revert` на настоящих элементах и цена чтения через `getComputedStyle`."
+verifiedOn: Chromium 153 (headless, Playwright 1.63), сентябрь 2026
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Шесть критериев }
+  - { id: s2, label: Специфичность }
+  - { id: s3, label: Наследование }
+  - { id: s4, label: Стадии значения }
+  - { id: s5, label: Переменные и инвалидация }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import CascadeReferee from '@/widgets/cascade-referee/ui/CascadeReferee.vue';
+import DefaultingLab from '@/widgets/defaulting-lab/ui/DefaultingLab.vue';
+import ResolvedValue from '@/widgets/resolved-value/ui/ResolvedValue.vue';
+import SpecificityLab from '@/widgets/specificity-lab/ui/SpecificityLab.vue';
+import VarSubstitution from '@/widgets/var-substitution/ui/VarSubstitution.vue';
+import {
+  ALL_NOTE,
+  ANIM_COMPOSE_CODE,
+  ANIM_COMPOSE_NOTE,
+  ANIM_COMPOSE_ROWS,
+  CASCADE_CRITERIA,
+  CASCADE_DECLS,
+  CASCADE_LAYERS,
+  CASCADE_VS_INHERIT_CODE,
+  CASCADE_VS_INHERIT_NOTE,
+  COLOR_NOTE,
+  COLOR_ROWS,
+  CONTAINER_FACTS,
+  DEFAULT_KEYWORDS,
+  DEFAULT_SUBJECTS,
+  FUNCTIONAL_CODE,
+  GCS_CODE,
+  GCS_CODE_NOTE,
+  GCS_FACTS,
+  HAS_NOTE,
+  HAS_ROWS,
+  IACVT_CODE,
+  IACVT_NOTE,
+  IACVT_STEPS,
+  IMPORTANT_FACTS,
+  INLINE_FACT,
+  INHERIT_FACTS,
+  INHERIT_NO,
+  INHERIT_YES,
+  INTRO_CARDS,
+  INTRO_NOTE,
+  INVALIDATION_BAD,
+  INVALIDATION_GOOD,
+  INVALIDATION_NOTE,
+  KEYWORD_ROWS,
+  LAYER_CODE,
+  LAYER_ORDER_RULES,
+  LAYER_PROJECT_CODE,
+  LAYER_PROJECT_FACTS,
+  LINE_HEIGHT_CODE,
+  LINE_HEIGHT_NOTE,
+  LIST_CODE,
+  MATCH_FACTS,
+  MEASURE_STEPS,
+  NESTING_CODE,
+  ORIGIN_ROWS,
+  OVERRIDES_CODE,
+  OVERRIDES_NOTE,
+  PITFALLS,
+  PLAIN_CASCADE,
+  PLAIN_COMPOSITION,
+  PLAIN_IACVT,
+  PLAIN_LAYERS,
+  PLAIN_SPECIFICITY,
+  PLAIN_VALUE_PATH,
+  CASCADE_DEMO_NOTE,
+  SPEC_DEMO_NOTE,
+  DEFAULTING_DEMO_NOTE,
+  RESOLVED_DEMO_NOTE,
+  VAR_DEMO_NOTE,
+  PROPERTY_CODE,
+  PROPERTY_NOTE,
+  PRINT_CODE,
+  PRINT_FACTS,
+  RESOLVED_ITEMS,
+  RESOLVED_NOTE,
+  REVERT_LAYER_CODE,
+  SHADOW_NOTE,
+  VAR_CASES,
+  SPEC_FACTS,
+  SPEC_PIECES,
+  SPEC_RIVAL,
+  SPEC_ROWS,
+  SPEC_TOKEN,
+  SPEC_ZERO,
+  STAGE_ROWS,
+  STATS_ROWS,
+  THEME_CODE,
+  VAR_FACTS,
+  SCOPE_CODE,
+  SCOPE_FACTS,
+  SCOPE_NOTE,
+  SCOPE_ORDER,
+  CQ_STYLE_CODE,
+  CQ_STYLE_FACTS,
+  STARTING_CODE,
+  STARTING_FACTS,
+  STARTING_NOTE,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  SOURCES,
+  RELATED,
+  LAYER_SCENE_CODE,
+  LAYER_SCENE_NOTE,
+  LAYER_SCENE_STEPS,
+  PLAIN_LAYERS_IMPORTANT,
+  STAGE_SCENE_CODE,
+  STAGE_SCENE_NOTE,
+  STAGE_SCENE_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Каскад и шаг style" lead={INTRO_NOTE} leadWidth={74} gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    От строки `color: red` в таблице стилей до значения `rgb(255, 0, 0)` у элемента браузер
+    идёт по точному алгоритму. <b>Он сравнивает правила по шести признакам подряд, и следующий
+    признак смотрит, только если предыдущий дал ничью.</b>
+
+  </Callout>
+
+  <CardGrid min={270} gap={14}>
+    {INTRO_CARDS.map((card) => (
+      <Card tone={card.tone ?? 'neutral'} title={card.t} titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+        <Md text={card.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CASCADE} />
+
+  ### Слова, которые встретятся раньше объяснения
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Путь значения: шесть стадий от строки в CSS до экрана" titleSize={18} pad={22} gap={14}>
+    <FlowChips
+      minWidth={720}
+      chips={[
+        { label: 'declared' },
+        { label: 'cascaded', tone: 'info' },
+        { label: 'specified', tone: 'info' },
+        { label: 'computed', tone: 'ok' },
+        { label: 'used', tone: 'warn' },
+        { label: 'actual', tone: 'dashed' },
+      ]}
+    />
+
+    Первая стрелка — каскад: из всех подходящих объявлений браузер выбирает одно **или не
+    выбирает ничего**. Вторая — значение по умолчанию (defaulting): если каскад ничего не дал,
+    значение берётся у родителя или из спецификации свойства. Третья — вычисление: `em`
+    превращаются в пиксели, вместо `var()` подставляется значение.
+
+    Дальше браузер раскладывает элементы — считает размеры и положение. Граница между
+    `computed` и `used` совпадает с границей между шагами **style** и **layout**
+    из [«Кадра браузера»](/render/render-pipeline/). Главная стадия — **computed**: его
+    браузер кеширует, его получают по наследству дети. Что из этого следует для чтения стилей
+    из JS — в разделе «Стадии значения».
+
+  </Card>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={74}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Почему победило именно это правило"
+  lead="Восемь объявлений `color` спорят за одну живую кнопку. Правила по-настоящему вставлены в документ, а цвет прочитан у браузера."
+  leadWidth={74}
+>
+  Каждое объявление проходит шесть проверок по очереди — седьмая, близость `@scope`, разобрана
+  в конце раздела. Следующая проверка включается, только если предыдущая дала ничью:
+
+  <FlowChips
+    minWidth={720}
+    chips={[
+      { label: '1 · этаж и !important', tone: 'info' },
+      { label: '2 · теневое дерево' },
+      { label: '3 · атрибут style' },
+      { label: '4 · слои', tone: 'info' },
+      { label: '5 · специфичность', tone: 'warn' },
+      { label: '6 · порядок в файле' },
+    ]}
+  />
+
+  Практический вывод: если правило «необъяснимо» проиграло, идите по списку сверху. Чаще всего
+  спор решил `!important`, слой или атрибут `style` — до селектора дело просто не дошло.
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CASCADE_DEMO_NOTE} />
+
+  <CascadeReferee
+    client:visible
+    decls={CASCADE_DECLS}
+    layers={CASCADE_LAYERS}
+    criteria={CASCADE_CRITERIA}
+  />
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Строка «сходится» сверяет разбор с настоящим цветом кнопки **в вашем браузере**. Если она
+    покажет «нет», верьте ей, а не тексту.
+
+  </Card>
+
+  ### Критерий 1: этажи и `!important`
+
+  Первая проверка спрашивает, чьё это объявление — браузера, пользователя или автора
+  страницы — и помечено ли оно `!important`. Вместе это восемь этажей. Объявление с верхнего
+  этажа побеждает любое с нижнего, и остальные пять проверок его уже не касаются.
+
+  <Table
+    head={['этаж', 'что это', 'что из этого следует']}
+    rows={ORIGIN_ROWS.map((r) => [r.k, r.d, r.note])}
+    tones={ORIGIN_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'muted', 'prose']}
+    cols="minmax(170px,.8fr) minmax(150px,.7fr) minmax(280px,1.9fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {IMPORTANT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Критерии 2 и 3: граница компонента и атрибут `style`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="Критерий 2: стили страницы против стилей компонента" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SHADOW_NOTE}>
+      <CardNote tone="warn">
+
+        Переворот тот же, что у `!important` в критерии 1, и логика та же. Право сказать
+        «без этого всё сломается» получает тот, кому это нужнее: пользователь в критерии 1,
+        компонент в критерии 2.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title={INLINE_FACT.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={INLINE_FACT.d} />
+  </CardGrid>
+
+  ### Слои: важность правила отдельно от точности селектора
+
+  До `@layer` был один надёжный способ перебить чужой CSS — сделать свой селектор специфичнее.
+  Поэтому в большом проекте селекторы со временем растут: `.btn` → `.card .btn` →
+  `#app .page .card .btn` → `!important`. После `!important` перебить уже нечем. Специфичность
+  может только расти: каждый следующий разработчик должен перебить предыдущего. Беда в том,
+  что она отвечает сразу за **две вещи**: насколько точно селектор описывает элемент и насколько
+  правило важно. Слои забирают вторую.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYERS} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Две формы и четыре правила порядка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LAYER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <NumberedList items={LAYER_ORDER_RULES} />
+    </Card>
+
+    <Card tone="err" title="Совет про слои, который перестаёт работать" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={OVERRIDES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="err">
+        <Md text={OVERRIDES_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Одна кнопка и чужой `!important`
+
+  <CodeBlock code={LAYER_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={LAYER_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {LAYER_SCENE_STEPS.map((l) => (
+      <Card tone={l.result === 'синяя' ? 'ok' : 'err'} title={l.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <CodeBlock code={l.code} size={11.5} lh={1.7} pad="12px 14px" />
+        <Md text={`**Кнопка:** ${l.result}.`} />
+        <Md text={l.why} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYERS_IMPORTANT} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`revert-layer` — исключение внутри своего слоя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={REVERT_LAYER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      Возвращает свойству значение из **предыдущего слоя** того же этажа (origin). Если
+      предыдущего слоя нет, работает как `revert` и спускается на этаж ниже. Так делают
+      исключение, не поднимая специфичность и не трогая нижний слой.
+
+    </Card>
+  </CardGrid>
+
+  ### Слои в живом проекте: чужой CSS и старый код
+
+  <Card title="Раскладка, с которой начинают" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={LAYER_PROJECT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {LAYER_PROJECT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Откуда стартует переход: `@starting-style`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Начальное значение для того, чего ещё не было" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STARTING_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" title="Каскад решает, куда ехать, а `@starting-style` — откуда" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Верхний этаж таблицы выше — идущий переход: он сильнее любого `!important`. У перехода
+      два конца. Конечное значение выбирает каскад. Начальное значение для только что
+      появившегося элемента задаёт `@starting-style`. Это два разных вопроса, и путать их дорого.
+
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {STARTING_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={STARTING_NOTE} />
+  </Card>
+
+  ### Две анимации на одном свойстве: `animation-composition`
+
+  Этаж анимаций на лестнице выше — один, а треков на нём может быть сколько угодно: `animation`
+  принимает список. Если два трека меняют одно свойство, спор между ними решается не каскадом,
+  а порядком в списке и свойством `animation-composition`.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPOSITION} />
+
+  <Card title="Два трека и значение из каскада" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={ANIM_COMPOSE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['что написано', 'что получилось', 'почему']}
+    rows={ANIM_COMPOSE_ROWS}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(220px,1fr) minmax(110px,.5fr) minmax(260px,1.6fr)"
+    minWidth={700}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ANIM_COMPOSE_NOTE} />
+
+  ### Седьмой критерий: чья область ближе к элементу
+
+  `@scope` ограничивает правила частью дерева: «внутри карточки, но не внутри вложенного
+  блока». Раньше это выражали только длинными селекторами с `:not()`. Вместе с `@scope` в каскад
+  пришла седьмая проверка — близость области к элементу.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`@scope` задаёт корень и, если нужно, нижнюю границу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCOPE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" title="Куда он встал в порядке критериев" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Близость сильнее порядка в файле, но слабее специфичности. Поэтому сама она почти
+      никогда не решает спор: до неё доходят только объявления с равной специфичностью.
+
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={SCOPE_ORDER.head}
+    rows={SCOPE_ORDER.rows}
+    cols={SCOPE_ORDER.cols}
+    kinds={SCOPE_ORDER.kinds}
+    minWidth={SCOPE_ORDER.minWidth}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SCOPE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={SCOPE_NOTE} />
+  </Card>
+
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Специфичность — тройка чисел, а не «вес»"
+  lead="Специфичность решает спор, только когда первые четыре проверки дали ничью. Соперник в демо — правило `.prose .link` со специфичностью `(0,2,0)`. Оно написано **позже**, поэтому ничья достаётся ему. Оба правила по-настоящему лежат в документе."
+  leadWidth={74}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPECIFICITY} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SPEC_DEMO_NOTE} />
+
+  <SpecificityLab client:visible pieces={SPEC_PIECES} rival={SPEC_RIVAL} token={SPEC_TOKEN} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Три разряда" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['разряд', 'что считается']}
+        rows={SPEC_ROWS}
+        kinds={['mono', 'prose']}
+        cols="minmax(70px,.2fr) minmax(260px,1.8fr)"
+        minWidth={420}
+      />
+
+      Сравнивают по разрядам, как номера версий: сначала `a`, при равенстве — `b`, потом `c`.
+      Если `a` разные, остальные два разряда не смотрят вообще. Отсюда ответ на миф про
+      «255 классов»: никакое число классов не перебьёт один `#id`. Переполнение счётчика
+      разряда было курьёзом старых движков, и строить на нём нельзя ничего.
+
+    </Card>
+
+    <Card tone="err" title="Что не считается вовсе" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CheckList items={SPEC_ZERO} tone="err" size={14.5} />
+
+      <CardNote tone="err">
+
+        Последние две строки — не мелочь, а причина, по которой формулировка «у инлайна
+        специфичность 1000» ломается. У атрибута `style` и у `!important` специфичности нет:
+        они решаются отдельными критериями, и стоят эти критерии **раньше** пятого.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="Функциональные псевдоклассы: где берётся разряд" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={FUNCTIONAL_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+
+    <CardNote tone="prose">
+
+      Важная деталь `:is()` и `:not()`: разряд берётся по **самому специфичному аргументу**,
+      а не по тому, который совпал на самом деле. Плюс: специфичность видно прямо по CSS,
+      в разметку заглядывать не нужно. Минус: результат иногда неприятно удивляет —
+      `:is(#foo, p)` на обычном `<p>` даёт `(1,0,0)`.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14}>
+    {SPEC_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Список через запятую — это несколько отдельных правил" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={LIST_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      С точки зрения каскада это два независимых правила. Для элемента с классом `card`
+      специфичность первого равна `(0,1,0)`, и `#hero` рядом не значит ничего.
+
+    </Card>
+
+    <Card tone="warn" title="А вложенность через `&` специфичность поднимает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={NESTING_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      Правило с `&` выигрывает у `.a.b.c .title`, написанного позже, — потому что взяло разряд
+      от `#promo` из родительского списка. Заметить это по коду сложно: разряд
+      приезжает из строки, которая физически выше.
+
+    </Card>
+  </CardGrid>
+
+
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Когда каскад ничего не выбрал: наследование и значения по умолчанию"
+  lead="Бывает, что элементу не подошло ни одно объявление свойства. Тогда значение берётся по умолчанию. Наследуемое свойство, например `color`, получает вычисленное значение родителя. Ненаследуемое, например `padding`, — начальное значение из спецификации (initial value). Пять ключевых слов позволяют выбрать источник вручную, и отличаются они тем, откуда берут значение."
+  leadWidth={74}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEFAULTING_DEMO_NOTE} />
+
+  <DefaultingLab client:visible subjects={DEFAULT_SUBJECTS} keywords={DEFAULT_KEYWORDS} />
+
+  <Table
+    head={['слово', 'откуда берётся значение', 'чем это отличается от соседей']}
+    rows={KEYWORD_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(150px,.6fr) minmax(220px,1fr) minmax(260px,1.5fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" title="Тот же опыт на `color` — таблицей, а не демо" titleSize={17} pad={20} gap={13}>
+    <Table
+      head={['что написано', 'что получилось', 'почему']}
+      rows={COLOR_ROWS}
+      kinds={['mono', 'mono', 'prose']}
+      cols="minmax(200px,.9fr) minmax(140px,.6fr) minmax(260px,1.6fr)"
+      minWidth={680}
+    />
+
+    <CardNote tone="warn">
+      <Md text={COLOR_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Наследование — не каскад, и это главный источник путаницы
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Пример, на котором ошибаются чаще всего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={CASCADE_VS_INHERIT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <Md text={CASCADE_VS_INHERIT_NOTE} />
+    </Card>
+
+    <Card tone="err" title="Наследуется вычисленное значение, а не то, что написано" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={LINE_HEIGHT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="err">
+        <Md text={LINE_HEIGHT_NOTE} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="Наследуется — то, что логично для текста" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CheckList items={INHERIT_YES} tone="ok" size={14.5} />
+    </Card>
+
+    <Card tone="err" title="Не наследуется — всё про коробку элемента" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CheckList items={INHERIT_NO} tone="err" size={14.5} />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14}>
+    {INHERIT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={ALL_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Стадии значения и цена чтения из JS"
+  lead="`getComputedStyle(el).color` почти ничего не стоит, а `.width` сразу после правки стилей заставляет браузер посчитать раскладку посреди вашего кода. Причина в том, что, несмотря на название, `getComputedStyle` возвращает не computed value, а **resolved value** — значение «для ответа». Что это такое, спецификация решает отдельно для каждого свойства. Для `color` это вычисленное значение, а для `width` — число, которое известно только после раскладки."
+  leadWidth={74}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VALUE_PATH} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={RESOLVED_DEMO_NOTE} />
+
+  <ResolvedValue client:visible items={RESOLVED_ITEMS} note={RESOLVED_NOTE} />
+
+  ### Три свойства одного элемента по стадиям
+
+  <CodeBlock code={STAGE_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={STAGE_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {STAGE_SCENE_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={st.what} />
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={['стадия', 'что уже посчитано', 'на что это похоже']}
+    rows={STAGE_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(120px,.5fr) minmax(280px,1.6fr) minmax(220px,1fr)"
+    minWidth={700}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {GCS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Типовой приём — и почему он работает" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={GCS_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+
+    <Md text={GCS_CODE_NOTE} />
+  </Card>
+
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Переменные, `:has()` и цена инвалидации"
+  lead="Пользовательское свойство участвует в каскаде как любое другое, а подставляется в значение уже после каскада. Отсюда главная ловушка переменных — и отсюда же их цена: смена одной переменной или одного класса может заставить браузер пересчитать стиль у тысяч элементов."
+  leadWidth={74}
+>
+
+  ### Переменная — обычное свойство, которое подставляют после каскада
+
+  <CardGrid min={280} gap={14}>
+    {VAR_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IACVT} />
+
+  <Card tone="err" title="Неподходящее значение в `var()` обнуляет свойство (IACVT)" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={IACVT_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+
+    <NumberedList items={IACVT_STEPS} />
+
+    <CardNote tone="err">
+      <Md text={IACVT_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Проверьте сами: что вернёт ваш браузер
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={VAR_DEMO_NOTE} />
+
+  <VarSubstitution client:visible cases={VAR_CASES} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="`@property` чинит сразу три вещи" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={PROPERTY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <Md text={PROPERTY_NOTE} />
+    </Card>
+
+    <Card title="Тема через переменные против темы через атрибут" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={THEME_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="prose">
+
+        Всё решает разница между «заново проверить, какие селекторы подходят» и «пересчитать
+        одно значение». Первое дороже: браузер снова перебирает правила, проверяет цепочки
+        предков, собирает объявления и проводит каскад. Второе — обновить одно поле
+        в унаследованной части стиля элемента (`ComputedStyle`).
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Контейнерные запросы: по размеру и по значению переменной
+
+  <CardGrid min={280} gap={14}>
+    {CONTAINER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Запрос по значению свойства: `@container style()`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CQ_STYLE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" title="Почему это про каскад, а не про раскладку" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Тема через переменные, о которой сказано выше, меняла **значение**, не заставляя браузер
+      заново проверять селекторы. Запрос `style()` идёт дальше: та же переменная теперь решает,
+      **применится ли правило вообще**, — и специфичность при этом не растёт.
+
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {CQ_STYLE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### С `:has()` изменение потомка заставляет пересчитать предка
+
+  <Table
+    head={['паттерн', 'цена']}
+    rows={HAS_ROWS.map((r) => [r.k, r.d])}
+    tones={HAS_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose']}
+    cols="minmax(200px,.8fr) minmax(280px,1.6fr)"
+    minWidth={620}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={HAS_NOTE} />
+
+  ### Инвалидация: скольким элементам пересчитать стиль
+
+  Когда что-то меняется, браузер помечает элементы, которым надо пересчитать стиль, — это
+  называют инвалидацией. Цена шага style — число помеченных элементов, умноженное на цену
+  проверки селекторов у одного из них. Второй множитель браузеры почти свели к нулю, первый
+  целиком в руках автора. Эти цены меряют профайлером: в спецификации их нет.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="Пересчёт задевает мало элементов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CheckList items={INVALIDATION_GOOD} tone="ok" size={14.5} />
+    </Card>
+
+    <Card tone="err" title="Пересчёт задевает много элементов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CheckList items={INVALIDATION_BAD} tone="err" size={14.5} />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={INVALIDATION_NOTE} />
+
+  <CardGrid min={280} gap={14}>
+    {MATCH_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Как искать медленный пересчёт стилей: порядок важнее цифр" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={MEASURE_STEPS} />
+
+    <Table
+      head={['колонка Selector Stats', 'что означает']}
+      rows={STATS_ROWS}
+      kinds={['mono', 'prose']}
+      cols="minmax(190px,.7fr) minmax(280px,1.7fr)"
+      minWidth={600}
+    />
+
+    <CardNote tone="warn">
+
+      Обратный порядок — самая частая трата времени в этой теме. Панель сортирует селекторы
+      по суммарному времени за всю запись. Поэтому первым может оказаться правило, которое
+      сработало один раз при загрузке и к тормозам при взаимодействии отношения не имеет.
+
+    </CardNote>
+  </Card>
+
+  ### Печать: другой носитель, тот же каскад
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Правила печати в одном месте" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PRINT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {PRINT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="Каскад — редкий случай, когда спецификация читается легче статей: она перечисляет критерии по порядку и ничего не подразумевает. Статьи нужны там, где речь о ценах, которых в спецификации нет."
+  leadWidth={74}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,75 @@
+time="2026-09-15T15:53:06+03:00" level=info msg="Using docker host 'unix:///var/run/docker.sock', and daemon socket 'unix:///var/run/docker.sock'"
+level=warning msg= ⚠ You are using Apple M-series chip and you have not specified container architecture, you might encounter issues while running act. If so, try running it with '--container-architecture linux/amd64'. ⚠ 
+
+[d-matrix/grid-2] ⭐ Run Set up job
+[d-matrix/grid-2] 🚀  Start image=node:22-slim
+[d-matrix/grid-1] ⭐ Run Set up job
+[d-matrix/grid-1] 🚀  Start image=node:22-slim
+[d-matrix/grid-2]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[d-matrix/grid-1]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[d-matrix/grid-1]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d-matrix/grid-2]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d-matrix/grid-1]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d-matrix/grid-2]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d-matrix/grid-2]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[d-matrix/grid-1]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[d-matrix/grid-2]   ✅  Success - Set up job
+[d-matrix/grid-1]   ✅  Success - Set up job
+[d-matrix/grid-1] 🧪  Matrix: map[flavour:slim node:20]
+[d-matrix/grid-2] 🧪  Matrix: map[flavour:slim node:22]
+[d-matrix/grid-1] ⭐ Run Main identify
+[d-matrix/grid-2] ⭐ Run Main identify
+[d-matrix/grid-1]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[d-matrix/grid-2]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[d-matrix/grid-2]   | node=22 flavour=slim extra=[]
+[d-matrix/grid-2]   | job=grid
+[d-matrix/grid-1]   | node=20 flavour=slim extra=[]
+[d-matrix/grid-1]   | job=grid
+[d-matrix/grid-1]   | 1789476787.127681136
+[d-matrix/grid-2]   | 1789476787.128244011
+[d-matrix/grid-1]   ✅  Success - Main identify [87.079208ms]
+[d-matrix/grid-2]   ✅  Success - Main identify [87.125708ms]
+[d-matrix/grid-1] ⭐ Run Complete job
+[d-matrix/grid-1] Cleaning up container for job grid
+[d-matrix/grid-2] ⭐ Run Complete job
+[d-matrix/grid-2] Cleaning up container for job grid
+[d-matrix/grid-2]   ✅  Success - Complete job
+[d-matrix/grid-2] 🏁  Job succeeded
+[d-matrix/grid-3] ⭐ Run Set up job
+[d-matrix/grid-3] 🚀  Start image=node:22-slim
+[d-matrix/grid-1]   ✅  Success - Complete job
+[d-matrix/grid-1] 🏁  Job succeeded
+[d-matrix/grid-4] ⭐ Run Set up job
+[d-matrix/grid-4] 🚀  Start image=node:22-slim
+[d-matrix/grid-4]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[d-matrix/grid-3]   🐳  docker pull image=node:22-slim platform= username= forcePull=false
+[d-matrix/grid-3]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d-matrix/grid-4]   🐳  docker create image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d-matrix/grid-3]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d-matrix/grid-4]   🐳  docker run image=node:22-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[d-matrix/grid-4]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[d-matrix/grid-3]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[d-matrix/grid-4]   ✅  Success - Set up job
+[d-matrix/grid-3]   ✅  Success - Set up job
+[d-matrix/grid-4] 🧪  Matrix: map[extra:added-by-include flavour:slim node:24]
+[d-matrix/grid-3] 🧪  Matrix: map[flavour:alpine node:22]
+[d-matrix/grid-4] ⭐ Run Main identify
+[d-matrix/grid-3] ⭐ Run Main identify
+[d-matrix/grid-3]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[d-matrix/grid-4]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/0] user= workdir=
+[d-matrix/grid-4]   | node=24 flavour=slim extra=[added-by-include]
+[d-matrix/grid-4]   | job=grid
+[d-matrix/grid-4]   | 1789476787.841951761
+[d-matrix/grid-3]   | node=22 flavour=alpine extra=[]
+[d-matrix/grid-3]   | job=grid
+[d-matrix/grid-3]   | 1789476787.842295844
+[d-matrix/grid-4]   ✅  Success - Main identify [97.475833ms]
+[d-matrix/grid-3]   ✅  Success - Main identify [97.52425ms]
+[d-matrix/grid-3] ⭐ Run Complete job
+[d-matrix/grid-3] Cleaning up container for job grid
+[d-matrix/grid-4] ⭐ Run Complete job
+[d-matrix/grid-4] Cleaning up container for job grid
+[d-matrix/grid-4]   ✅  Success - Complete job
+[d-matrix/grid-4] 🏁  Job succeeded
+[d-matrix/grid-3]   ✅  Success - Complete job
+[d-matrix/grid-3] 🏁  Job succeeded

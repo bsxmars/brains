@@ -1,0 +1,451 @@
+---
+title: "Наблюдаемость: логи, метрики и трассировка"
+headingWidth: 22
+order: 11
+kicker: доставка
+lead: "Пользователь видит «Не удалось загрузить корзину», а через api, склад и базу в ту же секунду прошла тысяча запросов. Найти среди них именно этот помогает трассировка: у запроса есть номер, и каждый сервис передаёт его дальше заголовком `traceparent`. Логи говорят, что случилось, метрики — как часто и насколько медленно, трасса — где именно."
+leadWidth: 66
+summary: "Лог, метрика и трасса; спан изнутри и дерево из плоского списка; заголовок W3C `traceparent` между сервисами и с фронта на бэк; head-based сэмплирование; как связать ошибку на фронте с запросом на бэке; счётчик и гистограмма, перцентили вместо среднего, кардинальность меток."
+verifiedOn: "@opentelemetry/api 1.9.1; @opentelemetry/core, sdk-trace-base и resources 2.11.0; Node 24.11.0, октябрь 2026. Три сервиса на node:http: заголовки traceparent, спаны и логи сняты стендом и пересобираются tests/unit/observability.test.ts; разбор заголовка сверен с W3CTraceContextPropagator, дерево — со спанами SDK. Метрики — учебными функциями темы на синтетических наборах; SDK метрик, коллектор, браузерное инструментирование и хранилища (Jaeger, Tempo, Prometheus) не запускались — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Три сигнала }
+  - { id: s2, label: Спан и дерево }
+  - { id: s3, label: Заголовок traceparent }
+  - { id: s4, label: Сэмплирование }
+  - { id: s5, label: С фронта на бэк }
+  - { id: s6, label: Счётчик и гистограмма }
+  - { id: s7, label: Перцентили }
+  - { id: s8, label: Кардинальность }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import TraceLab from '@/widgets/trace-lab/ui/TraceLab.vue';
+import LatencyLab from '@/widgets/trace-lab/ui/LatencyLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_SIGNALS,
+  PREREQ,
+  PREREQ_NOTE,
+  SCENARIOS,
+  SIGNAL_ROWS,
+  INCIDENT_LOGS_CODE,
+  INCIDENT_CARDS,
+  INCIDENT_NOTE,
+  PLAIN_SPAN,
+  SPAN_FIELDS,
+  SPAN_PRINT_CODE,
+  EXPORT_ORDER_CODE,
+  EXPORT_ORDER_NOTE,
+  TREE_CODE,
+  TREE_NOTE,
+  PLAIN_TRACEPARENT,
+  HEADER_EXAMPLE,
+  TRACEPARENT_PARTS,
+  TRACEPARENT_CODE,
+  TRACEPARENT_NOTE,
+  PROPAGATION_CODE,
+  PROPAGATION_NOTE,
+  DEMO_CAPTION,
+  TRACE_EMPTY_NOTE,
+  PLAIN_SAMPLING,
+  SAMPLING_ROWS,
+  SAMPLER_CODE,
+  SAMPLING_FACTS,
+  SAMPLING_NOTE,
+  FRONT_CODE,
+  CORS_CODE,
+  CORS_NOTE,
+  CORRELATE_STEPS,
+  LOG_FACTS,
+  METRIC_KINDS,
+  METRICS_CODE,
+  METRICS_NOTE,
+  PLAIN_HISTOGRAM,
+  OTEL_DEFAULT_BOUNDS,
+  BUCKETS_NOTE,
+  COUNTER_FACTS,
+  PLAIN_PERCENTILE,
+  STATS_CODE,
+  LATENCY_SETS,
+  LATENCY_CAPTION,
+  PERCENTILE_FACTS,
+  PLAIN_CARDINALITY,
+  CARDINALITY_TABLE,
+  SERIES_PER_HISTOGRAM,
+  CARDINALITY_NOTE,
+  EXEMPLAR_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Что происходит внутри" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Наблюдаемость — это возможность ответить на вопрос о работающей системе, **не выкатывая
+    новый код**: почему этот запрос шёл секунду, где он упал, как часто такое бывает.
+    Ответы дают три вида данных, которые сервисы пишут о себе всё время: логи, метрики
+    и трассы.
+
+  </Callout>
+
+  Пока сервис один, хватает лога: ошибка, стек, время. Когда запрос пользователя проходит
+  через браузер, api, склад и базу, у каждого из них свой лог, свои часы и тысяча соседних
+  запросов. Строка «stock query failed» в логе склада ничего не говорит о том, какой
+  пользователь её увидел. Нужен номер, общий для всех кусков одного запроса.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SIGNALS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Три сигнала: событие, число, путь"
+  lead="Лог, метрика и трасса отвечают на разные вопросы. Лог — отдельное событие с подробностями. Метрика — число, которое копится во времени и теряет подробности. Трасса — путь одного запроса через все сервисы."
+  leadWidth={72}
+>
+  <Table
+    head={['сигнал', 'что это', 'на какой вопрос отвечает', 'чего не скажет']}
+    rows={SIGNAL_ROWS.map((r) => [r.k, r.what, r.asks, r.lacks])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(90px,.4fr) minmax(200px,1fr) minmax(200px,1fr) minmax(220px,1.1fr)"
+    minWidth={760}
+  />
+
+  ### Один сбой глазами трёх сигналов
+
+  Пример на всю тему — корзина интернет-магазина. Браузер просит у api корзину, api проверяет
+  вход и спрашивает у склада остатки, склад идёт в базу. Однажды база не отвечает секунду.
+  Вот что об этом сбое пишут сервисы.
+
+  <Card title="Логи трёх сервисов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={INCIDENT_LOGS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {INCIDENT_CARDS.map((c) => (
+      <Card title={c.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={c.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={INCIDENT_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Спан изнутри и дерево из списка"
+  lead="Трасса — набор спанов с одним trace id. Спан — один отрезок работы: обработка запроса в api, вызов склада, запрос к базе. Каждый спан знает своего родителя, и из этих ссылок складывается дерево."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPAN} />
+
+  <Table
+    head={['поле', 'пример', 'что значит']}
+    rows={SPAN_FIELDS.map((r) => [r.k, r.ex, r.d])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(120px,.5fr) minmax(170px,.8fr) minmax(300px,2fr)"
+    minWidth={660}
+  />
+
+  <Card title="Спан запроса к базе — целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SPAN_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### В каком порядке спаны приходят
+
+  <Card title="Успешный запрос: порядок в экспортёре" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={EXPORT_ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={EXPORT_ORDER_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Список → дерево → водопад" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TREE_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Заголовок traceparent"
+  lead="Внутри процесса родителя передают в памяти. Между процессами его несёт заголовок `traceparent` — четыре поля через дефис. Получатель достаёт оттуда trace id и номер родителя, а в свои исходящие запросы кладёт тот же trace id и номер своего спана."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRACEPARENT} />
+
+  <CodeBlock code={HEADER_EXAMPLE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['поле', 'длина', 'пример', 'правило']}
+    rows={TRACEPARENT_PARTS.map((r) => [r.k, r.len, r.ex, r.d])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(90px,.4fr) minmax(120px,.5fr) minmax(260px,1.8fr)"
+    minWidth={620}
+  />
+
+  <Card title="Разбор и сборка заголовка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TRACEPARENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TRACEPARENT_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Как сервис передаёт контекст дальше
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="api: принять и передать" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PROPAGATION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PROPAGATION_NOTE} />
+  </CardGrid>
+
+  ### Запрос через три сервиса
+
+  <TraceLab
+    client:visible
+    traceparentCode={TRACEPARENT_CODE}
+    treeCode={TREE_CODE}
+    scenarios={SCENARIOS}
+    caption={DEMO_CAPTION}
+    emptyNote={TRACE_EMPTY_NOTE}
+  />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Сэмплирование: кто решает, что записать"
+  lead="Записывать каждую трассу дорого: спанов в разы больше, чем запросов, и каждый надо отправить и хранить. Поэтому трассы берут выборочно. При head-based сэмплировании решение принимают в самом начале — у корня — и передают дальше флагом в `traceparent`."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SAMPLING} />
+
+  <Table
+    head={['кто', 'что видит', 'что делает']}
+    rows={SAMPLING_ROWS.map((r) => [r.who, r.sees, r.does])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(110px,.5fr) minmax(300px,2fr)"
+    minWidth={620}
+  />
+
+  <CodeBlock code={SAMPLER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14} align="start">
+    {SAMPLING_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SAMPLING_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="С фронта на бэк: одна ошибка — один номер"
+  lead="Браузер тоже может быть корнем трассы. Тогда номер запроса известен ещё до ответа сервера: его кладут в отчёт об ошибке, и путь от сообщения пользователя до строки в базе находится по одному номеру."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Браузер: заголовок в fetch" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FRONT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Api на другом источнике: preflight" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CORS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CORS_NOTE} />
+
+  ### От сообщения пользователя к строке в базе
+
+  <CardGrid min={260} gap={14} align="start">
+    {CORRELATE_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Логи, которые находятся по номеру
+
+  <CardGrid min={280} gap={14} align="start">
+    {LOG_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  Как стек из отчёта превращается в строку исходника, разобрано в теме
+  [«Source maps изнутри»](/tooling/source-maps/#s3).
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Метрики: счётчик и гистограмма"
+  lead="Метрика — число, которое процесс копит у себя и раз в несколько секунд отдаёт наружу. Отдельных запросов в нём нет: только суммы, количества и раскладка по корзинам. Поэтому метрика стоит одинаково при любом трафике и годится для алертов."
+  leadWidth={72}
+>
+  <Table
+    head={['вид', 'что хранит', 'пример', 'как смотрят']}
+    rows={METRIC_KINDS.map((r) => [r.k, r.keeps, r.ex, r.how])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(170px,.9fr) minmax(130px,.6fr) minmax(240px,1.5fr)"
+    minWidth={720}
+  />
+
+  <Card title="Счётчик и гистограмма через API OpenTelemetry" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={METRICS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={METRICS_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Корзины
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HISTOGRAM} />
+
+  <Md text={BUCKETS_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {COUNTER_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Почему среднее врёт, а перцентили — нет"
+  lead="Среднее складывает быстрые и медленные запросы в одно число и прячет хвост. Перцентиль отвечает на вопрос пользователя: насколько медленно бывает у каждого сотого?"
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PERCENTILE} />
+
+  <Card title="Перцентиль — точно и по корзинам" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STATS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Одно среднее — разные хвосты
+
+  <LatencyLab client:visible statsCode={STATS_CODE} sets={LATENCY_SETS} bounds={OTEL_DEFAULT_BOUNDS} caption={LATENCY_CAPTION} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PERCENTILE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  Как по p95 решают, катить ли новую версию дальше, разобрано в теме
+  [«Прогрессивная доставка»](/delivery/progressive-delivery/#s4); задержка цикла событий Node
+  как гистограмма с p99 — в теме [«Непрерывное профилирование памяти»](/js/continuous-profiling/#s4).
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Кардинальность меток"
+  lead="Каждая новая комбинация значений меток — отдельный временной ряд со своей памятью в процессе и в хранилище. Метки перемножаются, и одна метка с уникальными значениями превращает сотни рядов в миллионы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CARDINALITY} />
+
+  <Table
+    head={['метки', 'значений', 'комбинаций', `рядов у гистограммы (×${SERIES_PER_HISTOGRAM})`]}
+    rows={CARDINALITY_TABLE.map((r) => [r.label, r.values, r.combos, r.series])}
+    tones={CARDINALITY_TABLE.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(220px,1.4fr) minmax(90px,.5fr) minmax(110px,.6fr) minmax(170px,.9fr)"
+    minWidth={640}
+  />
+
+  <Md text={CARDINALITY_NOTE} />
+
+  <Md text={EXEMPLAR_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Метрика говорит «что-то не так», трасса — «где», лог — «что именно».** Связывает их
+      один номер: trace id в заголовке, в поле лога и в экземпляре гистограммы. Пока номер
+      проходит через все сервисы, от графика до строки в базе можно дойти, не гадая по времени.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

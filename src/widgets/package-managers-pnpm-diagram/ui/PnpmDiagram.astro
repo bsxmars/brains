@@ -1,0 +1,196 @@
+---
+/**
+ * Три этажа pnpm — статичная схема к разделу «pnpm и Yarn PnP».
+ *
+ * Карточки раздела описывают каждый этаж по отдельности (хранилище, клоны и ссылки,
+ * «наверху — только объявленное», скрытый подъём), а демо раздела «Разрешение и подъём»
+ * печатает ту же раскладку списком путей. Не видно ни там, ни там одного: что это
+ * **этажи**, и приложение стоит на верхнем, откуда до `c` ссылки нет.
+ *
+ * Строки — пропом из `data.ts` темы (`PNPM_DIAGRAM`), печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Entry {
+  path: string;
+  kind: 'link' | 'real' | 'hidden' | 'missing';
+  note: string;
+}
+
+interface Props {
+  diagram: {
+    title: string;
+    legend: string;
+    floors: { name: string; where: string; entries: Entry[]; down?: string }[];
+  };
+}
+
+const { diagram } = Astro.props;
+
+const MARK: Record<Entry['kind'], string> = { link: '↪', real: '▣', hidden: '↪', missing: '✗' };
+---
+
+<figure class="ppd-frame">
+  <figcaption class="t-eyebrow t-eyebrow--panel">{diagram.title}</figcaption>
+  <div class="ppd-legend" set:html={inlineMd(diagram.legend)} />
+
+  <ol class="ppd-floors">
+    {
+      diagram.floors.map((floor) => (
+        <li class="ppd-floor-wrap">
+          <div class="ppd-floor">
+            <div class="ppd-head">
+              <span class="ppd-name">{floor.name}</span>
+              <code class="ppd-where">{floor.where}</code>
+            </div>
+            <ul class="ppd-entries">
+              {floor.entries.map((entry) => (
+                <li class={`ppd-entry ppd-entry--${entry.kind}`}>
+                  <span class="ppd-mark" aria-hidden="true">
+                    {MARK[entry.kind]}
+                  </span>
+                  <code class="ppd-path">{entry.path}</code>
+                  <span class="ppd-note" set:html={inlineMd(entry.note)} />
+                </li>
+              ))}
+            </ul>
+          </div>
+          {floor.down && (
+            <div class="ppd-down">
+              <span class="ppd-down__arrow" aria-hidden="true">↓</span>
+              <span set:html={inlineMd(floor.down)} />
+            </div>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+</figure>
+
+<style>
+  .ppd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .ppd-legend {
+    margin-bottom: 4px;
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+
+  .ppd-floors {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ppd-floor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface-2);
+  }
+  .ppd-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+  }
+  .ppd-name {
+    font-size: var(--fs-3);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .ppd-where {
+    font-size: var(--fs-4);
+    font-weight: 600;
+  }
+
+  .ppd-entries {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  /* Строка: значок вида · путь · что это. Путь и пояснение на узком экране встают друг под друга. */
+  .ppd-entry {
+    display: grid;
+    grid-template-columns: 1.4em minmax(0, 17em) minmax(0, 1fr);
+    column-gap: 8px;
+    align-items: baseline;
+    padding: 6px 10px;
+    border-radius: var(--r1);
+    background: var(--surface);
+  }
+  .ppd-mark {
+    font-size: var(--fs-4);
+    text-align: center;
+  }
+  .ppd-path {
+    font-size: var(--fs-3);
+    overflow-wrap: anywhere;
+  }
+  .ppd-note {
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    color: var(--prose);
+  }
+
+  .ppd-entry--link .ppd-mark {
+    color: var(--tone-info-strong);
+  }
+  .ppd-entry--real .ppd-mark {
+    color: var(--tone-ok-strong);
+  }
+  .ppd-entry--hidden {
+    border: 1px dashed var(--border-strong);
+    background: transparent;
+  }
+  .ppd-entry--hidden .ppd-mark {
+    color: var(--dim);
+  }
+  .ppd-entry--missing {
+    border: 1px dashed var(--tone-err-line);
+    background: var(--tone-err-bg);
+  }
+  .ppd-entry--missing .ppd-mark {
+    color: var(--tone-err-strong);
+  }
+
+  .ppd-down {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0 6px 18px;
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+  .ppd-down__arrow {
+    font-size: var(--fs-5);
+    color: var(--ghost);
+  }
+
+  @media (max-width: 620px) {
+    .ppd-entry {
+      grid-template-columns: 1.4em minmax(0, 1fr);
+      row-gap: 2px;
+    }
+    .ppd-note {
+      grid-column: 2;
+    }
+  }
+</style>

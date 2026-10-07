@@ -1,0 +1,337 @@
+---
+title: Source maps изнутри
+heading: "Source maps изнутри: как стек ошибки находит строку исходника"
+headingWidth: 24
+order: 6
+kicker: сборка и инструменты
+lead: "Ошибка из продакшена говорит «`cart.js`, строка 1, колонка 171» — а строка там одна на весь файл. Дорогу назад к `cart.ts:11` знает карта исходников: JSON, где каждому куску бандла сопоставлено место в исходнике. Как она закодирована, кто и когда её читает и почему она иногда уверенно ведёт не туда."
+leadWidth: 66
+summary: "Поля `.map`, строка `mappings` — сегменты и Base64 VLQ, поиск позиции бинарным поиском, `--enable-source-maps` и DevTools против `error.stack`, сдвиг строк в цепочке сборщиков и склейка карт, публичные и скрытые карты в продакшене."
+verifiedOn: "esbuild 0.28.2, terser 5.51.2, @jridgewell/sourcemap-codec 1.6.0, trace-mapping 0.3.31, remapping 2.3.5, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: карты и стеки сняты стендом и пересобираются tests/unit/source-maps.test.ts; функции темы сверены с библиотеками @jridgewell на всех позициях бандла"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Что лежит в .map }
+  - { id: s2, label: Сегменты и VLQ }
+  - { id: s3, label: От стека к исходнику }
+  - { id: s4, label: Цепочка сборщиков }
+  - { id: s5, label: Карты в продакшене }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import SourceMapLab from '@/widgets/source-map-lab/ui/SourceMapLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_SOURCEMAP,
+  PREREQ,
+  PREREQ_NOTE,
+  CART_TS,
+  CART_JS,
+  MAP_PRINT_CODE,
+  MAP_FIELDS,
+  FIND_MAP_CODE,
+  FIND_MAP_NOTE,
+  PLAIN_VLQ,
+  VLQ_CODE,
+  VLQ_NOTE,
+  SEGMENT_STEPS,
+  SEGMENT_NOTE,
+  DEMO_EXAMPLES,
+  DEMO_CAPTION,
+  LOOKUP_CODE,
+  PLAIN_LOOKUP,
+  STACK_BARE,
+  STACK_MAPPED,
+  LOOKUP_STEPS,
+  STACK_FACTS,
+  CHAIN_CHIPS,
+  CHAIN_LOST_CODE,
+  CHAIN_OK_CODE,
+  CHAIN_NOTE,
+  PLAIN_COMPOSE,
+  COMPOSE_CODE,
+  COMPOSE_NOTE,
+  PRECISION_ROWS,
+  PROD_ROWS,
+  PROD_FACTS,
+  PROD_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Дорога назад" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Движок исполняет бандл и ничего не знает о ваших файлах. Карта исходников — отдельный
+    JSON, в котором для каждого куска бандла записано, откуда он взялся. Её читают **после**:
+    отладчик, Node с флагом, сервис ошибок. Код от неё не зависит и без неё работает так же.
+
+  </Callout>
+
+  Сборка ломает всё, по чему человек ориентируется в коде. Два файла склеиваются в один,
+  типы стираются, `checkout` становится `i`, а двадцать строк — одной. Строка и колонка
+  из стека ошибки после этого указывают в бандл, где читать нечего. Карта — единственное,
+  что связывает эту позицию с вашим файлом.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SOURCEMAP} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Что лежит в .map"
+  lead="Пример на всю тему — два файла TypeScript, которые esbuild собрал и сжал в одну строку. Карта к этой строке — обычный JSON из пяти полей, и только одно из них, `mappings`, трудно прочитать глазами."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Исходник: cart.ts" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CART_TS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Бандл: cart.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CART_JS} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Карта: cart.js.map" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MAP_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['поле', 'что внутри', 'зачем']}
+    rows={MAP_FIELDS.map((r) => [r.k, r.v, r.d])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(90px,.4fr) minmax(300px,2fr)"
+    minWidth={680}
+  />
+
+  ### Как отладчик находит карту
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Ссылка на карту" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FIND_MAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FIND_MAP_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="`mappings`: строки, сегменты, VLQ"
+  lead="Строка `mappings` повторяет форму бандла: `;` — переход на следующую строку бандла, `,` — следующий сегмент в той же строке. Каждый сегмент — четыре или пять чисел, записанных буквами, и каждое из них — не позиция, а сдвиг от предыдущего сегмента."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VLQ} />
+
+  <Card title="Разбор `mappings` — сорок строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VLQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VLQ_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Один сегмент по буквам
+
+  Маленький пример: esbuild перевёл две строки TypeScript в JavaScript без сжатия.
+  Пятый сегмент первой строки записан как `SAAiB`.
+
+  <Table
+    head={['буква', '6 бит', 'дальше?', 'данные', 'число']}
+    rows={SEGMENT_STEPS.map((r) => [r.ch, r.bits, r.more, r.data, r.value])}
+    kinds={['mono', 'mono', 'prose', 'mono', 'prose']}
+    cols="minmax(60px,.3fr) minmax(90px,.5fr) minmax(80px,.4fr) minmax(170px,1fr) minmax(200px,1.2fr)"
+    minWidth={640}
+  />
+
+  <Md text={SEGMENT_NOTE} />
+
+  ### Сегмент за сегментом
+
+  <SourceMapLab client:visible vlqCode={VLQ_CODE} lookupCode={LOOKUP_CODE} examples={DEMO_EXAMPLES} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Обратный путь: от стека к исходнику"
+  lead="Чтобы перевести позицию из стека, карту разбирают один раз, а потом в нужной строке бандла ищут последний сегмент, который начинается не правее нужной колонки. Сегменты в строке отсортированы по колонке, так что поиск — бинарный."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOOKUP} />
+
+  <Card title="Поиск позиции" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LOOKUP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Тот же стек — без карты и с картой
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Без карты" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STACK_BARE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="С картой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STACK_MAPPED} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={260} gap={14} align="start">
+    {LOOKUP_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {STACK_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Цепочка сборщиков: почему строки съезжают"
+  lead="Обычно над кодом работает не один инструмент, а несколько подряд: TypeScript или Babel, сборщик, минификатор. Каждый пишет карту только своего шага. Чтобы стек дошёл до исходника, карты нужно склеить — иначе последняя карта ведёт в файл, которого нет."
+  leadWidth={72}
+>
+  <Card title="Два шага — две карты" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={700} chips={CHAIN_CHIPS} />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Без входной карты" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CHAIN_LOST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="С входной картой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CHAIN_OK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={CHAIN_NOTE} />
+
+  ### Склейка карт
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPOSE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Склеить после сборки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={COMPOSE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={COMPOSE_NOTE} />
+  </CardGrid>
+
+  ### Где карта теряет точность
+
+  <Table
+    head={['причина', 'что видно в стеке']}
+    rows={PRECISION_ROWS.map((r) => [r.k, r.how])}
+    tones={PRECISION_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,.8fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Карты в продакшене"
+  lead="Выбор не между «с картой» и «без», а о том, кому её показывать. Пользователю карта не нужна и браузером не скачивается, сервису ошибок нужна обязательно, а любопытному в DevTools — вопрос того, насколько закрыт ваш код."
+  leadWidth={72}
+>
+  <Table
+    head={['режим', 'как устроено', 'кто увидит исходники']}
+    rows={PROD_ROWS.map((r) => [r.k, r.how, r.who])}
+    tones={PROD_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(140px,.6fr) minmax(280px,1.5fr) minmax(220px,1.2fr)"
+    minWidth={700}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PROD_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PROD_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Карта — это не настройка отладки, а часть релиза.** Её собирают тем же шагом, что
+      и бандл, склеивают через все инструменты цепочки и кладут туда, где её найдёт тот, кому
+      нужен стек: DevTools разработчика или сервис ошибок, но не каждый посетитель сайта.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

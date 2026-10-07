@@ -1,0 +1,433 @@
+---
+title: "Регулярные выражения изнутри"
+heading: "Регулярные выражения изнутри: откаты и ReDoS"
+headingWidth: 24
+order: 20
+lead: "Движок регулярных выражений в JavaScript не видит шаблон целиком — он перебирает варианты: пробует, упирается, возвращается к последней развилке. Почти всегда это быстро. Но у шаблона вроде `/^(\\w+\\s?)*$/` на почти подходящей строке вариантов 2ⁿ, и сорок символов из поля формы занимают сервер Node на часы."
+leadWidth: 66
+summary: "Как движок с откатами сопоставляет шаблон — учебная реализация с журналом шагов, сверенная с V8; жадные и ленивые повторы; откуда берётся 2ⁿ у `(a+)+`, `(a|a)*`, `(\\w+\\s?)*` и n² у `\\s+$`; ReDoS — одна строка вешает сервер; лечение: шаблон без вложенных повторов, атомарная группа через просмотр вперёд и `\\1`, лимит длины, линейный движок V8 и RE2; флаги `g`, `y`, `u`, `v`, `lastIndex`, именованные группы и просмотр назад."
+verifiedOn: "Node 24.11.0 (V8 13.6.233.10), октябрь 2026: учебный движок сверен с RegExp V8 почти на 30 000 парах «шаблон × строка» без расхождений; числа шагов пересчитываются тем же движком; настоящий V8 проверен порогом в отдельном процессе (8 с): плохой шаблон на длине 40 не укладывается, исправленный на длине 100 000 укладывается; сервер node:http с плохим шаблоном перестаёт отвечать. Флаг l и подмена при лишних откатах — тем же способом. Всё повторяет tests/unit/regex.test.ts. Без таймерных замеров"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Как движок ищет }
+  - { id: s2, label: Жадные и ленивые }
+  - { id: s3, label: Катастрофический откат }
+  - { id: s4, label: ReDoS }
+  - { id: s5, label: Как лечить }
+  - { id: s6, label: Флаги и ловушки }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import RegexLab from '@/widgets/regex-lab/ui/RegexLab.vue';
+import GrowthChart from '@/widgets/regex-lab/ui/GrowthChart.vue';
+import {
+  GLOSSARY,
+  PLAIN_BACKTRACK,
+  PREREQ,
+  PREREQ_NOTE,
+  PARSE_CODE,
+  MATCH_CODE,
+  MATCH_NOTE,
+  TRACE_EXAMPLES,
+  TRACE_CAPTION,
+  TRACE_LIMIT,
+  IRREGEXP_FACTS,
+  GREEDY_CODE,
+  PLAIN_GREEDY,
+  GREEDY_ROWS,
+  GREEDY_NOTE,
+  SPLITS_NOTE,
+  STEPS_ROWS,
+  STEPS_NOTE,
+  GROWTH_SETS,
+  GROWTH_CAPTION,
+  POLY_NOTE,
+  FAMILY_ROWS,
+  SERVER_CODE,
+  ATTACK_CODE,
+  PLAIN_REDOS,
+  REDOS_FACTS,
+  SOURCES_OF_REDOS,
+  ESCAPE_CODE,
+  FIX_ROWS,
+  FIX_NOTE,
+  ATOMIC_CODE,
+  PLAIN_ATOMIC,
+  ATOMIC_NOTE,
+  LIMIT_NOTE,
+  LINEAR_ROWS,
+  LINEAR_SYNTAX_ROWS,
+  PLAIN_LINEAR,
+  LINEAR_NOTE,
+  LINEAR_FACTS,
+  FLAG_ROWS,
+  LASTINDEX_CODE,
+  LASTINDEX_NOTE,
+  STICKY_CODE,
+  STICKY_NOTE,
+  UNICODE_CODE,
+  UNICODE_NOTE,
+  NAMED_CODE,
+  NAMED_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Перебор с возвратом" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    `RegExp` в JavaScript ищет совпадение **перебором**. На каждой развилке шаблона — ветка
+    `|`, повтор `*` или `+` — он выбирает первый вариант и запоминает, куда вернуться. Если
+    дальше не сошлось, он откатывается и пробует следующий. Ответ «совпадения нет» звучит только
+    после того, как перепробованы все варианты, — и у некоторых шаблонов их 2ⁿ.
+
+  </Callout>
+
+  Регулярку обычно читают как описание: «строка из слов через пробел». Движок читает её как
+  программу, которая перебирает способы разрезать строку. Пока строка подходит, первый же
+  способ срабатывает, и всё быстро. Когда строка почти подходит, а ломается в последнем знаке,
+  движок обязан доказать, что ни один способ не годится. Число способов зависит от шаблона —
+  и бывает, что оно удваивается с каждой буквой.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BACKTRACK} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Как движок ищет совпадение"
+  lead="Движок с откатами (backtracking) — это рекурсивный обход: для каждого куска шаблона «проверь здесь и, если вышло, передай остаток дальше». Учебная версия умеет литералы, `.`, классы, `\w` `\d` `\s`, ветки, группы, повторы — жадные и ленивые, — якоря, просмотр вперёд и обратные ссылки. На этом подмножестве она отвечает так же, как V8: те же индексы и те же группы."
+  leadWidth={72}
+>
+  <Card title="Сопоставление с откатами" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MATCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={MATCH_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Разбор шаблона в дерево" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={PARSE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  Два правила из спецификации легко пропустить, а без них ответы расходятся с V8. Перед
+  каждым повтором группы внутри него обнуляются: в `/((a)|b)+/` на строке `ab` вторая группа
+  в итоге `undefined`, потому что последний повтор взял `b`. И повтор, который ничего не
+  съел, не считается: иначе `(a*)*` крутился бы на пустом месте вечно.
+
+  ### Журнал перебора
+
+  <RegexLab client:visible parseCode={PARSE_CODE} matchCode={MATCH_CODE} examples={TRACE_EXAMPLES} limit={TRACE_LIMIT} caption={TRACE_CAPTION} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {IRREGEXP_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Жадные и ленивые повторы"
+  lead="Повтор — тоже развилка: «взять ещё один знак или идти дальше». Жадный `+` сперва берёт, ленивый `+?` сперва идёт дальше. Когда совпадение есть, от порядка зависит, какое найдётся первым. Когда его нет, порядок не важен: проверены будут все варианты."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GREEDY} />
+
+  <Card title="Один текст — три шаблона" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GREEDY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['шаблон', 'шагов', 'откатов', 'нашёл']}
+    rows={GREEDY_ROWS.map((r) => [r.p, r.steps, r.back, r.found])}
+    tones={GREEDY_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(110px,.8fr) minmax(70px,.5fr) minmax(70px,.5fr) minmax(140px,1fr)"
+    minWidth={460}
+  />
+
+  <Md text={GREEDY_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Катастрофический откат"
+  lead="Катастрофическим откат становится, когда один и тот же кусок строки шаблон может описать многими способами. На подходящей строке движок берёт первый способ и не замечает остальных. На почти подходящей он перебирает их все — и их число растёт как 2ⁿ."
+  leadWidth={72}
+>
+  <Md text={SPLITS_NOTE} />
+
+  <Table
+    head={['букв `a` перед `!`', '`/^(a+)+$/`, шагов', '`/^a+$/`, шагов']}
+    rows={STEPS_ROWS.map((r) => [r.n, r.bad, r.fixed])}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(120px,1fr) minmax(140px,1fr) minmax(120px,1fr)"
+    minWidth={420}
+  />
+
+  <Md text={STEPS_NOTE} />
+
+  ### Шаги от длины строки
+
+  <GrowthChart client:visible parseCode={PARSE_CODE} matchCode={MATCH_CODE} sets={GROWTH_SETS} caption={GROWTH_CAPTION} />
+
+  ### Где искать опасные места
+
+  <Table
+    head={['узор', 'пример', 'почему перебор растёт']}
+    rows={FAMILY_ROWS.map((r) => [r.k, r.ex, r.why])}
+    tones={FAMILY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(170px,1fr) minmax(220px,1.4fr)"
+    minWidth={620}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={POLY_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="ReDoS: одна строка вешает сервер"
+  lead="ReDoS (regular expression denial of service) — отказ в обслуживании через регулярку. Злоумышленнику не нужен поток запросов: хватает одной строки, на которой шаблон уходит в перебор. Node исполняет JavaScript в одном потоке, и пока `test` перебирает, сервер не делает ничего другого."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REDOS} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Сервер с проверкой имени" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SERVER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="Два запроса" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ATTACK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  С исправленным шаблоном `/^(?:\w+\s)*\w*$/` тот же сервер отвечает `bad name` на первый
+  запрос и `ok` на второй. Почему задержка бьёт по всем запросам сразу, а не по одному,
+  разобрано в [«Event Loop», раздел «Node»](/js/event-loop/#s5).
+
+  <CardGrid min={280} gap={14} align="start">
+    {REDOS_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Откуда берутся опасные шаблоны
+
+  <CardGrid min={260} gap={14} align="start">
+    {SOURCES_OF_REDOS.map((item) => (
+      <Card title={item.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Строка из поиска — литералом, а не шаблоном" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={ESCAPE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Как лечить"
+  lead="Лечений четыре, и они не равноценны. Главное — переписать шаблон так, чтобы у строки был один путь через него. Остальное страхует: атомарная группа, лимит длины, линейный движок."
+  leadWidth={72}
+>
+  ### Переписать шаблон
+
+  <Table
+    head={['было', 'стало', 'что изменилось']}
+    rows={FIX_ROWS.map((r) => [r.bad, r.fixed, r.how])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.9fr) minmax(170px,1fr) minmax(220px,1.5fr)"
+    minWidth={600}
+  />
+
+  <Md text={FIX_NOTE} />
+
+  ### Атомарная группа из подручных средств
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ATOMIC} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Просмотр вперёд и обратная ссылка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ATOMIC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ATOMIC_NOTE} />
+  </CardGrid>
+
+  ### Ограничить длину
+
+  <Md text={LIMIT_NOTE} />
+
+  ### Линейный движок
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LINEAR} />
+
+  <Md text={LINEAR_NOTE} />
+
+  <Table
+    head={['выражение', 'флаги node', 'итог']}
+    rows={LINEAR_ROWS.map((r) => [r.code, r.flags.length ? r.flags.join(' ') : '—', r.verdict])}
+    tones={LINEAR_ROWS.map((r) => (r.ok ? 'ok' : 'err'))}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(260px,1.6fr) minmax(200px,1fr) minmax(150px,.8fr)"
+    minWidth={720}
+  />
+
+  Каждая строка таблицы — отдельный процесс `node` с лимитом в восемь секунд. «Не уложился»
+  значит: процесс убит по таймеру, ответа нет.
+
+  <Table
+    head={['шаблон', 'флаги', 'линейный движок примет?']}
+    rows={LINEAR_SYNTAX_ROWS.map((r) => [`/${r.src}/`, r.flags, r.accepted ? 'да' : 'нет: Cannot be executed in linear time'])}
+    tones={LINEAR_SYNTAX_ROWS.map((r) => (r.accepted ? 'ok' : 'err'))}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(140px,1fr) minmax(60px,.4fr) minmax(220px,1.4fr)"
+    minWidth={480}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {LINEAR_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Опасен не длинный шаблон, а неоднозначный.** Если один кусок строки шаблон может
+      описать двумя путями, на неудачной строке движок пройдёт все их сочетания. Проверка
+      шаблона — длинная почти подходящая строка с неверным последним знаком: на ней видно
+      сразу, растёт ли работа на букву в разы или на константу.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Флаги и ловушки"
+  lead="Флаги меняют не только то, что совпадает, но и поведение объекта шаблона. Два из них — `g` и `y` — делают его объектом с состоянием, и это самая частая ловушка с регулярками вовсе без всякого перебора."
+  leadWidth={72}
+>
+  <Table
+    head={['флаг', 'что делает', 'на чём ловятся']}
+    rows={FLAG_ROWS.map((r) => [r.f, r.what, r.trap])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(50px,.3fr) minmax(240px,1.4fr) minmax(200px,1.1fr)"
+    minWidth={560}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="test с флагом g" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LASTINDEX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LASTINDEX_NOTE} />
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Липкий флаг y" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STICKY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={STICKY_NOTE} />
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="u и v: что такое один знак" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={UNICODE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={UNICODE_NOTE} />
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Именованные группы и просмотр назад" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAMED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      <Md text={NAMED_NOTE} />
+
+      <CardNote tone="info">
+
+        Что с этим делают Babel и esbuild — в [«Транспиляция и полифилы», раздел «Чего не сделать»](/tooling/transpilation/#s5).
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

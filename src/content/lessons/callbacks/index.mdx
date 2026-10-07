@@ -1,0 +1,847 @@
+---
+title: Колбэки
+order: 2
+lead: "Колбэк — функция, которую вы отдаёте чужому коду, чтобы тот вызвал её сам. Отдать функцию — значит отдать право её вызвать: когда, сколько раз, с какими аргументами и с каким `this`, решаете уже не вы. Промисы колбэки не заменили, а добавили к ним гарантии. Понять, какие именно, можно, только зная, чего у простого колбэка нет."
+leadWidth: 66
+summary: "Инверсия управления, граница синхронного и асинхронного, Zalgo, `this`, error-first, шесть гарантий промиса, debounce против throttle и отмена."
+verifiedOn: Node 24.11
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Стек }
+  - { id: s2, label: Передача }
+  - { id: s3, label: Zalgo }
+  - { id: s4, label: this }
+  - { id: s5, label: Ошибки }
+  - { id: s6, label: Гарантии }
+  - { id: s7, label: Обёртки }
+  - { id: s8, label: Отмена }
+  - { id: s9, label: Тонкости }
+  - { id: s10, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkCard from '@/shared/ui/DarkCard.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import IocBoundary from '@/widgets/ioc-boundary/ui/IocBoundary.astro';
+import CallbackGuarantees from '@/widgets/callback-guarantees/ui/CallbackGuarantees.astro';
+import CallbackCompare from '@/widgets/callback-guarantees/ui/CallbackCompare.astro';
+import UnsubscribeFunnel from '@/widgets/unsubscribe-funnel/ui/UnsubscribeFunnel.astro';
+import ErrorPaths from '@/widgets/error-paths/ui/ErrorPaths.vue';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import SnippetLab from '@/widgets/snippet-lab/ui/SnippetLab.vue';
+import DispatchLab from '@/widgets/dispatch-lab/ui/DispatchLab.vue';
+import CallbackStack from '@/widgets/callback-stack/ui/CallbackStack.vue';
+import ZalgoDemo from '@/widgets/zalgo-demo/ui/ZalgoDemo.vue';
+import ThisInCallback from '@/widgets/this-in-callback/ui/ThisInCallback.vue';
+import DebounceThrottle from '@/widgets/debounce-throttle/ui/DebounceThrottle.vue';
+import {
+  IOC_ROWS,
+  STACK_MODES,
+  CALLER_ROWS,
+  LEAK_CODE,
+  ZALGO_CODE,
+  ZALGO_MODES,
+  ZALGO_FIX,
+  ZALGO_PROMISE,
+  THIS_OPTIONS,
+  BIND_TRAP,
+  NODE_ERROR_FIRST,
+  LOST_ROWS,
+  GUARANTEES,
+  HELL_ROWS,
+  COMPARE_ROWS,
+  SEQUENCES,
+  WAIT,
+  THROTTLE_CODE,
+  UNSUB_OLD,
+  ABORT_CODE,
+  ABORT_FACTS,
+  LEAKS,
+  REENTRANT,
+  DISPATCH_EMITTER,
+  DISPATCH_DOM,
+  PITFALLS,
+  LAB_SNIPPETS,
+  ERROR_DESTINATIONS,
+  ERROR_DESTINATIONS_NOTE,
+  ASYNC_CONTEXT_CODE,
+  ASYNC_CONTEXT_FACTS,
+  BIND_COST,
+  BIND_COST_NOTE,
+  SOURCES,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  ERRORS_DEMO_NOTE,
+  STACK_DEMO_NOTE, ZALGO_DEMO_NOTE, THIS_DEMO_NOTE, DISPATCH_DEMO_NOTE, LAB_DEMO_NOTE,
+  UNSUB_DEMO_NOTE,
+  DEBOUNCE_DEMO_NOTE,
+  PLAIN_IOC,
+  PLAIN_STACK,
+  PLAIN_CONTEXT,
+  PLAIN_ZALGO,
+  PLAIN_THIS,
+  CONTEXT_STEPS,
+  CONTEXT_FIX_CODE,
+  CONTEXT_WAYS,
+  PLAIN_CONTEXT_STEPS,
+  DISPATCH_SCENE_CODE,
+  DISPATCH_SCENE_NOTE,
+  DISPATCH_STEPS,
+  PLAIN_DISPATCH,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Граница · что именно вы отдаёте"
+  lead="Вместе с функцией вы отдаёте чужому коду шесть решений. Каждое из них — отдельный источник багов."
+  leadWidth={66}
+  gap={24}
+>
+  <IocBoundary rows={IOC_ROWS} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IOC} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Граница синхронного и асинхронного"
+  lead="Передача функции выглядит одинаково, а ведёт себя по-разному. Всё решает одно: выполняется ли ещё ваша функция — лежит ли она на стеке — в тот момент, когда колбэк вызывают."
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STACK} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={STACK_DEMO_NOTE} />
+  </Card>
+
+  <CallbackStack client:visible modes={STACK_MODES} />
+
+  <CardGrid min={250} gap={14}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Синхронный колбэк выполняется поверх вашей функции.** Она ещё на стеке, поэтому
+      `return` колбэка доходит до вызывающего, `throw` ловит ваш `catch`, и всё закончится
+      до следующей строки.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Асинхронный колбэк выполняется в пустом стеке.** Под ним нет ни вашей функции,
+      ни вашего `try`. Вернуть результат некуда: ваша функция давно закончилась.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Синхронный колбэк может сломать того, кто его вызвал.** Ошибка из колбэка прерывает
+      чужой цикл на середине. Подробнее — в разделе [«Отмена, утечки, реентерантность»](#s8).
+
+    </Card>
+  </CardGrid>
+
+  <Card title="Кто вызывает колбэк — и какие у него гарантии" titleSize={17} pad={20} gap={14}>
+    <Table
+      head={['кто', 'примеры', 'синхронно']}
+      rows={CALLER_ROWS}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(140px,1fr) minmax(190px,1.5fr) minmax(90px,.7fr)"
+      minWidth={520}
+    />
+
+
+    Для первых трёх строк ответ не зависит от того, кто писал код: он закреплён в спецификациях
+    языка и HTML и в документации Node. `map` зовёт колбэк всегда сразу, `setTimeout` и `.then` —
+    всегда потом. У библиотек и вашего кода такой гарантии нет: как функция зовёт колбэк, решает
+    её автор. Опаснее всего функция, которая зовёт его то сразу, то потом — например, ответ
+    из кеша отдаёт синхронно, а из сети асинхронно. Код вокруг такого вызова ведёт себя
+    по-разному от раза к разу. У этой ошибки есть имя — Zalgo, ей посвящён раздел [«Zalgo»](#s3).
+
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Функция как значение"
+  lead="Колбэк — не «код, который выполнится потом», а объект, который лежит в чужом списке. У такого объекта две неожиданные стороны: он помнит место, где его создали, и его легко вызвать там, где хотели только передать."
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card label="объект функции в куче" labelSize={12} pad={18} radius={5} gap={12}>
+      <Card label="[[Call]]" labelSize={12.5} labelTone="tone" pad="14px 15px" radius={4} gap={5} size={14.5}>
+
+        исполняемый код — без него объект не вызвать
+
+      </Card>
+      <Card tone="info" label="[[Environment]]" labelSize={12.5} labelTone="tone" pad="14px 15px" radius={4} gap={5} size={14.5}>
+
+        ссылка на переменные того места, где функцию **создали**, — это и есть замыкание
+
+      </Card>
+    </Card>
+
+    <Card pad={18} radius={5} gap={12} size={16.5} lh={1.6}>
+
+      Из-за второго поля колбэк «помнит» переменные — и из-за него же бывают утечки. Пока
+      чужой код хранит вашу функцию, он через `[[Environment]]` держит в памяти **весь
+      Context** скоупа, а не только те переменные, которые функция использует. Пример с замером
+      и лечение — в разделе [«Отмена, утечки, реентерантность»](#s8).
+
+    </Card>
+  </CardGrid>
+
+  ### Передача против вызова — разница в одну пару скобок
+
+  <CardGrid min={250} gap={12}>
+    <Card tone="ok" color="tone" label="setTimeout(fn, 100)" labelTone="tone" labelSize={12.5} pad={16} radius={5} gap={9} size={15}>
+
+      Передали ссылку на функцию. Её вызовет браузер или Node через 100 мс.
+
+    </Card>
+    <Card tone="err" color="tone" label="setTimeout(fn(), 100)" labelTone="tone" labelSize={12.5} pad={16} radius={5} gap={9} size={15}>
+
+      Вызвали функцию сейчас, а таймеру отдали её результат. Опасно тем, что **иногда
+      работает** — если `fn` сама возвращает функцию.
+
+    </Card>
+    <Card tone="ok" color="tone" label="onClick={() => handle(id)}" labelTone="tone" labelSize={12.5} pad={16} radius={5} gap={9} size={15}>
+
+      Передали обёртку — правильный способ передать функцию с аргументом.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    **Что именно случится при `fn()`, зависит от среды:** Node бросает ошибку сразу, а браузер
+    молча принимает результат и через 100 мс исполняет его как код. Подробнее — в [«Тонких местах»](#s9).
+
+  </Card>
+
+  <Card tone="err" title="Сколько аргументов получит колбэк, решаете не вы" titleSize={17} pad={20} gap={14}>
+    <CodeBlock code={"['1','2','3'].map(parseInt)   →   [1, NaN, NaN]"} size={12.5} />
+
+    <CardGrid min={190} gap={10}>
+      <Card tone="ok" color="tone" pad={12} radius={4} size={15}>
+
+        `parseInt('1', 0)` — основание (radix) 0 значит «определи сам» → **1**
+
+      </Card>
+      <Card tone="err" color="tone" pad={12} radius={4} size={15}>
+
+        `parseInt('2', 1)` — основания 1 не бывает → **NaN**
+
+      </Card>
+      <Card tone="err" color="tone" pad={12} radius={4} size={15}>
+
+        `parseInt('3', 2)` — в двоичной нет цифры 3 → **NaN**
+
+      </Card>
+    </CardGrid>
+
+
+    `map` вызывает колбэк с **тремя** аргументами — элемент, индекс, массив, — а `parseInt`
+    принимает два, и второй у него — основание системы счисления. Лечение — обёртка, которая
+    передаёт только нужное: `.map(s => parseInt(s, 10))`.
+
+  </Card>
+
+  Значением функция остаётся только внутри одного потока. `postMessage` в воркер копирует
+  аргументы структурным клонированием, а функцию оно не копирует: колбэк в сообщении
+  бросает `DataCloneError` ещё у отправителя. Что ещё не переживает копирование — [«Воркеры
+  и параллелизм», раздел «Что можно передать»](/js/workers/#s2).
+
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Zalgo: функция обязана быть либо всегда синхронной, либо всегда асинхронной"
+  lead="Код вокруг вызова всегда рассчитывает на определённый порядок строк. Если колбэк зовут то сразу, то потом, этот расчёт верен в одном случае и неверен в другом. Отладить такое почти нельзя: `console.log` сдвигает время выполнения, а тест с заглушкой (моком) всегда идёт по одной ветке."
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ZALGO} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ZALGO_DEMO_NOTE} />
+  </Card>
+
+  <ZalgoDemo client:visible code={ZALGO_CODE} modes={ZALGO_MODES} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="ok" color="tone" title="Как чинить, если API на колбэках" titleSize={16.5} pad={18} gap={11} size={15}>
+      <CodeBlock code={ZALGO_FIX} />
+
+      В Node вместо `queueMicrotask` можно взять `process.nextTick` или `setImmediate`. Они
+      откладывают вызов на разное время — порядок разобран в [«Event Loop», раздел
+      «Node»](/js/event-loop/#s5). Против Zalgo годится любой вариант: важно не «когда
+      именно», а «всегда одинаково».
+
+    </Card>
+
+    <Card tone="info" title="Почему у промисов этой проблемы нет по устройству" titleSize={16.5} pad={18} gap={11} size={15}>
+      <CodeBlock code={ZALGO_PROMISE} />
+
+      Случая, где `then` сработал бы синхронно, не существует. Это требование спецификации
+      (`HostEnqueuePromiseJob`), а не договорённость автора библиотеки.
+
+    </Card>
+  </CardGrid>
+
+  <DarkPanel eyebrow="Асимметрия, которую стоит запомнить">
+    <CardGrid min={250} gap={14}>
+      <DarkCard title="new Promise(executor)" titleTone="warn">
+
+        Executor — функция внутри `new Promise` — выполняется **синхронно всегда**.
+
+      </DarkCard>
+      <DarkCard title=".then(reaction)" titleTone="info">
+
+        Реакции выполняются **асинхронно всегда**.
+
+      </DarkCard>
+    </CardGrid>
+
+    <DarkText>
+
+      Оба правила без исключений. Поэтому совет «оберните свой API на колбэках в промис» —
+      не косметика: целый класс багов исчезает бесплатно.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="`this` в колбэке"
+  lead="`this` — не переменная из замыкания. Его значение определяется **в момент вызова** — по тому, как именно функцию вызвали. А колбэк вызывает чужой код, поэтому один и тот же метод получает разный `this` в зависимости от того, как его передали."
+>
+  {/* ⚠️ В лиде стояло «смотрите на среднюю панель: меняется именно она» — неправда дважды:
+      панелей у виджета две, средней нет вовсе, а клетка «точка вызова» лежит в левой.
+      Теперь лид говорит о предмете, а что переключать и куда смотреть — подпись к демо.
+
+      ⚠️ И этот комментарий стоит в ТЕЛЕ раздела, а не между атрибутами `<Section …>`:
+      внутри открывающего тега JSX комментариев не бывает, сборка падает на разборе.
+      Правило записано в AGENTS.md — и я в него всё равно вошёл второй раз.
+
+      Случаи живут в `model/cases.ts` самого виджета: он их не показывает, а выполняет,
+      и список обязан лежать рядом с кодом, который его исполняет. */}
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THIS} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={THIS_DEMO_NOTE} />
+  </Card>
+
+  <ThisInCallback client:visible />
+
+  <Card tone="info" title="У стрелочной функции нет своего `this` — она его не «запоминает»" titleSize={17} pad={20} gap={13}>
+
+    В спецификации у стрелочной функции **нет собственного `this`**: для него даже не заводится
+    место. Когда стрелка читает `this`, его ищут во внешних областях видимости — так же, как
+    любую переменную, объявленную снаружи. Из формулировки «берёт снаружи» такие следствия
+    не видны:
+
+    <CardGrid min={230} gap={10}>
+      <Card tone="info" pad={13} radius={4} size={15}>
+
+        `call/apply/bind` не действуют — менять нечего
+
+      </Card>
+      <Card tone="info" pad={13} radius={4} size={15}>
+
+        нельзя вызвать через `new` — у неё нет внутреннего метода `[[Construct]]`
+
+      </Card>
+      <Card tone="info" pad={13} radius={4} size={15}>
+
+        нет `arguments`, `super`, `new.target`
+
+      </Card>
+      <Card tone="info" pad={13} radius={4} size={15}>
+
+        литерал объекта `{…}` не создаёт свою область видимости, поэтому стрелка внутри него берёт `this` не из объекта
+
+      </Card>
+    </CardGrid>
+
+
+    Отсюда же: **`thisArg` бесполезен со стрелкой.** Вызов `[1,2].map(() => this.x, obj)`
+    проигнорирует `obj`.
+
+  </Card>
+
+  <Card tone="err" title="Главная практическая ловушка `bind`" titleSize={17} pad={20} gap={13}>
+    <CodeBlock code={BIND_TRAP} size={12.5} lh={1.75} pad="14px 16px" />
+
+
+    Второй `bind` создал **другую** функцию. `removeEventListener` ищет слушателя по ссылке —
+    ту же самую функцию, — не находит, и слушатель остаётся навсегда. Общее правило: **любая функция,
+    созданная выражением в момент подписки, не может быть снята** — ни `bind`, ни стрелка
+    на месте, ни `debounce(fn, 100)` прямо в аргументе.
+
+  </Card>
+
+  ### Во что обходится привязка
+
+  У каждого способа привязать `this` своя цена. Различаются они не стилем, а тем, сколько
+  функций создаётся.
+
+  <CardGrid min={260} gap={12}>
+    {BIND_COST.map((item) => (
+      <Card tone={item.tone} color="tone" label={item.k} labelTone="tone" labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={BIND_COST_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Ошибка в асинхронном колбэке"
+  lead="`try/catch` работает, пока функция, в которой он написан, выполняется и лежит на стеке. Он привязан к этому моменту, а не к строчкам исходника. Функция закончилась — обработчика больше нет. Поэтому в асинхронном коде ошибку передают **как данные** — аргументом, отказом промиса, событием, — а не через `throw`."
+>
+  <CardGrid min={290} gap={16} align="start">
+    <Card label="в браузере — канал отдельный" labelSize={12.5} pad={18} gap={11} size={15}>
+
+      Где-то это отдельное событие: `img.onload` и `img.onerror`. Где-то отдельное поле
+      результата: `onsuccess` и `onerror` в IndexedDB. Где-то второй колбэк:
+      `getCurrentPosition(ok, err)`. А у `fetch` — отказ промиса.
+
+      <Card tone="err" color="tone" pad={13} radius={4} size={15}>
+
+        Единого соглашения нет. Не подписались на канал ошибок — ошибка просто исчезнет:
+        `img.onerror` без обработчика не бросит ничего и не появится в консоли.
+
+      </Card>
+    </Card>
+
+    <Card label="в Node — error-first, жёстко" labelSize={12.5} pad={18} gap={11} size={15}>
+      <CodeBlock code={NODE_ERROR_FIRST} />
+
+
+      Почему ошибка идёт первой. **1.** Аргументов с данными бывает сколько угодно, а ошибка
+      одна; постоянное место у неё может быть только в начале. **2.** Проверку в первой строке
+      трудно не заметить, а пропущенную в конце — легко. **3.** Линтеры и типы проверяют такое
+      соглашение автоматически.
+
+    </Card>
+  </CardGrid>
+
+  ### Три места, где ошибка теряется
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ERRORS_DEMO_NOTE} />
+  </Card>
+
+  <ErrorPaths client:visible cases={LOST_ROWS} />
+
+  <Card tone="warn" color="tone" title="Отдельная тонкость браузера" titleSize={17} pad={20} gap={12} size={16.5} lh={1.6}>
+
+    Событие `error` на `window` **не всплывает от ресурсов**. Ошибка загрузки картинки или
+    скрипта создаёт событие на самом элементе, оно не всплывает, и обычный глобальный
+    слушатель его не увидит. Нужен третий аргумент `true` — ловить событие на пути вниз
+    по дереву (фаза capture). Отсюда частая жалоба: «мы всё логируем, но битые картинки
+    и скрипты в отчётах не видны».
+
+  </Card>
+
+  ### Куда попадёт ошибка: три канала, которые не связаны
+
+  `try/catch` до асинхронного колбэка не дотягивается, но «не поймали» не значит «пропало»:
+  у ошибки есть адресат, просто у каждого случая свой.
+
+  <CardGrid min={280} gap={14} align="start">
+    {ERROR_DESTINATIONS.map((item) => (
+      <Card tone={item.tone} color="tone" label={item.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ERROR_DESTINATIONS_NOTE} />
+  </Card>
+
+  ### Вместе со стеком теряется и то, кто запланировал вызов
+
+  <Card pad={20} radius={5} gap={13} size={16} lh={1.6}>
+
+    Пустой стек под колбэком — это не только «`try/catch` не поймает». Это ещё и «непонятно,
+    кто позвал»: в `error.stack` не останется кадра, который поставил задачу.
+
+    <CodeBlock code={ASYNC_CONTEXT_CODE} size={12} />
+
+    <CardGrid min={240} gap={10}>
+      {ASYNC_CONTEXT_FACTS.map((fact) => (
+        <Card tone="info" color="tone" label={fact.k} labelTone="tone" labelSize={12} pad={13} radius={4} gap={7} size={14.5} text={fact.d} />
+
+      ))}
+
+    </CardGrid>
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Гарантии, которых у колбэка нет"
+  lead="Платёжная библиотека по ошибке позвала `onSuccess` дважды — и заказ оформлен два раза. Простой колбэк от такого не защищён ничем: сколько раз и когда его звать, решает чужой код. Промис даёт как раз те гарантии, которых у колбэка нет."
+>
+  <CallbackGuarantees rows={GUARANTEES} />
+
+  <CardGrid min={280} gap={14}>
+    <Card tone="info" pad={16} radius={4} size={15.5}>
+
+      **«Можно подписаться после события» — самая недооценённая гарантия.** Колбэк надо передать **до** события:
+      опоздали — вы о нём никогда не узнаете. Промис — значение, которое помнит свой
+      результат; подписаться можно хоть через час. `EventEmitter` этой гарантии тоже не даёт.
+
+    </Card>
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5}>
+
+      **«Вызовется хотя бы один раз» не обещает и промис.** Промис, который навсегда остался
+      в ожидании (pending), молча держит в памяти все реакции и их замыкания. Чтобы что-то
+      «случилось за N мс», нужен таймаут: `Promise.race` или `AbortSignal.timeout`.
+
+    </Card>
+  </CardGrid>
+
+  ### «Ад колбэков» (callback hell) — три настоящие проблемы, а не лесенка отступов
+
+  Обычно «ад колбэков» показывают как визуальную проблему и лечат именованными функциями.
+  Отступы уходят, проблемы остаются — потому что они не про отступы.
+
+  <CardGrid min={280} gap={14} align="start">
+    {HELL_ROWS.map((row) => (
+      <Card label={row.n} labelSize={11} title={row.t} titleSize={17} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={row.why} />
+        <CardNote tone="info"><Md text={row.fix} /></CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CallbackCompare rows={COMPARE_ROWS} />
+
+
+  Строки про число одновременных операций и отмену показывают предел: промисы починили
+  не всё, и это остаётся ручной работой в обеих моделях. Пул на N задач разобран в [«Промис
+  изнутри», раздел «Цены»](/js/promise-internals/#s6), отмена — в разделе [«Отмена, утечки,
+  реентерантность»](#s8).
+
+  В Node переход между моделями встроен. `util.promisify(fs.readFile)` возвращает функцию,
+  которая отдаёт промис, а `err` из колбэка превращает в отказ. `util.callbackify` делает
+  обратное. Обёртка получает гарантии из таблицы выше бесплатно — ради них её и пишут.
+
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7 · демо"
+  eyebrowTone="demo"
+  title="Обёртки: debounce и throttle"
+  lead="Оба прореживают поток событий, но по-разному, и их постоянно путают. **Debounce** — «сделай, когда поток утихнет». **Throttle** — «делай, но не чаще чем раз в `wait`». Подсказки в поле поиска — debounce: запрос уходит, когда пользователь перестал печатать. Индикатор прокрутки — throttle: он движется на ходу, но не на каждый пиксель."
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEBOUNCE_DEMO_NOTE} />
+  </Card>
+
+  <DebounceThrottle client:visible sequences={SEQUENCES} wait={WAIT} />
+
+  Throttle с обеими опциями — полтора десятка строк. Первое событие окна вызывает функцию
+  сразу (leading), остальные только запоминаются, а в конце окна функция зовётся с последним
+  из них (trailing):
+
+  <CodeBlock code={THROTTLE_CODE} />
+
+  <CardGrid min={280} gap={14}>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Обе зовут функцию с аргументами последнего события в окне**, а не первого. Поэтому
+      индикатор скролла покажет актуальную позицию, а не устаревшую.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Одиночное событие не должно вызвать функцию дважды.** Поэтому `endOfWindow` сначала
+      проверяет `lastArgs === null`: вызов в конце окна (trailing) бывает, только если
+      за окно пришло ещё хотя бы одно событие.
+
+    </Card>
+    <Card pad={16} radius={4} size={15.5}>
+
+      **Наивный throttle через один флаг теряет последнее событие.** Пользователь остановил
+      скролл в середине окна — индикатор застынет в устаревшем положении. Вызов в конце окна
+      (trailing) нужен как раз для этого.
+
+    </Card>
+    <Card tone="err" color="tone" pad={16} radius={4} size={15.5}>
+
+      **Debounce нельзя применять к функции, чей результат вам нужен.** Вызов `debounced()`
+      отдаёт результат **предыдущего** фактического вызова — текущий ещё не состоялся.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" color="tone" title="Обёртка держит в памяти последний аргумент" titleSize={17} pad={20} gap={12} size={16.5} lh={1.6}>
+
+    `debounce` и `throttle` хранят `lastArgs` и `lastThis`, чтобы вызвать функцию позже.
+    Если последний аргумент тяжёлый — событие со ссылкой на DOM, большой объект данных, — он
+    останется в замыкании обёртки до следующего вызова, а возможно, навсегда. Поэтому
+    в рабочих реализациях — и в коде выше — после каждого вызова стоит `lastArgs = lastThis = null`.
+    Не для красоты. Тот же класс утечки разобран в теме про [память и сборщик](/js/memory-gc/).
+
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Отмена, утечки, реентерантность"
+  lead="Пользователь ушёл со страницы, компонент убран, а слушатель `resize` и таймер опроса живут дальше: зовут колбэк, который обновляет уже несуществующий интерфейс, и держат в памяти всё, что он помнит. Отписка — такая же часть работы с колбэком, как подписка."
+>
+  ### Шесть способов отписаться → один
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={UNSUB_DEMO_NOTE} />
+  </Card>
+
+  <UnsubscribeFunnel old={UNSUB_OLD} code={ABORT_CODE} facts={ABORT_FACTS} />
+
+  <Card tone="err" color="tone" pad={16} radius={4} size={15.5}>
+
+    **Опцию `signal` понимают не все.** `addEventListener` и `fetch` — да, `EventEmitter.on` —
+    нет: у него два параметра, третий молча отбрасывается, и после `abort()` слушатель
+    остаётся живым (Node 24.11). Подробнее — в [«Тонких местах»](#s9).
+
+  </Card>
+
+  Третий аргумент `addEventListener` несёт и другое обещание: `{ passive: true }` говорит
+  браузеру, что слушатель не позовёт `preventDefault()`, и прокрутка его не ждёт. Почему один
+  слушатель `wheel` без этой опции возвращает прокрутку на главный поток — [«Кадр браузера»,
+  раздел «Что дешевле двигать»](/render/render-pipeline/#s4).
+
+  ### Колбэк как источник утечки
+
+  <CardGrid min={260} gap={12}>
+    {LEAKS.map((leak) => (
+      <Card tone="err" title={leak.t} titleSize={16} pad={16} radius={5} gap={8} size={15}>
+        <Md text={leak.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Колбэк держит весь Context: по шагам
+
+  Колбэк ниже не трогает большой массив — и всё равно держит его в памяти, пока висит
+  подписка.
+
+  <CodeBlock code={LEAK_CODE} />
+
+  <CardGrid min={250} gap={12} align="start">
+    {CONTEXT_STEPS.map((step) => (
+      <Card label={`шаг ${step.n}`} labelSize={12} title={step.t} titleSize={16} pad={16} radius={5} gap={8} size={15} lh={1.6}>
+        <Md text={step.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Два выхода — на том же примере. Первый переносит массив туда, где нет долгоживущих
+  колбэков:
+
+  <CodeBlock code={CONTEXT_FIX_CODE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {CONTEXT_WAYS.map((way) => (
+      <Card tone={way.tone} color="tone" label={way.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={way.what} />
+        <Md text={`**Чем платит:** ${way.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT_STEPS} />
+
+  <Card tone="warn" color="tone" pad={15} radius={4} size={15.5}>
+
+      Правило из этого разбора: **тяжёлые данные и долгоживущие колбэки не должны жить
+      в одном скоупе.** Как этот
+      `Context` выглядит со стороны кучи — в [теме про память и сборщик](/js/memory-gc/).
+
+  </Card>
+
+  <Card tone="warn" color="tone" title="Одиннадцатый слушатель — предупреждение, а не ошибка" titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6}>
+
+    `EventEmitter` зовёт слушателей в порядке подписки; `prependListener` ставит в начало.
+    На одиннадцатом слушателе одного события Node печатает `MaxListenersExceededWarning`
+    (Node 26.8): подписка прошла, но похоже на утечку — кто-то подписывается
+    в цикле и не отписывается. Порог меняют `setMaxListeners`, но сначала стоит найти,
+    кто подписывается лишний раз.
+
+  </Card>
+
+  ### Реентерантность: колбэк, который ломает вызывающего
+
+  Реентерантность — повторный вход в код, который ещё не закончил работу. Синхронный колбэк
+  выполняется **внутри** чужого алгоритма и поэтому может испортить его состояние.
+
+  <CardGrid min={290} gap={14} align="start">
+    {REENTRANT.map((item) => (
+      <Card pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+        <CodeBlock code={item.code} />
+        <Md text={item.why} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+
+    Общее правило: <b>синхронный колбэк не должен менять структуру, по которой его
+    вызывают.</b> Нужно менять — собирайте изменения в отдельный список и применяйте
+    после обхода.
+
+  </Callout>
+
+  ### Одна и та же ситуация, два разных ответа
+
+  Три слушателя, и первый во время рассылки снимает второго:
+
+  <CodeBlock code={DISPATCH_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={DISPATCH_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {DISPATCH_STEPS.map((item) => (
+      <Card title={item.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={item.what} />
+        <Md text={`**Чем платит:** ${item.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISPATCH} />
+
+  Итог двумя строками вывода — первая и вторая рассылка:
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card label="Node EventEmitter" labelSize={12.5} pad={18} gap={11} size={15.5}>
+
+      <CodeBlock code={DISPATCH_EMITTER} size={11.5} lh={1.7} />
+    </Card>
+    <Card label="DOM EventTarget" labelSize={12.5} pad={18} gap={11} size={15.5}>
+
+      <CodeBlock code={DISPATCH_DOM} size={11.5} lh={1.7} />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" color="tone" pad="18px 20px" radius={4} size={16.5} lh={1.6}>
+
+    Два очень похожих API ведут себя по-разному. **Не полагайтесь на то, вызовется ли
+    слушатель, снятый во время рассылки события.** В одном обе спецификации сходятся:
+    слушатели, **добавленные** во время рассылки, в текущем событии не вызываются — иначе `on`
+    внутри слушателя давал бы бесконечный цикл.
+
+  </Card>
+
+  ### Проверьте запуском
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DISPATCH_DEMO_NOTE} />
+  </Card>
+
+  <DispatchLab client:visible />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  ### Проверьте сами
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={LAB_DEMO_NOTE} />
+  </Card>
+
+  <SnippetLab client:visible snippets={LAB_SNIPPETS} />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Источники и смежные темы"
+>
+  <Card title="Источники" titleSize={17} pad={20} gap={12}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [цикл событий](/js/event-loop/) — очереди, из которых ваш колбэк
+    достают. [Промис изнутри](/js/promise-internals/) — те самые гарантии, разобранные
+    по шагам спецификации. [Память и сборщик](/js/memory-gc/) — почему забытый слушатель
+    держит целое поддерево.
+    [Отмена: AbortController и AbortSignal](/js/abort-controller/) — сигнал, `any` и `timeout`,
+    что отменяет `fetch` и как не оставить слушателей на долгоживущем сигнале.
+    [Debounce, throttle и token bucket](/algorithms/rate-limiting/) — debounce и throttle
+    из lodash по шагам и ограничители частоты.
+
+  </Card>
+</Section>

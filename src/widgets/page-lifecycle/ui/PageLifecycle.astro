@@ -1,0 +1,184 @@
+---
+/**
+ * Page Lifecycle как граф, а не как прямая линия.
+ *
+ * Обычно эти состояния рисуют цепочкой `active → passive → hidden → frozen → discarded`,
+ * и из такой картинки следует ровно неверное: будто страница движется в одну сторону и
+ * однажды кончается. Ломается код на обратных стрелках — из `frozen` возвращаются с теми же
+ * переменными и теми же очередями, из bfcache тоже, а из `discarded` не возвращается ничего,
+ * хотя вкладка на вид та же самая.
+ *
+ * Поэтому граф нарисован списком рёбер: откуда, по какому событию, куда. Это и есть честное
+ * представление — со всеми возвратами, которых на линии не видно, — и оно не рассыпается
+ * на узком экране, в отличие от схемы со стрелками по координатам.
+ */
+import type { LifecycleEdge, LifecycleNode } from '../model/types';
+
+interface Props {
+  nodes: LifecycleNode[];
+  edges: LifecycleEdge[];
+}
+
+const { nodes, edges } = Astro.props;
+
+const byId = new Map(nodes.map((node) => [node.id, node]));
+const nodeOf = (id: string) => byId.get(id);
+---
+
+<div class="frame">
+  <div class="t-eyebrow t-eyebrow--panel">Состояния страницы</div>
+
+  <div class="nodes">
+    {
+      nodes.map((node) => (
+        <div class="node">
+          <span class="node__pill" data-tone={node.tone}>
+            {node.label}
+          </span>
+          <span class="node__what">{node.what}</span>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="edges">
+    <div class="t-label">переходы</div>
+    {
+      edges.map((edge) => (
+        <div class="edge" data-kind={edge.cold ? 'cold' : edge.back ? 'back' : 'forward'}>
+          <span class="edge__node" data-tone={nodeOf(edge.from)?.tone}>
+            {nodeOf(edge.from)?.label ?? edge.from}
+          </span>
+          <span class="edge__arrow">{edge.back || edge.cold ? '↩' : '→'}</span>
+          <span class="edge__event">{edge.event}</span>
+          <span class="edge__arrow">→</span>
+          <span class="edge__node" data-tone={nodeOf(edge.to)?.tone}>
+            {nodeOf(edge.to)?.label ?? edge.to}
+          </span>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="note">
+    <b>Возвратов здесь больше, чем уходов, — и именно они ломают код.</b> Из bfcache страница
+    продолжается с того же места: те же переменные, те же промисы, те же отложенные таймеры.
+    Из <code>frozen</code> — тоже. А из <code>discarded</code> возврата нет вовсе: вкладка
+    выглядит прежней, но это новая загрузка. Отсюда правило: инициализация вешается на{' '}
+    <code>pageshow</code> с <code>persisted</code>, а не на <code>load</code>, а сохранение
+    состояния — на <code>freeze</code> и <code>pagehide</code>, а не на <code>unload</code>.
+  </div>
+</div>
+
+<style>
+  .frame {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+  }
+
+  .nodes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+    gap: 12px;
+  }
+  .node {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .node__pill {
+    padding: 8px 13px;
+    border-radius: var(--r-full);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+  }
+  .node__what {
+    font-size: var(--fs-5);
+    line-height: 1.45;
+    color: var(--text-muted);
+  }
+
+  .node__pill[data-tone='ok'],
+  .edge__node[data-tone='ok'] {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  .node__pill[data-tone='warn'],
+  .edge__node[data-tone='warn'] {
+    border: 1px solid var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .node__pill[data-tone='err'],
+  .edge__node[data-tone='err'] {
+    border: 1px solid var(--tone-err-line);
+    background: var(--tone-err-bg);
+    color: var(--tone-err-strong);
+  }
+  .node__pill[data-tone='neutral'],
+  .edge__node[data-tone='neutral'] {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--chip-text);
+  }
+
+  .edges {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .edge {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: var(--r2);
+    background: var(--surface-2);
+  }
+  /* Возврат — зелёная засечка слева: состояние продолжается, а не начинается заново. */
+  .edge[data-kind='back'] {
+    box-shadow: inset 2px 0 0 var(--tone-ok-strong);
+  }
+  /* Холодный возврат: та же вкладка, но ничего от прежней страницы не осталось. */
+  .edge[data-kind='cold'] {
+    box-shadow: inset 2px 0 0 var(--tone-err-strong);
+  }
+
+  .edge__node {
+    padding: 4px 10px;
+    border-radius: var(--r-full);
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    white-space: nowrap;
+  }
+  .edge__arrow {
+    font-size: var(--fs-3);
+    color: var(--text-faint);
+  }
+  .edge__event {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    line-height: 1.5;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .note {
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+  .note :global(b) {
+    color: var(--ink);
+  }
+</style>

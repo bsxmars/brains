@@ -1,0 +1,149 @@
+---
+/**
+ * Путь запроса снаружи до пода: пять участников в ряд, у каждого — что он видит.
+ *
+ * Лид раздела держится на одном утверждении — «только один из посредников читает HTTP», —
+ * а нумерованный список этого не показывает: все пять шагов в нём выглядят одинаково.
+ * Здесь у каждого узла метка того, что он видит, и выделен единственный L7-узел. Под рядом —
+ * оговорка про обход адреса сервиса: без неё стрелка «сервис → под» читалась бы неверно.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  title: string;
+  caption: string;
+  nodes: { t: string; s: string; tag: string; tone: string }[];
+  bypass: string;
+}
+
+const { title, caption, nodes, bypass } = Astro.props;
+---
+
+<figure class="ipd">
+  <div class="t-eyebrow t-eyebrow--panel">{title}</div>
+
+  <ol class="ipd-flow">
+    {
+      nodes.map((node, i) => (
+        <>
+          {i > 0 && (
+            <li class="ipd-arrow" aria-hidden="true">
+              →
+            </li>
+          )}
+          <li class="ipd-node" data-tone={node.tone}>
+            <span class="ipd-tag">{node.tag}</span>
+            <span class="ipd-t">{node.t}</span>
+            <span class="ipd-s" set:html={inlineMd(node.s)} />
+          </li>
+        </>
+      ))
+    }
+  </ol>
+
+  <div class="ipd-bypass" set:html={inlineMd(bypass)} />
+
+  <figcaption class="t-note" set:html={inlineMd(caption)} />
+</figure>
+
+<style>
+  .ipd {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .ipd-flow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1.3fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: stretch;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ipd-arrow {
+    align-self: center;
+    color: var(--text-faint);
+    font-size: var(--fs-5);
+  }
+
+  .ipd-node {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 11px;
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    background: var(--surface-2);
+  }
+  .ipd-tag {
+    align-self: flex-start;
+    padding: 1px 7px;
+    border-radius: var(--r-full);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+  .ipd-t {
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .ipd-s {
+    font-size: var(--fs-3);
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+  .ipd-node[data-tone='info'] {
+    border: 1.5px solid var(--tone-info-line);
+    background: var(--tone-info-bg);
+  }
+  .ipd-node[data-tone='info'] .ipd-tag {
+    background: var(--tone-info-strong);
+    color: var(--on-ink);
+    font-weight: 600;
+  }
+  .ipd-node[data-tone='info'] .ipd-t {
+    color: var(--tone-info-strong);
+  }
+  .ipd-node[data-tone='ok'] {
+    border-color: var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+  }
+  .ipd-node[data-tone='ok'] .ipd-t {
+    color: var(--tone-ok-strong);
+  }
+
+  .ipd-bypass {
+    padding: 9px 12px;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r2);
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    color: var(--text-muted);
+  }
+
+  /* Пять колонок перестают помещаться раньше телефона: складываем в столбик уже на 860px. */
+  @media (max-width: 860px) {
+    .ipd-flow {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ipd-arrow {
+      justify-self: center;
+      transform: rotate(90deg);
+    }
+  }
+  @media (max-width: 640px) {
+    .ipd {
+      padding: 16px;
+    }
+  }
+</style>

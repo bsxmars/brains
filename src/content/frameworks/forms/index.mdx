@@ -1,0 +1,467 @@
+---
+title: "Формы во фреймворках: где живёт значение поля"
+heading: "Формы во фреймворках: где живёт значение поля"
+headingWidth: 22
+order: 19
+kicker: фреймворки изнутри
+lead: "Текст, который человек набрал в поле, лежит в DOM — в `input.value`. React и Vue держат вторую копию в своём состоянии и синхронизируют их на каждый символ. Отсюда прыгающая каретка, сломанный японский ввод, тормозящая большая форма и поле, которое не даёт себя редактировать. Здесь — что именно делают `onChange` и `v-model`, сколько стоит одно нажатие и что браузер умеет сам: проверку полей, `FormData` и отправку."
+leadWidth: 66
+summary: "Контролируемые и неконтролируемые поля React, во что компилируется `v-model` и что делают его директивы, модификаторы `.lazy`/`.trim`/`.number`, сколько компонентов перерисовывает один символ при разном устройстве состояния, почему уезжает каретка, IME и `compositionend`, встроенная проверка и `:user-invalid`, `FormData`, действия формы в React 19."
+verifiedOn: "React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, esbuild 0.28.2, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: вывод компилятора Vue пересобирается; мини-v-model сверен с директивами Vue, модель рендеров — со счётчиками React и Vue на всех вариантах формы; каретка, IME (имитация через CDP), проверка полей, FormData и действия React 19 сняты в Chromium тестом tests/unit/forms.test.ts. react-hook-form — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Две копии }
+  - { id: s2, label: v-model }
+  - { id: s3, label: Цена символа }
+  - { id: s4, label: Каретка }
+  - { id: s5, label: IME }
+  - { id: s6, label: Валидация }
+  - { id: s7, label: Отправка }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import VModelLab from '@/widgets/form-lab/ui/VModelLab.vue';
+import RenderLab from '@/widgets/form-lab/ui/RenderLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_TWO_COPIES,
+  PREREQ,
+  PREREQ_NOTE,
+  REACT_LIFT_CODE,
+  CONTROL_STEPS,
+  CONTROL_ROWS,
+  CONTROL_FACTS,
+  VMODEL_SFC,
+  VMODEL_COMPILED,
+  VMODEL_NOTE,
+  PLAIN_DIRECTIVE,
+  VMODEL_ROWS,
+  VMODEL_COMPONENT,
+  VMODEL_COMPONENT_NOTE,
+  MODIFIER_ROWS,
+  PLAIN_CAST,
+  MODEL_CODE,
+  MODEL_NOTE,
+  MODEL_DEMO_CAPTION,
+  MODEL_DEMO_SETTERS,
+  MODEL_DEMO_IME,
+  FIELDS,
+  VUE_PROPS_CODE,
+  RENDER_CODE,
+  RENDER_SETUPS,
+  RENDER_TABLE,
+  RENDER_DEMO_CAPTION,
+  RENDER_NOTE,
+  RHF_NOTE,
+  CARET_WHY,
+  CARET_ROWS,
+  CARET_POS,
+  CARET_ASYNC_NOTE,
+  DIGITS_NOTE,
+  REACT_CARET_FIX_CODE,
+  VUE_CARET_FIX_CODE,
+  CARET_FIX_NOTE,
+  PLAIN_IME,
+  IME_TRACE,
+  IME_NOTE,
+  IME_GUARD_CODE,
+  IME_GUARD_NOTE,
+  VALID_HTML,
+  VALID_STEPS,
+  VALID_FACTS,
+  VALID_CHOICE,
+  OWN_VALIDATE_CODE,
+  FORMDATA_HTML,
+  FORMDATA_ROWS,
+  FORMDATA_PRINT,
+  ACTION_CODE,
+  ACTION_STEPS,
+  ACTION_FACTS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Две копии" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    У поля ввода всегда есть своё значение — `input.value`, и меняет его браузер, а не ваш код.
+    Фреймворк держит вторую копию и синхронизирует их в обе стороны: событие несёт значение
+    из DOM в состояние, рендер — из состояния обратно в DOM. Почти все странности форм
+    случаются на этом стыке.
+
+  </Callout>
+
+  Пока обе копии совпадают, их не видно. Человек печатает, обработчик кладёт текст в состояние,
+  рендер отдаёт полю ту же строку, и фреймворк ничего не пишет в DOM. Стоит коду вернуть
+  в поле что-то своё — заглавные буквы, отфильтрованные цифры, старое значение после `await`, —
+  и браузер получает новую строку целиком. Он не знает, что это «та же плюс одна буква»,
+  и ведёт себя как при замене текста: переносит каретку в конец и прерывает набор слова.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_COPIES} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Где живёт значение поля"
+  lead="Контролируемое поле в React — это `value` из состояния и `onChange`, который состояние меняет. Поле показывает то, что лежит в состоянии. Человек печатает в DOM, а React после каждого события сверяет DOM со своим состоянием и при расхождении переписывает поле."
+  leadWidth={72}
+>
+  <Card title="Сквозной пример: форма заказа в React" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REACT_LIFT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={230} gap={14} align="start">
+    {CONTROL_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  Неконтролируемое поле устроено наоборот. `defaultValue` задаёт начальный текст, дальше поле
+  живёт само, а значение читают, когда оно нужно: через `ref` или из `FormData` при отправке.
+  Фреймворк в DOM больше не пишет — и половина проблем этой темы исчезает вместе с ним.
+
+  <Table
+    head={['как устроено', 'чья копия главная', 'когда пишет в DOM', 'откуда брать значение']}
+    rows={CONTROL_ROWS.map((r) => [r.k, r.who, r.write, r.read])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(190px,1fr) minmax(130px,.7fr) minmax(220px,1.3fr) minmax(160px,.9fr)"
+    minWidth={760}
+  />
+
+  ### Что React делает с полем после события
+
+  <CardGrid min={280} gap={14} align="start">
+    {CONTROL_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="`v-model` изнутри"
+  lead="Документация Vue объясняет `v-model` как сокращение для `:value` и `@input`. Для компонента это так и есть. Для обычного поля компилятор делает другое: вешает директиву, у которой своя логика для текста, флажка, переключателя и списка."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DIRECTIVE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Компонент" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VMODEL_SFC} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что выдал компилятор" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VMODEL_COMPILED} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={VMODEL_NOTE} />
+
+  <Table
+    head={['шаблон', 'директива', 'слушает', 'что кладёт в модель']}
+    rows={VMODEL_ROWS.map((r) => ['`' + r.tpl + '`', '`' + r.dir + '`', r.ev, r.value])}
+    kinds={['mono', 'mono', 'prose', 'prose']}
+    cols="minmax(230px,1.2fr) minmax(130px,.6fr) minmax(200px,1fr) minmax(200px,1fr)"
+    minWidth={780}
+  />
+
+  ### Модификаторы
+
+  <Table
+    head={['модификатор', 'что меняет']}
+    rows={MODIFIER_ROWS.map((r) => [r.k, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(110px,.3fr) minmax(320px,2fr)"
+    minWidth={520}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CAST} />
+
+  ### `v-model` на компоненте
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Вывод компилятора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VMODEL_COMPONENT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={VMODEL_COMPONENT_NOTE} />
+  </CardGrid>
+
+  ### Мини-`v-model`
+
+  <Card title="Что делают директивы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MODEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={MODEL_NOTE} />
+    </CardNote>
+  </Card>
+
+  <VModelLab client:visible modelCode={MODEL_CODE} setters={MODEL_DEMO_SETTERS} ime={MODEL_DEMO_IME} caption={MODEL_DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Цена одного символа"
+  lead="Каждое нажатие меняет состояние, и фреймворк перерисовывает тех, кого это касается. Кого именно — решает не фреймворк сам по себе, а место, где лежит состояние формы. Одна и та же форма заказа стоит от нуля до двадцати двух рендеров на символ."
+  leadWidth={72}
+>
+  Форма из раздела «Где живёт значение поля» держит всё состояние в `Form`. Ниже та же форма
+  на Vue: состояние — `reactive` в `Form`, поля получают его через `v-model` на компоненте.
+
+  <Card title="Та же форма на Vue" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VUE_PROPS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  Правила у двух фреймворков разные. React вызывает компонент, чьё состояние изменилось,
+  и всех его детей подряд — кроме обёрнутых в `memo` с прежними пропами. Vue перерисовывает
+  того, чей рендер прочитал изменённое поле, а ребёнка — только если родитель передал ему
+  другие пропы. Модель ниже записывает оба правила для дерева «форма — поля — превью».
+
+  <Card title="Кто перерисуется" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RENDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <RenderLab client:visible renderCode={RENDER_CODE} setups={RENDER_SETUPS} fields={FIELDS} caption={RENDER_DEMO_CAPTION} />
+
+  <Table
+    head={['где состояние', 'символ в `name`', 'символ в `phone`', '`phone`, 20 полей']}
+    rows={RENDER_TABLE.map((r) => [r.k, String(r.name), String(r.phone), String(r.n20)])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(240px,1.4fr) minmax(110px,.6fr) minmax(110px,.6fr) minmax(130px,.7fr)"
+    minWidth={620}
+  />
+
+  <Md text={RENDER_NOTE} />
+
+  <Card tone="info" title="react-hook-form" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={RHF_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Почему каретка уезжает в конец"
+  lead="Человек ставит курсор в середину слова, печатает букву — и курсор оказывается в конце строки. Так бывает только с контролируемым полем и только когда код вернул в него не ту строку, что была в DOM."
+  leadWidth={72}
+>
+  <Md text={CARET_WHY} />
+
+  <Table
+    head={['поле', 'было', 'ввод', 'стало', 'каретка']}
+    rows={CARET_ROWS.map((r) => [r.k, '`' + r.start + '`', '`' + r.typed + '` на позицию ' + CARET_POS, '`' + r.value + '`', String(r.caret)])}
+    tones={CARET_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose', 'mono', 'mono']}
+    cols="minmax(250px,1.5fr) minmax(80px,.5fr) minmax(130px,.7fr) minmax(90px,.5fr) minmax(70px,.4fr)"
+    minWidth={700}
+  />
+
+  <Md text={CARET_ASYNC_NOTE} />
+
+  <Card tone="warn" title="Фильтр, который пропускает букву" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DIGITS_NOTE} />
+
+  ### Как вернуть каретку
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="React: useLayoutEffect" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REACT_CARET_FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Vue: nextTick" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VUE_CARET_FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={CARET_FIX_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="IME: слово, которое ещё набирается"
+  lead="Японец набирает «にほん», выбирает в подсказке «日本» и только тогда считает слово написанным. Всё это время поле получает обычные события `input` с недописанным текстом. Отличить их можно по флагу `isComposing` и по паре событий `compositionstart` и `compositionend` вокруг набора."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IME} />
+
+  <Table
+    head={['событие', '`data`', '`isComposing`', '`value` в этот момент']}
+    rows={IME_TRACE.map((r) => [r.ev, r.data, r.composing, r.value])}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(200px,1.2fr) minmax(90px,.6fr) minmax(110px,.6fr) minmax(140px,.8fr)"
+    minWidth={600}
+  />
+
+  <Md text={IME_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Защита своими руками" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={IME_GUARD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={IME_GUARD_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Валидация: встроенная и своя"
+  lead={'Браузер умеет проверять поля сам: `required`, `pattern`, `type="email"`, `min` и `max` записывают результат в `input.validity` и не пускают форму на отправку. Проверка работает и с контролируемыми полями — она смотрит на DOM, а не на состояние фреймворка.'}
+  leadWidth={72}
+>
+  <Card title="Форма для проверки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={VALID_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['что произошло', 'поле', '`validity`', '`:invalid`', '`:user-invalid`']}
+    rows={VALID_STEPS.map((s) => [s.k, '`' + s.field + '`', s.flags ? '`' + s.flags + '`' : 'valid', s.invalid ? 'да' : 'нет', s.user ? '**да**' : 'нет'])}
+    kinds={['prose', 'mono', 'mono', 'prose', 'prose']}
+    cols="minmax(260px,1.6fr) minmax(70px,.4fr) minmax(140px,.8fr) minmax(80px,.4fr) minmax(110px,.5fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {VALID_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Своя проверка
+
+  <CardGrid min={300} gap={16} align="start">
+    {VALID_CHOICE.map((c) => (
+      <Card title={c.k} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={c.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Правило, которого нет в атрибутах" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={OWN_VALIDATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Отправка: FormData и действия React 19"
+  lead="При отправке форме не нужен ни один `useState`: браузер сам соберёт пары «имя — значение» из полей, если у них есть `name`. React 19 этим пользуется — функция в `action` получает готовый `FormData`."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Форма" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FORMDATA_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="[...new FormData(form)]" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FORMDATA_PRINT} size={11.5} lh={1.65} pad="14px 16px" tone="ok" />
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['поле', 'что попадает в FormData']}
+    rows={FORMDATA_ROWS.map((r) => [r.k, r.what])}
+    tones={FORMDATA_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(230px,1fr) minmax(300px,1.6fr)"
+    minWidth={560}
+  />
+
+  ### `useActionState` и `useFormStatus`
+
+  <Card title="Форма с действием" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ACTION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['шаг', '`title`', '`comment`', 'кнопка', 'под формой']}
+    rows={ACTION_STEPS.map((s) => [s.k, s.title, s.comment, s.button, s.text || '—'])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(220px,1.3fr) minmax(80px,.5fr) minmax(110px,.6fr) minmax(110px,.6fr) minmax(170px,.9fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {ACTION_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Значение поля уже хранит браузер — вопрос только в том, нужна ли вам вторая копия.**
+      Если значение нужно на каждый символ — для превью, маски, зависимых полей, — держите его
+      в состоянии и платите рендерами и аккуратностью с кареткой и IME. Если оно нужно при
+      отправке, оставьте его в DOM: `defaultValue`, `name` и `FormData`.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

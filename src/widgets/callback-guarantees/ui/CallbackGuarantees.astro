@@ -1,0 +1,117 @@
+---
+/**
+ * Таблица гарантий: колбэк против промиса.
+ *
+ * Своя таблица, а не общая `Table`, из-за цвета. Здесь цвет ячейки — это ответ: «да» зелёное,
+ * «нет» красное, причём в **обеих** колонках и построчно. Общая таблица красит колонку целиком,
+ * и последняя строка — единственная, где у промиса тоже «нет», — вышла бы зелёной, то есть
+ * ровно наоборот по смыслу.
+ */
+import type { GuaranteeRow } from '../model/types';
+
+interface Props {
+  rows: GuaranteeRow[];
+}
+
+const { rows } = Astro.props;
+
+const verdict = (value: string) => (value.trim().toLowerCase() === 'да' ? 'yes' : 'no');
+---
+
+<div class="wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>гарантия</th>
+        <th class="center">колбэк</th>
+        <th class="center">промис</th>
+        <th>механизм</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row) => (
+          <tr>
+            <td class="name">{row.name}</td>
+            <td class="verdict" data-verdict={verdict(row.cb)}>
+              {row.cb}
+            </td>
+            <td class="verdict" data-verdict={verdict(row.pr)}>
+              {row.pr}
+            </td>
+            <td class="how">{row.how}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .wrap {
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    min-width: 620px;
+    border-collapse: collapse;
+  }
+  tr {
+    display: grid;
+    grid-template-columns: minmax(230px, 1.6fr) minmax(74px, 0.5fr) minmax(74px, 0.5fr) minmax(200px, 1.3fr);
+  }
+  thead tr {
+    background: var(--ink);
+    color: var(--on-ink);
+  }
+  th {
+    padding: 11px 14px;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: start;
+  }
+  th.center {
+    text-align: center;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .name {
+    padding: 13px 14px;
+    font-size: var(--fs-6);
+    line-height: 1.45;
+    color: var(--ink);
+  }
+  .verdict {
+    padding: 13px 8px;
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    text-align: center;
+  }
+  .verdict[data-verdict='yes'] {
+    color: var(--tone-ok-strong);
+  }
+  .verdict[data-verdict='no'] {
+    color: var(--tone-err-strong);
+  }
+  .how {
+    padding: 13px 14px;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+</style>

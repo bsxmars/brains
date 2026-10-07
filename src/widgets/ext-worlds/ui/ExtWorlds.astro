@@ -1,0 +1,137 @@
+---
+/**
+ * Матрица миров: один и тот же вопрос, заданный странице, контент-скрипту, скрипту
+ * в `world: 'MAIN'` и фону расширения.
+ *
+ * Острова здесь нет намеренно. Изолированный мир на странице не воспроизвести: его создаёт
+ * браузер для установленного расширения, а у читателя такого расширения нет. Переключатель
+ * над заранее снятыми строками был бы подделкой вычисления, поэтому матрица статическая
+ * и честно подписана как снятая на стенде (`data.ts` темы, шапка файла). Вычисляет в теме
+ * другое демо — сверка документа, `widgets/ext-dom-audit`.
+ *
+ * Тон ячейки означает «видит / не видит», а не «хорошо / плохо».
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+type Tone = 'ok' | 'err' | 'warn' | 'dim';
+
+interface Row {
+  q: string;
+  cells: { v: string; tone: Tone }[];
+}
+
+interface Props {
+  head: string[];
+  rows: Row[];
+  /** Подпись под матрицей: где и чем снято. Разрешена строчная разметка. */
+  foot?: string;
+}
+
+const { head, rows, foot } = Astro.props;
+---
+
+<figure class="ew">
+  <div class="ew-scroll">
+    <table class="ew-table">
+      <thead>
+        <tr>{head.map((title) => <th scope="col" set:html={inlineMd(title)} />)}</tr>
+      </thead>
+      <tbody>
+        {
+          rows.map((row) => (
+            <tr>
+              <th scope="row" class="ew-q" set:html={inlineMd(row.q)} />
+              {row.cells.map((cell) => (
+                <td class="ew-cell" data-tone={cell.tone} set:html={inlineMd(cell.v)} />
+              ))}
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  {foot && <figcaption class="ew-foot" set:html={inlineMd(foot)} />}
+</figure>
+
+<style>
+  .ew {
+    margin: 0;
+    border-radius: var(--r3);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+  }
+  .ew-scroll {
+    overflow-x: auto;
+  }
+  /* Код в шапке: базовые .86em от ступени шапки давали 10.2px. */
+  .ew-table th :global(code) {
+    font-size: 1em;
+  }
+  .ew-table {
+    width: 100%;
+    min-width: 820px;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  thead th {
+    padding: 11px 12px;
+    background: var(--ink);
+    --inline-code-bg: transparent;
+    color: var(--on-ink);
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: start;
+    vertical-align: bottom;
+  }
+  thead th:first-child {
+    width: 24%;
+  }
+  tbody tr + tr {
+    border-top: 1px solid var(--rule);
+  }
+  .ew-q {
+    padding: 11px 12px;
+    font-size: var(--fs-5);
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--ink);
+    text-align: start;
+    vertical-align: top;
+  }
+  .ew-cell {
+    padding: 11px 12px;
+    font-size: var(--fs-4);
+    line-height: 1.45;
+    text-align: start;
+    vertical-align: top;
+    border-left: 1px solid var(--rule);
+  }
+  .ew-cell[data-tone='ok'] {
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-text);
+  }
+  .ew-cell[data-tone='err'] {
+    background: var(--tone-err-bg);
+    color: var(--tone-err-text);
+  }
+  .ew-cell[data-tone='warn'] {
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-text);
+  }
+  .ew-cell[data-tone='dim'] {
+    background: var(--sunk-dim);
+    color: var(--dim);
+  }
+  .ew-foot {
+    padding: 12px 14px;
+    border-top: 1px solid var(--divider);
+    background: var(--surface-2);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+</style>

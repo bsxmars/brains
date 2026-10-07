@@ -1,0 +1,704 @@
+---
+title: 'Docker Compose: несколько сервисов'
+order: 2
+kicker: доставка
+lead: "Compose — это файл, где записано, **из каких частей состоит система и какой части что нужно**. Сеть между частями Compose создаёт сам, а имя каждой части становится её адресом. Главная ловушка — `depends_on`: он задаёт **порядок запуска**, но не ждёт, пока база будет готова отвечать."
+leadWidth: 66
+summary: "Сервисы, сеть и имена; почему `depends_on` без `condition: service_healthy` не ждёт базу и чем это кончается, когда база создаётся с нуля; проверка готовности, тома и то, какая переменная окружения кого перебивает."
+verifiedOn: Docker Engine 27.4.0 и Docker Compose v2.31.0-desktop.2 (macOS, arm64), сентябрь 2026; образы postgres:16-alpine (PostgreSQL 16.15), redis:7-alpine (7.4.11), nginx:alpine
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: 'Сервис, сеть и имена' }
+  - { id: s2, label: Готовность и healthcheck }
+  - { id: s3, label: Порядок запуска }
+  - { id: s4, label: Тома и данные }
+  - { id: s5, label: Переменные окружения }
+  - { id: s6, label: 'Изоляция, остановка, окружения' }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import NetworkDiagram from '@/widgets/compose-network-diagram/ui/NetworkDiagram.astro';
+import HealthTimeline from '@/widgets/compose-health-diagram/ui/HealthTimeline.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ServiceStartup from '@/widgets/service-startup/ui/ServiceStartup.vue';
+import {
+  APP_FAIL_LOG,
+  APP_OK_LOG,
+  BUILD_CODE,
+  BUILD_FACTS,
+  CONDITIONS_ROWS,
+  DEPENDS_FACTS,
+  DEPENDS_HEALTH_CODE,
+  DEPENDS_SHORT_CODE,
+  ENV_CODE,
+  ENV_MISSING,
+  ENV_ORDER,
+  ENV_ROWS,
+  HEALTH_CODE,
+  HEALTH_FACTS,
+  HEALTH_FIELDS,
+  MEASURED,
+  NAMES_ROWS,
+  NAME_FACTS,
+  PITFALLS,
+  PORT_ROWS,
+  READY_RULES,
+  RESOLV_CODE,
+  SCALE_CODE,
+  SCENARIOS,
+  SERVICES,
+  SOURCES,
+  STACK_CODE,
+  START_NUMBERS,
+  VOLUME_CODE,
+  VOLUME_FACTS,
+  VOLUME_ROWS,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  RELATED,
+  WAIT_RUNS,
+  WAIT_NOTE,
+  WAIT_TIMEOUT_NOTE,
+  WATCH_CODE,
+  WATCH_NOTE,
+  NET_CODE,
+  NET_RUNS,
+  NET_NOTE,
+  STOP_CODE,
+  STOP_RUNS,
+  STOP_NOTE,
+  STOP_LIMITS,
+  STOP_PRACTICE,
+  PROFILE_CODE,
+  PROFILE_RUNS,
+  PROFILE_NOTE,
+  PLAIN_DEPENDS,
+  PLAIN_HEALTHCHECK,
+  PLAIN_NETWORK,
+  PLAIN_VOLUME,
+  STARTUP_DEMO_NOTE,
+  HEALTH_SCENE,
+  HEALTH_FIELD_STEPS,
+  PLAIN_HEALTH_FIELDS,
+  ENV_SCENE,
+  ENV_SOURCES,
+  PLAIN_ENV,
+  NETWORK_DIAGRAM,
+  HEALTH_TIMELINE,
+} from './data';
+
+<Section variant="intro" eyebrow="Когда контейнеров больше одного" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Что внутри одного контейнера и как он собирается, рассказывает тема
+    [«Docker: образ и слои»](/delivery/docker/). Когда контейнеров несколько, появляются вопросы
+    **об отношениях между ними**: кто к кому обращается, по какому имени, кто без кого
+    не работает, чьи данные должны пережить перезапуск. Compose — файл, в котором эти отношения
+    записывают. Почти все ошибки в нём сводятся к одной: <b>«процесс запущен» принимают
+    за «сервис готов»</b>.
+
+  </Callout>
+
+  Разница между «запущен» и «готов» видна только во времени. Процесс базы уже запущен,
+  но ещё несколько сотен миллисекунд создаёт свои файлы и на запросы не отвечает. Приложение,
+  которое обратится к ней в этот промежуток, получит «Connection refused» и упадёт. Так
+  и вышло в записанном запуске приложения, базы и кеша: база создавалась с нуля, и из двух
+  файлов, отличающихся одной строкой, первый упал, а второй прошёл.
+
+  <CardGrid min={270} gap={14}>
+    <Card tone="err" emphasis title="`depends_on` задаёт очередь, но не ждёт готовности" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Короткая запись `depends_on: [db]` ждёт только, пока запустится процесс базы. Готова ли
+      база отвечать, она не проверяет. В замере приложение обратилось к базе слишком рано
+      и упало через 824 мс после команды `up`.
+
+    </Card>
+    <Card tone="ok" title="Ожидание готовности записывают явно" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      У базы описывают проверку готовности (`healthcheck`), а у приложения — условие
+      `condition: service_healthy`. Те же сервисы, та же база с нуля — и приложение получает
+      ответ на первый же запрос.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEPENDS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Сервис, сеть и имена"
+  lead="В файле ниже нет ни слова про сеть, но сеть есть. Compose создаёт её сам, подключает к ней все сервисы и даёт каждому имя. По этому имени сервисы обращаются друг к другу — его и пишут в строке подключения к базе."
+  leadWidth={72}
+>
+  <CodeBlock code={STACK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NETWORK} />
+
+  <CardGrid min={280} gap={14}>
+    {NAME_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <NetworkDiagram {...NETWORK_DIAGRAM} />
+
+  <Card title="Как имя превращается в адрес внутри контейнера" titleSize={18} pad={22} gap={14}>
+    <CodeBlock code={RESOLV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Table
+      head={['что', 'что происходит', 'почему']}
+      rows={NAMES_ROWS.map((r) => [r.k, r.what, r.why])}
+      kinds={['mono', 'prose', 'muted']}
+      cols="minmax(150px,.8fr) minmax(250px,1.5fr) minmax(210px,1.2fr)"
+      minWidth={660}
+    />
+
+    <CardNote tone="prose">
+
+      `127.0.0.11` — встроенная справочная Docker, которая превращает имена в адреса
+      (DNS-резолвер). Она есть в каждом контейнере. Имена своей сети она знает сама, а про
+      остальные, вроде `example.com`, спрашивает DNS-сервер хоста — компьютера, на котором
+      запущен Docker. Сколько стоят сам DNS-запрос и соединение с адресом — в разделе
+      [«Транспорт и RTT-бюджет»](/platform/network/#s1) темы про сеть. Здесь важно одно следствие: **IP-адрес сервиса
+      в конфигурацию писать не нужно и нельзя** — он меняется от запуска к запуску.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Одно имя, несколько адресов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCALE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="warn">
+
+        `getent hosts` показывает один адрес, `getent ahostsv4` — все три. Отсюда типичная
+        ошибка: программа-клиент берёт первый адрес, запоминает его и ходит только в один
+        контейнер из трёх. Этого никто не замечает, пока не посмотрит на нагрузку.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="Порт для хоста и порт внутри сети — разные вещи" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Table
+        head={['откуда и куда', 'результат', 'почему']}
+        rows={PORT_ROWS.map((r) => [r.k, r.v, r.why])}
+        kinds={['mono', 'prose', 'muted']}
+        cols="minmax(150px,1fr) minmax(120px,.8fr) minmax(180px,1.4fr)"
+        minWidth={460}
+      />
+
+      <CardNote tone="warn">
+
+        `ports` открывает дверь в контейнер **с хоста**, то есть с вашего компьютера. Соседнему
+        сервису эта дверь не нужна: внутри сети ему и так доступны все порты контейнера.
+        Открыть порт базы, «чтобы приложение достучалось», — значит выставить базу наружу
+        без всякой причины.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Проверка готовности (healthcheck)"
+  lead="«Запущен» Docker видит сам, а «готов» — нет: об этом знает только сервис. Healthcheck — способ спросить. Это команда, которую Docker по расписанию выполняет внутри контейнера; код выхода 0 значит «готов». Числа ниже — из записи двух запусков, которая разобрана в разделе «`depends_on` задаёт порядок запуска»."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HEALTHCHECK} />
+
+  <CodeBlock code={HEALTH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  ### Четыре поля на одной шкале запуска
+
+  {HEALTH_SCENE.map((t) => <Md text={t} />)}
+
+  <HealthTimeline {...HEALTH_TIMELINE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {HEALTH_FIELD_STEPS.map((f) => (
+      <Card title={`\`${f.k}\``} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={f.what} />
+        <Md text={`**Чем платит:** ${f.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HEALTH_FIELDS} />
+
+  Коротко, в одну таблицу:
+
+  <Table
+    head={['поле', 'что задаёт', 'что из этого следует']}
+    rows={HEALTH_FIELDS.map((r) => [r.k, r.what, r.why])}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(150px,.7fr) minmax(250px,1.4fr) minmax(230px,1.3fr)"
+    minWidth={680}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {HEALTH_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card pad={22} radius={5} gap={16}>
+    <div class="t-eyebrow t-eyebrow--panel">Путь одного сервиса до готовности</div>
+
+    <FlowChips
+      minWidth={680}
+      chips={[
+        { label: 'created' },
+        { label: 'running', tone: 'warn' },
+        { label: 'health: starting', tone: 'warn' },
+        { label: 'проба', tone: 'info' },
+        { label: 'healthy', tone: 'ok' },
+      ]}
+    />
+
+    Состояние `running` («запущен») наступает сразу. `healthy` («готов») — только после
+    первой успешной пробы. Между ними в замере прошло 1042 мс: за это время база создала
+    свои файлы и открыла порт. Если соседнее приложение обратится к ней в этот промежуток,
+    справляться с ошибкой ему придётся самому.
+
+  </Card>
+
+  <Card title="Какой должна быть проверка готовности" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={READY_RULES} size={14.5} />
+
+    <CardNote tone="warn">
+
+      Проверка запускается всё время, пока работает контейнер, а не только при старте.
+      Поэтому `interval: 100ms`, «чтобы стартовало быстрее», — это постоянная лишняя нагрузка
+      ради одной секунды при запуске.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+
+    Проверку можно записать и в сам образ — инструкцией `HEALTHCHECK` в Dockerfile ([раздел
+    «Запуск: первый процесс и сигналы»](/delivery/docker/#s6)); `healthcheck` в `compose.yml`
+    её перекрывает. В Kubernetes тот же вопрос разделён на три отдельные пробы, и одна из них
+    не ждёт, а перезапускает, — [раздел «Пробы»](/delivery/kubernetes/#s3).
+
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="`depends_on` задаёт порядок запуска, а не ожидание"
+  lead={STARTUP_DEMO_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Так пишут чаще всего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DEPENDS_SHORT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Так приложение ждёт готовности базы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DEPENDS_HEALTH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <ServiceStartup client:visible services={SERVICES} scenarios={SCENARIOS} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Что напечатало приложение без ожидания" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_FAIL_LOG} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="И оно же — с ожиданием готовности" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={APP_OK_LOG} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Три условия, которые можно поставить в `depends_on`" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['условие', 'что значит', 'когда']}
+      rows={CONDITIONS_ROWS.map((r) => [r.k, r.what, r.when])}
+      tones={CONDITIONS_ROWS.map((r) => r.tone)}
+      kinds={['mono', 'prose', 'muted']}
+      cols="minmax(230px,1fr) minmax(200px,1.1fr) minmax(250px,1.5fr)"
+      minWidth={700}
+    />
+
+    <CardNote tone="err">
+
+      Условие по умолчанию — самое бесполезное из трёх. Пока база стартует за миллисекунды,
+      оно ведёт себя так, как вы ожидаете. Но стоит базе создавать данные с нуля, и приложение
+      раз за разом приходит к ней раньше, чем она готова. Такое соревнование двух процессов
+      «кто успеет первым» называют гонкой.
+
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['что меряли', '`depends_on: [db]`', '`service_healthy`', 'о чём это']}
+    rows={START_NUMBERS.map((r) => [r.k, r.plain, r.healthy, r.what])}
+    kinds={['prose', 'mono', 'mono', 'muted']}
+    cols="minmax(190px,1fr) minmax(150px,.9fr) minmax(130px,.8fr) minmax(230px,1.4fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {DEPENDS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Почему ошибку замечают так поздно">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      Тот же файл, запущенный второй раз, **проходит**. Данные базы уже созданы, она
+      поднимается за доли секунды и успевает раньше приложения. В замере — 858 мс и код 0
+      вместо падения, хотя в файле не изменилось ни символа.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Поэтому ошибка месяцами прячется в проекте и всплывает там, где данных базы ещё нет:
+      в CI (автоматической проверке на сервере), на новой машине, после `down -v`. «У меня
+      работает» здесь — не отговорка, а точное описание разницы: у вас база уже создана,
+      а там — нет.
+
+    </DarkText>
+  </DarkPanel>
+
+  ### Готовность снаружи: `up --wait`
+
+  Знать, готовы ли сервисы, нужно не только им самим, но и тому, кто их запустил: скрипту
+  или CI. Для этого у `up` есть флаг `--wait`: команда возвращает управление, только когда
+  проверки готовности прошли.
+
+  <Table
+    head={WAIT_RUNS.head}
+    rows={WAIT_RUNS.rows}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(250px,1.2fr) minmax(170px,.9fr) minmax(240px,1.4fr)"
+    minWidth={720}
+  />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={WAIT_NOTE} />
+  </Card>
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={WAIT_TIMEOUT_NOTE} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+
+    В Kubernetes порядка запуска нет вовсе: поды стартуют независимо, и ждать соседа
+    приложение обязано само. От запросов раньше времени там защищает не очередь,
+    а [readiness-проба](/delivery/kubernetes/#s3).
+
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Тома и данные, которые переживают контейнер"
+  lead="Контейнер одноразовый: его удаляют и создают заново по любому поводу. Всё, что должно это пережить, хранят в томе — отдельной папке, которой управляет Docker. От того, лежат ли данные в томе, зависит, чем кончится перезапуск: база на месте или база потеряна."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VOLUME} />
+
+  <CodeBlock code={VOLUME_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={['команда', 'что удаляет', 'что с данными']}
+    rows={VOLUME_ROWS.map((r) => [r.k, r.v, r.keep])}
+    tones={VOLUME_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(230px,1fr) minmax(220px,1.2fr) minmax(180px,1fr)"
+    minWidth={660}
+  />
+
+  <CardGrid min={280} gap={14}>
+    {VOLUME_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Две строки в `volumes` выглядят одинаково, а ведут себя противоположно. Пустой
+    **именованный** том Docker при первом подключении заполнит файлами из образа. Пустая папка
+    с хоста, наоборот, закроет эти файлы собой. Что лежит в образе и как оно туда попадает —
+    в теме [про образ и слои](/delivery/docker/).
+
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Переменные окружения: какой источник кого перебивает"
+  lead="Одну и ту же переменную можно задать четырьмя способами: в файле `.env`, в файле из `env_file`, в секции `environment` и в оболочке, из которой запускают Compose. Если значение задано в нескольких местах, одно перебивает другое. Порядок проверен запуском: у четырёх сервисов разный набор источников и одна переменная `GREETING`."
+  leadWidth={72}
+>
+  <CodeBlock code={ENV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  ### Два момента, когда Compose читает переменные
+
+  {ENV_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {ENV_SOURCES.map((e) => (
+      <Card title={e.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда работает:** ${e.when}.`} />
+        <Md text={e.what} />
+        <Md text={`**Кому проигрывает:** ${e.loses}.`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENV} />
+
+  Что показал каждый сервис листинга:
+
+  <Table
+    head={['сервис', '`printenv GREETING`', 'почему так']}
+    rows={ENV_ROWS.map((r) => [r.k, r.v, r.why])}
+    tones={ENV_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(220px,1fr) minmax(160px,.8fr) minmax(250px,1.5fr)"
+    minWidth={700}
+  />
+
+  <Card title="Какой источник сильнее: порядок, проверенный запуском" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={ENV_ORDER} size={14.5} />
+  </Card>
+
+  <Card tone="err" title="Отсутствующая переменная не ломает запуск" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={ENV_MISSING} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CardNote tone="err">
+
+      Сервисы поднимутся с пустым паролем, пустым адресом и пустым ключом, а предупреждение
+      затеряется в выводе `up`. Исправляется это в самом файле: `${VAR:-значение}` задаёт
+      значение по умолчанию, а `${VAR:?нужен адрес}` делает переменную обязательной — без неё
+      команда сразу остановится с ошибкой.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Изоляция, остановка и одно описание на все окружения"
+>
+  ### Сеть без выхода наружу
+
+  Базе интернет не нужен, но по умолчанию он у неё есть: сеть проекта выпускает наружу
+  любой контейнер. Если в базу или в её образ попадёт чужой код, ему будет куда отправить
+  данные. Закрыть этот путь можно одной строкой.
+
+  <CodeBlock code={NET_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={NET_RUNS.head}
+    rows={NET_RUNS.rows}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(250px,1.4fr) minmax(150px,.8fr) minmax(150px,.8fr)"
+    minWidth={620}
+  />
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={NET_NOTE} />
+  </Card>
+
+  ### Остановка: кто завершается сам, а кого убивают
+
+  Симптом знаком многим: `docker compose down` «висит» ровно десять секунд, хотя сервисы
+  ничем не заняты. Compose сначала вежливо просит процесс завершиться сигналом `SIGTERM`,
+  а если тот не ушёл за отведённое время — убивает. Два сервиса ниже отличаются только тем,
+  слышат ли они просьбу.
+
+  <CodeBlock code={STOP_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={STOP_RUNS.head}
+    rows={STOP_RUNS.rows}
+    kinds={['prose', 'mono', 'mono', 'muted']}
+    cols="minmax(190px,1fr) minmax(130px,.7fr) minmax(110px,.6fr) minmax(240px,1.4fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={STOP_NOTE} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={STOP_LIMITS} />
+  </Card>
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={STOP_PRACTICE} />
+  </Card>
+
+  ### Один файл для разработки и для CI
+
+  На своей машине вам нужен отладочный сервис с веб-интерфейсом к базе, а в CI он только
+  замедлит запуск. Держать ради этого два почти одинаковых файла — значит однажды поправить
+  один и забыть второй.
+
+  <CodeBlock code={PROFILE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Table
+    head={PROFILE_RUNS.head}
+    rows={PROFILE_RUNS.rows}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(260px,1.3fr) minmax(150px,.8fr) minmax(240px,1.4fr)"
+    minWidth={700}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={PROFILE_NOTE} />
+  </Card>
+
+  ### Сборка образа прямо из файла
+
+  Пока образ берётся из реестра, `image:` достаточно. Когда сервис — ваш собственный код,
+  образ собирают из Dockerfile, и описать сборку можно прямо в `compose.yml`.
+
+  <CodeBlock code={BUILD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14}>
+    {BUILD_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Разработка: свежий код в контейнере без пересборки
+
+  <CodeBlock code={WATCH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={WATCH_NOTE} />
+  </Card>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+
+  <Card title="Что из этого проверено запуском" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={['утверждение', 'замер', 'проект']}
+      rows={MEASURED.map((m) => [m.k, m.v, m.where])}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(260px,1.5fr) minmax(190px,1fr) minmax(150px,.7fr)"
+      minWidth={700}
+    />
+
+    <CardNote tone="prose">
+
+      Миллисекунды зависят от машины и образа: на вашем компьютере они будут другими,
+      а порядок событий — тем же. И всё это про один компьютер: несколько машин
+      и оркестраторы — уже Kubernetes.
+
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+>
+  <Card pad={22} gap={14}>
+
+    Правила — из документации и спецификации формата, числа — из прогонов.
+
+    <SourceList items={SOURCES} />
+
+    <CardNote tone="prose">
+
+      Compose развивается быстро, и формулировки в документации меняются вместе с ним: `version:`
+      в начале файла успел стать обязательным, необязательным и устаревшим. Сверяйте со своей
+      версией — `docker compose version`, — а не с этой страницей.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

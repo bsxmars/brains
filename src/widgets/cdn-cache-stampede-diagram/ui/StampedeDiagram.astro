@@ -1,0 +1,174 @@
+---
+/**
+ * Окно истечения — одни и те же читатели под тремя режимами кеша.
+ *
+ * Столбцы — читатели в порядке прихода, строки — режимы. Так видно то, что в карточках
+ * размазано по трём абзацам: читатели одинаковы, меняется только, **кто из них идёт
+ * к origin сам** (красное), **кто ждёт чужой поход** (янтарное) и **кто получает ответ
+ * сразу** (зелёное).
+ *
+ * На узком экране строка режима складывается: название сверху, читатели — сеткой под ним,
+ * итог — последней строкой. Все строки — из `data.ts` темы, печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+import type { StampedeDiagramData } from '../model/types';
+
+interface Props {
+  diagram: StampedeDiagramData;
+}
+
+const { diagram } = Astro.props;
+---
+
+<figure class="csd-frame" style={`--csd-cols:${diagram.arrivals.length}`}>
+  <div class="t-eyebrow t-eyebrow--panel">{diagram.title}</div>
+
+  <div class="csd-grid">
+    <div class="csd-arrivals" aria-hidden="true">
+      <span />
+      {diagram.arrivals.map((a) => <span class="csd-arrival" set:html={inlineMd(a)} />)}
+      <span class="csd-arrival csd-arrival--sum">итог</span>
+    </div>
+
+    {
+      diagram.rows.map((row) => (
+        <section class="csd-row">
+          <div class="csd-k" set:html={inlineMd(row.k)} />
+          <div class="csd-cells">
+            {row.cells.map((cell, i) => (
+              <div class={`csd-cell csd--${cell.tone}`}>
+                <span class="csd-who" set:html={inlineMd(diagram.arrivals[i] ?? '')} />
+                <span set:html={inlineMd(cell.text)} />
+              </div>
+            ))}
+          </div>
+          <div class={`csd-verdict csd-verdict--${row.tone}`} set:html={inlineMd(row.verdict)} />
+        </section>
+      ))
+    }
+  </div>
+
+  <figcaption class="csd-caption" set:html={inlineMd(diagram.caption)} />
+</figure>
+
+<style>
+  .csd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .csd-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Одна раскладка на шапку и строки: название · читатели · итог. Клетки читателей
+     в широкой раскладке встают прямо в сетку строки (`display: contents`), поэтому
+     столбцы строк и шапки совпадают без подсетки. */
+  .csd-arrivals,
+  .csd-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.8fr) repeat(var(--csd-cols), minmax(0, 1fr)) minmax(150px, 0.9fr);
+    gap: 10px;
+    align-items: stretch;
+  }
+  .csd-cells {
+    display: contents;
+  }
+
+  .csd-arrival {
+    font-size: var(--fs-3);
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .csd-row {
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
+  }
+  .csd-k {
+    font-size: var(--fs-4);
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--ink);
+  }
+
+  .csd-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r2);
+    font-size: var(--fs-3);
+    line-height: 1.4;
+  }
+  .csd--err {
+    border-color: var(--tone-err-line);
+    background: var(--tone-err-bg);
+    color: var(--tone-err-strong);
+  }
+  .csd--warn {
+    border-color: var(--tone-warn-line);
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-strong);
+  }
+  .csd--ok {
+    border-color: var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  .csd-who {
+    display: none;
+    font-weight: 600;
+  }
+
+  .csd-verdict {
+    padding-left: 10px;
+    border-left: 3px solid currentcolor;
+    font-size: var(--fs-3);
+    line-height: 1.45;
+  }
+  .csd-verdict--err {
+    color: var(--tone-err-strong);
+  }
+  .csd-verdict--warn {
+    color: var(--tone-warn-strong);
+  }
+  .csd-verdict--ok {
+    color: var(--tone-ok-strong);
+  }
+
+  .csd-caption {
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  /* Узко: шапка с временем уходит, время приезжает внутрь каждой клетки. */
+  @media (max-width: 860px) {
+    .csd-arrivals {
+      display: none;
+    }
+    .csd-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .csd-cells {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+    }
+    .csd-who {
+      display: block;
+    }
+  }
+</style>

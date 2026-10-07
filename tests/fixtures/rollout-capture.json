@@ -1,0 +1,245 @@
+{
+  "a": {
+    "replicas": 4,
+    "maxSurge": "25%",
+    "maxUnavailable": "25%",
+    "readinessProbe": true,
+    "bootDelaySeconds": 8,
+    "rolloutStatusSeconds": 17.68,
+    "maxLivePods": 5,
+    "maxPodObjects": 7,
+    "minAvailable": 3,
+    "clientProbes": 187,
+    "clientFailures": 3,
+    "firstFailure": 8.72,
+    "lastFailure": 17.72,
+    "frames": [
+      {
+        "t": -3.93,
+        "newTotal": 0,
+        "newReady": 0,
+        "oldTotal": 4,
+        "oldReady": 4,
+        "terminating": 0
+      },
+      {
+        "t": 0.27,
+        "newTotal": 2,
+        "newReady": 0,
+        "oldTotal": 3,
+        "oldReady": 3,
+        "terminating": 1
+      },
+      {
+        "t": 0.88,
+        "newTotal": 2,
+        "newReady": 0,
+        "oldTotal": 3,
+        "oldReady": 3,
+        "terminating": 0
+      },
+      {
+        "t": 8.88,
+        "newTotal": 3,
+        "newReady": 2,
+        "oldTotal": 2,
+        "oldReady": 2,
+        "terminating": 1
+      },
+      {
+        "t": 8.99,
+        "newTotal": 4,
+        "newReady": 2,
+        "oldTotal": 1,
+        "oldReady": 1,
+        "terminating": 2
+      },
+      {
+        "t": 9.92,
+        "newTotal": 4,
+        "newReady": 2,
+        "oldTotal": 1,
+        "oldReady": 1,
+        "terminating": 0
+      },
+      {
+        "t": 17.88,
+        "newTotal": 4,
+        "newReady": 4,
+        "oldTotal": 0,
+        "oldReady": 0,
+        "terminating": 1
+      },
+      {
+        "t": 18.89,
+        "newTotal": 4,
+        "newReady": 4,
+        "oldTotal": 0,
+        "oldReady": 0,
+        "terminating": 0
+      }
+    ]
+  },
+  "b": {
+    "replicas": 4,
+    "maxSurge": "25%",
+    "maxUnavailable": "25%",
+    "readinessProbe": false,
+    "bootDelaySeconds": 8,
+    "rolloutStatusSeconds": 1.05,
+    "maxLivePods": 5,
+    "maxPodObjects": 7,
+    "minAvailable": 3,
+    "clientProbes": 191,
+    "clientFailures": 35,
+    "firstFailure": 0.07,
+    "lastFailure": 8.07,
+    "frames": [
+      {
+        "t": -3.93,
+        "newTotal": 0,
+        "newReady": 0,
+        "oldTotal": 4,
+        "oldReady": 4,
+        "terminating": 0
+      },
+      {
+        "t": 0.26,
+        "newTotal": 2,
+        "newReady": 0,
+        "oldTotal": 3,
+        "oldReady": 3,
+        "terminating": 1
+      },
+      {
+        "t": 0.62,
+        "newTotal": 2,
+        "newReady": 1,
+        "oldTotal": 2,
+        "oldReady": 2,
+        "terminating": 2
+      },
+      {
+        "t": 0.72,
+        "newTotal": 4,
+        "newReady": 2,
+        "oldTotal": 1,
+        "oldReady": 1,
+        "terminating": 2
+      },
+      {
+        "t": 1.21,
+        "newTotal": 4,
+        "newReady": 3,
+        "oldTotal": 0,
+        "oldReady": 0,
+        "terminating": 3
+      },
+      {
+        "t": 1.3,
+        "newTotal": 4,
+        "newReady": 4,
+        "oldTotal": 0,
+        "oldReady": 0,
+        "terminating": 3
+      },
+      {
+        "t": 1.7,
+        "newTotal": 4,
+        "newReady": 4,
+        "oldTotal": 0,
+        "oldReady": 0,
+        "terminating": 0
+      }
+    ]
+  },
+  "c": {
+    "replicas": 3,
+    "maxSurge": "25%",
+    "maxUnavailable": "25%",
+    "readinessProbe": true,
+    "bootDelaySeconds": 8,
+    "rolloutStatusSeconds": 26.77,
+    "maxLivePods": 4,
+    "maxPodObjects": 5,
+    "minAvailable": 3,
+    "clientProbes": 186,
+    "clientFailures": 3,
+    "firstFailure": 9.14,
+    "lastFailure": 27.14,
+    "frames": [
+      {
+        "t": -3.96,
+        "newTotal": 0,
+        "newReady": 0,
+        "oldTotal": 4,
+        "oldReady": 4,
+        "terminating": 0
+      },
+      {
+        "t": 0.25,
+        "newTotal": 1,
+        "newReady": 0,
+        "oldTotal": 3,
+        "oldReady": 3,
+        "terminating": 1
+      },
+      {
+        "t": 0.95,
+        "newTotal": 1,
+        "newReady": 0,
+        "oldTotal": 3,
+        "oldReady": 3,
+        "terminating": 0
+      },
+      {
+        "t": 8.98,
+        "newTotal": 2,
+        "newReady": 1,
+        "oldTotal": 2,
+        "oldReady": 2,
+        "terminating": 1
+      },
+      {
+        "t": 9.99,
+        "newTotal": 2,
+        "newReady": 1,
+        "oldTotal": 2,
+        "oldReady": 2,
+        "terminating": 0
+      },
+      {
+        "t": 17.96,
+        "newTotal": 3,
+        "newReady": 2,
+        "oldTotal": 1,
+        "oldReady": 1,
+        "terminating": 1
+      },
+      {
+        "t": 18.97,
+        "newTotal": 3,
+        "newReady": 2,
+        "oldTotal": 1,
+        "oldReady": 1,
+        "terminating": 0
+      },
+      {
+        "t": 27.05,
+        "newTotal": 3,
+        "newReady": 3,
+        "oldTotal": 0,
+        "oldReady": 0,
+        "terminating": 1
+      },
+      {
+        "t": 28.0,
+        "newTotal": 3,
+        "newReady": 3,
+        "oldTotal": 0,
+        "oldReady": 0,
+        "terminating": 0
+      }
+    ]
+  }
+}

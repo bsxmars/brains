@@ -1,0 +1,386 @@
+---
+title: Монорепозиторий
+heading: "Монорепозиторий: воркспейсы и граф задач"
+headingWidth: 24
+order: 10
+kicker: сборка и инструменты
+lead: "Пять пакетов в одном репозитории: приложения, библиотека компонентов, клиент API. Как `@shop/ui` из соседней папки оказывается в `node_modules`, почему `npm run build --workspaces` падает на чистой машине, как собрать только то, что задела правка, — и как кеш задач уверенно отдаёт бандл со стейджинговым адресом в продакшен."
+leadWidth: 66
+summary: "Воркспейсы npm и pnpm: симлинки на соседей, `workspace:*` и его замена при публикации; фантомы и разные версии между пакетами; граф пакетов, топологический порядок и барьеры уровней; `--filter \"...[origin/main]\"` и его слепые зоны; ключ кеша задачи как хеш входов и отравленный кеш из-за забытой переменной окружения."
+verifiedOn: "Node 24.11.0, npm 11.6.1, pnpm 11.0.9, git 2.44.0 — учебный монорепозиторий из пяти пакетов и учебный реестр на 127.0.0.1, без сети, октябрь 2026, macOS: раскладки, порядок сборки, выборки фильтра и тарболы `pnpm pack` сняты стендом; функции темы сверены с ними в tests/unit/monorepo.test.ts. Кеш задач — учебная модель; поведение Turborepo и Nx — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Воркспейсы }
+  - { id: s2, label: Фантомы и копии }
+  - { id: s3, label: Граф и порядок }
+  - { id: s4, label: Только изменённое }
+  - { id: s5, label: Кеш задач }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import AffectedLab from '@/widgets/monorepo-lab/ui/AffectedLab.vue';
+import CacheLab from '@/widgets/monorepo-lab/ui/CacheLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_MONOREPO,
+  PREREQ,
+  PREREQ_NOTE,
+  PACKAGES,
+  LAYOUT_CODE,
+  WEB_MANIFEST_CODE,
+  PLAIN_SYMLINK,
+  NPM_TREE_CODE,
+  PNPM_TREE_CODE,
+  TREE_NOTE,
+  LOCK_IMPORTERS_CODE,
+  LOCK_NOTE,
+  PLAIN_WORKSPACE_PROTOCOL,
+  PROTOCOL_ROWS,
+  PROTOCOL_NOTE,
+  PACK_ROWS,
+  PUBLISH_CODE,
+  WEB_SRC_CODE,
+  PHANTOM_NPM_CODE,
+  PHANTOM_PNPM_CODE,
+  PHANTOM_NOTE,
+  PHANTOM_DANGER,
+  DUP_NPM_CODE,
+  DUP_PNPM_CODE,
+  DUP_NOTE,
+  BUILD_JS,
+  NPM_ORDER_CODE,
+  PNPM_PARALLEL_CODE,
+  ORDER_NOTE,
+  PLAIN_TOPO,
+  GRAPH_CODE,
+  LEVELS_NOTE,
+  BARRIER_NOTE,
+  FILTER_ROWS,
+  FILTER_NOTE,
+  FILTER_RUNS,
+  FILTER_FACTS,
+  AFFECTED_CAPTION,
+  PLAIN_TASK_CACHE,
+  KEY_PARTS,
+  CACHE_CODE,
+  FIXTURE_FILES,
+  CACHE_RUNS,
+  CACHE_MODES,
+  CACHE_CAPTION,
+  POISON_NOTE,
+  TOOL_ROWS,
+  TOOL_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Один репозиторий, много пакетов" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Монорепозиторий держится на двух механизмах. Менеджер пакетов ставит соседние пакеты
+    **ссылками на папки**, и код импортирует `@shop/ui` так же, как пакет из реестра.
+    А инструмент запуска задач знает **граф** — кто от кого зависит — и по нему решает, в каком
+    порядке собирать, что пересобрать после правки и что можно взять из кеша.
+
+  </Callout>
+
+  Пока пакет один, `npm install` и `npm run build` хватает. Когда пакетов пять, появляются
+  новые вопросы. Как приложению увидеть библиотеку из соседней папки без публикации? В каком
+  порядке собирать, если `web` нужен собранный `ui`, а `ui` — собранный `utils`? Зачем
+  пересобирать всё, если правка в одном пакете? И откуда в CI взялся вчерашний бандл?
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MONOREPO} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Воркспейсы: сосед по ссылке, а не копией"
+  lead="Пример на всю тему — магазин из пяти пакетов. Три библиотеки лежат в `packages/`, два приложения — в `apps/`. Корневой файл говорит менеджеру, где искать пакеты, а каждый пакет объявляет соседей в своих `dependencies`, как обычные зависимости."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Репозиторий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LAYOUT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="apps/web/package.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={WEB_MANIFEST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Где окажется `@shop/ui`
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYMLINK} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="npm" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NPM_TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="pnpm" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PNPM_TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={TREE_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="pnpm-lock.yaml, фрагмент" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LOCK_IMPORTERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LOCK_NOTE} />
+  </CardGrid>
+
+  ### Протокол `workspace:` и публикация
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WORKSPACE_PROTOCOL} />
+
+  <Table
+    head={['что в `dependencies`', 'npm 11', 'pnpm 11']}
+    rows={PROTOCOL_ROWS.map((r) => [r.k, r.npm, r.pnpm])}
+    tones={PROTOCOL_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(220px,1.2fr) minmax(240px,1.3fr)"
+    minWidth={720}
+  />
+
+  <Md text={PROTOCOL_NOTE} />
+
+  Перед публикацией pnpm переписывает протокол в обычный диапазон: в реестре никакого
+  `workspace:` нет, и пакет с ним никто бы не установил. В тарболе `pnpm pack` оказывается
+  уже готовая версия соседа.
+
+  <CardGrid min={300} gap={16} align="start">
+    <Table
+      head={['пакет', 'зависимость', 'в репозитории', 'в тарболе']}
+      rows={PACK_ROWS.map((r) => [r.pkg, r.dep, r.spec, r.packed])}
+      kinds={['mono', 'mono', 'mono', 'mono']}
+      cols="minmax(100px,1fr) minmax(100px,1fr) minmax(110px,1fr) minmax(80px,.8fr)"
+      minWidth={460}
+    />
+
+    <Card title="Замена при публикации" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PUBLISH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Фантомы и разные версии между пакетами"
+  lead="Как подъём делает видимыми необъявленные пакеты и как pnpm это пресекает, подробно разобрано в [«Пакетных менеджерах»](/tooling/package-managers/#s2). В монорепозитории у того же механизма новый поворот: фантом достаётся от соседнего пакета, а версии одной библиотеки расходятся между приложениями."
+  leadWidth={72}
+>
+  <Card title="apps/web/src/index.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={WEB_SRC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="npm: работает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PHANTOM_NPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="pnpm: падает сразу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PHANTOM_PNPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={PHANTOM_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PHANTOM_DANGER} />
+
+  ### Две версии одной библиотеки
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="npm ls" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DUP_NPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="pnpm why" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DUP_PNPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={DUP_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Граф пакетов и порядок сборки"
+  lead="У каждого пакета одинаковый скрипт сборки: он требует, чтобы соседи уже были собраны, и копирует `src` в `dist`. Так ведёт себя любая настоящая сборка, которой нужны типы или код соседа. Запустим её во всех пакетах разом — средствами npm и pnpm."
+  leadWidth={72}
+>
+  <Card title="build.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={BUILD_JS} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="npm: по списку воркспейсов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NPM_ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="pnpm -r: по графу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PNPM_PARALLEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={ORDER_NOTE} />
+
+  ### Топологический порядок и уровни
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOPO} />
+
+  <Card title="Уровни графа и затронутые пакеты" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GRAPH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={LEVELS_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={BARRIER_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Собрать только то, что задела правка"
+  lead="Пересобирать все пакеты на каждый коммит дорого и незачем. Достаточно найти пакеты, в которых поменялись файлы, и добавить к ним всех, кто от них зависит: их сборку правка тоже могла сломать. В pnpm это делает фильтр, в учебном коде — функция `affected`."
+  leadWidth={72}
+>
+  <Table
+    head={['фильтр', 'что выбирает', 'на фикстуре']}
+    rows={FILTER_ROWS.map((r) => [r.k, r.what, r.got])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Md text={FILTER_NOTE} />
+
+  ### Что пересобрать после правки
+
+  <AffectedLab client:visible graphCode={GRAPH_CODE} packages={PACKAGES} presets={FILTER_RUNS} rootName="shop" caption={AFFECTED_CAPTION} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {FILTER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Кеш задач и отравленный кеш"
+  lead="Фильтр отвечает «что могло измениться». Кеш задач идёт дальше: он помнит результат каждой сборки под ключом — хешем всех её входов. Совпал ключ — результат берут из кеша, и пакет не собирается вовсе. Так работают Turborepo и Nx."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TASK_CACHE} />
+
+  <Table
+    head={['что входит в ключ', 'почему']}
+    rows={KEY_PARTS.map((r) => [r.k, r.d])}
+    kinds={['prose', 'prose']}
+    cols="minmax(180px,.8fr) minmax(320px,2fr)"
+    minWidth={540}
+  />
+
+  <Card title="Учебный кеш задач" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CACHE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Два прогона: стейджинг, потом продакшен
+
+  <CacheLab client:visible cacheCode={CACHE_CODE} graphCode={GRAPH_CODE} packages={PACKAGES} files={FIXTURE_FILES} runs={CACHE_RUNS} modes={CACHE_MODES} caption={CACHE_CAPTION} />
+
+  <Md text={POISON_NOTE} />
+
+  ### Turborepo и Nx
+
+  <Table
+    head={['', 'Turborepo', 'Nx']}
+    rows={TOOL_ROWS.map((r) => [r.k, r.turbo, r.nx])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(240px,1.2fr) minmax(240px,1.2fr)"
+    minWidth={660}
+  />
+
+  <Md text={TOOL_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Граф пакетов — главный документ монорепозитория.** По нему идёт порядок сборки,
+      выборка после правки и ключ кеша. Всё, что граф не видит — фантом от соседа, общий
+      файл в корне, переменная окружения, — однажды даст сборку, которая «прошла», но
+      собрала не то.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

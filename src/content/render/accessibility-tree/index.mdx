@@ -1,0 +1,440 @@
+---
+title: "Дерево доступности: что видит скринридер"
+heading: "Дерево доступности: что видит скринридер"
+headingWidth: 22
+order: 15
+kicker: браузер и рендеринг
+lead: "Скринридер не видит пикселей и не читает HTML. Он спрашивает у браузера второе дерево — дерево доступности, где у каждого узла есть роль, имя и состояние. Что в него попадает, откуда берётся «кнопка, Купить», почему `div` с `onclick` кнопкой не становится и чем `aria-*` не помогает клавиатуре."
+leadWidth: 66
+summary: "Дерево доступности рядом с DOM: роль, имя, состояние; что выпадает (`display: none`, `visibility`, `hidden`, `aria-hidden`, `inert`) и что растворяется; неявные роли и атрибут `role`; вычисление доступного имени по accname 1.2; `div` с `onclick` против `<button>`; `tabindex` и порядок Tab; живые регионы; расхождения Chromium, Playwright и axe-core."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), happy-dom 20.14.5, axe-core 4.13.0, Node 24.11.0, октябрь 2026: роли, имена и состояния 88 фикстур и пяти сцен сняты через CDP Accessibility, порядок Tab и Enter/пробел — настоящими нажатиями; функции темы сверены с ними в tests/unit/accessibility-tree.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Второе дерево }
+  - { id: s2, label: Что попадает }
+  - { id: s3, label: Роль }
+  - { id: s4, label: Имя }
+  - { id: s5, label: div с onclick }
+  - { id: s6, label: Фокус и Tab }
+  - { id: s7, label: Живые регионы }
+  - { id: s8, label: Кто считает }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import AxTreeLab from '@/widgets/ax-tree-lab/ui/AxTreeLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_AXTREE,
+  PREREQ,
+  PREREQ_NOTE,
+  TREE_CODE,
+  TREE_NOTE,
+  DEMO_CAPTION,
+  TREE_FACTS,
+  SCENES,
+  HIDDEN_CODE,
+  PLAIN_HIDDEN,
+  HIDE_ROWS,
+  HIDE_FACTS,
+  ROLE_CODE,
+  PLAIN_ROLE,
+  ROLE_ROWS,
+  ROLE_FACTS,
+  PLAIN_NAME,
+  NAME_STEPS,
+  NAME_CODE,
+  NAME_NOTE,
+  NAME_ROWS,
+  NAME_FACTS,
+  SHADOW_ROWS,
+  SHADOW_NOTE,
+  KEYS_HTML,
+  KEY_ROWS,
+  PLAIN_ARIA,
+  BUTTON_GIVES,
+  DIY_BUTTON_CODE,
+  DIY_NOTE,
+  FOCUS_CODE,
+  TABINDEX_ROWS,
+  TAB_FACTS,
+  PLAIN_LIVE,
+  LIVE_ROWS,
+  LIVE_CODE,
+  LIVE_FACTS,
+  DIVERGE_ROWS,
+  DIVERGE_NOTE,
+  AXE_ROWS,
+  AXE_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Второе дерево" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Из DOM и вычисленных стилей браузер строит не только картинку, но и **дерево доступности**:
+    узлы с ролью («кнопка»), именем («Купить») и состоянием («выключена»). Скринридер читает
+    только его. Чего нет в этом дереве, для незрячего человека нет на странице; что в нём
+    записано неверно, он и услышит неверно.
+
+  </Callout>
+
+  Две кнопки могут выглядеть одинаково до пикселя. Одна — `<button>`: в дереве это «кнопка,
+  Купить», до неё доходит Tab, её нажимают Enter и пробел. Другая — `<div>` с обработчиком клика:
+  в дереве это просто текст «Купить», Tab её пропускает, клавиши ничего не делают. Мышью разницы
+  не заметить, поэтому такие ошибки живут годами.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AXTREE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Второе дерево: роль, имя, состояние"
+  lead="Узел дерева доступности отвечает на три вопроса: что это (роль), как это назвать (имя) и в каком оно сейчас положении (состояния). Браузер строит его параллельно DOM: скрытое выбрасывает, обёртки без смысла растворяет, а у остального вычисляет роль и имя по правилам из спецификаций."
+  leadWidth={72}
+>
+  <Card title="Обход DOM — дерево доступности" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TREE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Пять сцен
+
+  <AxTreeLab
+    client:visible
+    codes={[HIDDEN_CODE, ROLE_CODE, NAME_CODE, FOCUS_CODE, TREE_CODE]}
+    scenes={SCENES}
+    caption={DEMO_CAPTION}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {TREE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Что попадает в дерево"
+  lead="Узел выпадает из дерева вместе со всем поддеревом, если его не рисуют (`display: none`, `hidden`), если он невидим (`visibility: hidden`), выключен (`inert`) или явно убран для технологий доступа (`aria-hidden`). Прозрачность, размер в один пиксель и вынос за край экрана узел не прячут."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HIDDEN} />
+
+  <Card title="Скрыт ли узел" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HIDDEN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['как спрятано', 'в дереве', 'Tab попадает']}
+    rows={HIDE_ROWS.map((r) => [r.k, r.tree, r.tab])}
+    tones={HIDE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(240px,1.6fr) minmax(90px,.5fr) minmax(110px,.6fr)"
+    minWidth={480}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {HIDE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Роль: от тега и от атрибута"
+  lead="У каждого элемента HTML есть неявная роль — её задаёт спецификация HTML-AAM, и браузер вписывает её сам. Атрибут `role` её заменяет. Иногда роль зависит не только от тега: `<a>` — ссылка только с `href`, `<section>` — ориентир только с именем, `<header>` — шапка страницы, только если не вложен в статью или раздел."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROLE} />
+
+  <Card title="Роль и состояния" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ROLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Что сказал Chromium
+
+  <Table
+    head={['разметка', 'роль в Chromium 153', 'почему']}
+    rows={ROLE_ROWS.map((r) => [r.html, r.role, r.note])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(260px,1.5fr) minmax(150px,.8fr) minmax(220px,1.2fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {ROLE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Доступное имя: кто побеждает"
+  lead="Имя вычисляется по алгоритму из спецификации accname 1.2. Источники проверяются по очереди, и первый, давший непустую строку, побеждает — остальные молча отбрасываются. Поэтому `aria-label` заглушает видимый текст, а ссылка на несуществующий `id` не даёт ошибки."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NAME} />
+
+  <Table
+    head={['шаг', 'что проверяется']}
+    rows={NAME_STEPS.map((r) => [r.step, r.what])}
+    tones={NAME_STEPS.map((r) => r.tone)}
+    kinds={['mono', 'prose']}
+    cols="minmax(70px,.25fr) minmax(320px,2fr)"
+    minWidth={460}
+  />
+
+  <Card title="Вычисление имени — подмножество accname 1.2" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NAME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={NAME_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Двадцать фикстур
+
+  <Table
+    head={['разметка', 'имя в Chromium 153', 'откуда', 'заметка']}
+    rows={NAME_ROWS.map((r) => [r.html, r.name, r.from, r.note])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(300px,1.8fr) minmax(130px,.8fr) minmax(130px,.7fr) minmax(170px,.9fr)"
+    minWidth={860}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {NAME_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Через границу Shadow DOM
+
+  <Table
+    head={['разметка', 'имя поля в Chromium 153']}
+    rows={SHADOW_ROWS.map((r) => [r.k, r.name])}
+    tones={SHADOW_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(320px,2fr) minmax(150px,.7fr)"
+    minWidth={520}
+  />
+
+  <Md text={SHADOW_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Почему div с onclick — не кнопка"
+  lead={'`<button>` — это роль, фокус, реакция на Enter и пробел, выключение и отправка формы, собранные в одном теге. `div` с обработчиком клика не получает ничего из этого. А `role="button"` добавляет только первое — табличку в дереве доступности.'}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ARIA} />
+
+  <Card title="Пять элементов и две клавиши" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={KEYS_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['элемент', 'Tab доходит', 'Enter', 'пробел']}
+    rows={KEY_ROWS.map((r) => [r.k, r.tab, r.enter, r.space])}
+    tones={KEY_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(90px,.4fr) minmax(200px,1fr) minmax(170px,.9fr)"
+    minWidth={720}
+  />
+
+  ### Что `<button>` даёт даром
+
+  <CardGrid min={220} gap={12} align="start">
+    {BUTTON_GIVES.map((item) => (
+      <Card title={item.t} titleSize={16} pad={16} radius={5} gap={8} size={15.5} lh={1.6} text={item.d} />
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Кнопка из div вручную" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DIY_BUTTON_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DIY_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Фокус и порядок Tab"
+  lead="Tab ходит по фокусируемым элементам в порядке документа. Фокусируются родные элементы управления и всё, у чего есть `tabindex`. Число в `tabindex` решает, войдёт ли элемент в порядок Tab и на какое место."
+  leadWidth={72}
+>
+  <Card title="Фокус и порядок" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FOCUS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['tabindex', 'что происходит']}
+    rows={TABINDEX_ROWS.map((r) => [r.k, r.what])}
+    tones={TABINDEX_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(160px,.6fr) minmax(320px,2fr)"
+    minWidth={520}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {TAB_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text="Как фокус теряется в виртуальном списке, где строки удаляются при прокрутке, — в теме [«Длинные списки», раздел «Доступность и поиск»](/render/virtual-lists/#s5)." />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Живые регионы: как сказать о том, что изменилось"
+  lead="Скринридер читает то место, где сейчас человек. Сообщение «Товар в корзине» в углу экрана он не заметит, если его об этом не попросить. Атрибут `aria-live` и роли `status` и `alert` превращают узел в живой регион: изменения в нём объявляются сами."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIVE} />
+
+  <Table
+    head={['разметка', 'live', 'когда и что объявляется']}
+    rows={LIVE_ROWS.map((r) => [r.k, r.live, r.what])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(220px,1fr) minmax(90px,.4fr) minmax(320px,2fr)"
+    minWidth={680}
+  />
+
+  <Card title="Объявить об изменении" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {LIVE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Кто ещё считает дерево и кто его проверяет"
+  lead="Дерево, которое слышит человек, считает его браузер. Инструменты разработчика — тесты на Playwright, линтеры доступности, axe — считают своё по тем же спецификациям. Обычно ответы совпадают, но на краях расходятся, а часть ошибок автоматика не видит вовсе."
+  leadWidth={72}
+>
+  <Table
+    head={['разметка', 'Chromium 153 (CDP)', 'Playwright ariaSnapshot', 'спецификация']}
+    rows={DIVERGE_ROWS.map((r) => [r.k, r.chrome, r.pw, r.spec])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(160px,.9fr) minmax(170px,.9fr) minmax(220px,1.2fr)"
+    minWidth={780}
+  />
+
+  <Md text={DIVERGE_NOTE} />
+
+  ### axe-core на сценах демо
+
+  <Table
+    head={['сцена', 'что нашёл axe-core 4.13.0']}
+    rows={AXE_ROWS.map((r) => [r.k, r.found])}
+    tones={AXE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(140px,.5fr) minmax(320px,2fr)"
+    minWidth={520}
+  />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={AXE_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Доступность закладывается тегом, а не атрибутами.** Родной элемент приносит роль, имя,
+      фокус и клавиши сразу; `aria-*` только подписывает то, что уже работает. Проверять
+      результат нужно тем же, чем пользуется человек: дерево — в панели Accessibility, клавиатуру —
+      проходом по странице Tab без мыши.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

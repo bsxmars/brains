@@ -1,0 +1,193 @@
+---
+/**
+ * `o.x = v` — три выхода из алгоритма и один вход в создание свойства.
+ *
+ * Блок-схема нужна до пошагового демо: сначала читатель видит, что выходов ровно три
+ * и все три означают «собственного свойства не будет», и только потом прогоняет каждый руками.
+ *
+ * Асимметрия внизу — главное, что отсюда надо унести: **первые две проверки смотрят весь путь
+ * до `null`, а третья — только сам объект.** Поэтому чужой прототип может запретить запись
+ * в ваш объект, но ваш объект не может запретить ничего чужому.
+ *
+ * Виджет без пропов: это фиксированный алгоритм спеки, а не данные урока.
+ */
+/*
+ * ⚠️ Тексты выходов переписаны, и вот от чего.
+ *
+ * «Собственное свойство НЕ создаётся» — капс вместо объяснения: набранное прописными слово
+ * кричит, но не говорит, что произошло вместо создания. «sloppy — тишина, strict — TypeError»
+ * оставляло два режима языка непереведённым жаргоном, хотя занимают они три лишних слова.
+ * А третий выход отсылал ко второму словами «тот же тихий провал»: читатель, попавший сюда
+ * глазами сразу, обязан был вернуться и перечитать соседнюю плашку.
+ *
+ * Правило: каждая плашка читается сама по себе и называет **исход**, а не громкость.
+ */
+/*
+ * ⚠️ Первый выход теперь различает два случая, и это не придирка. Демо записи переехало
+ * на `dog`, где аксессор `label` объявлен геттером БЕЗ сеттера: запись в него не «уходит
+ * чужому коду», а не происходит вовсе. Прежняя формулировка обещала сеттер всегда —
+ * и схема разошлась бы с тем, что читатель видит в демо через экран.
+ *
+ * ⚠️ И объект здесь зовётся `dog`, а не `o`: схема и демо говорят об одном объекте.
+ */
+const CHECKS = [
+  {
+    q: 'Есть ли такой ключ где-то в цепочке как аксессор?',
+    exit: 'выход 1 · да',
+    text: 'Запись отдаётся его сеттеру, и this в нём — dog, объект, которому присваивали: что случилось со значением, решает чужой код. А если сеттера у аксессора нет, не происходит и этого. Своего свойства у dog не появится в обоих случаях.',
+    tone: 'warn',
+  },
+  {
+    q: 'Есть ли такой ключ где-то в цепочке с writable: false?',
+    exit: 'выход 2 · да',
+    text: 'Записи не будет. В обычном коде — молча, без единого признака; в строгом режиме — TypeError: Cannot assign to read only property.',
+    tone: 'err',
+  },
+  {
+    q: 'Заводит ли сам dog новые ключи? [[Extensible]]',
+    exit: 'выход 3 · нет',
+    text: 'Записи не будет: объект закрыт для новых ключей — так делают preventExtensions, seal и freeze. Снова молча в обычном коде и снова TypeError в строгом. Уже существующее свойство при этом перезаписать можно — запрет на новые ключи, а не на запись.',
+    tone: 'err',
+  },
+];
+---
+
+<div class="flow">
+  {
+    CHECKS.map((check, i) => (
+      <>
+        <div class="row">
+          <div class="check">{check.q}</div>
+          <span class="split">▶</span>
+          <div class="exit" data-tone={check.tone}>
+            <span class="exit__label">{check.exit}</span>
+            <span class="exit__text">{check.text}</span>
+          </div>
+        </div>
+        <div class="next">{i < CHECKS.length - 1 ? 'нет ↓' : 'да ↓'}</div>
+      </>
+    ))
+  }
+
+  <div class="done">
+    <span class="done__label">только теперь</span>
+    <span class="done__text">
+      Создаётся <b>собственное</b> свойство на <code>dog</code>. Все флаги true.
+      Прототип не изменён.
+    </span>
+  </div>
+</div>
+
+<style>
+  .flow {
+    display: flex;
+    flex-direction: column;
+    padding: 22px 20px;
+    border-radius: var(--r4);
+    background: var(--surface);
+    box-shadow: var(--shadow-2);
+    min-width: 0;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.25fr);
+    gap: 12px;
+    align-items: center;
+  }
+
+  /* Проверка — узел решения, рамка обозначает его границу. */
+  .check {
+    padding: 13px 15px;
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.5;
+    color: var(--ink);
+  }
+
+  .split {
+    font-size: var(--fs-3);
+    color: var(--text-faint);
+  }
+
+  .exit {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 13px 15px;
+    border-radius: var(--r2);
+  }
+  .exit[data-tone='warn'] {
+    background: var(--tone-warn-bg);
+    border: 1px solid var(--tone-warn-line);
+  }
+  .exit[data-tone='err'] {
+    background: var(--tone-err-bg);
+    border: 1px solid var(--tone-err-line);
+  }
+  .exit__label {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .exit[data-tone='warn'] .exit__label {
+    color: var(--tone-warn-strong);
+  }
+  .exit[data-tone='err'] .exit__label {
+    color: var(--tone-err-strong);
+  }
+  .exit__text {
+    font-size: var(--fs-5);
+    line-height: 1.5;
+  }
+  .exit[data-tone='warn'] .exit__text {
+    color: var(--tone-warn-text);
+  }
+  .exit[data-tone='err'] .exit__text {
+    color: var(--tone-err-text);
+  }
+
+  .next {
+    padding: 7px 0 7px 2px;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--text-faint);
+  }
+
+  .done {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 15px 17px;
+    border-radius: var(--r2);
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+  }
+  .done__label {
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tone-ok-strong);
+  }
+  .done__text {
+    font-size: var(--fs-6);
+    line-height: 1.55;
+    color: var(--tone-ok-text);
+  }
+
+  @media (max-width: 720px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+    }
+    .split {
+      transform: rotate(90deg);
+      justify-self: start;
+      padding-left: 4px;
+    }
+  }
+</style>

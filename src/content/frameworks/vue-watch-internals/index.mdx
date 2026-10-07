@@ -1,0 +1,357 @@
+---
+title: "Vue 3 изнутри: watch, effectScope и computed 3.5"
+order: 13
+kicker: фреймворки изнутри
+lead: "`watch` — эффект с планировщиком и сравнением значений, `effectScope` — массив эффектов с одним `stop`, а `computed` в 3.5 узнаёт, изменилось ли что-то, по номерам версий, ничего не пересчитывая. Мини-версия исполняется на странице, а тест сверяет её с настоящим Vue 3.5."
+leadWidth: 66
+summary: "`watch` с `deep`, `once` и `onCleanup`, режимы `flush`, дерево `effectScope` и `computed` на версиях и узлах `Link` — мини-реализация в демо, сверенная тестом с `@vue/runtime-core` 3.5 в обеих сборках."
+verifiedOn: Vue 3.5.42 · Node 26.8.2
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: watch }
+  - { id: s2, label: onCleanup }
+  - { id: s3, label: flush }
+  - { id: s4, label: effectScope }
+  - { id: s5, label: computed 3.5 }
+  - { id: s6, label: Утечки }
+  - { id: s7, label: Мини против Vue }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import RaceLab from '@/widgets/mini-watch/ui/RaceLab.vue';
+import ScopeTree from '@/widgets/mini-watch/ui/ScopeTree.vue';
+import ComputedChain from '@/widgets/mini-watch/ui/ComputedChain.vue';
+import {
+  MINI_WATCH_CODE, STEP_SCOPE, STEP_LINK, STEP_EFFECT, STEP_SOURCES, STEP_COMPUTED, STEP_WATCH, STEP_QUEUE,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
+  PLAIN_WATCH, SOURCES_CODE, SOURCES_HEAD, SOURCES_ROWS, WATCH_NOTE, DEEP_CODE, TRAVERSE_NOTE, COST_NOTE, OPTIONS_FACTS,
+  PLAIN_CLEANUP, CLEANUP_ORDER_CODE, CLEANUP_NOTE, RACE_NAIVE_CODE, RACE_CODE, RACE_STEPS, RACE_NOTE,
+  FLUSH_LEAD, FLUSH_CODE, FLUSH_NOTE, SSR_NOTE, EFFECT_VS_WATCH_HEAD, EFFECT_VS_WATCH_ROWS,
+  PLAIN_SCOPE, SCOPE_CODE, SCOPE_NOTE, COMPONENT_NOTE, SCOPE_NODE_CODE, SCOPE_DEMO_NOTE, SCOPE_COMPUTED_CODE, SCOPE_COMPUTED_NOTE, PAUSE_CODE, PAUSE_NOTE,
+  PLAIN_VERSIONS, LINK_SHAPE, LINK_NOTE, REFRESH_FACTS, DIRTY_ONLY_PATCH, DIRTY_ONLY_HEAD, DIRTY_ONLY_ROWS, DIRTY_ONLY_NOTE, CHAIN, CHAIN_DEMO_NOTE,
+  LEAK_CODE, LEAK_CHAIN, LEAK_FACTS,
+  REAL_HEAD, REAL_ROWS, REAL_NOTE,
+  PITFALLS, SOURCES, RELATED,
+  REFRESH_SCENE_CODE, REFRESH_SCENE_NOTE, REFRESH_STEPS, PLAIN_REFRESH,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Идея"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  leadWidth={72}
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="`watch` поверх эффекта"
+  lead="Голый эффект перезапускается на каждое пробуждение и не знает, что было до. Для побочных действий — запрос, запись в хранилище — нужно другое: реагировать, только если значение правда изменилось, и получать старое рядом с новым. Это и есть `watch`. Из источника он строит геттер, из геттера — эффект, а эффекту даёт `scheduler`, который ставит задание в очередь. Задание перечитывает источник, сравнивает со старым значением и только тогда зовёт колбэк. Всё, что отличает `watch` от голого эффекта, живёт в этом задании и в том, каким получился геттер."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WATCH} />
+
+  <CodeBlock code={STEP_WATCH} />
+
+  ### Четыре вида источника
+
+  <Card title="Один и тот же `watch` — четыре разных геттера" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SOURCES_CODE} />
+
+    <Md text={WATCH_NOTE} />
+  </Card>
+
+  <Table
+    head={SOURCES_HEAD}
+    rows={SOURCES_ROWS}
+    kinds={['mono', 'muted', 'prose']}
+    cols="minmax(110px,.6fr) minmax(190px,1fr) minmax(260px,1.6fr)"
+    minWidth={640}
+  />
+
+  ### `deep` — это чтения, а глубина — их число
+
+  <Card title="Где просыпается каждый из четырёх" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DEEP_CODE} />
+
+    <Md text={TRAVERSE_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={COST_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {OPTIONS_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="`onCleanup`: гонка асинхронных ответов"
+  lead="Колбэк с `await` возвращается на первом же `await`, и следующая запись может запустить его снова, пока первый ответ ещё в пути. Ответы приходят в том порядке, в каком их отдал сервер, а не в том, в каком их спросили. Очистка — место, где прошлый запуск узнаёт, что он больше не нужен."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLEANUP} />
+
+  <Card title="Когда вызывается очистка" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLEANUP_ORDER_CODE} />
+
+    <Md text={CLEANUP_NOTE} />
+  </Card>
+
+  ### Гонка вживую
+
+  <RaceLab client:visible code={MINI_WATCH_CODE} naive={RACE_NAIVE_CODE} fixed={RACE_CODE} steps={RACE_STEPS} note={RACE_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="`flush`: куда встаёт задание"
+  lead={FLUSH_LEAD}
+  leadWidth={72}
+>
+  <CodeBlock code={STEP_QUEUE} />
+
+  <Card title="Три режима и `watchEffect` на одной записи" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FLUSH_CODE} />
+
+    <Md text={FLUSH_NOTE} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SSR_NOTE} />
+
+  ### `watchEffect` против `watch`
+
+  <Table
+    head={EFFECT_VS_WATCH_HEAD}
+    rows={EFFECT_VS_WATCH_ROWS}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(120px,.6fr) minmax(220px,1.2fr) minmax(240px,1.3fr)"
+    minWidth={640}
+  />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="`effectScope`: кто останавливает эффекты"
+  lead="Область — объект с тремя массивами: эффекты, очистки, дочерние области. Пока выполняется её `run`, она записана в `activeScope`, и каждый новый эффект кладёт себя туда сам. `stop` обходит все три массива."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCOPE} />
+
+  <CodeBlock code={STEP_SCOPE} />
+
+  <Card title="Вложенная и отсоединённая" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SCOPE_CODE} />
+
+    <Md text={SCOPE_NOTE} />
+  </Card>
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={COMPONENT_NOTE} />
+
+  ### Дерево областей вживую
+
+  <ScopeTree client:visible code={MINI_WATCH_CODE} nodeCode={SCOPE_NODE_CODE} note={SCOPE_DEMO_NOTE} />
+
+  ### Чего область не касается
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="`computed` в область не записан" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+      <CodeBlock code={SCOPE_COMPUTED_CODE} />
+
+      <Md text={SCOPE_COMPUTED_NOTE} />
+    </Card>
+
+    <Card title="Пауза вместо остановки" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+      <CodeBlock code={PAUSE_CODE} />
+
+      <Md text={PAUSE_NOTE} />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="`computed` в 3.5: версии, `Link` и проверка без пересчёта"
+  lead="Каждый источник несёт номер версии, каждая связь помнит номер, который видела. Вопрос «изменилось ли что-нибудь» — это сравнение чисел по списку связей, и пересчёт начинается, только когда числа разошлись. Сам `computed` поднимает свой номер, только если новое значение отличается от старого."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VERSIONS} />
+
+  ### `Link` вместо `Set`
+
+  <CodeBlock code={LINK_SHAPE} />
+
+  <CodeBlock code={STEP_LINK} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={LINK_NOTE} />
+
+  ### Эффект и источники на тех же связях
+
+  <CodeBlock code={STEP_EFFECT} />
+
+  <CodeBlock code={STEP_SOURCES} />
+
+  ### `refreshComputed`
+
+  <CodeBlock code={STEP_COMPUTED} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {REFRESH_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Одна запись через всю цепочку
+
+  <CodeBlock code={REFRESH_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={REFRESH_SCENE_NOTE} />
+
+  Та же запись — по шагам, как её проводит версионная схема.
+
+  <CardGrid min={290} gap={14} align="start">
+    {REFRESH_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REFRESH} />
+
+  ### Где простой флаг пересчитывает лишнее
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DIRTY_ONLY_NOTE} />
+
+  <Table
+    head={DIRTY_ONLY_HEAD}
+    rows={DIRTY_ONLY_ROWS}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(240px,1.5fr) minmax(110px,.6fr) minmax(200px,1fr)"
+    minWidth={620}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CHAIN_DEMO_NOTE} />
+
+  <ComputedChain client:visible code={MINI_WATCH_CODE} patch={DIRTY_ONLY_PATCH} scenario={CHAIN} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Утечки: эффект, который никто не остановит"
+  lead="Эффект не исчезает, когда исчезает то, что его создало. Он живёт, пока на него ссылается хоть один `Dep`, — то есть пока жив источник и не вызван `stop`."
+  leadWidth={72}
+>
+  <Card title="Область остановлена, а эффект — нет" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LEAK_CODE} />
+
+    <Md text={LEAK_CHAIN} />
+  </Card>
+
+  <CardGrid min={270} gap={14} align="start">
+    {LEAK_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Мини-версия против Vue 3.5"
+  lead="На всех примерах этой темы вывод совпадает. Отличается цена отдельных операций и то, что настоящая реализация умеет сверх показанного."
+  leadWidth={72}
+>
+  <Table
+    head={REAL_HEAD}
+    rows={REAL_ROWS}
+    kinds={['prose', 'muted', 'muted']}
+    cols="minmax(170px,.8fr) minmax(190px,.9fr) minmax(300px,1.7fr)"
+    minWidth={720}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={REAL_NOTE} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Тонкие места"
+  lead="Места, где `watch` и области ведут себя не так, как подсказывает их имя: `once` отменяет собственный запрос, `stop` области не касается `computed`, отсоединённая область переживает всех."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Источники"
+  lead="У каждого шага мини-версии есть оригинал в исходниках Vue 3.5 — там же видно, что добавлено сверх."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

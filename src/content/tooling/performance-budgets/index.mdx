@@ -1,0 +1,399 @@
+---
+title: Бюджеты производительности
+heading: "Бюджеты производительности: вес бандла и проверки в CI"
+headingWidth: 24
+order: 17
+kicker: сборка и инструменты
+lead: "Страница не стала медленнее за один день — она тяжелела по два килобайта в неделю, и никто не заметил. Бюджет превращает «не тяжелеть» в проверку на каждый пул-реквест. Какие байты считать, как собрать граф чанков, как ответить «почему этот модуль на странице» и как не утонуть в ложных срабатываниях — на настоящей сборке этого сайта и его стороже веса."
+leadWidth: 66
+summary: "Сырые байты против gzip и Brotli, критический путь против всех чанков, JS отдельно от CSS и шрифтов; живой бюджет сайта — weight.spec и его пороги; граф чанков из текста, из манифеста Vite и metafile esbuild; кратчайшая цепочка «кто тянет модуль»; Lighthouse CI, size-limit и RUM; порог, допуск, сравнение с базовой веткой и отчёт в пул-реквесте; хеши, общие чанки и одноимённые файлы."
+verifiedOn: "Astro 7.3.2 (Vite 8.3.0), es-module-lexer 2.3.2, acorn 8.18.0, esbuild 0.28.2, Node 24.11.0, Chromium 153 (Playwright 1.63), сборка сайта от 2 октября 2026: граф и размеры сняты с dist/ и сверяются tests/unit/performance-budgets.test.ts; функции темы сверены с weight.spec на всех страницах, с es-module-lexer и acorn на всех 313 чанках, с настоящими манифестом Vite и metafile esbuild; Lighthouse CI и size-limit — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Какие байты }
+  - { id: s2, label: Живой бюджет }
+  - { id: s3, label: Граф чанков }
+  - { id: s4, label: Кто тянет }
+  - { id: s5, label: Байты и метрики }
+  - { id: s6, label: Бюджет в CI }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import BudgetLab from '@/widgets/budget-lab/ui/BudgetLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_BUDGET,
+  PREREQ,
+  PREREQ_NOTE,
+  RESOURCE_ROWS,
+  PLAIN_COMPRESSED,
+  MEASURE_FACTS,
+  CRITICAL_NOTE,
+  JS_COST_NOTE,
+  CSS_FONT_NOTE,
+  WEIGHT_TIERS,
+  WEIGHT_SPEC_EXCERPT,
+  WEIGHT_SPEC_WALK,
+  WEIGHT_FACTS,
+  PLAIN_GRAPH,
+  GRAPH_CODE,
+  GRAPH_NOTE,
+  PARSE_SAMPLE,
+  PARSE_RESULT,
+  PARSE_FACTS,
+  FX_MAIN,
+  VITE_MANIFEST_PRINT,
+  MANIFEST_CODE,
+  ESBUILD_GRAPH_PRINT,
+  MANIFEST_NOTE,
+  WHY_NOTE,
+  PLAIN_WHY,
+  BUDGET_PAGES,
+  BUDGET_CHUNKS,
+  LAB_CAPTION,
+  METRICS_LEAD,
+  LHCI_CONFIG,
+  SIZE_LIMIT_CONFIG,
+  TOOL_ROWS,
+  METRIC_FACTS,
+  CI_CODE,
+  CI_REPORT_EVENT_LOOP,
+  CI_REPORT_LEAK,
+  CI_DIFF_NOTE,
+  CI_LEAK_NOTE,
+  WORKFLOW_YAML,
+  CI_STEPS,
+  FALSE_ROWS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Порог вместо пожелания" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Бюджет — это не число, а **число плюс правило подсчёта**. «Не больше 190 КБ» ничего
+    не значит, пока не сказано: каких байтов — сырых или сжатых, каких файлов — тех, что
+    нужны при открытии, или всех, что страница может подгрузить, и где их взять. От правила
+    зависит, что бюджет поймает, а что пропустит молча.
+
+  </Callout>
+
+  Страница почти никогда не тяжелеет одним рывком. Сегодня общий компонент вырос на 69 байт,
+  завтра остров подтянул новый модуль, через месяц кто-то импортировал из общего слоя то, что
+  тянет за собой второй фреймворк. Каждая правка по отдельности безобидна, а сумму на глаз
+  не видно: страница выглядит так же и работает так же, только грузится дольше. Бюджет
+  ставит проверку туда, где правка ещё не уехала в прод, — в конвейер пул-реквеста.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUDGET} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Какие байты считать"
+  lead="Одна и та же страница этого сайта «весит» 0, 48, 121 или 467 КБ — смотря что считать. Вот что Chromium на самом деле скачал для темы «Source maps»: окно 1280×800, локальный сервер без сжатия, прокрутка до конца."
+  leadWidth={72}
+>
+  <Table
+    head={['что', 'файлов', 'сырые байты', 'gzip', 'когда качается']}
+    rows={RESOURCE_ROWS.map((r) => [r.k, r.files, r.raw, r.gzip, r.when])}
+    tones={RESOURCE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(80px,.5fr) minmax(70px,.4fr) minmax(100px,.6fr) minmax(90px,.6fr) minmax(260px,2fr)"
+    minWidth={700}
+  />
+
+  ### Сырые или сжатые
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPRESSED} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {MEASURE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  Как сервер выбирает алгоритм и чем сжатие при сборке отличается от сжатия на лету — в
+  [«Сжатии в вебе», раздел «Заранее или на лету»](/platform/compression/#s3).
+
+  ### Критический путь или все чанки
+
+  <Md text={CRITICAL_NOTE} />
+
+  ### JS отдельно от остального
+
+  <Md text={JS_COST_NOTE} />
+
+  <Md text={CSS_FONT_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Живой бюджет этого сайта"
+  lead="У этого курса бюджет уже есть: e2e-проверка `tests/e2e/weight.spec.ts`. Она считает сырые байты скриптов каждой страницы — замыкание статических импортов от файлов, названных в HTML, — и сравнивает с порогом категории."
+  leadWidth={72}
+>
+  <Table
+    head={['порог', 'КБ', 'страницы', 'сейчас, КБ']}
+    rows={WEIGHT_TIERS.map((r) => [r.name, String(r.kb), r.pages, r.now])}
+    tones={WEIGHT_TIERS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(50px,.3fr) minmax(220px,1.4fr) minmax(170px,1fr)"
+    minWidth={680}
+  />
+
+  <Card title="Как weight.spec находит импорты и обходит граф" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={WEIGHT_SPEC_EXCERPT} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock code={WEIGHT_SPEC_WALK} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {WEIGHT_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Граф чанков"
+  lead="Чтобы посчитать замыкание, нужен граф: какой чанк кого импортирует. Его можно вытащить из текста готовых файлов или взять у сборщика. Первый способ работает с любым `dist/`, второй надёжнее."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GRAPH} />
+
+  <Card title="Граф из текста чанков" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GRAPH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={GRAPH_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Где регулярка ошибается
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Чанк с подвохами" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PARSE_SAMPLE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Что нашлось" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={PARSE_RESULT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {PARSE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Граф от сборщика
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Фикстура: src/main.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FX_MAIN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Vite: dist/.vite/manifest.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={VITE_MANIFEST_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Манифест и metafile — в тот же граф" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MANIFEST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="esbuild: fromMetafile(result.metafile)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ESBUILD_GRAPH_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={MANIFEST_NOTE} />
+  </CardGrid>
+
+  Почему сборщики режут по-разному и как устроены хеши в именах — в
+  [«Бандлере изнутри», раздел «Чанки»](/tooling/bundler-internals/#s4).
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Кто тянет этот модуль"
+  lead="Бюджет покраснел — теперь нужно понять, что выросло и откуда оно взялось. Обход в ширину уже запомнил, кто к кому привёл; осталось пройти по этим записям назад от файла до входа страницы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WHY} />
+
+  <Md text={WHY_NOTE} />
+
+  ### Граф страницы и порог
+
+  <BudgetLab client:visible graphCode={GRAPH_CODE} pages={BUDGET_PAGES} chunks={BUDGET_CHUNKS} caption={LAB_CAPTION} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Байты и метрики"
+  lead={METRICS_LEAD}
+  leadWidth={72}
+>
+  <Table
+    head={['инструмент', 'что меряет', 'шум', 'знает страницу']}
+    rows={TOOL_ROWS.map((r) => [r.k, r.what, r.noise, r.page])}
+    tones={TOOL_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(130px,.7fr) minmax(220px,1.4fr) minmax(170px,1fr) minmax(200px,1.2fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Lighthouse CI: lighthouserc.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LHCI_CONFIG} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="size-limit: .size-limit.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SIZE_LIMIT_CONFIG} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  Обе схемы — по документации инструментов. Байты в них жёсткие (`error`), время — мягкое
+  (`warn`, медиана нескольких прогонов). У size-limit пути перечислены руками: какой файл
+  принадлежит какой странице, он не знает.
+
+  <CardGrid min={280} gap={14} align="start">
+    {METRIC_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Бюджет в CI"
+  lead="Проверка в конвейере отвечает на два вопроса. Первый — не вышла ли страница за порог: от него зависит, красный ли прогон. Второй — что изменилось против базовой ветки: это текст для человека в комментарии к пул-реквесту."
+  leadWidth={72}
+>
+  <Card title="Порог, база, допуск, отчёт" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Две сборки этого сайта
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="ok" title="«Цикл событий»: вчера против сегодня" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CI_REPORT_EVENT_LOOP} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="err" title="Если бы в тему попал React" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CI_REPORT_LEAK} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={CI_DIFF_NOTE} />
+
+  <Md text={CI_LEAK_NOTE} />
+
+  ### Конвейер
+
+  <Card title="Схема: .github/workflows/budget.yml" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={WORKFLOW_YAML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {CI_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Ложные срабатывания
+
+  <Table
+    head={['что', 'как выглядит', 'что делать']}
+    rows={FALSE_ROWS.map((r) => [r.k, r.how, r.fix])}
+    tones={FALSE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(130px,.6fr) minmax(260px,1.6fr) minmax(200px,1.1fr)"
+    minWidth={660}
+  />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Бюджет полезен ровно настолько, насколько ему верят.** Жёсткий порог — на то, что
+      не шумит: байты замыкания по графу. Всё, что шумит или меняется без вашей правки, —
+      хеши, общие чанки, время из Lighthouse, — идёт в отчёт для человека, а не в красный
+      прогон. Иначе после третьего ложного срабатывания порог просто поднимут.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

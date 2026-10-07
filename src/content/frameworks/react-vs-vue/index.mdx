@@ -1,0 +1,381 @@
+---
+title: React против Vue
+order: 1
+kicker: фреймворки изнутри
+lead: "React и Vue решают одну задачу, но делают разный объём работы. Вопрос не «кто быстрее», а кто решает, что пересчитывать, в какой момент он это решает — и чем за это платят."
+leadWidth: 66
+summary: "Одна задача на двух фреймворках рядом: сколько функций вызвал каждый, сколько правок получил документ и чем за это платит каждая модель."
+verifiedOn: React 19.3 · Vue 3.5.42 · Node 24.11
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Различие }
+  - { id: s2, label: Одна задача }
+  - { id: s3, label: Цена }
+  - { id: s4, label: Перенос }
+  - { id: s5, label: Тонкие места }
+  - { id: s6, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import DarkCard from '@/shared/ui/DarkCard.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import TwoModels from '@/widgets/two-models/ui/TwoModels.astro';
+import WorkChart from '@/widgets/two-models/ui/WorkChart.vue';
+import {
+  ACTIONS,
+  APP_NOTE,
+  BREAKDOWN_NOTE,
+  CHART_NOTE,
+  CONTRAST,
+  CONTRAST_NOTE,
+  DEMO_CARDS,
+  DEMO_FOOT,
+  GLOSSARY,
+  HANDLER_NOTE,
+  HANDLER_ROWS,
+  INTRO_NOTE,
+  MATRIX,
+  MEMORY_NOTE,
+  MEMORY_ROWS,
+  MEMORY_WARN,
+  PITFALLS,
+  PORTING,
+  PRICE_CARDS,
+  PRICE_NOTE,
+  PRICE_ROWS,
+  ROOT_NOTE,
+  ROOT_REACT,
+  ROOT_VUE,
+  SYMMETRY_NOTE,
+  TICK_BREAKDOWN,
+  TIMING_NOTE,
+  TIMING_ROWS,
+  TIMING_VUE_ORDER,
+  TIMING_SSR_NOTE,
+  WORK_POINTS,
+  PREREQ,
+  PREREQ_NOTE,
+  SOURCES,
+  RELATED,
+  PLAIN_INVALIDATION,
+  PLAIN_WORK,
+  PLAIN_STORE,
+  PLAIN_GRAPH,
+  PLAIN_TIMING,
+  TWO_DEMO_NOTE,
+  HANDLER_COMPILED_CODE,
+  HANDLER_SCENE_NOTE,
+  HANDLER_SCENE_STEPS,
+} from './data';
+
+<Section variant="intro" eyebrow="Две модели обновления" lead={INTRO_NOTE} leadWidth={72}>
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Один вопрос, два ответа"
+  lead="Всё различие сводится к одному вопросу: **что фреймворк знает в момент, когда вы меняете данные**. Из ответа следует и число вызовов, и набор ловушек, и даже то, какие хуки вообще понадобились React."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INVALIDATION} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="React отвечает «что теперь должно быть»" titleSize={16.5} pad={20} gap={11} size={15.5} lh={1.6}>
+      <Md text={ROOT_REACT} />
+    </Card>
+
+    <Card tone="info" title="Vue отвечает «что изменилось»" titleSize={16.5} pad={20} gap={11} size={15.5} lh={1.6}>
+      <Md text={ROOT_VUE} />
+    </Card>
+  </CardGrid>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ROOT_NOTE} />
+  </Card>
+
+  ### Чем модели различаются по механизмам
+
+  <Table
+    head={CONTRAST.head}
+    rows={CONTRAST.rows}
+    cols={CONTRAST.cols}
+    kinds={CONTRAST.kinds}
+    minWidth={CONTRAST.minWidth}
+  />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={CONTRAST_NOTE} />
+  </Callout>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Одна задача, две модели"
+  lead="Слева настоящий React 19, справа настоящий Vue 3.5. Дерево компонентов одно и то же, данные — буквально одни и те же объекты, и каждое действие меняет **одно поле состояния из трёх**."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WORK} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TWO_DEMO_NOTE} />
+  </Card>
+
+  <TwoModels actions={ACTIONS} foot={DEMO_FOOT} />
+
+  <Table
+    head={MATRIX.head}
+    rows={MATRIX.rows}
+    cols={MATRIX.cols}
+    kinds={MATRIX.kinds}
+    minWidth={MATRIX.minWidth}
+  />
+
+  ### Кто именно отработал на «счётчик +1»
+
+  <Table
+    head={TICK_BREAKDOWN.head}
+    rows={TICK_BREAKDOWN.rows}
+    cols={TICK_BREAKDOWN.cols}
+    kinds={TICK_BREAKDOWN.kinds}
+    minWidth={TICK_BREAKDOWN.minWidth}
+  />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={BREAKDOWN_NOTE} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={APP_NOTE} />
+  </Card>
+
+  <CardGrid min={290} gap={14} align="start">
+    {DEMO_CARDS.map((item) => (
+      <Card title={item.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Чем платит каждая модель"
+  lead="Пять строк в списке — числа маленькие и разница выглядит спором о вкусах. Она перестаёт им быть, когда список растёт: у одной модели работа растёт вместе с ним, у двух других — нет."
+  leadWidth={72}
+>
+  <WorkChart points={WORK_POINTS} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CHART_NOTE} />
+  </Card>
+
+  ### А теперь то же самое, но состояние вынесено из дерева
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STORE} />
+
+  <Table
+    head={PRICE_ROWS.head}
+    rows={PRICE_ROWS.rows}
+    cols={PRICE_ROWS.cols}
+    kinds={PRICE_ROWS.kinds}
+    minWidth={PRICE_ROWS.minWidth}
+  />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={PRICE_NOTE} />
+  </Callout>
+
+  ### Сколько стоит граф зависимостей
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GRAPH} />
+
+  <Table
+    head={MEMORY_ROWS.head}
+    rows={MEMORY_ROWS.rows}
+    cols={MEMORY_ROWS.cols}
+    kinds={MEMORY_ROWS.kinds}
+    minWidth={MEMORY_ROWS.minWidth}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={MEMORY_NOTE} />
+  </Card>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={MEMORY_WARN} />
+  </Card>
+
+  <DarkPanel eyebrow="Итог, который не сводится к «лучше» и «хуже»">
+    <CardGrid min={260} gap={14}>
+      {PRICE_CARDS.map((item) => (
+        <DarkCard title={item.t} titleTone="info">
+          <Md text={item.d} />
+        </DarkCard>
+
+      ))}
+
+    </CardGrid>
+
+    <DarkText>
+
+      Ни одна цифра в этой теме не измеряет время. Считается работа — вызовы функций,
+      прогоны render-функций, правки документа и байты графа, — и только она. Это хорошая
+      метрика структуры и плохая метрика скорости: десять вызовов дешёвых функций вполне
+      могут стоить меньше, чем два прогона, читающих по сотне полей через прокси. Время
+      меряют профайлером на настоящей странице.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Перенос кода между моделями"
+  lead="Места, где знание переносится один в один, встречаются реже, чем кажется, а созвучные названия подводят чаще всего: `onMounted`, переписанный в `useEffect`, может замерцать, а стрелка, отданная пропом во Vue, ломает оптимизацию так же, как в React без `useCallback`."
+  leadWidth={72}
+>
+  ### Нужен ли во Vue аналог `useCallback`
+
+  <Md text={HANDLER_SCENE_NOTE} />
+
+  <CodeBlock code={HANDLER_COMPILED_CODE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {HANDLER_SCENE_STEPS.map((h) => (
+      <Card title={h.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={h.what} />
+        <Md text={`**Итог:** ${h.result}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Та же проверка на всех четырёх способах передать значение, снятая запуском:
+
+  <Table
+    head={HANDLER_ROWS.head}
+    rows={HANDLER_ROWS.rows}
+    cols={HANDLER_ROWS.cols}
+    kinds={HANDLER_ROWS.kinds}
+    minWidth={HANDLER_ROWS.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={HANDLER_NOTE} />
+  </Card>
+
+  ### Что во что переносится по таймингу
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TIMING} />
+
+  <Table
+    head={TIMING_ROWS.head}
+    rows={TIMING_ROWS.rows}
+    cols={TIMING_ROWS.cols}
+    kinds={TIMING_ROWS.kinds}
+    minWidth={TIMING_ROWS.minWidth}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TIMING_NOTE} />
+  </Card>
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TIMING_VUE_ORDER} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TIMING_SSR_NOTE} />
+  </Card>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={SYMMETRY_NOTE} />
+  </Callout>
+
+  <Card title="Правила переноса" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={PORTING} size={15.5} />
+  </Card>
+
+  <CheckList
+    items={[
+      'Сначала вопрос «почему это значение едет сюда через десять компонентов», и только потом `memo`.',
+      'Сравнивать модели числами, снятыми на одной задаче, а не ощущениями от разных проектов.',
+      'Любую цифру про память и время мерить на своём состоянии: чужой множитель ничего не предсказывает.',
+    ]}
+    size={15.5}
+  />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Тонкие места"
+  lead="Почти все они — не про фреймворки, а про то, как портятся замеры: прибор, который считает не то, выдаёт ровные и правдоподобные числа."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Источники"
+  lead="Документация обеих сторон плюс спецификация `MutationObserver` — там, где речь о самом измерении."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>
+

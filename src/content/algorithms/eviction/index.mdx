@@ -1,0 +1,485 @@
+---
+title: "Кеши с вытеснением: LRU, LFU, TinyLFU"
+heading: "Кеши с вытеснением: LRU, LFU, TinyLFU"
+headingWidth: 22
+order: 10
+kicker: алгоритмы во фронтенде
+lead: "У любого кеша кончается место, и тогда кто-то должен уйти. LRU выбрасывает давно не нужное и проваливается на одном проходе по большому списку. LFU держит популярное и не может забыть вчерашних звёзд. W-TinyLFU пускает новичка, только если тот популярнее жертвы. Все четыре политики написаны здесь по шагам, LRU сверен с `lru-cache` по каждому вытеснению, а доли попаданий сняты на одних и тех же трассах."
+leadWidth: 66
+summary: "Зачем кешу предел; LRU на `Map` и почему вытеснять надо одним итератором; `lru-cache` изнутри — список на массивах индексов, ленивый TTL, `maxSize`, `fetchMethod`; провал LRU на скане и цикле; LFU за O(1) и старение; ARC; W-TinyLFU — count-min sketch, окно и допуск; SIEVE; доли попаданий четырёх политик на синтетических трассах."
+verifiedOn: "lru-cache 11.5.3, reselect 5.3.0, Node 24.11.0, октябрь 2026: учебный LRU сверен с lru-cache по каждому шагу на случайных трассах с TTL и без, внутренние массивы lru-cache и примеры с ним исполняются в tests/unit/eviction.test.ts; доли попаданий LFU, W-TinyLFU и SIEVE на трассах с зерном 1 закреплены там же"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Зачем вытеснять }
+  - { id: s2, label: LRU на Map }
+  - { id: s3, label: lru-cache }
+  - { id: s4, label: Провалы LRU }
+  - { id: s5, label: LFU }
+  - { id: s6, label: TinyLFU }
+  - { id: s7, label: SIEVE }
+  - { id: s8, label: Гонка трасс }
+  - { id: s9, label: Кто что берёт }
+  - { id: s10, label: Тонкие места }
+  - { id: s11, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import EvictionSteps from '@/widgets/eviction-lab/ui/EvictionSteps.vue';
+import EvictionChart from '@/widgets/eviction-lab/ui/EvictionChart.vue';
+import {
+  GLOSSARY,
+  PLAIN_EVICTION,
+  PREREQ,
+  PREREQ_NOTE,
+  WHERE_ROWS,
+  WHERE_NOTE,
+  PLAIN_WEAK,
+  SELECTOR_ROWS,
+  SELECTOR_NOTE,
+  PLAIN_LRU,
+  LRU_CODE,
+  LRU_STEPS,
+  NAIVE_EVICT_CODE,
+  HOLES_NOTE,
+  TTL_NOTE,
+  PLAIN_LIST,
+  LAYOUT_NOTE,
+  LAYOUT_STEPS_NOTE,
+  PREALLOC_NOTE,
+  OPTION_ROWS,
+  TTL_CODE,
+  SIZE_CODE,
+  FETCH_CODE,
+  FETCH_FACTS,
+  FETCH_NOTE,
+  PLAIN_ZIPF,
+  TRACE_CODE,
+  TRACE_NOTE,
+  PLAIN_SCAN,
+  SCAN_HOT,
+  SCAN_NOTE,
+  LOOP_NOTE,
+  PLAIN_LFU,
+  LFU_CODE,
+  LFU_NOTE,
+  SHIFT_HALVES,
+  AGING_NOTE,
+  ARC_NOTE,
+  PLAIN_SKETCH,
+  SKETCH_CODE,
+  SKETCH_NOTE,
+  PLAIN_ADMISSION,
+  TINYLFU_CODE,
+  TINYLFU_STEPS,
+  CAFFEINE_NOTE,
+  LOOP_TINY_NOTE,
+  PLAIN_SIEVE,
+  SIEVE_CODE,
+  SIEVE_NOTE,
+  STEP_CAPACITY,
+  STEP_TRACES,
+  STEP_CAPTION,
+  CHART_TRACES,
+  CHART_CAPACITIES,
+  CHART_CAPTION,
+  HIT_TABLE_NOTE,
+  WHO_ROWS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  EVICTION_CODES,
+  LAYOUT_TABLE,
+  SHIFT_TABLE,
+  HIT_TABLE_ROWS,
+} from './data';
+
+<Section variant="intro" eyebrow="Кого выбросить" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Кеш всегда меньше того, что в него просится. Когда место кончилось, политика вытеснения
+    решает, кто уйдёт. От этого выбора зависит доля попаданий, а значит, сколько запросов
+    всё-таки дойдёт до медленного источника. Хорошая политика угадывает, что спросят снова,
+    **по прошлому** — и разные политики смотрят в прошлое по-разному.
+
+  </Callout>
+
+  Мемоизированный селектор, кеш ответов API, картинки в памяти, кеш в процессе сервера —
+  всё это словари «ключ → готовый ответ». Пока ключей немного, словарь просто растёт. Но
+  ключей обычно больше, чем памяти: id пользователей, страницы каталога, строки поиска.
+  Растущий без предела словарь — это утечка. Словарь с пределом — кеш, и ему нужно правило,
+  кого выбрасывать.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EVICTION} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Память кончается раньше ключей"
+  lead="Во фронтенде кешей больше, чем кажется, и у каждого свой ответ на вопрос «что будет, когда место кончится». Иногда ответ — «ничего»: кеш растёт, пока не кончится память вкладки."
+  leadWidth={72}
+>
+  <Table
+    head={['где', 'что хранит', 'чем ограничен']}
+    rows={WHERE_ROWS.map((r) => [r.k, r.what, r.limit])}
+    tones={WHERE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(170px,.8fr) minmax(320px,2fr)"
+    minWidth={700}
+  />
+
+  <Md text={WHERE_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WEAK} />
+
+  ### Селектор на трёх аргументах
+
+  Пять вызовов мемоизированной функции: `f(1) f(2) f(3) f(1) f(2)`. Сколько раз она
+  посчитает заново, зависит от того, как устроен её кеш.
+
+  <Table
+    head={['мемоизация', 'пересчётов из 5', 'почему']}
+    rows={SELECTOR_ROWS.map((r) => [r.k, String(r.calls), r.why])}
+    tones={SELECTOR_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(230px,1.1fr) minmax(110px,.5fr) minmax(300px,1.6fr)"
+    minWidth={660}
+  />
+
+  <Md text={SELECTOR_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="LRU на `Map`: порядок даром"
+  lead="LRU выбрасывает ключ, который дольше всех не спрашивали. Нужны две вещи: найти запись по ключу и знать, какая из записей самая давняя. `Map` даёт обе — и поиск по хешу, и порядок."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LRU} />
+
+  <Card title="LRU с TTL на `Map`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LRU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TTL_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {LRU_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Один итератор или новый каждый раз
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Новый итератор" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NAIVE_EVICT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={HOLES_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="`lru-cache` изнутри: массивы вместо узлов"
+  lead="Классический LRU — хеш-таблица плюс двусвязный список: таблица находит запись, список держит порядок. `lru-cache` устроен так же, но список у него собран не из объектов, а из чисел в типизированных массивах."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIST} />
+
+  <Md text={LAYOUT_NOTE} />
+
+  ### Восемь операций на кеше из четырёх ячеек
+
+  <Table
+    head={['операция', 'keyList', 'next', 'prev', 'head / tail', 'от давнего к свежему']}
+    rows={LAYOUT_TABLE}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(110px,.8fr) minmax(100px,.8fr) minmax(90px,.7fr) minmax(90px,.7fr) minmax(90px,.6fr) minmax(130px,1fr)"
+    minWidth={700}
+  />
+
+  <Md text={LAYOUT_STEPS_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PREALLOC_NOTE} />
+
+  ### Опции, которые меняют вытеснение
+
+  <Table
+    head={['опция', 'что делает']}
+    rows={OPTION_ROWS.map((r) => [r.k, r.d])}
+    kinds={['prose', 'prose']}
+    cols="minmax(190px,.7fr) minmax(360px,2fr)"
+    minWidth={600}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="TTL: протухшие ещё здесь" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TTL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="maxSize: одна тяжёлая — две лёгких" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SIZE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### `fetchMethod`: кеш сам ходит за значением
+
+  <Card title="Кеш пользователей с фоновым обновлением" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FETCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={FETCH_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {FETCH_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Где LRU ломается: скан и цикл"
+  lead="LRU верит, что недавнее повторится. Чаще всего так и есть, но есть две формы спроса, на которых эта вера оборачивается против него. Чтобы их увидеть, нужны трассы — и одни и те же для всех политик."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ZIPF} />
+
+  <Card title="Трассы и прогон" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TRACE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TRACE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Скан вымывает горячее
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCAN} />
+
+  <Table
+    head={['кеш на 100', 'из 20 самых популярных в кеше после скана', 'попаданий в следующих 500 запросах']}
+    rows={SCAN_HOT.map((r) => [r.k, String(r.top), String(r.after)])}
+    tones={SCAN_HOT.map((r) => (r.top === 0 ? 'err' : undefined))}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(130px,.7fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={580}
+  />
+
+  <Md text={SCAN_NOTE} />
+
+  ### Цикл чуть больше кеша
+
+  <Md text={LOOP_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="LFU: частота и старая слава"
+  lead="Если LRU смотрит на давность, LFU смотрит на частоту. Ключ, который спросили один раз, не вытеснит ключ, который спрашивают постоянно, — и скан ему не страшен. Зато у него своя беда: частота копится годами."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LFU} />
+
+  <Card title="LFU на корзинах частот" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LFU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={LFU_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Горячее сменилось
+
+  <Table
+    head={['кеш на 100', 'попадания, первая половина', 'вторая половина', 'старых ключей в кеше в конце']}
+    rows={SHIFT_TABLE}
+    tones={SHIFT_HALVES.map((r) => (r.oldLeft > 0 ? 'err' : undefined))}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(130px,.7fr) minmax(170px,1fr) minmax(140px,.8fr) minmax(190px,1fr)"
+    minWidth={640}
+  />
+
+  <Md text={AGING_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ARC_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="W-TinyLFU: фильтр на входе"
+  lead="LRU и LFU решают, кого выгнать. TinyLFU задаёт другой вопрос: стоит ли вообще пускать новичка. Для ответа нужна частота каждого ключа — в том числе тех, кого в кеше нет. Хранить счётчик на каждый ключ, который когда-либо спрашивали, дорого, поэтому частоту оценивают приближённо."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SKETCH} />
+
+  <Card title="Count-min sketch" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SKETCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SKETCH_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Окно, допуск, две части памяти
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ADMISSION} />
+
+  <Card title="W-TinyLFU" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TINYLFU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {TINYLFU_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={LOOP_TINY_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CAFFEINE_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="SIEVE: стрелка вместо перестановок"
+  lead="LRU на каждом попадании переставляет запись. Это запись в общую структуру при каждом чтении — и блокировка, если кеш читают из многих потоков. SIEVE обходится одним битом на запись и стрелкой, которая ищет жертву."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SIEVE} />
+
+  <Card title="SIEVE" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SIEVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SIEVE_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8 · демо"
+  eyebrowTone="demo"
+  title="Четыре политики на одной трассе"
+  lead="Одна и та же трасса, один и тот же размер — и четыре разных набора ключей в кеше. На коротких трассах видно, кого и почему выгоняет каждая политика. На длинных — во что это складывается."
+  leadWidth={72}
+>
+  ### Пошагово, кеш на четыре
+
+  <EvictionSteps client:visible codes={EVICTION_CODES} traces={STEP_TRACES} capacity={STEP_CAPACITY} caption={STEP_CAPTION} />
+
+  ### Доля попаданий по ходу трассы
+
+  <EvictionChart client:visible codes={EVICTION_CODES} traces={CHART_TRACES} capacities={CHART_CAPACITIES} caption={CHART_CAPTION} />
+
+  <Table
+    head={['трасса', 'кеш', 'LRU', 'LFU', 'W-TinyLFU', 'SIEVE']}
+    rows={HIT_TABLE_ROWS}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(90px,.7fr) minmax(60px,.4fr) minmax(80px,.6fr) minmax(80px,.6fr) minmax(100px,.7fr) minmax(80px,.6fr)"
+    minWidth={600}
+  />
+
+  <Md text={HIT_TABLE_NOTE} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Кто что использует"
+  lead="Готовые кеши редко пишут сами. Но знать, какая политика внутри, нужно: от неё зависит, что случится на скане, на цикле и при смене горячего."
+  leadWidth={72}
+>
+  <Table
+    head={['где', 'политика', 'как устроено']}
+    rows={WHO_ROWS.map((r) => [r.k, r.policy, r.note])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(170px,.8fr) minmax(320px,2fr)"
+    minWidth={680}
+  />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **У кеша два решения, а не одно: кого выгнать и кого пустить.** LRU и LFU отвечают
+      только на первый вопрос и потому проигрывают скану или смене горячего. Фильтр на входе
+      по оценке частоты, как в W-TinyLFU, закрывает оба случая ценой небольшого sketch
+      рядом с кешем. А прежде чем выбирать политику, кешу нужен предел — без него любая
+      политика остаётся на бумаге.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s11" eyebrow="Раздел 11" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

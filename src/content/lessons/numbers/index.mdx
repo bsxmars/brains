@@ -1,0 +1,537 @@
+---
+title: "Числа в JS: IEEE 754, Smi и BigInt"
+headingWidth: 24
+order: 17
+lead: "Каждое `number` в JS — 64 бита по стандарту IEEE 754: знак, порядок и мантисса. Отсюда `0.1 + 0.2`, потерянные идентификаторы длиннее 16 цифр, `-0` и `(1.005).toFixed(2) === \"1.00\"`. Внутри V8 то же число бывает малым целым прямо в ячейке или объектом в куче. А для точного счёта есть второй тип — `BigInt`."
+leadWidth: 66
+summary: "Биты double и его точное десятичное значение; почему `0.1 + 0.2 !== 0.3` и как сравнивать с допуском; `MAX_SAFE_INTEGER` и JSON с большими id; `-0` и `NaN`; печать, `toFixed` и банковское округление; `BigInt` и `asIntN`; побитовые операции и `ToInt32`; Smi и HeapNumber в V8 — границы в Node и Chrome и байты на элемент; деньги в целых."
+verifiedOn: "Node 24.11.0 (V8 13.6) и 26.8.2 (V8 14.6), Chromium 153.0.8010.12, Firefox 155, WebKit 26.6, октябрь 2026: таблицы выражений исполняет tests/unit/numbers.test.ts; учебные функции сверены с Float64Array, toFixed и x | 0 на сотнях тысяч чисел; Smi и байты на элемент — %IsSmi, %DebugPrint и heapUsed в отдельном процессе Node, колонка Chromium — стенд. Без таймерных замеров"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Устройство double }
+  - { id: s2, label: 0.1 + 0.2 }
+  - { id: s3, label: Предел целых }
+  - { id: s4, label: −0 и NaN }
+  - { id: s5, label: Печать и округление }
+  - { id: s6, label: BigInt }
+  - { id: s7, label: Побитовые операции }
+  - { id: s8, label: Smi и HeapNumber }
+  - { id: s9, label: Деньги }
+  - { id: s10, label: Тонкие места }
+  - { id: s11, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import DoubleLab from '@/widgets/double-lab/ui/DoubleLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_DOUBLE,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_FIELDS,
+  DOUBLE_CODE,
+  DOUBLE_NOTE,
+  FIELD_ROWS,
+  PLAIN_SUBNORMAL,
+  DOUBLE_PRESETS,
+  DEMO_CAPTION,
+  EXACT_ROWS,
+  SUM_STEPS,
+  PLAIN_ULP,
+  EPSILON_NOTE,
+  EPSILON_ROWS,
+  CLOSE_CODE,
+  CLOSE_ROWS,
+  CLOSE_NOTE,
+  SAFE_NOTE,
+  SAFE_ROWS,
+  STEP_ROWS,
+  STEP_NOTE,
+  JSON_BIG_CODE,
+  JSON_BIG_NOTE,
+  ZERO_ROWS,
+  NAN_ROWS,
+  EQUALITY_ROWS,
+  PLAIN_NAN,
+  PRINT_NOTE,
+  PRINT_ROWS,
+  PLAIN_ROUND,
+  ROUND_FACTS,
+  PLAIN_BIGINT,
+  BIGINT_ROWS,
+  ASINT_NOTE,
+  ASINT_ROWS,
+  HASH_CODE,
+  BIGINT_COST,
+  BITS_NOTE,
+  TOINT32_CODE,
+  BIT_ROWS,
+  BITS_FACTS,
+  PLAIN_SMI,
+  SMI_NOTE,
+  DEBUG_CODE,
+  DEBUG_OUT,
+  DEBUG_FACTS,
+  SMI_ROWS,
+  SMI_ROWS_NOTE,
+  BYTES_ROWS,
+  BYTES_NOTE,
+  MONEY_BAD_ROWS,
+  MONEY_CODE,
+  MONEY_ROWS,
+  MONEY_FACTS,
+  code,
+  exprRows,
+  exprTones,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Шестьдесят четыре бита" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    В JS нет целых чисел — у `number` есть только double. Целые до `2⁵³` он хранит точно,
+    а большинство десятичных дробей — нет: `0.1` в памяти чуть больше одной десятой.
+    Почти все «странности» чисел — следствие этого одного факта, и их можно предсказать,
+    если посмотреть на биты.
+
+  </Callout>
+
+  Число в JS выглядит как обычное число из школы. На деле это запись фиксированной длины:
+  64 бита, поделённые на три поля. Длина решает, какие числа представимы точно, где
+  пропадают целые и почему одно и то же значение печатается то как `0.1`, то как
+  `0.30000000000000004`. А движок V8 добавляет к этому свой слой: маленькие целые
+  он хранит по-другому, и это видно по памяти, хотя не видно из кода.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DOUBLE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Устройство double: знак, порядок, мантисса"
+  lead="64 бита делятся так: 1 бит знака, 11 бит порядка и 52 бита мантиссы. Значение обычного числа — `±(1 + мантисса / 2⁵²) · 2^(порядок − 1023)`. Вычитание 1023 нужно, чтобы порядок бывал и отрицательным: так записываются числа меньше единицы."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FIELDS} />
+
+  <Card title="Разбор, сборка и точное значение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DOUBLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={DOUBLE_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['число', 'биты (hex)', 'знак', 'порядок', 'мантисса', 'что это']}
+    rows={FIELD_ROWS.map((r) => [code(r.expr), code(r.hex), String(r.sign), r.exponent, code(r.mantissa), r.what])}
+    tones={FIELD_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose', 'prose', 'mono', 'prose']}
+    cols="minmax(130px,.8fr) minmax(150px,.9fr) minmax(50px,.3fr) minmax(90px,.5fr) minmax(130px,.8fr) minmax(220px,1.6fr)"
+    minWidth={860}
+  />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SUBNORMAL} />
+
+  ### Число по битам
+
+  <DoubleLab client:visible code={DOUBLE_CODE} presets={DOUBLE_PRESETS} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Почему 0.1 + 0.2 !== 0.3"
+  lead="Ни одно из трёх чисел не хранится точно. В памяти лежат ближайшие к ним double, и сумма двух приближений попадает не на то приближение, которым записан литерал `0.3`."
+  leadWidth={72}
+>
+  <Table
+    head={['выражение', 'что лежит в памяти точно', 'печатается']}
+    rows={EXACT_ROWS.map((r) => [code(r.expr), code(r.exact), code(r.prints)])}
+    tones={EXACT_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'mono']}
+    cols="minmax(110px,.5fr) minmax(420px,2.4fr) minmax(170px,.8fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={260} gap={14} align="start">
+    {SUM_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ULP} />
+
+  ### Сравнение с допуском
+
+  <Md text={EPSILON_NOTE} />
+
+  <Table
+    head={['проверка', 'ответ', 'почему']}
+    rows={exprRows(EPSILON_ROWS)}
+    tones={exprTones(EPSILON_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(300px,1.6fr) minmax(70px,.3fr) minmax(240px,1.4fr)"
+    minWidth={700}
+  />
+
+  <Card title="Допуск, который растёт с числами" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLOSE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['вызов', 'ответ', 'почему']}
+    rows={exprRows(CLOSE_ROWS)}
+    tones={exprTones(CLOSE_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(300px,1.6fr) minmax(70px,.3fr) minmax(240px,1.4fr)"
+    minWidth={700}
+  />
+
+  <Md text={CLOSE_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Где теряются целые"
+  lead="`Number.MAX_SAFE_INTEGER` — это `2⁵³ − 1`, последнее целое, у которого есть оба соседа-целых. Выше сетка double становится реже единицы, и целые начинают совпадать друг с другом — без ошибки и без предупреждения."
+  leadWidth={72}
+>
+  <Md text={SAFE_NOTE} />
+
+  <Table
+    head={['выражение', 'результат', 'что случилось']}
+    rows={exprRows(SAFE_ROWS)}
+    tones={exprTones(SAFE_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(260px,1.4fr) minmax(170px,.8fr) minmax(240px,1.4fr)"
+    minWidth={760}
+  />
+
+  ### Сетка редеет
+
+  <CardGrid min={300} gap={16} align="start">
+    <Table
+      head={['число', 'шаг до соседа']}
+      rows={STEP_ROWS.map((r) => [code(r.x), code(r.step)])}
+      kinds={['mono', 'mono']}
+      cols="minmax(150px,1fr) minmax(170px,1fr)"
+      minWidth={340}
+    />
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={STEP_NOTE} />
+  </CardGrid>
+
+  ### Большие идентификаторы в JSON
+
+  <Card title="Разобрать без потерь" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={JSON_BIG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={JSON_BIG_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="−0 и NaN"
+  lead="Оба значения — следствие формата, а не прихоть языка. Знаковый бит есть у любого double, в том числе у нуля. А для «результата нет» в формате зарезервированы порядки из одних единиц."
+  leadWidth={72}
+>
+  ### Минус ноль
+
+  <Table
+    head={['выражение', 'результат', 'почему']}
+    rows={exprRows(ZERO_ROWS)}
+    tones={exprTones(ZERO_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(190px,1fr) minmax(110px,.5fr) minmax(260px,1.6fr)"
+    minWidth={640}
+  />
+
+  ### NaN
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NAN} />
+
+  <Table
+    head={['выражение', 'результат', 'почему']}
+    rows={exprRows(NAN_ROWS)}
+    tones={exprTones(NAN_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(190px,1fr) minmax(110px,.5fr) minmax(260px,1.6fr)"
+    minWidth={640}
+  />
+
+  ### Три равенства
+
+  В языке три способа сравнить два числа, и отличаются они ровно на `-0` и `NaN`.
+
+  <Table
+    head={['сравнение', 'нули', '`NaN`', 'где встречается']}
+    rows={EQUALITY_ROWS.map((r) => [r.k, r.zero, r.nan, r.who])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,.9fr) minmax(150px,.8fr) minmax(170px,.9fr) minmax(200px,1.1fr)"
+    minWidth={700}
+  />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Печать и округление"
+  lead="Число в памяти и число на экране — разные вещи. Печать выбирает самую короткую запись, которая указывает на тот же double; `toFixed` округляет точное значение; `Intl.NumberFormat` — короткую запись. На одном и том же числе они расходятся."
+  leadWidth={72}
+>
+  <Md text={PRINT_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROUND} />
+
+  <Table
+    head={['выражение', 'результат', 'почему']}
+    rows={exprRows(PRINT_ROWS)}
+    tones={exprTones(PRINT_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(300px,1.6fr) minmax(150px,.6fr) minmax(240px,1.3fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {ROUND_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="BigInt: целые без предела"
+  lead="`BigInt` хранит целое любой длины — столько цифр, сколько нужно. Дробей у него нет, а с `number` в одном выражении он не смешивается: язык заставляет явно выбрать, где округлять."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BIGINT} />
+
+  <Table
+    head={['выражение', 'результат', 'почему']}
+    rows={exprRows(BIGINT_ROWS)}
+    tones={exprTones(BIGINT_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(250px,1.3fr) minmax(200px,.9fr) minmax(240px,1.3fr)"
+    minWidth={760}
+  />
+
+  ### Фиксированная ширина: `asIntN` и `asUintN`
+
+  <Md text={ASINT_NOTE} />
+
+  <Table
+    head={['выражение', 'результат', 'почему']}
+    rows={exprRows(ASINT_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(250px,1.3fr) minmax(200px,.9fr) minmax(200px,1.1fr)"
+    minWidth={720}
+  />
+
+  <Card title="64-битный хеш в JS" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HASH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={BIGINT_COST} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Побитовые операции: 32 бита, а не 64"
+  lead="Побитовый оператор не видит double. Он берёт от числа 32-битное целое по правилу `ToInt32`, работает с ним и возвращает тоже 32-битное. Всё, что не помещается, отрезается молча."
+  leadWidth={72}
+>
+  <Md text={BITS_NOTE} />
+
+  <Card title="ToInt32 — то же правило в четыре строки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TOINT32_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['выражение', 'результат', 'почему']}
+    rows={exprRows(BIT_ROWS)}
+    tones={exprTones(BIT_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(170px,.9fr) minmax(140px,.7fr) minmax(260px,1.6fr)"
+    minWidth={620}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {BITS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Внутри V8: Smi и HeapNumber"
+  lead="Язык знает один тип `number`, а движок — два способа его хранить. Малое целое лежит прямо в ячейке — это Smi. Всё остальное упаковано в объект HeapNumber в куче, а в ячейке — ссылка на него."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SMI} />
+
+  <Md text={SMI_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Спросить движок" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DEBUG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод в Node 24" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DEBUG_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={260} gap={14} align="start">
+    {DEBUG_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Smi в Node и в Chrome
+
+  <Table
+    head={['вызов', 'Node 24 и 26', 'Chromium 153', 'почему']}
+    rows={SMI_ROWS.map((r) => [code(r.code), code(String(r.node)), code(String(r.chrome)), r.why])}
+    tones={SMI_ROWS.map((r) => (r.node === r.chrome ? undefined : 'warn'))}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(230px,1.2fr) minmax(90px,.4fr) minmax(90px,.4fr) minmax(240px,1.4fr)"
+    minWidth={720}
+  />
+
+  <Md text={SMI_ROWS_NOTE} />
+
+  ### Сколько весит число в массиве
+
+  <Table
+    head={['что в массиве', 'как собран', 'Node, байт', 'Chromium, байт']}
+    rows={BYTES_ROWS.map((r) => [r.k, code(r.code), String(r.node), String(r.chrome)])}
+    tones={BYTES_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(200px,1.1fr) minmax(200px,1.1fr) minmax(90px,.4fr) minmax(110px,.5fr)"
+    minWidth={640}
+  />
+
+  <Md text={BYTES_NOTE} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Деньги: целые копейки или BigInt"
+  lead="Сумма в рублях с копейками — десятичная дробь, а double хранит двоичные. Ошибка появляется уже при записи цены и копится при каждом сложении. Деньги хранят и считают целыми числами в самых мелких единицах."
+  leadWidth={72}
+>
+  <Table
+    head={['выражение', 'результат', 'что не так']}
+    rows={exprRows(MONEY_BAD_ROWS)}
+    tones={exprTones(MONEY_BAD_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(280px,1.6fr) minmax(170px,.7fr) minmax(240px,1.3fr)"
+    minWidth={760}
+  />
+
+  <Card title="Копейки из текста и обратно" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MONEY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['вызов', 'результат', 'почему']}
+    rows={exprRows(MONEY_ROWS)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(280px,1.5fr) minmax(190px,.9fr) minmax(220px,1.2fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {MONEY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Деньги — это счёт, а не измерение.** Double создан для физических величин, где важны
+      первые 15 значащих цифр и неважно, что последняя чуть сдвинулась. У денег важна каждая
+      копейка. Отсюда целые в самых мелких единицах: `number`, пока сумма в пределах `2⁵³`,
+      и `BigInt`, если больше или нужно много знаков после запятой.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s11" eyebrow="Раздел 11" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

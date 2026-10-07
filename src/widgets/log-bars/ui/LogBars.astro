@@ -1,0 +1,206 @@
+---
+/**
+ * Полосы на логарифмической шкале.
+ *
+ * Отличие от оригинала — только в шкале, и оно про читаемость. Там обе диаграммы —
+ * «цена `===`» и ReDoS — были линейными, а значения в них разъезжаются на три порядка:
+ * 18 нс рядом с 4200 нс превращаются в ниточку у левого края, и первые три строки выглядят
+ * одинаково пустыми. На логарифмической шкале равные множители дают равные приращения длины,
+ * поэтому экспоненциальный рост читается как ровная лесенка — то есть как то, чем он и является.
+ *
+ * Засечки подписаны степенями десятки, иначе логарифм легко принять за линейку и
+ * недооценить разрыв между соседними полосами.
+ */
+import type { LogBar } from '../model/types';
+
+interface Props {
+  bars: LogBar[];
+  /** Надзаголовок над диаграммой. */
+  eyebrow?: string;
+  /** Пояснение под ней: что за шкала и что за замер. */
+  caption?: string;
+  /** Кратность рядом со значением: к предыдущей полосе или к первой. */
+  ratio?: 'none' | 'prev' | 'first';
+  /** Единица измерения для подписи засечек. */
+  unit?: string;
+}
+
+const { bars, eyebrow, caption, ratio = 'none', unit = '' } = Astro.props;
+
+const values = bars.map((b) => b.value);
+const lo = Math.log10(Math.min(...values));
+const hi = Math.log10(Math.max(...values));
+const span = hi - lo || 1;
+
+/** Самая короткая полоса обязана остаться полосой, а не исчезнуть в рамке. */
+const FLOOR = 8;
+const place = (v: number) => FLOOR + (100 - FLOOR) * ((Math.log10(v) - lo) / span);
+
+const rows = bars.map((bar, i) => {
+  const base = ratio === 'prev' ? bars[i - 1]?.value : bars[0]?.value;
+  return {
+    ...bar,
+    width: place(bar.value),
+    ratio: ratio === 'none' || !base || i === 0 ? '' : `×${(bar.value / base).toFixed(1)}`,
+  };
+});
+
+/** Засечки — целые степени десятки внутри диапазона. */
+const ticks: { label: string; left: number }[] = [];
+for (let e = Math.ceil(lo); e <= Math.floor(hi); e++) {
+  const v = 10 ** e;
+  ticks.push({ label: v >= 1 ? `${v}${unit}` : `${v}`, left: place(v) });
+}
+---
+
+<figure class="chart">
+  {eyebrow && <figcaption class="t-eyebrow t-eyebrow--panel">{eyebrow}</figcaption>}
+
+  <div class="rows">
+    {
+      rows.map((row) => (
+        <div class="row">
+          <span class="row__label">{row.label}</span>
+          <div class="track">
+            {ticks.map((tick) => (
+              <span class="tick" style={`left:${tick.left}%`} aria-hidden="true" />
+            ))}
+            <div class="fill" data-tone={row.tone ?? 'ok'} style={`width:${row.width}%`} />
+          </div>
+          <span class="row__value" data-tone={row.tone ?? 'ok'}>
+            {row.text}
+            {row.ratio && <i class="row__ratio">{row.ratio}</i>}
+          </span>
+        </div>
+      ))
+    }
+
+    <div class="row row--axis">
+      <span class="row__label" aria-hidden="true"></span>
+      <div class="track track--axis">
+        {
+          ticks.map((tick) => (
+            <span class="tick-label" style={`left:${tick.left}%`}>
+              {tick.label}
+            </span>
+          ))
+        }
+      </div>
+      <span class="row__value" aria-hidden="true"></span>
+    </div>
+  </div>
+
+  {caption && <div class="caption">{caption}</div>}
+</figure>
+
+<style>
+  .chart {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 160px) minmax(0, 1fr) auto;
+    gap: 11px;
+    align-items: center;
+  }
+  .row__label {
+    font-size: var(--fs-5);
+    line-height: 1.35;
+    color: var(--prose);
+  }
+  .row__value {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    white-space: nowrap;
+  }
+  .row__value[data-tone='ok'] {
+    color: var(--tone-ok-strong);
+  }
+  .row__value[data-tone='warn'] {
+    color: var(--tone-warn-strong);
+  }
+  .row__value[data-tone='err'] {
+    color: var(--tone-err-strong);
+  }
+  .row__ratio {
+    font-style: normal;
+    font-size: var(--fs-2);
+    color: var(--text-faint);
+  }
+
+  /* `min-width: 0` — иначе полоса не сожмётся ниже содержимого и утащит страницу вбок. */
+  .track {
+    position: relative;
+    min-width: 0;
+    height: 16px;
+  }
+  .tick {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 1px;
+    background: var(--hairline);
+  }
+  .fill {
+    position: relative;
+    height: 16px;
+    border-radius: var(--r1);
+  }
+  .fill[data-tone='ok'] {
+    background: var(--bar-green);
+  }
+  .fill[data-tone='warn'] {
+    background: var(--bar-amber);
+  }
+  .fill[data-tone='err'] {
+    background: var(--bar-red);
+  }
+
+  .row--axis {
+    align-items: start;
+  }
+  .track--axis {
+    height: 14px;
+  }
+  .tick-label {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    white-space: nowrap;
+    color: var(--dim);
+  }
+
+  .caption {
+    font-size: var(--fs-5);
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+
+  /* На узком экране колонка подписей съедает полосу — складываем строку в две. */
+  @media (max-width: 560px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .row__label {
+      grid-column: 1 / span 2;
+    }
+    .row--axis .row__label {
+      display: none;
+    }
+  }
+</style>

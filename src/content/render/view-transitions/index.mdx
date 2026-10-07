@@ -1,0 +1,335 @@
+---
+title: "View Transitions: анимация между состояниями"
+order: 4
+kicker: браузер и рендеринг
+lead: "`document.startViewTransition` снимает страницу до изменения и после, а между снимками анимирует картинки, а не ваши элементы. Отсюда всё поведение API: пока колбэк работает, экран стоит; сорвавшийся переход отменяет анимацию, но не изменение DOM."
+leadWidth: 66
+summary: "`startViewTransition`: порядок колбэка и промисов, дерево `::view-transition-*`, дубли имён, `skipTransition` и переход поверх перехода, `@view-transition` с `pageswap`/`pagereveal` и предрендером — сверено в Chromium 153, Firefox 155 и WebKit 26.6."
+verifiedOn: Chromium 153 · Firefox 155 · WebKit 26.6 · React 19.3 · Vue 3.5.42
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Снимки и промисы }
+  - { id: s2, label: Имена }
+  - { id: s3, label: Место в кадре }
+  - { id: s4, label: Прерывание }
+  - { id: s5, label: Между документами }
+  - { id: s6, label: Меньше движения }
+  - { id: s7, label: Поддержка }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import VtLab from '@/widgets/vt-lab/ui/VtLab.vue';
+import {
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
+  PLAIN_SNAPSHOT, BASIC_CODE, TREE_CODE, TREE_NOTE, PROMISES_HEAD, PROMISES_ROWS, ORDER_NOTE, PLAIN_PROMISES,
+  VT_SCENARIOS, VT_REDUCED_NOTE, VT_MISSING_NOTE, VT_FOOTER,
+  PLAIN_NAME, HANDOFF_CODE, HANDOFF_NOTE, DUP_HEAD, DUP_ROWS, DUP_NOTE, CLASS_CODE, CLASS_FACTS,
+  FRAME_FACTS, FRAME_NOTE, FRAMEWORK_CODE, FRAMEWORK_NOTE,
+  ABORT_HEAD, ABORT_ROWS, ABORT_NOTE, ABORT_EXTRA,
+  MPA_CSS, MPA_JS, MPA_NOTE, MPA_HEAD, MPA_ROWS, MPA_ENGINES, PRERENDER_NOTE,
+  MOTION_CODE, MOTION_NOTE, MOTION_JS_NOTE,
+  ENGINES_HEAD, ENGINES_ROWS, ENGINES_NOTE,
+  PITFALLS, SOURCES, RELATED,
+  TIMELINE_SCENE_CODE, TIMELINE_SCENE_NOTE, TIMELINE_STEPS, OVERLAP_SCENE_CODE, OVERLAP_SCENE_NOTE, OVERLAP_STEPS, PLAIN_OVERLAP,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Идея"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  leadWidth={72}
+>
+  <CardGrid min={270} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Два снимка, колбэк и три промиса"
+  lead="Вызов возвращает объект сразу, а работа идёт по кадрам: снимок старого состояния, колбэк, снимок нового, дерево псевдоэлементов, анимация. Каждый этап отмечен своим промисом, и у каждого промиса свой список причин для отказа."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+
+  <CodeBlock code={BASIC_CODE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={ORDER_NOTE} />
+
+  ### Один переход по времени
+
+  <CodeBlock code={TIMELINE_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={TIMELINE_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {TIMELINE_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Дерево псевдоэлементов
+
+  <Card title="Что строится к моменту `ready`" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TREE_CODE} />
+
+    <Md text={TREE_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROMISES} />
+
+  <Table
+    head={PROMISES_HEAD}
+    rows={PROMISES_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(150px,.6fr) minmax(240px,1.3fr) minmax(220px,1.1fr)"
+    minWidth={640}
+  />
+
+  ### Переход вживую
+
+  <VtLab client:visible scenarios={VT_SCENARIOS} reducedNote={VT_REDUCED_NOTE} missingNote={VT_MISSING_NOTE} footer={VT_FOOTER} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Имена: кто с кем сопоставляется"
+  lead="Без имён браузер снимает страницу одним куском `root` и просто растворяет старую картинку в новой. Имя выделяет элемент в отдельную группу, и тогда он едет от старого места к новому. Имя обязано быть уникальным в каждом из двух снимков."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NAME} />
+
+  <Card title="Имя переходит от элемента к элементу" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HANDOFF_CODE} />
+
+    <Md text={HANDOFF_NOTE} />
+  </Card>
+
+  ### Два элемента с одним именем
+
+  <Table
+    head={DUP_HEAD}
+    rows={DUP_ROWS}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(110px,.5fr) minmax(250px,1.2fr) minmax(250px,1.2fr)"
+    minWidth={680}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DUP_NOTE} />
+
+  ### Классы и типы
+
+  <CodeBlock code={CLASS_CODE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {CLASS_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Место в кадре: пока колбэк работает, экран стоит"
+  lead={FRAME_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={260} gap={14} align="start">
+    {FRAME_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Колбэк и фреймворк
+
+  <Card title="Изменение обязано быть в DOM, когда колбэк завершился" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FRAMEWORK_CODE} />
+
+    <Md text={FRAMEWORK_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Прерывание: отменяется анимация, а не изменение"
+  lead="Пользователь щёлкнул по двум вкладкам подряд — второй переход начался, пока первый ещё играл. Переход можно и пропустить вызовом `skipTransition`, и сломать дублем имени или долгим колбэком. Исходы различаются тем, какой из трёх промисов отклонён."
+  leadWidth={72}
+>
+  ### Два щелчка подряд
+
+  <CodeBlock code={OVERLAP_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={OVERLAP_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {OVERLAP_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OVERLAP} />
+
+  ### Все исходы
+
+  <Table
+    head={ABORT_HEAD}
+    rows={ABORT_ROWS}
+    kinds={['prose', 'muted', 'mono', 'muted']}
+    cols="minmax(220px,1.3fr) minmax(140px,.8fr) minmax(140px,.8fr) minmax(130px,.7fr)"
+    minWidth={720}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={ABORT_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ABORT_EXTRA} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Между документами: `@view-transition`, `pageswap`, `pagereveal`"
+  lead="Сайту из обычных страниц не нужен SPA-роутер, чтобы картинка из списка плавно превратилась в шапку статьи: навигация по ссылке тоже может стать переходом — если обе страницы одного источника об этом попросили. Старая страница снимается перед уходом, новая получает готовый объект перехода в `pagereveal`."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="CSS на обеих страницах" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+      <CodeBlock code={MPA_CSS} />
+    </Card>
+
+    <Card title="Два события на две стороны" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
+      <CodeBlock code={MPA_JS} />
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={MPA_NOTE} />
+
+  ### Когда навигация получает переход
+
+  <Table
+    head={MPA_HEAD}
+    rows={MPA_ROWS}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(220px,1.2fr) minmax(200px,1fr) minmax(200px,1fr)"
+    minWidth={680}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={MPA_ENGINES} />
+
+  ### Переход на предрендеренную страницу
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={PRERENDER_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="`prefers-reduced-motion`: гасить приходится самим"
+  lead="Переход — это движение, которое пользователь не запускал руками: ровно тот случай, ради которого придуман запрос «поменьше движения». Браузер его здесь не учитывает."
+  leadWidth={72}
+>
+  <CodeBlock code={MOTION_CODE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={MOTION_NOTE} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={MOTION_JS_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Поддержка в трёх движках"
+  lead="Переходы внутри документа есть во всех трёх, и ведут себя одинаково. Расходятся переходы между документами, переходы на отдельном элементе и имена, которые браузер придумывает сам."
+  leadWidth={72}
+>
+  <Table
+    head={ENGINES_HEAD}
+    rows={ENGINES_ROWS}
+    kinds={['prose', 'muted', 'muted', 'muted']}
+    cols="minmax(260px,1.6fr) minmax(100px,.5fr) minmax(100px,.5fr) minmax(100px,.5fr)"
+    minWidth={640}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ENGINES_NOTE} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Тонкие места"
+  lead="Места, где переход ломается молча: анимации нет, ошибки на экране нет, а DOM уже в новом состоянии."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Источники"
+  lead="Спецификации — чтобы сверить порядок шагов и список причин отказа; тексты ошибок и имена, которые браузер придумывает сам, у каждого движка свои, и сверять их надо запуском."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

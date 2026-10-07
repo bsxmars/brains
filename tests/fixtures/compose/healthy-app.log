@@ -1,0 +1,5 @@
+app-1    | APP start=1789468907.
+app-1    | APP resolve db: 172.23.0.3        db  db;
+app-1    | APP resolve cache: 172.23.0.2        cache  cache;
+app-1    | APP db=OK at=1789468907. rows=1
+app-1    | APP exit=0

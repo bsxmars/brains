@@ -1,0 +1,103 @@
+---
+/**
+ * «Что нужно» → чего это стоит на колбэках и на промисах.
+ *
+ * Соседка таблицы гарантий и по той же причине своя: колонка «на промисах» красится
+ * построчно. Две последние строки — конкурентность и отмена — остаются ручной работой
+ * в обеих моделях, и янтарный цвет там говорит ровно это. Покрасить колонку целиком
+ * зелёным значило бы соврать в выводе, ради которого таблица и стоит.
+ */
+import type { CompareRow } from '../model/types';
+
+interface Props {
+  rows: CompareRow[];
+}
+
+const { rows } = Astro.props;
+---
+
+<div class="wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>что нужно</th>
+        <th>на колбэках</th>
+        <th>на промисах</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row) => (
+          <tr>
+            <td class="need">{row.need}</td>
+            <td class="cb">{row.cb}</td>
+            <td class="pr" data-manual={row.manual ? 'yes' : 'no'}>
+              {row.pr}
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .wrap {
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    min-width: 600px;
+    border-collapse: collapse;
+  }
+  tr {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.1fr) minmax(220px, 1.4fr) minmax(190px, 1.2fr);
+  }
+  thead tr {
+    background: var(--ink);
+    color: var(--on-ink);
+  }
+  th {
+    padding: 11px 14px;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: start;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .need {
+    padding: 12px 14px;
+    font-size: var(--fs-6);
+    line-height: 1.45;
+    color: var(--ink);
+  }
+  .cb,
+  .pr {
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.5;
+  }
+  .cb {
+    color: var(--tone-err-strong);
+  }
+  .pr[data-manual='no'] {
+    color: var(--tone-ok-strong);
+  }
+  .pr[data-manual='yes'] {
+    color: var(--tone-warn-strong);
+  }
+</style>

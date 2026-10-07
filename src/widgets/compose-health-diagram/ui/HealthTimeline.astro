@@ -1,0 +1,204 @@
+---
+/**
+ * Шкала запуска базы: события и промежутки на общей оси миллисекунд.
+ *
+ * Абзац сцены называет четыре отметки подряд, и из текста трудно удержать главное: момент,
+ * когда база готова, и момент, когда об этом узнал Docker, — разные, и между ними лежит
+ * доля интервала. На шкале это видно сразу. Положения пропорциональны числам темы.
+ *
+ * Строка — либо точка (`at`), либо отрезок (`from`–`to`), либо отрезок с точкой на конце.
+ * На узком экране подпись встаёт над дорожкой, и шкала помещается без прокрутки.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Row {
+  k: string;
+  at?: number;
+  from?: number;
+  to?: number;
+  tone: string;
+}
+
+interface Props {
+  title: string;
+  caption: string;
+  max: number;
+  ticks: number[];
+  rows: Row[];
+}
+
+const { title, caption, max, ticks, rows } = Astro.props;
+const pct = (v: number) => `${(v / max) * 100}%`;
+/** Подпись точки справа от неё, а у правого края — слева, чтобы не уйти за рамку. */
+const side = (v: number) => (v / max > 0.8 ? 'left' : 'right');
+---
+
+<figure class="chd">
+  <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(title)} />
+
+  <div class="chd-scroll">
+    <div class="chd-grid">
+      {
+        rows.map((r) => (
+          <>
+            <div class="chd-k" set:html={inlineMd(r.k)} />
+            <div class="chd-track">
+              {r.from !== undefined && r.to !== undefined && (
+                <span
+                  class="chd-span"
+                  data-tone={r.tone}
+                  style={`left:${pct(r.from)};width:${pct(r.to - r.from)}`}
+                />
+              )}
+              {r.at !== undefined && (
+                <>
+                  <span class="chd-dot" data-tone={r.tone} style={`left:${pct(r.at)}`} />
+                  <span class="chd-at" data-side={side(r.at)} style={`left:${pct(r.at)}`}>
+                    {r.at} мс
+                  </span>
+                </>
+              )}
+            </div>
+          </>
+        ))
+      }
+      <div />
+      <div class="chd-axis" aria-hidden="true">
+        {
+          ticks.map((t) => (
+            <span class="chd-tick" style={`left:${pct(t)}`}>
+              {t}
+            </span>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+
+  <figcaption class="t-note" set:html={inlineMd(caption)} />
+</figure>
+
+<style>
+  .chd {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .chd-scroll {
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .chd-grid {
+    display: grid;
+    grid-template-columns: minmax(200px, 0.9fr) minmax(320px, 1.4fr);
+    align-items: center;
+    gap: 8px 16px;
+    min-width: 600px;
+    padding-bottom: 4px;
+  }
+
+  .chd-k {
+    font-size: var(--fs-3);
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  .chd-track {
+    position: relative;
+    height: 26px;
+    margin: 0 30px 0 8px;
+    border-bottom: 1px dashed var(--divider);
+  }
+
+  .chd-span {
+    position: absolute;
+    top: 7px;
+    height: 12px;
+    border-radius: var(--r1);
+  }
+  .chd-dot {
+    position: absolute;
+    top: 6px;
+    width: 14px;
+    height: 14px;
+    margin-left: -7px;
+    border: 2px solid var(--surface);
+    border-radius: var(--r-full);
+    box-sizing: border-box;
+  }
+  .chd-at {
+    position: absolute;
+    top: 3px;
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--text);
+  }
+  .chd-at[data-side='right'] {
+    margin-left: 12px;
+  }
+  .chd-at[data-side='left'] {
+    transform: translateX(calc(-100% - 12px));
+  }
+
+  .chd-span[data-tone='dim'] {
+    background: var(--surface-3);
+  }
+  .chd-span[data-tone='err'] {
+    background: var(--tone-err-bg);
+    border: 1px solid var(--tone-err-line);
+  }
+  .chd-span[data-tone='warn'] {
+    background: var(--tone-warn-bg);
+    border: 1px solid var(--tone-warn-line);
+  }
+  .chd-span[data-tone='info'] {
+    background: var(--tone-info-bg);
+    border: 1px dashed var(--tone-info-line);
+  }
+  .chd-dot[data-tone='warn'] {
+    background: var(--bar-amber);
+  }
+  .chd-dot[data-tone='ok'] {
+    background: var(--bar-green);
+  }
+  .chd-dot[data-tone='info'] {
+    background: var(--bar-violet);
+  }
+
+  .chd-axis {
+    position: relative;
+    height: 20px;
+    margin: 0 30px 0 8px;
+  }
+  .chd-tick {
+    position: absolute;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--text-faint);
+  }
+
+  /* На узком экране подпись встаёт над своей дорожкой: шкала остаётся во всю ширину,
+     и прокручивать ничего не нужно. */
+  @media (max-width: 640px) {
+    .chd {
+      padding: 16px;
+    }
+    .chd-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2px;
+      min-width: 0;
+    }
+    .chd-track {
+      margin-bottom: 10px;
+    }
+  }
+</style>

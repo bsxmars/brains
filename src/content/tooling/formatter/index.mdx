@@ -1,0 +1,455 @@
+---
+title: Форматтер изнутри
+heading: "Форматтер изнутри: как Prettier укладывает код в ширину"
+headingWidth: 24
+order: 16
+kicker: сборка и инструменты
+lead: "Prettier не правит ваш файл — он печатает его заново. Сначала превращает дерево синтаксиса в Doc: описание всех возможных раскладок сразу. Потом жадно, слева направо, решает для каждой группы: в строку или с переносами. Как устроен Doc, почему первой ломается внешняя скобка, почему `printWidth` — не предел и почему второй прогон иногда всё-таки меняет файл."
+leadWidth: 66
+summary: "Путь кода парсер → AST → Doc → текст, команды Doc (`group`, `indent`, `line`, `softline`, `hardline`, `ifBreak`, `fill`, `conditionalGroup`, `breakParent`), алгоритм Вадлера и жадный `fits`, порядок «снаружи внутрь», ширина по East Asian Width, что Prettier берёт из исходника, совместная жизнь с ESLint, идемпотентность и известные нестабильные случаи."
+verifiedOn: "Prettier 3.9.6, Node 24.11.0, октябрь 2026: Doc примеров сняты printToDoc и пересобираются tests/unit/formatter.test.ts; учебный принтер сверен с printDocToString на случайных Doc и на Doc настоящего кода на ширинах 10…100; выводы, ширины и нестабильные случаи сняты prettier.format"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: От кода к Doc }
+  - { id: s2, label: Печать по ширине }
+  - { id: s3, label: Ширина строки }
+  - { id: s4, label: Что остаётся }
+  - { id: s5, label: Форматтер и линтер }
+  - { id: s6, label: Идемпотентность }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import FormatLab from '@/widgets/format-lab/ui/FormatLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_FORMATTER,
+  PREREQ,
+  PREREQ_NOTE,
+  PIPELINE_CHIPS,
+  PIPELINE_NOTE,
+  PLAIN_DOC,
+  NEST_CODE,
+  DOC_NEST_PRINT,
+  DOC_NEST_NOTE,
+  DOC_COMMANDS,
+  BUILD_CODE,
+  BUILD_OUT_80,
+  BUILD_OUT_20,
+  BUILD_NOTE,
+  WADLER_NOTE,
+  PLAIN_FITS,
+  PRINTER_CODE,
+  FITS_NOTE,
+  OUTER_NOTE,
+  OUTER_ROWS,
+  OUTER_79,
+  PLAIN_BREAK_PARENT,
+  BREAK_PARENT_NOTE,
+  NESTED_IN,
+  NESTED_OUT,
+  NESTED_NOTE,
+  SNIPPETS,
+  DEMO_CAPTION,
+  LONG_CODE,
+  LONG_NOTE,
+  PLAIN_WIDTH,
+  WIDTH_ROWS,
+  WIDTH_NOTE,
+  THRESHOLD_ROWS,
+  THRESHOLD_NOTE,
+  GRAPHEME_LINK,
+  KEEP_ROWS,
+  KEEP_CODE_IN,
+  KEEP_CODE_OUT,
+  PLAIN_FIRST_KEY,
+  FIRST_KEY_LINK,
+  STICKY_IN,
+  STICKY_OUT,
+  STICKY_EDITED_OUT,
+  STICKY_FRESH_OUT,
+  STICKY_NOTE,
+  LINT_NOTE,
+  LINT_CONFIG_CODE,
+  LINT_ROWS,
+  LINT_PLUGIN_NOTE,
+  PLAIN_IDEMPOTENT,
+  IDEM_NOTE,
+  UNSTABLE_IN,
+  UNSTABLE_PASS1,
+  UNSTABLE_PASS2,
+  UNSTABLE_NOTE,
+  DECORATOR_ROWS,
+  CHECK_CODE,
+  CHECK_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Печать заново" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Prettier не двигает пробелы в вашем тексте. Он разбирает файл в дерево, из дерева строит
+    **Doc** — описание того, где код *можно* перенести, — и печатает его с нуля под заданную
+    ширину. От исходного вида остаются считаные мелочи, поэтому один и тот же код у всех
+    выглядит одинаково.
+
+  </Callout>
+
+  Обычный спор на ревью — «перенеси аргументы», «тут лишняя скобка» — Prettier закрывает
+  не правилами, а печатью. У него нет списка «если строка длиннее 80, то…». Есть одна
+  процедура: пройти Doc слева направо и для каждой группы решить, уместится ли она
+  в остаток строки. Почти всё, что Prettier делает с кодом, следует из этой процедуры.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FORMATTER} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="От кода к Doc"
+  lead="Между деревом синтаксиса и текстом у Prettier есть ещё один слой. Узлы дерева печатаются не в строки, а в Doc — дерево из кусков текста и указаний «здесь можно перенести». Ширина строки на этом шаге ещё не нужна."
+  leadWidth={72}
+>
+  <Card title="Путь файла через Prettier" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={720} chips={PIPELINE_CHIPS} />
+
+    <Md text={PIPELINE_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DOC} />
+
+  ### Doc одной строки кода
+
+  <Card title="Сквозной пример" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={NEST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Его Doc: prettier.__debug.formatDoc" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DOC_NEST_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={DOC_NEST_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Команды Doc
+
+  <Table
+    head={['команда', 'в строку', 'с переносами', 'что делает']}
+    rows={DOC_COMMANDS.map((r) => [r.k, r.flat, r.brk, r.d])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(170px,.9fr) minmax(90px,.45fr) minmax(110px,.5fr) minmax(280px,2fr)"
+    minWidth={720}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Doc руками" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BUILD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="at80 и at20" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BUILD_OUT_80} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <CodeBlock code={BUILD_OUT_20} size={11.5} lh={1.65} pad="14px 16px" />
+
+      <Md text={BUILD_NOTE} />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Печать по ширине"
+  lead="Печатник Doc ничего не знает о языке. Он держит одну цифру — сколько колонок осталось в текущей строке — и для каждой группы задаёт один вопрос: уместится ли она в этот остаток целиком."
+  leadWidth={72}
+>
+  <Md text={WADLER_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FITS} />
+
+  <Card title="Учебный принтер Doc" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PRINTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={FITS_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Почему первой ломается внешняя группа
+
+  <Md text={OUTER_NOTE} />
+
+  <Table
+    head={['printWidth', 'что сломалось', 'групп', 'строк']}
+    rows={OUTER_ROWS.map((r) => [String(r.w), r.broken, String(r.groups), String(r.lines)])}
+    tones={OUTER_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'mono', 'mono']}
+    cols="minmax(100px,.5fr) minmax(220px,1.6fr) minmax(70px,.4fr) minmax(70px,.4fr)"
+    minWidth={520}
+  />
+
+  <Card title="printWidth: 79" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={OUTER_79} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### breakParent: изнутри наружу
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BREAK_PARENT} />
+
+  <Md text={BREAK_PARENT_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Перенос только во внутреннем объекте" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NESTED_IN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод Prettier" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NESTED_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={NESTED_NOTE} />
+
+  ### Ширина и группы
+
+  <FormatLab client:visible printerCode={PRINTER_CODE} snippets={SNIPPETS} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Ширина строки"
+  lead="`printWidth` — то, к чему Prettier стремится, а не граница. Текст в Doc неделим, и если неделимый кусок длиннее строки, он останется длиннее. А сама ширина считается не в символах строки JavaScript, а в колонках экрана."
+  leadWidth={72}
+>
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Строка длиннее printWidth" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LONG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LONG_NOTE} />
+  </CardGrid>
+
+  ### Сколько колонок занимает символ
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WIDTH} />
+
+  <Table
+    head={['строка', 'что это', '`length`', 'кодовых точек', 'ширина у Prettier']}
+    rows={WIDTH_ROWS.map((r) => [r.s, r.what, String(r.len), String(r.points), String(r.width)])}
+    tones={WIDTH_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'mono', 'mono', 'mono']}
+    cols="minmax(130px,.8fr) minmax(200px,1.4fr) minmax(80px,.4fr) minmax(110px,.5fr) minmax(130px,.6fr)"
+    minWidth={700}
+  />
+
+  <Md text={WIDTH_NOTE} />
+
+  <Table
+    head={['`log(first, …)`', 'в одну строку с printWidth']}
+    rows={THRESHOLD_ROWS.map((r) => [r.s, String(r.at)])}
+    kinds={['prose', 'mono']}
+    cols="minmax(200px,1fr) minmax(200px,1fr)"
+    minWidth={420}
+  />
+
+  <Md text={THRESHOLD_NOTE} />
+
+  <Md text={GRAPHEME_LINK} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Что остаётся от исходника"
+  lead="Раз Doc строится из дерева, исходная вёрстка в него почти не попадает. Почти — потому что дерево помнит смещения узлов, и по ним Prettier заглядывает в исходный текст в нескольких местах."
+  leadWidth={72}
+>
+  <Table
+    head={['что было в исходнике', 'что с этим делает Prettier']}
+    rows={KEEP_ROWS.map((r) => [r.k, r.fate])}
+    tones={KEEP_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(320px,1.6fr)"
+    minWidth={560}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Вход" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={KEEP_CODE_IN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Вывод Prettier" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={KEEP_CODE_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  ### Перенос после `{`
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FIRST_KEY} />
+
+  <Md text={FIRST_KEY_LINK} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="1. Длинная строка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STICKY_IN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="2. Prettier раскрыл объект" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STICKY_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" title="3. Удалили поле — Prettier ещё раз" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STICKY_EDITED_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Тот же объект, набранный в строку" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STICKY_FRESH_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={STICKY_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Форматтер и линтер"
+  lead="Линтер ищет ошибки, форматтер печатает форму. Пока каждый занят своим, они не мешают друг другу; мешают, когда у линтера остались правила про вид кода."
+  leadWidth={72}
+>
+  <Md text={LINT_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="eslint-config-prettier в плоском конфиге" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LINT_CONFIG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LINT_PLUGIN_NOTE} />
+  </CardGrid>
+
+  <Table
+    head={['правило ESLint', 'почему спорит с Prettier']}
+    rows={LINT_ROWS.map((r) => [r.rule, r.why])}
+    kinds={['prose', 'prose']}
+    cols="minmax(170px,.7fr) minmax(320px,2fr)"
+    minWidth={540}
+  />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Идемпотентность"
+  lead="От форматтера ждут, что второй прогон по его же выводу ничего не изменит. Иначе `prettier --check` в CI падает на только что отформатированных файлах, а в истории появляются коммиты «ещё раз прогнал Prettier»."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IDEMPOTENT} />
+
+  <Md text={IDEM_NOTE} />
+
+  <CardGrid min={240} gap={16} align="start">
+    <Card title="Вход" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={UNSTABLE_IN} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="warn" title="1-й прогон" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={UNSTABLE_PASS1} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="2-й и дальше" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={UNSTABLE_PASS2} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={UNSTABLE_NOTE} />
+
+  <Table
+    head={['прогон', 'пустых строк', 'что видно']}
+    rows={DECORATOR_ROWS.map((r) => [r.pass, r.blank, r.text])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(130px,.6fr) minmax(110px,.5fr) minmax(280px,2fr)"
+    minWidth={540}
+  />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Проверка и версия" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CHECK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CHECK_NOTE} />
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Prettier — это печатник Doc плюс несколько правил про исходник.** Печатник жадный
+      и предсказуемый: группы меряются снаружи внутрь по остатку строки, обязательный перенос
+      раскрывает всё вокруг. Всё, что выглядит как «странное решение», почти всегда объясняется
+      одним из двух: неделимым текстом или переносом, который Prettier сохранил из исходника.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

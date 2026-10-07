@@ -1,0 +1,179 @@
+---
+/**
+ * Схема процессов Chromium — то, чего в оригинальном уроке не было вовсе.
+ *
+ * Урок называется «устройство браузера», перечисляет процессы карточками и объясняет
+ * песочницу словами, но ни разу не показывает картинку: кто с кем говорит и кто кому доверяет.
+ * А в этой теме всё держится именно на топологии — сверху доверенный брокер, снизу процессы
+ * с урезанными правами, и ни одной стрелки в обход брокера.
+ *
+ * Рисунок — SVG, а не картинка: цвета берутся из токенов курса, поэтому палитра остаётся
+ * ровно той же, и текст остаётся текстом (его видит поиск и читалка).
+ *
+ * Толщина и начертание рамки здесь несут смысл: сплошная — полная песочница,
+ * штриховая — ослабленная, чернильная заливка — процесс без песочницы, которому доверяют.
+ */
+interface Props {
+  title?: string;
+}
+
+const { title = 'Кто с кем говорит: браузер как брокер' } = Astro.props;
+
+/** Нижний ряд: недоверенные процессы. Координаты заданы руками — схема маленькая и фиксированная. */
+const BOXES = [
+  { x: 24, w: 196, tone: 'info', name: 'renderer · site A', sub: 'Blink + V8 · ваш код', tag: 'полная песочница' },
+  { x: 236, w: 196, tone: 'info', name: 'renderer · site B', sub: 'OOPIF того же окна', tag: 'полная песочница' },
+  { x: 448, w: 150, tone: 'warn', name: 'GPU · Viz', sub: 'растр, композит', tag: 'ослабленная', dashed: true },
+  { x: 614, w: 186, tone: 'ok', name: 'network service', sub: 'DNS, TLS, куки, кэш', tag: 'песочница' },
+];
+---
+
+<figure class="figure">
+  <figcaption class="t-eyebrow t-eyebrow--panel">{title}</figcaption>
+
+  <div class="scroll">
+    <svg viewBox="0 0 824 300" role="img" aria-label={title} class="diagram">
+      <title>{title}</title>
+
+      <!-- Доверенный процесс: единственный, кто трогает диск, сеть и ОС. -->
+      <rect class="box box--trusted" x="24" y="16" width="776" height="62" rx="6" />
+      <text class="name name--on-ink" x="40" y="42">browser process</text>
+      <text class="sub sub--on-ink" x="40" y="60">UI, навигация, история, диалоги · брокер к диску и ОС</text>
+      <text class="tag tag--danger" x="784" y="42" text-anchor="end">без песочницы</text>
+
+      {
+        BOXES.map((box) => (
+          <>
+            <line class="wire" x1={box.x + box.w / 2} y1="78" x2={box.x + box.w / 2} y2="150" />
+            <text class="wire-label" x={box.x + box.w / 2 + 6} y="118">
+              Mojo IPC
+            </text>
+            <rect
+              class:list={['box', `box--${box.tone}`, box.dashed && 'box--dashed']}
+              x={box.x}
+              y="150"
+              width={box.w}
+              height="86"
+              rx="6"
+            />
+            <text class="name" x={box.x + 14} y="178">
+              {box.name}
+            </text>
+            <text class="sub" x={box.x + 14} y="198">
+              {box.sub}
+            </text>
+            <text class="tag" x={box.x + 14} y="222">
+              {box.tag}
+            </text>
+          </>
+        ))
+      }
+
+      <!-- Чего на схеме нет и быть не может: стрелки из рендерера мимо брокера. -->
+      <text class="footnote" x="24" y="266">
+        ни одной стрелки в обход брокера: рендерер не ходит в сеть и на диск сам
+      </text>
+      <text class="footnote footnote--muted" x="24" y="286">
+        рамка: сплошная — полная песочница, штриховая — ослабленная, заливка — доверенный процесс
+      </text>
+    </svg>
+  </div>
+</figure>
+
+<style>
+  .figure {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+  }
+  /* `min-width: 0` обязателен: внутри флекс-колонки элемент не сжимается ниже своего
+     содержимого, и схема шириной 640px утаскивала вбок всю страницу вместо того,
+     чтобы прокручиваться внутри себя. */
+  .scroll {
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .diagram {
+    display: block;
+    width: 100%;
+    min-width: 640px;
+    height: auto;
+    /* У корневого `svg` заливка иначе браузерная чёрная — цвет, которого в курсе нет.
+       Рисуют здесь только дети, у каждого свой fill. */
+    fill: none;
+  }
+
+  .box {
+    fill: var(--surface);
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+  .box--trusted {
+    fill: var(--ink);
+    stroke: var(--ink);
+  }
+  .box--info {
+    fill: var(--tone-info-bg);
+    stroke: var(--tone-info-line);
+  }
+  .box--warn {
+    fill: var(--tone-warn-bg);
+    stroke: var(--tone-warn-line);
+  }
+  .box--ok {
+    fill: var(--tone-ok-bg);
+    stroke: var(--tone-ok-line);
+  }
+  .box--dashed {
+    stroke-dasharray: 5 4;
+  }
+
+  .wire {
+    stroke: var(--hairline);
+    stroke-width: 1;
+  }
+  .wire-label {
+    font-family: var(--mono);
+    font-size: var(--fs-1);
+    fill: var(--dim);
+  }
+
+  .name {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    font-weight: 600;
+    fill: var(--ink);
+  }
+  .name--on-ink {
+    fill: var(--on-ink);
+  }
+  .sub {
+    font-family: var(--serif);
+    font-size: var(--fs-4);
+    fill: var(--text-muted);
+  }
+  .sub--on-ink {
+    fill: var(--ink-prose);
+  }
+  .tag {
+    font-family: var(--mono);
+    font-size: var(--fs-1);
+    fill: var(--text-faint);
+  }
+  .tag--danger {
+    fill: var(--bar-red);
+  }
+
+  .footnote {
+    font-family: var(--serif);
+    font-size: var(--fs-4);
+    fill: var(--prose);
+  }
+  .footnote--muted {
+    fill: var(--text-faint);
+  }
+</style>

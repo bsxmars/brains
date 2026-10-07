@@ -1,0 +1,817 @@
+---
+title: Воркеры и параллелизм
+order: 7
+lead: "Воркер — не «ещё один поток» с общими переменными, а **отдельный агент**: своя память, свой цикл событий, ни одного общего объекта. Всё остальное следует из этой границы, включая цену её пересечения — а платить обычно приходится не там, где ждут."
+leadWidth: 66
+summary: "Агент и его изоляция, три канала через границу — копия, передача владения и общая память — и цена каждого, снятая замером в браузере."
+verifiedOn: Chromium 153 · Node 24.11; раздел 6 снят на Chromium 153.0.8010.12 и Node 26.8.2
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Агент }
+  - { id: s2, label: Клонирование }
+  - { id: s3, label: Владение }
+  - { id: s4, label: Цена }
+  - { id: s5, label: Общая память }
+  - { id: s6, label: Сколько их и офскрин }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkCard from '@/shared/ui/DarkCard.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import CloneSurvival from '@/widgets/clone-survival/ui/CloneSurvival.vue';
+import IsolationProbe from '@/widgets/isolation-probe/ui/IsolationProbe.vue';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import TransferCost from '@/widgets/transfer-cost/ui/TransferCost.vue';
+import TransferDiagram from '@/widgets/workers-transfer-diagram/ui/TransferDiagram.astro';
+import {
+  ADVICE,
+  AGENT_CARDS,
+  ARM_NOTE,
+  ATOMICS_WHY,
+  BOOT_NOTE,
+  CANBLOCK_NOTE,
+  CANVAS_FACTS,
+  CANVAS_MODES,
+  CANVAS_WIRE_CODE,
+  CANVAS_WIRE_FACTS,
+  CLUSTER_CODE,
+  CLUSTER_NOTE,
+  COORDINATE_NOTE,
+  NODE_LINKS,
+  NODE_PAR,
+  NODE_PAR_WHY,
+  PROFILE_NOTE,
+  SHARE_ENV_CODE,
+  SHARE_ENV_NOTE,
+  TIME_ORIGIN_CODE,
+  TIME_ORIGIN_NOTE,
+  UNTRANSFERABLE_CODE,
+  UNTRANSFERABLE_NOTE,
+  CHANNELS,
+  CHANNEL_NOTE,
+  CLONE_FOOT,
+  CLONE_GROUPS,
+  CLONE_NOTE,
+  CLONE_STEPS,
+  CLONE_STEPS_NOTE,
+  CLONE_WHY,
+  COMLINK_NOTE,
+  COST,
+  COST_LEAD_NOTE,
+  COST_NOTE,
+  DETACH,
+  DETACH_NOTE,
+  ERRORS_CODE,
+  ERRORS_NOTE,
+  GETTER_NOTE,
+  GLOSSARY,
+  HAVE,
+  HAVENT,
+  INTRO_NOTE,
+  ISOLATION,
+  ISOLATION_BREAKS,
+  ISOLATION_DENIED,
+  ISOLATION_FOOT,
+  ISOLATION_GRANTED,
+  ISOLATION_HEADERS,
+  ISOLATION_NOTE,
+  ISOLATION_WHY,
+  LOCAL_TRANSFER,
+  MEMORY_MAP_CODE,
+  MEMORY_MAP_NOTE,
+  NODE_NOTE,
+  NO_DOM_NOTE,
+  PITFALLS,
+  POOL_CODE,
+  POOL_CODE_NOTE,
+  POOL_NOTE,
+  POOL_ROWS,
+  POOL_RULES,
+  PUBLISH_CODE,
+  PUBLISH_NOTE,
+  RECEIVER_NOTE,
+  REORDER_NOTE,
+  SAB_FACTS,
+  SHAPE,
+  SHAPE_NOTE,
+  SHARED_WHY,
+  SOURCES,
+  SPECTRE_NOTE,
+  SPECTRE_BRIEF,
+  START_CODE,
+  START_COST,
+  START_NOTE,
+  STORAGE_NOTE,
+  STREAM_TRANSFER_CODE,
+  STREAM_TRANSFER_FACTS,
+  STREAM_TRANSFER_WHY,
+  TRANSFER_CODE,
+  TRANSFER_FOOT,
+  TRANSFER_LIST,
+  TRANSFER_STEPS,
+  TRANSFER_WHY,
+  TYPES_NOTE,
+  TYPES_RULES,
+  VIEW_RULE,
+  WAIT_NOTE,
+  WASM_NOTE,
+  WHY_NO_DOM,
+  WORKER_TYPES,
+  PREREQ,
+  PREREQ_NOTE,
+  RELATED,
+  PLAIN_AGENT,
+  PLAIN_CLONE,
+  PLAIN_TRANSFER,
+  PLAIN_PUBLISH,
+  CLONE_DEMO_NOTE,
+  TRANSFER_DEMO_NOTE,
+  ISOLATION_DEMO_NOTE,
+  CHANNEL_SCENE_NOTE,
+  CHANNEL_STEPS,
+  PLAIN_CHANNELS,
+  PUBLISH_SCENE_NOTE,
+  PUBLISH_WAIT_CODE,
+  PUBLISH_STEPS,
+  PLAIN_PUBLISH_WAIT,
+  OWNERSHIP_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Один поток на всё" lead={INTRO_NOTE} leadWidth={72}>
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Агент и его изоляция"
+  lead="Слово «поток» здесь сбивает с толку: оно тянет за собой привычки из C++ и Java — общая память, объекты, видимые всем, блокировки. В спецификации единица выполнения называется **агентом**, и с соседями у него нет ничего общего."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AGENT} />
+
+  <CardGrid min={290} gap={16} align="start">
+    {AGENT_CARDS.map((item) => (
+      <Card title={item.t} titleSize={16.5} pad={20} gap={11} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <p class="t-body">
+      Очереди внутри воркера работают по тем же правилам, что разобраны в теме
+      <a href="/js/event-loop/">Event Loop</a>, — вплоть до того, что задача не прерывает задачу.
+      А почему агенты вообще раскладывают по разным процессам операционной системы и что такое
+      Site Isolation — в теме{' '}
+      <a href="/js/browser-architecture/">Устройство браузера</a>.
+    </p>
+  </Card>
+
+  ### Что есть в воркере и чего нет
+
+  <CardGrid min={290} gap={14} align="start">
+    <Card tone="ok" title="Есть" titleSize={16.5} pad={20} gap={12}>
+      <CheckList items={HAVE} size={15} />
+    </Card>
+
+    <Card tone="err" title="Нет" titleSize={16.5} pad={20} gap={12}>
+      <CheckList items={HAVENT} tone="err" size={15} />
+    </Card>
+  </CardGrid>
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={WHY_NO_DOM} />
+  </Card>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={NO_DOM_NOTE} />
+  </Callout>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={STORAGE_NOTE} />
+  </Card>
+
+  ### Три типа воркеров, и чем они на самом деле отличаются
+
+  <Table
+    head={WORKER_TYPES.head}
+    rows={WORKER_TYPES.rows}
+    cols={WORKER_TYPES.cols}
+    kinds={WORKER_TYPES.kinds}
+    minWidth={WORKER_TYPES.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TYPES_NOTE} />
+  </Card>
+
+  <Card title="Три вывода, по строчке каждый" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={TYPES_RULES} size={15.5} />
+  </Card>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={COORDINATE_NOTE} />
+  </Card>
+
+  ### Запуск: половина проблем случается до первого сообщения
+
+  <CodeBlock code={START_CODE} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={START_NOTE} />
+  </Card>
+
+  <CodeBlock code={ERRORS_CODE} />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ERRORS_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={BOOT_NOTE} />
+  </Card>
+
+  ### В Node: `worker_threads` против `cluster`
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={NODE_PAR_WHY} />
+  </Card>
+
+  <Table
+    head={NODE_PAR.head}
+    rows={NODE_PAR.rows}
+    cols={NODE_PAR.cols}
+    kinds={NODE_PAR.kinds}
+    minWidth={NODE_PAR.minWidth}
+  />
+
+  <CodeBlock code={CLUSTER_CODE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CLUSTER_NOTE} />
+  </Card>
+
+  <CodeBlock code={SHARE_ENV_CODE} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SHARE_ENV_NOTE} />
+  </Card>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={NODE_LINKS} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Что можно передать"
+  lead="Объект нельзя передать по ссылке — в памяти другого агента она указывала бы в никуда. Значит, объект надо **собрать заново** на той стороне, и делает это алгоритм structured clone. Заучивать, что он умеет, бесполезно; полезно знать, что он теряет **молча**."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLONE} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={CLONE_WHY} />
+  </Card>
+
+  <Card title="Копирование идёт в два приёма, и платят за него оба потока" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={CLONE_STEPS} size={15.5} />
+  </Card>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={CLONE_STEPS_NOTE} />
+  </Callout>
+
+  ### Чем structured clone лучше JSON
+
+  <CodeBlock code={MEMORY_MAP_CODE} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={MEMORY_MAP_NOTE} />
+  </Card>
+
+  ### Что переживёт клонирование — проверяет ваш браузер
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CLONE_DEMO_NOTE} />
+  </Card>
+
+  <CloneSurvival client:visible foot={CLONE_FOOT} />
+
+  <CardGrid min={290} gap={14} align="start">
+    <Card tone="ok" title={CLONE_GROUPS[0].t} titleSize={16.5} pad={20} gap={10} size={15} lh={1.6} text={CLONE_GROUPS[0].d} />
+
+    <Card tone="err" title={CLONE_GROUPS[1].t} titleSize={16.5} pad={20} gap={10} size={15} lh={1.6} text={CLONE_GROUPS[1].d} />
+
+    <Card tone="warn" title={CLONE_GROUPS[2].t} titleSize={16.5} pad={20} gap={10} size={15} lh={1.6} text={CLONE_GROUPS[2].d} />
+  </CardGrid>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={CLONE_NOTE} />
+  </Callout>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={GETTER_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Передача владения"
+  lead="Для двоичных данных копирование — пустая трата: вторая копия отправителю не нужна, данные надо просто **отдать**. Объекты, которые так умеют, называются transferable (переносимые). А то, что после передачи остаётся у отправителя, стоит увидеть своими глазами."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={TRANSFER_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSFER} />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={TRANSFER_LIST} />
+  </Card>
+
+  <CodeBlock code={TRANSFER_CODE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={VIEW_RULE} />
+  </Card>
+
+  Тот же буфер копией и переносом: у копии данных становится две, у переноса они остаются одни, а у отправителя — пустая оболочка.
+
+  <TransferDiagram diagram={OWNERSHIP_DIAGRAM} />
+
+  <Card title="Что сделал движок" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={TRANSFER_STEPS} size={15.5} />
+  </Card>
+
+  ### Один буфер, два способа, ваши часы
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TRANSFER_DEMO_NOTE} />
+  </Card>
+
+  <TransferCost client:visible min={1} max={64} initial={16} foot={TRANSFER_FOOT} />
+
+  <Table
+    head={DETACH.head}
+    rows={DETACH.rows}
+    cols={DETACH.cols}
+    kinds={DETACH.kinds}
+    minWidth={DETACH.minWidth}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DETACH_NOTE} />
+  </Card>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <p class="t-body">
+      Полные правила списка переноса — что будет, если положить туда объект, которого нет
+      в сообщении, можно ли передать порт через сам этот порт, что с повторным переносом —
+      разобраны в теме <a href="/js/message-channel/">MessageChannel</a>. Главный герой там —
+      порт: право писать в канал, которое можно отдать насовсем.
+    </p>
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={LOCAL_TRANSFER} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={WASM_NOTE} />
+  </Card>
+
+  ### Буфер, который отдавать нельзя: `markAsUntransferable` в Node
+
+  <CodeBlock code={UNTRANSFERABLE_CODE} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={UNTRANSFERABLE_NOTE} />
+  </Card>
+
+  ### Переносимые стримы: поток вместо пачки сообщений
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={STREAM_TRANSFER_WHY} />
+  </Card>
+
+  <CodeBlock code={STREAM_TRANSFER_CODE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {STREAM_TRANSFER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Сколько на самом деле стоит сообщение"
+  lead="Цена сообщения складывается из трёх частей: запись объектов у отправителя, ожидание в очереди получателя и сборка объектов у получателя. Третью часть платит получатель. А когда отвечает воркер, получатель — главный поток."
+  leadWidth={72}
+>
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={COST_LEAD_NOTE} />
+  </Card>
+
+  <Table
+    head={COST.head}
+    rows={COST.rows}
+    cols={COST.cols}
+    kinds={COST.kinds}
+    minWidth={COST.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={COST_NOTE} />
+  </Card>
+
+  ### Форма данных важнее, чем сам факт отправки
+
+  <Table
+    head={SHAPE.head}
+    rows={SHAPE.rows}
+    cols={SHAPE.cols}
+    kinds={SHAPE.kinds}
+    minWidth={SHAPE.minWidth}
+  />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={SHAPE_NOTE} />
+  </Callout>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={RECEIVER_NOTE} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={CHANNEL_NOTE} />
+  </Card>
+
+  ### Воркер в профиле: у каждого агента свои часы
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={PROFILE_NOTE} />
+  </Card>
+
+  <CodeBlock code={TIME_ORIGIN_CODE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TIME_ORIGIN_NOTE} />
+  </Card>
+
+  ### Что с этим делать — по убыванию эффекта
+
+  <Card title="Четыре шага, и общая память среди них последняя" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={ADVICE} size={15.5} />
+  </Card>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={COMLINK_NOTE} />
+  </Card>
+
+  ### Один буфер, три канала
+
+  <Md text={CHANNEL_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {CHANNEL_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Правило:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHANNELS} />
+
+  <DarkPanel eyebrow="Три канала, три набора компромиссов">
+    <CardGrid min={260} gap={14}>
+      {CHANNELS.map((item) => (
+        <DarkCard title={item.t} titleTone="info">
+          <Md text={item.d} />
+        </DarkCard>
+
+      ))}
+
+    </CardGrid>
+
+    <DarkText>
+
+      Почти все ошибки в теме сводятся к одному: думают про один канал, а используют
+      другой. «Почему стало медленнее» — думали про перенос, а отправили тысячи объектов.
+      «Почему буфер вдруг пустой» — думали про копию, а отправили с переносом. «Почему баг
+      только на телефонах» — думали про общую память, но не позаботились о порядке записей.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="Разделяемая память и Atomics"
+  lead="Третий канал устроен иначе, чем первые два: копии нет вообще, есть один участок памяти и два агента. За это платят дважды: порядок доступа к памяти придётся обеспечивать самим, а весь сайт — перевести в режим изоляции."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={SHARED_WHY} />
+  </Card>
+
+  <Card title="Чем общий буфер отличается от обычного" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={SAB_FACTS} size={15.5} />
+  </Card>
+
+  ### Почему его выключили: атака Spectre
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={SPECTRE_BRIEF} />
+  </Card>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={SPECTRE_NOTE} />
+  </Callout>
+
+  ### Как его вернули: cross-origin isolation
+
+  <CodeBlock code={ISOLATION_HEADERS} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={ISOLATION_WHY} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ISOLATION_DEMO_NOTE} />
+  </Card>
+
+  <IsolationProbe
+    client:visible
+    denied={ISOLATION_DENIED}
+    granted={ISOLATION_GRANTED}
+    foot={ISOLATION_FOOT}
+  />
+
+  <Table
+    head={ISOLATION.head}
+    rows={ISOLATION.rows}
+    cols={ISOLATION.cols}
+    kinds={ISOLATION.kinds}
+    minWidth={ISOLATION.minWidth}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ISOLATION_NOTE} />
+  </Card>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <p class="t-body">
+      Почему изоляция вообще защищает — разговор про процессы, а не про JS: документы с разных
+      источников и так живут в разных процессах, и «на всякий случай» прочитать чужое там
+      просто нечего. Это разобрано в теме <a href="/js/browser-architecture/#s1">Устройство браузера</a>,
+      вместе с тем, почему границу провели по сайту (site), а не по источнику (origin).
+    </p>
+  </Card>
+
+  <Card title="Что ломается — настоящая цена изоляции" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={ISOLATION_BREAKS} size={15.5} />
+    <CardNote tone="prose">
+      Взамен, кроме общей памяти, изоляция даёт точный `performance.now()` и
+      `performance.measureUserAgentSpecificMemory()`. Это решение для всего сайта,
+      а не флажок на одной странице.
+    </CardNote>
+  </Card>
+
+  ### Atomics: неделимость и порядок
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={ATOMICS_WHY} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={REORDER_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUBLISH} />
+
+  <CodeBlock code={PUBLISH_CODE} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PUBLISH_NOTE} />
+  </Card>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ARM_NOTE} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={WAIT_NOTE} />
+  </Card>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={CANBLOCK_NOTE} />
+  </Callout>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={NODE_NOTE} />
+  </Card>
+
+  ### Один флажок, три способа ждать
+
+  <Md text={PUBLISH_SCENE_NOTE} />
+
+  <CodeBlock code={PUBLISH_WAIT_CODE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {PUBLISH_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Как устроено:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUBLISH_WAIT} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Сколько воркеров заводить и что такое офскрин-холст"
+  lead="Число воркеров кажется арифметической задачей, но арифметикой не решается: платформа не сообщает, сколько ядер свободно на самом деле. А офскрин-холст — холст, отданный воркеру, — единственное место в вебе, где цикл кадров живёт не в окне."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={POOL_NOTE} />
+  </Card>
+
+  <Table
+    head={POOL_ROWS.head}
+    rows={POOL_ROWS.rows}
+    cols={POOL_ROWS.cols}
+    kinds={POOL_ROWS.kinds}
+    minWidth={POOL_ROWS.minWidth}
+  />
+
+  ### Сколько стоит запуск воркера, и почему у этого числа нет одного значения
+
+  <Table
+    head={START_COST.head}
+    rows={START_COST.rows}
+    cols={START_COST.cols}
+    kinds={START_COST.kinds}
+    minWidth={START_COST.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Три первые строки сняты **одним и тем же способом** — медиана пяти стартов из `blob:`,
+    без сети, — и расходятся вдесятеро. Дело не в браузере, а в том, насколько занята машина,
+    и узнать это можно по разбросу: 1.6–3.9 мс на тихой машине против 6–76 мс под нагрузкой.
+    Какое из чисел ближе к вашему пользователю, заранее не узнать: это зависит от его машины
+    и соседних вкладок. Поэтому воркер заводят **до того**, как он понадобится, — тогда цена
+    старта не попадает в отклик на клик.
+
+  </Card>
+
+  <Card title="Правила пула, которые не зависят от числа ядер" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={POOL_RULES} size={15.5} />
+  </Card>
+
+  ### Пул целиком: очередь с пределом, таймаут и замена воркера
+
+  <CodeBlock code={POOL_CODE} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={POOL_CODE_NOTE} />
+  </Card>
+
+  ### Офскрин-холст: кадры вне окна
+
+  <Table
+    head={CANVAS_MODES.head}
+    rows={CANVAS_MODES.rows}
+    cols={CANVAS_MODES.cols}
+    kinds={CANVAS_MODES.kinds}
+    minWidth={CANVAS_MODES.minWidth}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {CANVAS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <p class="t-body">
+      Что рисовать в таком холсте и чем WebGL отличается от 2D — в теме{' '}
+      <a href="/render/webgl/">WebGL и GPU</a>. Здесь важна одна граница: воркер получает холст,
+      но не получает ввод, и связывают их те же сообщения, что во всей этой теме.
+    </p>
+  </Card>
+
+  ### Холст в воркере на деле: размер, ввод и шрифты
+
+  <CodeBlock code={CANVAS_WIRE_CODE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {CANVAS_WIRE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Тонкие места"
+  lead="Половина из них проходит молча: исключения нет, а данные тихо перестают быть теми, что вы отправляли."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+  lead="Спецификации — чтобы проверить формулировку, статьи — чтобы понять, почему она такая."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {SOURCES.map((item) => (
+      <Card label={item.t} labelSize={12.5} pad={18} radius={4} gap={9} size={15} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

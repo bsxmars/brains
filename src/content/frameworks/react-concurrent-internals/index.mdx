@@ -1,0 +1,399 @@
+---
+title: "React изнутри: конкурентность и lanes"
+order: 5
+kicker: фреймворки изнутри
+lead: "Переход, который не мешает вводу, заглушка Suspense и отложенное значение — снаружи три разных обещания, а внутри один механизм: у каждого обновления есть полоса-бит, рендер берёт одну полосу за раз, и более срочная выбрасывает начатое дерево. Здесь этот механизм написан по шагам, на виртуальных часах, и тест сверяет его с React 19.3."
+leadWidth: 66
+summary: "Конкурентный React своими руками: полосы как битовые маски, планировщик с квантом, прерывание и перезапуск рендера, переходы как «пометить полосой», Suspense через брошенный промис и просрочка голодающих полос."
+verifiedOn: React 19.3 · Node 26.8
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Полосы }
+  - { id: s2, label: Планировщик }
+  - { id: s3, label: Прерывание }
+  - { id: s4, label: Переходы }
+  - { id: s5, label: Suspense }
+  - { id: s6, label: Голодание }
+  - { id: s7, label: Всё вместе }
+  - { id: s8, label: Против React }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MiniLanes from '@/widgets/mini-lanes/ui/MiniLanes.vue';
+import {
+  ASYNC_NOTE,
+  CLOCK_NOTE,
+  CONTINUATION_NOTE,
+  DEFAULT_NOTE,
+  DEFERRED_LOG,
+  DEFERRED_NOTE,
+  DEMO_NOTE,
+  DEMO_SCENARIOS,
+  DIFF,
+  DIFF_NOTE,
+  EXPIRE_NOTE,
+  GLOSSARY,
+  HOST_SHAPE,
+  INTERRUPT_NOTE,
+  INTERRUPT_SHOWN,
+  KEEP_SHOWN,
+  LANES_NOTE,
+  LANES_TABLE,
+  MINI_LANES_CODE,
+  PENDING_LOG,
+  PENDING_NOTE,
+  PITFALLS,
+  PLAIN_LANES,
+  PLAIN_REBASE,
+  PLAIN_RESTART,
+  PLAIN_SCHEDULER,
+  PLAIN_SUSPENSE,
+  PREREQ,
+  PREREQ_NOTE,
+  PRIORITIES_NOTE,
+  PURE_NOTE,
+  REACT19_SUSPENSE,
+  REBASE_LOG,
+  REBASE_NOTE,
+  RELATED,
+  S1_LEAD,
+  S2_LEAD,
+  S3_LEAD,
+  S4_LEAD,
+  S5_LEAD,
+  S6_LEAD,
+  SCENARIO_REBASE,
+  SCENARIO_STRICT,
+  SOURCES,
+  STARVE_NOTE,
+  STEP_EXPIRE,
+  STEP_LANES,
+  STEP_ROOT,
+  STEP_SCHEDULER,
+  STEP_SUSPENSE,
+  STEP_TRANSITION,
+  STEP_UPDATES,
+  STEP_WORK,
+  STRICT_NOTE,
+  SYNC_BATCH_LOG,
+  SYNC_BATCH_NOTE,
+  USE_NOTE,
+  WHY_BITS,
+  WHY_LOW_BIT,
+  WHY_THROW,
+  YIELD_LINK,
+  REBASE_SCENE_NOTE,
+  REBASE_SCENE_STEPS,
+  NEXT_LANES_SCENE_NOTE,
+  NEXT_LANES_SCENE_STEPS,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Срочное и несрочное"
+  lead="Поле поиска над списком из тысячи строк: если список перерисовывается одним куском, каждая следующая буква ждёт конца этой работы, и ввод залипает. В мини-рендерере [«React изнутри»](/frameworks/react-internals/) любое обновление бросает начатое и рендерит заново: скорость у всех одна. Настоящий React различает клик и загрузку списка — и почти всё, что называют «конкурентным режимом», следует из того, как он это различает: одного числа на корне и одной функции, которая выбирает из него бит."
+  leadWidth={70}
+>
+  <CardGrid min={240} gap={14}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
+  <CardGrid min={260} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Полосы: приоритет — это бит"
+  lead={S1_LEAD}
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LANES} />
+
+  <Card title="Шаг 1 · полосы и `getNextLanes`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_LANES} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card tone="ok" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={WHY_BITS} />
+    <Card pad={16} radius={4} size={15.5} lh={1.6} text={WHY_LOW_BIT} />
+  </CardGrid>
+
+  ### Три входящих посреди перехода
+
+  <Md text={NEXT_LANES_SCENE_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {NEXT_LANES_SCENE_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={st.math} />
+        <Md text={st.what} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={LANES_TABLE.head}
+    rows={LANES_TABLE.rows}
+    cols="minmax(150px,.9fr) minmax(130px,.8fr) minmax(240px,1.6fr) minmax(70px,.4fr)"
+    kinds={['prose', 'muted', 'muted', 'muted']}
+    minWidth={640}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={LANES_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Планировщик: очередь по дедлайну и квант в 5 мс"
+  lead={S2_LEAD}
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCHEDULER} />
+
+  <Card title="Хост мини-версии" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={HOST_SHAPE} />
+  </Card>
+
+  <Card title="Шаг 2 · `scheduleCallback`, `shouldYield`, `flushWork`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_SCHEDULER} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card tone="ok" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={CLOCK_NOTE} />
+    <Card pad={16} radius={4} size={15.5} lh={1.6} text={CONTINUATION_NOTE} />
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={PRIORITIES_NOTE} />
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={YIELD_LINK} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Прерывание: срочное выбрасывает начатое"
+  lead={S3_LEAD}
+  leadWidth={70}
+>
+  <Card title="Шаг 3 · корень, заказ работы и рендер с корня" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_ROOT} />
+
+
+    Всё прерывание — две строки `renderRoot`. Пришла другая полоса — `prepareFreshStack`
+    ставит закладку на корень, и старое дерево в работе становится мусором. Та же полоса —
+    цикл продолжает с закладки. Задача планировщика при этом одна на корень: срочная полоса
+    отменяет задачу перехода, а коммит срочного рендера заказывает её снова.
+
+  </Card>
+
+  <Card title="Шаг 4 · единица работы и коммит" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_WORK} />
+
+
+    Обход тот же, что в [«React изнутри», раздел «Файбер и цикл»](/frameworks/react-internals/#s2):
+    вниз, вбок, вверх. Сверки нет, и коммит печатает разметку целиком: для прерывания важно
+    не то, какие узлы правятся, а **когда** и **с каким состоянием** рендер доходит до коммита.
+
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESTART} />
+
+  <Card title="Клик посреди перехода — лог обоих рендереров" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={INTERRUPT_SHOWN} tone="ok" />
+
+    <Md text={INTERRUPT_NOTE} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card tone="err" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={PURE_NOTE} />
+    <Card tone="warn" title="StrictMode — репетиция прерывания" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={SCENARIO_STRICT} />
+
+      <Md text={STRICT_NOTE} />
+    </Card>
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={DEFAULT_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Переходы: пометить полосой"
+  lead={S4_LEAD}
+  leadWidth={70}
+>
+  <Card title="Шаг 5 · `useState` с полосами" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_UPDATES} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REBASE} />
+
+  <Card title="Два обновления одного состояния в разных полосах" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={SCENARIO_REBASE} />
+
+    <CodeBlock code={REBASE_LOG.join('\n')} tone="ok" />
+
+    <Md text={REBASE_NOTE} />
+  </Card>
+
+  <Md text={REBASE_SCENE_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {REBASE_SCENE_STEPS.map((st) => (
+      <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={st.what} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Шаг 6 · `startTransition`, `useTransition`, `useDeferredValue`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_TRANSITION} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card title="`useTransition` — два `setState` в двух полосах" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={PENDING_LOG.join('\n')} tone="ok" />
+
+      <Md text={PENDING_NOTE} />
+    </Card>
+    <Card title="`useDeferredValue` — полоса, заказанная из рендера" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={DEFERRED_LOG.join('\n')} tone="ok" />
+
+      <Md text={DEFERRED_NOTE} />
+    </Card>
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ASYNC_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Suspense: рендер, остановленный броском"
+  lead={S5_LEAD}
+  leadWidth={70}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SUSPENSE} />
+
+  <Card title="Шаг 7 · граница, бросок и пинг" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_SUSPENSE} />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    <Card tone="ok" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={WHY_THROW} />
+    <Card tone="info" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={KEEP_SHOWN} />
+    <Card tone="warn" color="tone" pad={16} radius={4} size={15.5} lh={1.6} text={REACT19_SUSPENSE} />
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={USE_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Голодание: у полосы есть срок"
+  lead={S6_LEAD}
+  leadWidth={70}
+>
+  <Card title="Шаг 8 · `markStarvedLanesAsExpired`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={STEP_EXPIRE} />
+
+    <Md text={STARVE_NOTE} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={EXPIRE_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7 · демо"
+  eyebrowTone="demo"
+  title="Полосы, кванты и перезапуск по шагам"
+  lead="Клик между двумя квантами перехода выбрасывает начатое дерево, а тот же ввод из таймера встаёт в очередь за переходом. Брошенный промис даёт заглушку на монтировании — но переход, наткнувшись на него, оставляет на экране прежнюю страницу и горящий `isPending`."
+  leadWidth={70}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEMO_NOTE} />
+
+  <MiniLanes client:visible code={MINI_LANES_CODE} scenarios={DEMO_SCENARIOS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Чего в мини-версии нет"
+  lead="На сценариях темы мини-версия выдаёт то же, что React 19.3: тот же лог, ту же разметку, те же биты в `pendingLanes`. Расходится она там, где React оптимизирует сверх механизма, и два таких места видны прямо по выводу."
+  leadWidth={70}
+>
+  <Table
+    head={DIFF.head}
+    rows={DIFF.rows}
+    cols="minmax(150px,.8fr) minmax(160px,.9fr) minmax(280px,1.7fr)"
+    kinds={['prose', 'muted', 'muted']}
+    minWidth={640}
+  />
+
+  <Card title="Пачка срочных полос: мини-версия против React" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <CodeBlock code={`мини-версия:  ${SYNC_BATCH_LOG.mini.join(' → ')}\nReact 19.3:   ${SYNC_BATCH_LOG.react.join(' → ')}`} tone="ok" />
+
+    <Md text={SYNC_BATCH_NOTE} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={DIFF_NOTE} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Источники"
+  lead="Спецификации у React нет — есть исходники. Ссылки ведут в файлы, где лежат настоящие версии функций с теми же именами, что и здесь."
+  leadWidth={70}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

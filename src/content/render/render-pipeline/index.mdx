@@ -1,0 +1,661 @@
+---
+title: Кадр браузера
+order: 1
+kicker: браузер и рендеринг
+lead: "Кадр — это не просто «браузер рисует». Это строгая последовательность шагов: одни идут на главном потоке, рядом с вашим JS, другие — уже без него. Эта граница объясняет, почему `transform` едет плавно, а `left` дёргается, и почему «уступить поток» значит **дать кадру случиться**."
+leadWidth: 66
+summary: "Что происходит между двумя сигналами дисплея (vsync): задача, микрозадачи, rAF, style, layout, paint, commit — и работа, которая после commit идёт уже без главного потока."
+verifiedOn: HTML Standard §8.6 и конспекты, сентябрь 2026; порядок колбэков — Node 24.11
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Кадр по шагам }
+  - { id: s2, label: Кадра может не быть }
+  - { id: s3, label: Чтение и запись }
+  - { id: s4, label: Что дешевле двигать }
+  - { id: s5, label: Где живёт фреймворк }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import FrameTimeline from '@/widgets/frame-timeline/ui/FrameTimeline.vue';
+import LayoutThrash from '@/widgets/layout-thrash/ui/LayoutThrash.vue';
+import MoveCost from '@/widgets/move-cost/ui/MoveCost.vue';
+import {
+  BLOCK_CHECK_CODE,
+  FRAME_BUDGET_MS,
+  FRAME_HOOKS,
+  FRAME_PHASES,
+  FRAME_REAL,
+  FRAME_REAL_NOTE,
+  FRAME_STEPS,
+  FORCE_LAYOUT_LIST,
+  HZ_ROWS,
+  LAYER_MEMORY,
+  LAYER_OVERLAP_FACTS,
+  LAYER_REASON_ROWS,
+  LOAF_CODE,
+  MOVE_CASES,
+  MOVE_STAGES,
+  NO_FRAME,
+  OBSERVER_ROWS,
+  PITFALLS,
+  PLAIN_KITCHEN,
+  PLAIN_LAYER,
+  PLAIN_OPPORTUNITY,
+  PLAIN_PAINT,
+  PLAIN_REFLOW,
+  PLAIN_TILES,
+  FRAME_DEMO_NOTE,
+  THRASH_DEMO_NOTE,
+  MOVE_DEMO_NOTE,
+  RAF_BATCH_CODE,
+  RAF_TIME_CODE,
+  RIC_NOTE,
+  FRAMEWORK_NOTE,
+  CONTAIN_LEAD,
+  CONTAIN_SCENE_CODE,
+  CONTAIN_SCENE_NOTE,
+  CONTAIN_STEPS,
+  PLAIN_CONTAIN,
+  OBSERVER_SCENE_CODE,
+  OBSERVER_SCENE_NOTE,
+  OBSERVER_STEPS,
+  CONTAIN_ROWS,
+  CONTAIN_NOTE,
+  CONTENT_VISIBILITY_NOTE,
+  THRASH_MODES,
+  THRASH_SIZES,
+  THRASH_VISIBLE,
+  TILES_FACTS,
+  UPDATE_STEPS,
+  WILL_CHANGE_FACTS,
+  SCROLL_TL_CODE,
+  SCROLL_TL_FACTS,
+  SCROLL_TL_NOTE,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Кадр и главный поток" gap={24}>
+
+  [«Устройство браузера»](/js/browser-architecture/) отвечает на вопрос **кто**: процессы, потоки,
+  что где живёт. Здесь вопрос **когда**: в каком порядке всё случается внутри одного кадра и что
+  успевает произойти, пока ваш код занимает поток. Когда React или Vue «планируют» обновление,
+  они выбирают момент в этой последовательности — дело не в том, быстрее или медленнее.
+
+  <CardGrid min={270} gap={14}>
+    <Card title="Три задачи, которые мешают друг другу" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Отдавать дисплею готовую картинку 60, 90 или 120 раз в секунду ровными интервалами.
+      Выполнять произвольный JS, который в любой момент меняет что угодно. И оставаться
+      отзывчивым к вводу.
+
+    </Card>
+    <Card tone="err" emphasis title="Главное ограничение: всё на одном потоке" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      **С DOM нельзя безопасно работать из нескольких потоков сразу.** Значит, и ваш код, и разбор HTML, и вычисление стилей,
+      и расчёт геометрии обязаны жить на одном потоке. Ваш JS не «замедляет отрисовку»
+      абстрактно — он занимает те же самые миллисекунды.
+
+    </Card>
+    <Card tone="ok" title="И единственный выход" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      После шага `commit` работа уходит с главного потока совсем. Всё, что происходит дальше,
+      продолжается, даже если JS на три секунды занял поток синхронным циклом.
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KITCHEN} />
+
+  <Table
+    head={['частота', 'бюджет кадра', 'что достаётся вашему коду']}
+    rows={HZ_ROWS.map((r) => [r.k, r.frame, r.js])}
+    tones={HZ_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(120px,.6fr) minmax(170px,.9fr) minmax(240px,1.6fr)"
+    minWidth={560}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+
+    Читать таблицу стоит не как «сколько у меня миллисекунд», а как **во сколько раз меньше их
+    становится от частоты экрана**. Один и тот же код, приемлемый на 60 Гц, на 120 Гц не
+    укладывается в кадр — при том что устройство с такой матрицей обычно и быстрее. Отсюда
+    правило: бюджет считают от худшего экрана среди ваших пользователей, а не от своего.
+
+  </Card>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1 · демо"
+  eyebrowTone="demo"
+  title="Кадр по шагам"
+  lead="Один кадр на шкале времени — от сигнала дисплея до следующего: где выполняется задача, где микрозадачи, где встаёт `requestAnimationFrame` и в какой момент главный поток освобождается."
+  leadWidth={72}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={FRAME_DEMO_NOTE} />
+
+  <FrameTimeline client:visible phases={FRAME_PHASES} steps={FRAME_STEPS} budget={FRAME_BUDGET_MS} />
+
+  ### А сколько это стоит на самом деле
+
+  Длительности на дорожке выше условные: их подобрали, чтобы картинку было легко читать.
+  Настоящие отрезки, снятые трассировкой в Chromium, не равны между собой и сильно зависят
+  от того, что именно изменилось.
+
+  <Table
+    head={FRAME_REAL.head}
+    rows={FRAME_REAL.rows}
+    cols={FRAME_REAL.cols}
+    kinds={FRAME_REAL.kinds}
+    minWidth={FRAME_REAL.minWidth}
+  />
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={FRAME_REAL_NOTE} />
+
+  <CardGrid min={280} gap={14}>
+    <Card tone="warn" title="`rAF` — не задача из очереди" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Это **первый шаг отрисовки кадра** (рендер-фазы). После каждого коллбэка выполняются
+      накопившиеся микрозадачи, а style и layout — нет: их посчитают один раз, после всех коллбэков.
+
+    </Card>
+    <Card title="Ненужные шаги браузер пропускает" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
+
+      Ничего не менялось — стили пересчитывать не будут. Изменился только `color` — размеры
+      и положения не изменились, и шаг layout пропустится.
+      **Дешевле всего то, что пропускает больше шагов.**
+
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PAINT} />
+
+  ### Полный порядок шагов: какие данные видит каждый коллбэк
+
+  <Card title="Шаги обновления кадра («update the rendering»)" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={UPDATE_STEPS} />
+
+    <CardNote tone="prose">
+
+      Порядок нужен, чтобы понимать, **какие данные видит каждый коллбэк**. В `rAF` размеры
+      и положения ещё от прошлого кадра, но они актуальны, поэтому измерять там дёшево.
+      В `ResizeObserver` они уже новые: он вызывается после расчёта раскладки.
+
+    </CardNote>
+
+    <CardNote tone="warn">
+
+      Список — из HTML Standard, §8.6 «update the rendering». Новые редакции спецификации его
+      уточняют, поэтому **сверять его надо со спецификацией на день чтения**, а не с этой
+      страницей.
+
+    </CardNote>
+  </Card>
+
+  ### Три наблюдателя на одной записи в DOM
+
+  Три наблюдателя проще всего различить на одном действии: в ленту дописали карточку,
+  и нужно узнать её высоту и то, пора ли грузить следующую страницу.
+
+  <CodeBlock code={OBSERVER_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={OBSERVER_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {OBSERVER_STEPS.map((o) => (
+      <Card title={`\`${o.k}\``} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${o.when}.`} />
+        <Md text={o.what} />
+        <Md text={`**Чем платит:** ${o.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Table
+    head={['наблюдатель', 'куда попадает', 'что из этого следует']}
+    rows={OBSERVER_ROWS.map((r) => [r.k, r.when, r.what])}
+    tones={OBSERVER_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'muted', 'prose']}
+    cols="minmax(190px,.9fr) minmax(180px,.8fr) minmax(260px,1.8fr)"
+    minWidth={700}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    Все три наблюдателя выглядят одинаково — «подписался и получил уведомление», — а попадают
+    в разные точки кадра, и от этого зависит, **какие размеры они видят**. `MutationObserver`
+    срабатывает до отрисовки кадра и видит старые; два остальных идут после расчёта раскладки
+    и видят новые.
+    Поэтому «измерить в `ResizeObserver`» дёшево, а «измерить в `MutationObserver`» — это
+    принудительный пересчёт из раздела [«Чтение и запись»](#s3).
+
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Кадра может не быть вовсе"
+  lead="Браузер не рисует по таймеру. На каждом сигнале дисплея (vsync) он решает, нужен ли документу кадр, — и половина сюрпризов в анимациях объясняется тем, что ответ бывает «нет»."
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OPPORTUNITY} />
+
+  <CardGrid min={280} gap={14}>
+    {NO_FRAME.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Считайте по времени, а не по кадрам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RAF_TIME_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+
+      Аргумент коллбэка — время **начала отрисовки кадра**, одно и то же для всех коллбэков кадра.
+      `performance.now()` внутри того же коллбэка вернёт больше: разница между ними и есть время,
+      съеденное предыдущими коллбэками. Смешивать два источника времени в одной формуле — верный
+      способ получить дрожание.
+
+    </Card>
+
+    <Card tone="err" title="Анимация, считающая «+1 за кадр», в фоне отстаёт навсегда" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      В скрытой вкладке `rAF` **не вызывается**. Не раз в секунду, как таймеры, которые браузер
+      в фоне притормаживает, а вообще. Вкладка вернулась — состояние отстало ровно на время отсутствия.
+
+      <CardNote tone="err">
+
+        Зеркальная ловушка ждёт тех, кто считает по времени: первый же `dt` после возврата будет
+        огромным, и объект прыгнет через весь экран. Отсюда `Math.min(dt, 100)` в примере слева —
+        это не перестраховка, а обязательная часть цикла.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <DarkPanel eyebrow="Главное правило темы">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Уступить поток означает дать кадру случиться.** Микрозадача поток не отпускает:
+      браузер выполняет всю их очередь до конца, включая те, что добавились по ходу,
+      и только потом идёт дальше.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Цепочка из пяти `queueMicrotask` отрабатывает целиком раньше, чем сработает
+      `setTimeout(…, 0)`. Между микрозадачами кадр тоже не рисуется, поэтому бесконечная цепочка
+      микрозадач — это не «медленно», это кадр, который не наступит никогда. На практике: длинную
+      работу режут на **задачи** (`setTimeout`, `scheduler.yield()`), а не на `await`
+      уже готовых промисов.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Чтение и запись: почему цена — в чередовании"
+  lead="Типичный симптом: код подгоняет высоту сотни карточек под ширину — и страница замирает, хотя каждая строка цикла тривиальна. Два цикла в демо делают одинаковые чтения и одинаковые записи. Различаются они одним: стоит ли запись между чтениями."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REFLOW} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={THRASH_DEMO_NOTE} />
+
+  <LayoutThrash client:visible modes={THRASH_MODES} sizes={THRASH_SIZES} visibleOps={THRASH_VISIBLE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Что заставляет пересчитать геометрию немедленно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CheckList items={FORCE_LAYOUT_LIST} tone="err" size={14.5} />
+
+      <CardNote tone="err">
+
+        Особенно коварно, когда чтение спрятано внутри библиотеки: `el.focus()`,
+        `scrollIntoView()`, любой «измерь и подгони» из UI-кита, вызванный в цикле.
+        Список живой — сверяйтесь с поддерживаемым гистом Пола Айриша «What forces layout /
+        reflow», а не с этой страницей.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="`innerText` заставляет считать раскладку, `textContent` — нет" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Разница смысловая. `textContent` возвращает весь текст дерева, включая скрытый, — это
+      чистая работа с DOM. `innerText` возвращает **то, что видит пользователь**: с учётом
+      `display: none`, схлопнутых пробелов и переносов. Чтобы это узнать, нужна геометрия.
+
+      <CardNote tone="warn">
+
+        Два свойства, отличающиеся одной буквой, различаются по цене на порядки. Подставьте
+        `innerText` в цикл из демо выше — и ноль принудительных пересчётов превратится в сотню.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="Почему в реальном приложении две фазы не получаются сами" titleSize={18} pad={22} gap={14} size={16.5} lh={1.6}>
+
+    Чтение и запись живут в разных компонентах, которые ничего не знают друг о друге. Компонент A
+    измеряет контейнер, компонент B ставит высоту, компонент C снова измеряет — и вместе они дают
+    то же чередование, хотя каждый по отдельности написан правильно. Нужно **одно место
+    на всю страницу, где собираются все чтения и все записи**, и это место — `rAF`: там размеры
+    прошлого кадра ещё актуальны, а записи попадают прямо перед плановым расчётом раскладки.
+
+    <CodeBlock code={RAF_BATCH_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+
+    <CardNote tone="prose">
+
+      **Цена приёма, о которой не пишут.** Чтение, поставленное в очередь из записи, отработает
+      в следующем кадре: код в стиле «изменил размер → сразу измерил» вернёт значение с задержкой
+      в кадр, то есть устаревшее. Если синхронный ответ действительно нужен — вы осознанно платите
+      за один принудительный пересчёт, и это нормальная цена. Ненормально платить её в цикле.
+
+    </CardNote>
+  </Card>
+
+  ### Как сузить пересчёт: `contain` и `content-visibility`
+
+  <Md text={CONTAIN_LEAD} />
+
+  <CodeBlock code={CONTAIN_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={CONTAIN_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {CONTAIN_STEPS.map((c) => (
+      <Card title={`\`${c.k}\``} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={c.what} />
+        <Md text={`**Чем платит:** ${c.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTAIN} />
+
+  <Table
+    head={['обещание', 'что оно значит', 'что это даёт браузеру']}
+    rows={CONTAIN_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(150px,.6fr) minmax(250px,1.4fr) minmax(220px,1.1fr)"
+    minWidth={680}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={CONTAIN_NOTE} />
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={CONTENT_VISIBILITY_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Что дешевле двигать"
+  lead="Четыре способа получить одно и то же движение. Разница не в том, «какое свойство быстрее», а в том, какие стадии кадра запускаются — и кто считает промежуточные значения."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYER} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={MOVE_DEMO_NOTE} />
+
+  <MoveCost client:visible cases={MOVE_CASES} stages={MOVE_STAGES} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Как проверить, что анимация идёт без главного потока" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BLOCK_CHECK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+
+      Запустите анимацию и выполните это. Та, что живёт в композиторе, **продолжит идти**;
+      остальные встанут намертво. Проверка надёжнее любого FPS-счётчика — и, в отличие от него,
+      отвечает ровно на тот вопрос, который задан.
+
+    </Card>
+
+    <Card tone="warn" title="Слой — это память, и она считается арифметикой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <Md text={LAYER_MEMORY.formula} />
+
+      <CodeBlock code={LAYER_MEMORY.example} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="warn">
+        <Md text={LAYER_MEMORY.note} />
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### `will-change`: не «сделать быстрее», а обмен с ценой
+
+  <Card pad={22} gap={14}>
+    <CardGrid min={260} gap={12}>
+      {WILL_CHANGE_FACTS.map((fact) => (
+        <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={15.5} pad={15} radius={4} gap={8} size={15}>
+          <Md text={fact.d} />
+        </Card>
+
+      ))}
+
+    </CardGrid>
+
+  </Card>
+
+  ### По каким причинам браузер выдаёт слой
+
+  Слой нельзя попросить напрямую — можно только создать условия, при которых движок решит его
+  выдать. Правил в спецификации нет: это решение Chromium, и видно его только из самого движка —
+  в панели Layers DevTools. Таблица ниже — то, что эта панель показывает для типичных случаев.
+
+  <Table
+    head={['что на странице', 'слой', 'почему']}
+    rows={LAYER_REASON_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(220px,1.1fr) minmax(80px,.35fr) minmax(260px,1.6fr)"
+    minWidth={700}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {LAYER_OVERLAP_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Прокрутку тоже ведёт композитор — пока ему не мешают
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Прокрутку по умолчанию ведёт композитор** — главный поток в ней не участвует, поэтому
+    страница прокручивается даже при зависшем JS. Вернуть прокрутку на главный поток может один
+    слушатель `wheel` или `touchmove` без `passive: true`: браузер обязан дождаться JS — вдруг
+    там `preventDefault()`. Если
+    отменять жест действительно нужно, правильный ответ чаще `touch-action` в CSS: он сообщает
+    решение композитору заранее, и ждать не приходится.
+
+  </Card>
+
+  ### Плитки: почему при быстрой прокрутке видно пустое
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TILES} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {TILES_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Движение по прокрутке — без единой строки JS
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Шкала прокрутки вместо обработчика" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCROLL_TL_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="Тот же вопрос, что и ко всякой анимации" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Выше есть проверка надёжнее любого FPS-счётчика: заблокировать главный поток и посмотреть,
+      что продолжит двигаться. Анимация по прокрутке её проходит. Это не удивительно, но важно:
+      прогресс анимации считает тот же композитор, который и так прокручивает страницу.
+
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {SCROLL_TL_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={SCROLL_TL_NOTE} />
+  </Card>
+
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Где в кадре живёт ваш фреймворк"
+  lead="[Ре-рендеринг в React](/frameworks/react-rerender/) и [Реактивность Vue](/frameworks/vue-reactivity/) сводятся к одному вопросу: в какую точку кадра фреймворк кладёт свою работу. Точек всего пять, и у каждой своё «что уже посчитано» и своё «что случится после»."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={16}>
+    <div class="t-eyebrow t-eyebrow--panel">Пять точек одного кадра</div>
+
+    <FlowChips
+      minWidth={700}
+      chips={[
+        { label: 'задача' },
+        { label: 'микрозадачи', tone: 'info' },
+        { label: 'rAF → микрозадачи', tone: 'warn' },
+        { label: 'ResizeObserver → IntersectionObserver', tone: 'warn' },
+        { label: 'style → layout → paint → commit', tone: 'ok' },
+        { label: 'rIC', tone: 'dashed' },
+      ]}
+    />
+
+
+    Одна и та же работа, поставленная в разные точки, ведёт себя по-разному — и дело не
+    в скорости. Отложенная в микрозадачу, она успеет до кадра и задержит его. Отложенная
+    в задачу — пропустит кадр вперёд. Поставленная в `rAF` — увидит старую геометрию, а в
+    `ResizeObserver` — новую.
+
+  </Card>
+
+  <CardGrid min={270} gap={14}>
+    {FRAME_HOOKS.map((hook) => (
+      <Card tone={hook.tone} label={hook.k} labelTone="tone" labelSize={12.5} pad={18} radius={5} gap={10} size={15.5}>
+        <Md text={hook.what} />
+        <CardNote tone="prose" size={14.5} lh={1.5}>{hook.when}</CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={FRAMEWORK_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="`requestIdleCallback` — остаток бюджета, а не «низкий приоритет»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={RIC_NOTE} />
+
+    <Card tone="warn" title="Долгий кадр — не то же самое, что долгая задача" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <CodeBlock code={LOAF_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+
+      20 мс JS плюс 20 мс style плюс 15 мс layout — каждая часть короче порога в 50 мс,
+      а кадр вышел на 55. API долгих задач (Long Tasks) такого не увидит; **Long Animation Frames** даёт разбивку
+      по кадру и называет скрипты-виновников. Как три числа обоих API расходятся на одной
+      и той же задаче — снято в [«Критическом пути», раздел «Чем это мерить»](/render/rendering-crp/#s5).
+
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="Спецификации — чтобы проверить формулировку; живые списки и статьи — чтобы понять, почему формулировка такая. Порядок шагов кадра и список принудительных пересчётов меняются, и сверять их надо с источником, а не с этой страницей."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

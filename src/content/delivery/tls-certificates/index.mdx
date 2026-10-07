@@ -1,0 +1,404 @@
+---
+title: "TLS и сертификаты"
+heading: "TLS и сертификаты: рукопожатие, цепочка доверия, ACME"
+headingWidth: 24
+order: 18
+kicker: доставка
+lead: "Замок в адресной строке — это три проверки за один круг до сервера: сервер доказал, что у него ключ от сертификата; сертификат подписан тем, кому клиент доверяет; имя в нём совпало с адресом. Как это выглядит по сообщениям, почему без промежуточного сертификата «работает в браузере, но не в Node» и как Let’s Encrypt выдаёт сертификат без участия человека."
+leadWidth: 66
+summary: "Рукопожатие TLS 1.3 по сообщениям с длинами: ClientHello с SNI, ALPN и гибридным X25519MLKEM768, ServerHello, Certificate, CertificateVerify, Finished; ключи и keylog; билеты, возобновление и повтор 0-RTT; учебный УЦ, построение цепочки, обязательный промежуточный и AIA в Chromium; учебная проверка цепочки против tls.connect — порядок ошибок, SAN и звёздочка, CN в Node; ACME — аккаунт, заказ, http-01, dns-01, tls-alpn-01, CSR, ARI и сроки 200 → 100 → 47 дней; OCSP и CRLite, HSTS и preload, mTLS."
+verifiedOn: "OpenSSL 3.6.4, Node 24.11.0 (OpenSSL 3.5.4), Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: свой УЦ из трёх уровней и сломанные листья; рукопожатие снято openssl s_client -trace против node:tls, ClientHello Chromium — openssl s_server -trace; 0-RTT и повтор — openssl s_server с защитой и без; учебная проверка цепочки сверена tests/unit/tls-certificates.test.ts со 150 решениями tls.connect и с живыми прогонами; ACME-вычисления — с векторами RFC 7638 и RFC 9773. Шаги ACME, сроки CA/B Forum и Let’s Encrypt, отзыв в браузерах и HSTS preload — по документации"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Рукопожатие }
+  - { id: s2, label: Возобновление и 0-RTT }
+  - { id: s3, label: Цепочка доверия }
+  - { id: s4, label: Имя и срок }
+  - { id: s5, label: ACME }
+  - { id: s6, label: 'Отзыв, HSTS, mTLS' }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import TlsLab from '@/widgets/tls-lab/ui/TlsLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_TLS,
+  PREREQ,
+  PREREQ_NOTE,
+  HANDSHAKE_LEAD,
+  HANDSHAKE_CHIPS,
+  HANDSHAKE_ROWS,
+  PLAIN_KEYSHARE,
+  KEYS_NOTE,
+  PQ_NOTE,
+  HELLO_ROWS,
+  HELLO_NOTE,
+  SNI_FACTS,
+  RESUME_LEAD,
+  PLAIN_ZERO_RTT,
+  ZERO_RTT_ROWS,
+  ZERO_RTT_NOTE,
+  MAKE_CA_CODE,
+  CERT_TEXT,
+  CERT_FIELDS,
+  PLAIN_CHAIN,
+  CHAIN_FACTS,
+  VERIFY_CODE,
+  VERIFY_NOTE,
+  STAND_NOW,
+  CERTS,
+  NODE_VERDICTS,
+  DEMO_LEAVES,
+  DEMO_SENDS,
+  DEMO_HOSTS,
+  DEMO_STEPS,
+  CODE_NOTES,
+  DEMO_CAPTION,
+  DEMO_STAND_NOTE,
+  DEMO_DIFF_NOTE,
+  NAME_FACTS,
+  ERROR_ROWS,
+  CHROMIUM_NOTE,
+  ACME_LEAD,
+  ACME_STEPS,
+  CHALLENGE_ROWS,
+  ACME_CODE,
+  ACME_NOTE,
+  LIFETIME_ROWS,
+  ARI_NOTE,
+  REVOKE_FACTS,
+  HSTS_NOTE,
+  MTLS_LEAD,
+  MTLS_FACTS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Три проверки" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    TLS отвечает на два вопроса: **никто не читает** и **на том конце тот, кого вы звали**.
+    Первое даёт общий ключ, который стороны вырабатывают в рукопожатии. Второе — сертификат:
+    подпись УЦ, которому клиент доверяет заранее, имя сайта внутри и подпись сервера прямо
+    в этом соединении. Без второго шифрование защищает разговор с кем угодно.
+
+  </Callout>
+
+  Почти все поломки HTTPS в проде — не в шифровании, а во второй половине. Сервер отдал
+  сертификат без промежуточного. Сертификат просрочился, потому что продление молча
+  упало месяц назад. Имя в адресе не совпало с тем, на которое сертификат выдан. Чтобы
+  разбирать такие ошибки, нужно знать, что именно проверяет клиент и в каком порядке.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TLS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Рукопожатие TLS 1.3 по сообщениям"
+  lead={HANDSHAKE_LEAD}
+  leadWidth={72}
+>
+  <Card title="Один круг до запроса" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={640} chips={HANDSHAKE_CHIPS} />
+  </Card>
+
+  <Table
+    head={['', 'сообщение', 'байт', 'что внутри']}
+    rows={HANDSHAKE_ROWS.map((r) => [r.dir, r.msg, String(r.bytes), r.what])}
+    tones={HANDSHAKE_ROWS.map((r) => (r.open ? 'warn' : 'ok'))}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(36px,.15fr) minmax(170px,.8fr) minmax(60px,.3fr) minmax(320px,2.2fr)"
+    minWidth={680}
+  />
+
+  ### Ключ за один круг
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEYSHARE} />
+
+  <Md text={KEYS_NOTE} />
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PQ_NOTE} />
+
+  ### Что говорит браузер
+
+  <Table
+    head={['поле', 'openssl s_client 3.6.4', 'Chromium 153']}
+    rows={HELLO_ROWS.map((r) => [r.k, r.openssl, r.chromium])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.9fr) minmax(170px,1fr) minmax(220px,1.3fr)"
+    minWidth={600}
+  />
+
+  <Md text={HELLO_NOTE} />
+
+  ### SNI и ALPN
+
+  <CardGrid min={280} gap={14} align="start">
+    {SNI_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Возобновление и 0-RTT"
+  lead={RESUME_LEAD}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ZERO_RTT} />
+
+  ### Один билет — два платежа
+
+  Сервер `openssl s_server -early_data`. Клиент получил билет, а потом дважды пришёл
+  с ним же и с `POST /pay` в ранних данных — так выглядит повтор записанного пакета.
+
+  <Table
+    head={['заход', 'защита от повтора включена', 'выключена (`-no_anti_replay`)']}
+    rows={ZERO_RTT_ROWS.map((r) => [r.k, r.on, r.off])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(200px,1fr) minmax(200px,1fr)"
+    minWidth={620}
+  />
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ZERO_RTT_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Цепочка доверия"
+  lead="Сертификат сайта подписан не корнем, а промежуточным УЦ; промежуточный — корнем; корень лежит у клиента. Клиент идёт по подписям снизу вверх, пока не упрётся в то, чему доверяет сам. Чтобы посмотреть на это изнутри, нужен свой УЦ — он делается тремя командами OpenSSL."
+  leadWidth={72}
+>
+  <Card title="Учебный УЦ: корень → промежуточный → shop.test" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MAKE_CA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Что внутри shop.pem" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={CERT_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      {CERT_FIELDS.map((f) => <Md text={`**${f.k}.** ${f.d}`} />)}
+    </Card>
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHAIN} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {CHAIN_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Проверка цепочки
+
+  <Card title="verifyChain — шаги в порядке OpenSSL" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VERIFY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VERIFY_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Сломайте цепочку
+
+  <TlsLab
+    client:visible
+    verifyCode={VERIFY_CODE}
+    certs={CERTS}
+    verdicts={NODE_VERDICTS}
+    leaves={DEMO_LEAVES}
+    sends={DEMO_SENDS}
+    hosts={DEMO_HOSTS}
+    steps={DEMO_STEPS}
+    codeNotes={CODE_NOTES}
+    now={STAND_NOW}
+    caption={DEMO_CAPTION}
+    standNote={DEMO_STAND_NOTE}
+    diffNote={DEMO_DIFF_NOTE}
+  />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Имя и срок"
+  lead="Когда цепочка сошлась, остаются два вопроса: тот ли это сайт и не истёк ли срок. На них же чаще всего и спотыкаются: имя — при переезде на новый домен, срок — когда продление сломалось и никто не заметил."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {NAME_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Одна поломка — два названия
+
+  <Table
+    head={['что сломано', 'Node: `authorizationError`', 'Chromium']}
+    rows={ERROR_ROWS.map((r) => [r.k, r.node, r.chromium])}
+    tones={ERROR_ROWS.map((r) => r.tone ?? 'info')}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(220px,1.2fr) minmax(240px,1.3fr)"
+    minWidth={640}
+  />
+
+  <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CHROMIUM_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="ACME: выпуск и продление"
+  lead={ACME_LEAD}
+  leadWidth={72}
+>
+  <Table
+    head={['шаг', 'запрос', 'что происходит']}
+    rows={ACME_STEPS.map((r) => [r.k, r.req, r.d])}
+    kinds={['prose', 'mono', 'prose']}
+    cols="minmax(130px,.6fr) minmax(170px,.8fr) minmax(320px,2fr)"
+    minWidth={660}
+  />
+
+  ### Три способа доказать, что домен ваш
+
+  <Table
+    head={['вызов', 'что выложить', 'звёздочка', 'когда']}
+    rows={CHALLENGE_ROWS.map((r) => [r.k, r.where, r.wild, r.when])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(240px,1.4fr) minmax(90px,.5fr) minmax(240px,1.3fr)"
+    minWidth={700}
+  />
+
+  <Card title="Что считает ACME-клиент" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ACME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ACME_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Сроки сокращаются
+
+  <Table
+    head={['с какого времени', 'срок', 'что это']}
+    rows={LIFETIME_ROWS.map((r) => [r.k, r.v, r.d])}
+    tones={LIFETIME_ROWS.map((r) => r.tone ?? 'info')}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(110px,.5fr) minmax(320px,2fr)"
+    minWidth={620}
+  />
+
+  <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ARI_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Отзыв, HSTS и mTLS"
+  lead="Три вещи вокруг сертификата: что делать, если ключ украли раньше срока; как не дать браузеру зайти по HTTP; и как сделать, чтобы сертификат показывал не только сервер, но и клиент."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {REVOKE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### HSTS и preload
+
+  <Md text={HSTS_NOTE} />
+
+  ### mTLS
+
+  <Md text={MTLS_LEAD} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {MTLS_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Сертификат — не файл, который однажды положили на сервер, а процесс.** Сервер
+      отдаёт полную цепочку, продление идёт само и раньше срока, а снаружи кто-то смотрит
+      на `notAfter` и на ответ `openssl s_client` — без браузера, который чинит цепочку
+      за вас.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -1,0 +1,60 @@
+---
+/**
+ * Нумерованный список шагов: номер моноширинным акцентом, текст прозой.
+ *
+ * Нужен там, где важен порядок, а не перечисление: путь запроса через брокера, шаги
+ * инициализации, порядок операций спеки. От обычного `<ol>` отличается тем, что номер
+ * выровнен по первой строке и не уезжает при длинном тексте.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  /** Пункты списка. Работает строчная разметка: `` `код` `` и `**жирный**`. */
+  items: string[];
+  /** Нумерация с ведущим нулём — «01», как в карточках «тонких мест». */
+  pad?: boolean;
+  size?: number;
+}
+
+const { items, pad = false, size = 15 } = Astro.props;
+---
+
+<ol class="list" style={`--list-fs:calc(${size}px * var(--fs-scale))`}>
+  {
+    items.map((item, i) => (
+      <li class="item">
+        <span class="num">{pad ? String(i + 1).padStart(2, '0') : i + 1}</span>
+        <span class="text" set:html={inlineMd(item)} />
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .item {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+  }
+  .num {
+    padding-top: 2px;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    color: var(--accent);
+  }
+  .text {
+    /* Та же ступень, что у прозы страницы; проп `size` больше размер не задаёт (2026-09-30). */
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+</style>

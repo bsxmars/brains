@@ -1,0 +1,475 @@
+---
+title: "Пространственные индексы: quadtree и R-tree"
+heading: "Пространственные индексы: quadtree и R-tree"
+headingWidth: 24
+order: 7
+kicker: алгоритмы во фронтенде
+lead: "Курсор над холстом с десятью тысячами фигур, выделение рамкой на схеме, ближайший магазин на карте, столкновения в игре. Перебор проверяет каждую фигуру на каждое движение мыши. Пространственный индекс отбрасывает целые области одной проверкой. Здесь сетка, квадродерево и R-дерево написаны по шагам и сверены с `rbush` и `flatbush`."
+leadWidth: 66
+summary: "Перебор и где его хватает, равномерная сетка и её провал на сгустках, квадродерево для точек: ёмкость, глубина, стопка одинаковых точек; R-дерево: MBR, вставка, квадратичное разбиение против разбиения rbush, перекрытие узлов; упаковка OMT в rbush и по кривой Гильберта во flatbush; k ближайших с очередью по расстоянию; удаление и движущиеся объекты."
+verifiedOn: "rbush 4.0.1, flatbush 4.6.2, Node 24.11.0, октябрь 2026: учебные сетка, квадродерево, R-дерево и поиск ближайших дают те же множества id, что rbush, flatbush и перебор, на наборах с зерном в tests/unit/spatial-index.test.ts; числа проверок и узлов в таблицах пересчитываются там же"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Перебор }
+  - { id: s2, label: Сетка }
+  - { id: s3, label: Квадродерево }
+  - { id: s4, label: R-дерево }
+  - { id: s5, label: Упаковка }
+  - { id: s6, label: Ближайшие }
+  - { id: s7, label: Движение }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import SpatialLab from '@/widgets/spatial-lab/ui/SpatialLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_INDEX,
+  PREREQ,
+  PREREQ_NOTE,
+  SETUP,
+  SPATIAL_CODES,
+  TASK_ROWS,
+  TASK_NOTE,
+  SHAPES_CODE,
+  BRUTE_CODE,
+  BRUTE_NOTE,
+  COLLIDE_ROWS,
+  COLLIDE_NOTE,
+  WHEN_BRUTE,
+  COST_ROWS,
+  COST_NOTE,
+  FRAME_ROWS,
+  FRAME_NOTE,
+  PLAIN_GRID,
+  GRID_CODE,
+  GRID_NOTE,
+  GRID_ROWS,
+  GRID_FAIL_NOTE,
+  GRID_RECT_ROWS,
+  GRID_RECT_NOTE,
+  PLAIN_QUAD,
+  QUAD_CODE,
+  QUAD_NOTE,
+  QUAD_SHAPE,
+  QUAD_SHAPE_NOTE,
+  PLAIN_PILE,
+  PILE_ROWS,
+  PILE_NOTE,
+  QUAD_RECT_NOTE,
+  PLAIN_MBR,
+  RTREE_CODE,
+  RTREE_NOTE,
+  SPLIT_CODE,
+  SPLIT_NOTE,
+  TREE_ROWS,
+  TREE_NOTE,
+  DEMO_SEARCH_CAPTION,
+  PLAIN_PACK,
+  LIB_CODE,
+  OMT_NOTE,
+  PLAIN_HILBERT,
+  HILBERT_NOTE,
+  HEIGHT_ROWS,
+  HEIGHT_NOTE,
+  PLAIN_KNN,
+  KNN_CODE,
+  KNN_NOTE,
+  KNN_ROWS,
+  KNN_LIB_NOTE,
+  DEMO_KNN_CAPTION,
+  REMOVE_CODE,
+  REMOVE_NOTE,
+  MOVE_ROWS,
+  GIST_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Что здесь лежит" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Индекс не делает проверку быстрее. Он делает так, чтобы большинство фигур **не пришлось
+    проверять вовсе**: фигуры разложены по областям, и область, которая не задевает запрос,
+    отбрасывается вместе со всем содержимым одной проверкой.
+
+  </Callout>
+
+  На холсте и на карте фигуры — это просто числа в массиве. Браузер не знает, какая из них
+  под курсором: это решает ваш код. Самый простой способ — пройти по всем фигурам и проверить
+  каждую. Пока фигур сотни, так и надо делать. Когда их десятки тысяч, а спрашивают на каждое
+  движение мыши, нужна структура, которая знает, где что лежит.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INDEX} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Перебор и его предел"
+  lead="Четыре частые задачи фронтенда с фигурами на плоскости. Все они начинаются с одного вопроса к набору, и самый простой ответ на него — проверить каждую фигуру."
+  leadWidth={72}
+>
+  <Table
+    head={['задача', 'что спрашивают', 'запрос к индексу']}
+    rows={TASK_ROWS.map((r) => [r.k, r.q, r.how])}
+    tones={TASK_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(160px,.8fr) minmax(220px,1.2fr) minmax(200px,1fr)"
+    minWidth={620}
+  />
+
+  <Md text={TASK_NOTE} />
+
+  ### Набор фигур
+
+  Генератор с зерном выдаёт одни и те же фигуры при каждом запуске. Поэтому числа в таблицах
+  ниже повторяются, а демо показывает те же наборы.
+
+  <Card title="Наборы: равномерно, сгустки, стопка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SHAPES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  ### Перебор
+
+  <Card title="Проверить каждую" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={BRUTE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={BRUTE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Сколько проверок на курсор
+
+  Курсор — рамка 8 × 8 вокруг точки, где лежит какая-нибудь фигура. Число в ячейке — среднее
+  число проверок на запрос по двумстам запросам.
+
+  <Table
+    head={['набор', 'точек', 'перебор', 'сетка', 'квадродерево', 'R-дерево темы', 'rbush', 'найдено']}
+    rows={COST_ROWS.map((r) => [r.layout, r.n.toLocaleString('ru-RU'), r.brute.toLocaleString('ru-RU'), r.grid.toLocaleString('ru-RU'), r.quad.toLocaleString('ru-RU'), r.rtree.toLocaleString('ru-RU'), r.rbush.toLocaleString('ru-RU'), r.found.toLocaleString('ru-RU')])}
+    tones={COST_ROWS.map((r) => (r.layout === 'сгустки' ? 'warn' : 'info'))}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(110px,.9fr) minmax(80px,.7fr) minmax(80px,.7fr) minmax(70px,.6fr) minmax(110px,.8fr) minmax(110px,.8fr) minmax(70px,.6fr) minmax(80px,.6fr)"
+    minWidth={760}
+  />
+
+  <Md text={COST_NOTE} />
+
+  <Table
+    head={['набор, рамка 200 × 150', 'точек', 'перебор', 'сетка', 'квадродерево', 'R-дерево темы', 'rbush', 'найдено']}
+    rows={FRAME_ROWS.map((r) => [r.layout, r.n.toLocaleString('ru-RU'), r.brute.toLocaleString('ru-RU'), r.grid.toLocaleString('ru-RU'), r.quad.toLocaleString('ru-RU'), r.rtree.toLocaleString('ru-RU'), r.rbush.toLocaleString('ru-RU'), r.found.toLocaleString('ru-RU')])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(150px,1fr) minmax(80px,.7fr) minmax(80px,.7fr) minmax(70px,.6fr) minmax(110px,.8fr) minmax(110px,.8fr) minmax(70px,.6fr) minmax(80px,.6fr)"
+    minWidth={800}
+  />
+
+  <Md text={FRAME_NOTE} />
+
+  ### Столкновения: каждый с каждым
+
+  <Table
+    head={['прямоугольников', 'пересекающихся пар', 'перебор пар', 'R-дерево']}
+    rows={COLLIDE_ROWS.map((r) => [r.n.toLocaleString('ru-RU'), r.pairs.toLocaleString('ru-RU'), r.brute.toLocaleString('ru-RU'), r.tree.toLocaleString('ru-RU')])}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(140px,1fr) minmax(170px,1fr) minmax(130px,1fr) minmax(110px,1fr)"
+    minWidth={560}
+  />
+
+  <Md text={COLLIDE_NOTE} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {WHEN_BRUTE.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Равномерная сетка"
+  lead="Самый простой индекс: поле режется на одинаковые клетки, у каждой клетки — список фигур, которые в ней лежат. Клетки под рамкой находятся делением координаты на сторону клетки, и проверяются только фигуры из них."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GRID} />
+
+  <Card title="Сетка и поиск по ней" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GRID_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={GRID_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Где сетка ломается
+
+  <Table
+    head={['10 000 точек', 'пустых клеток из 400', 'точек в самой полной', 'проверок на курсор']}
+    rows={GRID_ROWS.map((r) => [r.layout, r.empty.toLocaleString('ru-RU'), r.max.toLocaleString('ru-RU'), r.cursor.toLocaleString('ru-RU')])}
+    tones={GRID_ROWS.map((r) => (r.layout === 'сгустки' ? 'err' : 'ok'))}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(130px,1fr) minmax(160px,1fr) minmax(160px,1fr) minmax(150px,1fr)"
+    minWidth={600}
+  />
+
+  <Md text={GRID_FAIL_NOTE} />
+
+  <Table
+    head={['стороны прямоугольников', 'записей в списках на 10 000 фигур']}
+    rows={GRID_RECT_ROWS.map((r) => [`2…${r.size + 2}`, r.entries.toLocaleString('ru-RU')])}
+    kinds={['mono', 'mono']}
+    cols="minmax(200px,1fr) minmax(260px,1.3fr)"
+    minWidth={460}
+  />
+
+  <Md text={GRID_RECT_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Квадродерево для точек"
+  lead="Квадродерево делит поле не заранее, а по мере надобности. Пока в квадрате мало точек, он лист. Как только точек становится больше ёмкости, квадрат делится на четыре равных, и точки расходятся по четвертям. Там, где пусто, деление не происходит вовсе."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUAD} />
+
+  <Card title="Вставка и поиск рамкой" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={QUAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={QUAD_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['10 000 точек, ёмкость 8', 'узлов', 'глубина']}
+    rows={QUAD_SHAPE.map((r) => [r.layout, r.nodes.toLocaleString('ru-RU'), r.depth.toLocaleString('ru-RU')])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(200px,1.2fr) minmax(100px,.8fr) minmax(100px,.8fr)"
+    minWidth={420}
+  />
+
+  <Md text={QUAD_SHAPE_NOTE} />
+
+  ### Одинаковые точки
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PILE} />
+
+  <Table
+    head={['предел глубины', 'узлов', 'точек в самом полном листе', 'проверок рядом со стопкой']}
+    rows={PILE_ROWS.map((r) => [r.maxDepth.toLocaleString('ru-RU'), r.nodes.toLocaleString('ru-RU'), r.leaf.toLocaleString('ru-RU'), r.near.toLocaleString('ru-RU')])}
+    tones={PILE_ROWS.map((r) => (r.near > 100 ? 'err' : 'ok'))}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(130px,.8fr) minmax(90px,.6fr) minmax(200px,1.2fr) minmax(200px,1.2fr)"
+    minWidth={620}
+  />
+
+  <Md text={PILE_NOTE} />
+
+  <Md text={QUAD_RECT_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="R-дерево: рамки вокруг рамок"
+  lead="R-дерево не режет плоскость на равные куски. Оно группирует соседние фигуры по несколько и обводит каждую группу прямоугольником. Группы группируются снова — и так до одного корня. Запрос спускается только в те группы, чья рамка задевает его рамку."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MBR} />
+
+  <Card title="Узлы, вставка, поиск" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={RTREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={RTREE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Разбиение переполненного узла
+
+  <Card title="Квадратичное разбиение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SPLIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={SPLIT_NOTE} />
+
+  <Table
+    head={['10 000 фигур', 'дерево', 'перекрытие, в полях', 'листьев', 'узлов на рамку', 'проверок на рамку']}
+    rows={TREE_ROWS.map((r) => [r.set, r.tree, r.overlap, r.leaves.toLocaleString('ru-RU'), String(r.nodes).replace('.', ','), r.checks.toLocaleString('ru-RU')])}
+    tones={TREE_ROWS.map((r) => (r.tree.startsWith('учебное') ? 'warn' : 'info'))}
+    kinds={['prose', 'prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(120px,.7fr) minmax(220px,1.4fr) minmax(110px,.7fr) minmax(80px,.5fr) minmax(110px,.7fr) minmax(110px,.7fr)"
+    minWidth={800}
+  />
+
+  <Md text={TREE_NOTE} />
+
+  ### Поле с фигурами
+
+  <SpatialLab client:visible codes={SPATIAL_CODES} shapesCode={SHAPES_CODE} setup={SETUP} mode="search" caption={DEMO_SEARCH_CAPTION} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Упаковка: дерево за один проход"
+  lead="Если все фигуры известны заранее, вставлять их по одной незачем. Набор можно сначала разложить так, чтобы соседи на плоскости оказались соседями в массиве, а потом нарезать на узлы подряд. Узлы выходят полными, а перекрытие — меньше."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PACK} />
+
+  <Card title="rbush и flatbush" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LIB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Md text={OMT_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HILBERT} />
+
+  <Md text={HILBERT_NOTE} />
+
+  <Table
+    head={['точек', 'уровней узлов: rbush.load', 'уровней узлов: flatbush', 'буфер flatbush, байт']}
+    rows={HEIGHT_ROWS.map((r) => [r.n.toLocaleString('ru-RU'), r.rbush.toLocaleString('ru-RU'), r.flat.toLocaleString('ru-RU'), r.bytes.toLocaleString('ru-RU')])}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(110px,.8fr) minmax(190px,1.2fr) minmax(190px,1.2fr) minmax(170px,1fr)"
+    minWidth={660}
+  />
+
+  <Md text={HEIGHT_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Ближайшие: очередь по расстоянию"
+  lead="Рамкой ближайшего не найти: неизвестно, какого она должна быть размера. Поиск ближайших идёт от точки наружу. Узлы и фигуры лежат в одной очереди, упорядоченной по расстоянию до их рамки, и из очереди всегда достаётся самое близкое."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KNN} />
+
+  <Card title="k ближайших по R-дереву" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={KNN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={KNN_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['10 000 точек, k = 5', 'проверок', 'узлов раскрыто', 'перебор']}
+    rows={KNN_ROWS.map((r) => [r.layout, r.checks.toLocaleString('ru-RU'), r.nodes.toLocaleString('ru-RU'), r.brute.toLocaleString('ru-RU')])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(170px,1.2fr) minmax(100px,.7fr) minmax(130px,.8fr) minmax(100px,.7fr)"
+    minWidth={520}
+  />
+
+  <Md text={KNN_LIB_NOTE} />
+
+  ### Пять ближайших к указателю
+
+  <SpatialLab client:visible codes={SPATIAL_CODES} shapesCode={SHAPES_CODE} setup={SETUP} mode="knn" caption={DEMO_KNN_CAPTION} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Движущиеся объекты"
+  lead="Перетаскивание, анимация, игра: фигуры меняют координаты, и индекс должен за ними успевать. Дерево не замечает, что у объекта поменялись числа: его надо явно удалить и вставить заново — или перестроить индекс целиком."
+  leadWidth={72}
+>
+  <Card title="Удаление и сдвиг" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REMOVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={REMOVE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что выбрать
+
+  <Table
+    head={['что происходит', 'как обновлять индекс']}
+    rows={MOVE_ROWS.map((r) => [r.k, r.how])}
+    tones={MOVE_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,.8fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={GIST_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Индекс выбирают по данным, а не по моде.** Ровные данные одного размера — сетка.
+      Точки с перепадами плотности — квадродерево. Прямоугольники разного размера и набор,
+      который меняется, — R-дерево с вставкой. Всё известно заранее и только читается —
+      упакованное дерево. А пока фигур сотни, честный перебор проще всех.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

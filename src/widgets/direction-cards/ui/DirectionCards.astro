@@ -1,0 +1,193 @@
+---
+/**
+ * Направления на главной.
+ *
+ * Список ссылок (`CourseList`) для этого не годится: он хорош, когда элементы однородны и их
+ * читают подряд — это про уроки внутри направления. Направления читают иначе: не подряд,
+ * а выбирая одно. Поэтому у каждого своя карточка, и на ней стоит то, чего в списке не покажешь:
+ * вопрос, на который направление отвечает, сколько в нём уроков и с чего оно начинается.
+ *
+ * Первые названия уроков на карточке — не украшение. «Рендеринг» одинаково похож и на то,
+ * что человек ищет, и на то, что ему не нужно; «Кадр браузера · CSS: каскад · CRP и Web Vitals»
+ * отвечает на этот вопрос за секунду.
+ */
+import { topics } from '@/shared/lib/format';
+
+export interface DirectionCardItem {
+  href: string;
+  title: string;
+  /** Вопрос над названием — им читатель и выбирает. */
+  question: string;
+  /** Сколько тем в направлении сейчас. */
+  count: number;
+  /** Названия первых тем — чтобы направление стало конкретным. */
+  preview: string[];
+}
+
+interface Props {
+  items: DirectionCardItem[];
+}
+
+const { items } = Astro.props;
+
+/**
+ * Цвета кружков перед названиями тем.
+ *
+ * Имена токенов, а не значения: цвет курса живёт только в `shared/ui/theme.ts`, и проверка
+ * палитры краснеет на любом оттенке мимо неё. Берётся палитра столбиков диаграмм — она для
+ * того и заведена, чтобы разводить соседние элементы по цвету, не вводя новых.
+ */
+const DOTS = ['--bar-violet', '--bar-amber', '--bar-green', '--bar-red'] as const;
+---
+
+<ul class="grid">
+  {
+    items.map((item) => (
+      <li>
+        <a class="card" href={item.href}>
+          <span class="question">{item.question}</span>
+          <span class="title">{item.title}</span>
+
+          <span class="preview">
+            {item.preview.map((title, i) => (
+              <span class="preview__item" style={`--dot:var(${DOTS[i % DOTS.length]})`}>{title}</span>
+            ))}
+          </span>
+
+          {/* Подвал карточки — только счёт. Приглашения вроде «смотреть →» здесь не нужно:
+              карточка целиком и есть ссылка, а лишняя подпись делает вид, будто ссылка —
+              только она. */}
+          <span class="foot">
+            <span class="count">{topics(item.count)}</span>
+          </span>
+        </a>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  /* Плитка три на три.
+     Пока направлений было четыре, стояла пара на строку с крупным заголовком `--fs-h2`.
+     2026-10-06 их стало девять, и пять рядов высоких карточек заняли три экрана: целиком
+     направления было не окинуть взглядом. Теперь колонок три, заголовок на ступень меньше,
+     а лид с карточки снят — о том же говорит вопрос над названием; лид остался на странице
+     направления. Число колонок задано явно, не `auto-fit`: иначе сетка сама решает, сколько
+     колонок, и заголовки в узких рвутся посреди слова. */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* ⚠️ Ячейка — гибкий контейнер, а карточка растягивается в ней сама.
+     Раньше карточке была задана `height: 100%`, и это давало замкнутый круг: высота ячейки
+     считается по содержимому, а содержимое просило «сто процентов от ячейки». Браузер брал
+     высоту строки, посчитанную без подвала карточки, карточка вылезала за ячейку и ложилась
+     на следующий ряд — на странице это выглядело как срезанный счёт «12 тем». */
+  .grid > li {
+    display: flex;
+    min-width: 0;
+  }
+  @media (max-width: 1080px) {
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 640px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* Карточку поднимает тень, а не рамка — как и везде в курсе после перехода на белую канву. */
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+    padding: 22px 24px;
+    border-radius: var(--r4);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+    text-decoration: none;
+    color: inherit;
+    /* Длинное имя из лида не имеет права утащить страницу вбок. */
+    overflow-wrap: break-word;
+    transition:
+      box-shadow 0.2s,
+      transform 0.2s;
+  }
+  .card:hover {
+    box-shadow: var(--shadow-2);
+    transform: translateY(-2px);
+  }
+
+  .question {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 1.4;
+    color: var(--accent);
+  }
+  /* Заголовок переносится по слогам, а не по буквам.
+     Карточка целиком объявлена `overflow-wrap: break-word` — это верно для прозы с длинными
+     именами из кода, но на заголовке давало «Внутренно сти JS»: слово рвалось где придётся.
+     Здесь разрыв запрещён, а если слово всё же не помещается, `hyphens` разложит его
+     по правилам языка — документ объявлен `lang="ru"`, и переносы берутся оттуда. */
+  .title {
+    font-size: var(--fs-h3);
+    line-height: 1.2;
+    color: var(--ink);
+    overflow-wrap: normal;
+    hyphens: auto;
+  }
+  /* Названия уроков — столбиком: в колонке в треть ширины строка через точку рвалась
+     посреди названия. */
+  .preview {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--text-faint);
+  }
+  /* Кружок перед каждым пунктом — вместо разделителя-точки между ними.
+     Точка разделяла, кружок помечает: у каждой темы свой цвет, и строка читается как список,
+     а не как одна фраза через точки. */
+  .preview__item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+  }
+  .preview__item::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--dot, var(--bar-neutral));
+    /* Кружок садится на базовую линию строчного текста, а не на её верх. */
+    transform: translateY(-1px);
+  }
+
+  .foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    /* Прижимает подвал к низу карточки: в соседних карточках счётчик встаёт на одну линию,
+       даже если лиды разной длины. */
+    margin-top: auto;
+    padding-top: 8px;
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+  }
+  .count {
+    color: var(--text-muted);
+  }
+</style>

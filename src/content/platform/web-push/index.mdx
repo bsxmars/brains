@@ -1,0 +1,407 @@
+---
+title: Web Push
+heading: "Web Push: путь уведомления от сервера до экрана"
+headingWidth: 24
+order: 18
+kicker: сеть и безопасность
+lead: "Сайт закрыт, браузер свёрнут — а уведомление «Заказ 1042 собран» всё равно появляется. Ваш сервер при этом не знает, где телефон, и не держит с ним соединения. Сообщение идёт через push-сервис производителя браузера, подписанное ключом вашего сервера и зашифрованное так, что посредник его не прочтёт."
+leadWidth: 66
+summary: "Три участника — ваш сервер, push-сервис (FCM, autopush) и Service Worker; подписка `pushManager.subscribe` и что лежит в `PushSubscription`; VAPID — JWT ES256 для push-сервиса; шифрование тела по RFC 8291: ECDH, HKDF с `auth`, AES-128-GCM и заголовок aes128gcm по байтам; `TTL`, `Urgency`, `Topic` и ответы 201, 403, 410; событие `push`, `showNotification` и `tag`; где push не дойдёт."
+verifiedOn: "web-push 3.6.7, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63, постоянный профиль, настоящая подписка FCM), октябрь 2026: доставка, ответы push-сервиса и замена по Topic сняты стендом; шифрование темы сверено с примером RFC 8291 байт в байт и с web-push в tests/unit/web-push.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Три участника }
+  - { id: s2, label: Подписка }
+  - { id: s3, label: VAPID }
+  - { id: s4, label: Шифрование тела }
+  - { id: s5, label: Доставка }
+  - { id: s6, label: Событие push }
+  - { id: s7, label: Где push не дойдёт }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import PushLab from '@/widgets/push-lab/ui/PushLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_PUSH,
+  PREREQ,
+  PREREQ_NOTE,
+  FLOW_CHIPS,
+  PLAIN_SERVICE,
+  PARTICIPANTS,
+  SERVICE_NOTE,
+  VS_SOCKET_NOTE,
+  CLIENT_CODE,
+  SUBSCRIPTION_PRINT_CODE,
+  SUB_FIELDS,
+  SUBSCRIBE_NOTE,
+  REFUSALS,
+  REFUSALS_NOTE,
+  PLAIN_VAPID,
+  VAPID_CODE,
+  VAPID_HEADER_CODE,
+  VAPID_CLAIMS,
+  VAPID_NOTE,
+  VAPID_FACTS,
+  PLAIN_ECDH,
+  PUSH_CODE,
+  DERIVE_STEPS,
+  HEADER_ROWS,
+  SIZE_NOTE,
+  RFC_NOTE,
+  DEMO_MODES,
+  DEMO_DEFAULT_TEXT,
+  DEMO_CAPTION,
+  SERVER_CODE,
+  REQUEST_PRINT_CODE,
+  HEADERS_ROWS,
+  OFFLINE_NOTE,
+  OFFLINE_ROWS,
+  OFFLINE_AFTER,
+  RESPONSES,
+  RESPONSES_NOTE,
+  GONE_NOTE,
+  SW_CODE,
+  SW_FACTS,
+  STAND_SW_NOTE,
+  USER_VISIBLE_NOTE,
+  LIMITS,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Сообщение без открытой вкладки" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Ваш сервер не может достучаться до телефона сам. Он отдаёт сообщение **push-сервису**
+    браузера, тот держит его, пока устройство не выйдет на связь, и передаёт Service Worker'у
+    сайта. Подпись VAPID говорит push-сервису, кто отправитель, а шифрование не даёт ему
+    прочитать текст.
+
+  </Callout>
+
+  Push — единственный способ сказать что-то пользователю, когда ни одной вкладки сайта не
+  открыто. Пользователь один раз разрешает уведомления, браузер выдаёт странице подписку, и
+  страница отправляет её на ваш сервер. Дальше сервер может будить браузер когда угодно:
+  через минуту или через месяц.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUSH} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Три участника"
+  lead="Сообщение проходит три руки. Ваш сервер его пишет и шифрует. Push-сервис принимает и хранит, пока устройство не в сети. Браузер расшифровывает и будит Service Worker сайта, а тот показывает уведомление."
+  leadWidth={72}
+>
+  <Card title="Путь одного сообщения" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
+    <FlowChips minWidth={760} chips={FLOW_CHIPS} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SERVICE} />
+
+  <Table
+    head={['кто', 'что хранит', 'что видит']}
+    rows={PARTICIPANTS.map((r) => [r.k, r.keeps, r.sees])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,.6fr) minmax(240px,1.3fr) minmax(260px,1.4fr)"
+    minWidth={680}
+  />
+
+  <Md text={SERVICE_NOTE} />
+
+  <Card tone="neutral" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={VS_SOCKET_NOTE} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Подписка: `pushManager.subscribe`"
+  lead="Сквозной пример на всю тему — интернет-магазин, который сообщает о статусе заказа 1042. Страница регистрирует Service Worker, спрашивает разрешение, получает подписку у браузера и отдаёт её своему серверу. Это весь клиентский код push."
+  leadWidth={72}
+>
+  <Card title="Страница магазина" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLIENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={SUBSCRIBE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что лежит в подписке
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Тело POST /api/push/subscriptions" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SUBSCRIPTION_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Table
+      head={['поле', 'на стенде', 'зачем']}
+      rows={SUB_FIELDS.map((r) => [r.k, r.v, r.d])}
+      kinds={['mono', 'prose', 'prose']}
+      cols="minmax(120px,.6fr) minmax(90px,.45fr) minmax(220px,1.6fr)"
+      minWidth={520}
+    />
+  </CardGrid>
+
+  ### Когда браузер отказывает
+
+  <Table
+    head={['условие', 'ответ Chromium 153']}
+    rows={REFUSALS.map((r) => [r.k, r.got])}
+    tones={REFUSALS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,.8fr) minmax(320px,1.6fr)"
+    minWidth={580}
+  />
+
+  <Md text={REFUSALS_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="VAPID: как push-сервис узнаёт отправителя"
+  lead="Знать `endpoint` мало: подписка, созданная с `applicationServerKey`, принимает только сообщения, подписанные парным закрытым ключом. Подпись — короткий JWT в заголовке `Authorization`, его сервер собирает заново для каждого push-сервиса."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VAPID} />
+
+  <Card title="Подпись сервера и проверка push-сервиса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VAPID_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VAPID_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Заголовок с отправки стенда
+
+  <Card title="Authorization" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={VAPID_HEADER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['поле', 'на стенде', 'зачем']}
+    rows={VAPID_CLAIMS.map((r) => [r.k, r.v, r.d])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(170px,.8fr) minmax(280px,1.7fr)"
+    minWidth={640}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {VAPID_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Шифрование тела: RFC 8291"
+  lead="Push-сервис принадлежит не вам, и текст ему видеть незачем. Поэтому сервер шифрует тело для одного браузера: ключ шифрования выводится из общего секрета ECDH и из `auth`, а знают их только сервер и этот браузер."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ECDH} />
+
+  <CardGrid min={260} gap={14} align="start">
+    {DERIVE_STEPS.map((step) => (
+      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card title="Шифрование и расшифровка — на Web Crypto" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={PUSH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={RFC_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Тело по байтам
+
+  <Table
+    head={['поле', 'байт', 'что это']}
+    rows={HEADER_ROWS.map((r) => [r.k, r.bytes, r.d])}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(110px,.5fr) minmax(70px,.3fr) minmax(320px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={SIZE_NOTE} />
+
+  ### Конверт целиком
+
+  <PushLab client:visible pushCode={PUSH_CODE} vapidCode={VAPID_CODE} modes={DEMO_MODES} defaultText={DEMO_DEFAULT_TEXT} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Доставка: `TTL`, `Urgency`, `Topic`"
+  lead="Отправка — один POST на `endpoint`. Кроме подписи и тела в нём три заголовка, которыми сервер говорит push-сервису, сколько хранить сообщение, насколько оно срочное и что оно заменяет."
+  leadWidth={72}
+>
+  <Card title="Сервер магазина" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SERVER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Запрос и ответ на стенде" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={REQUEST_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Table
+      head={['заголовок', 'что значит']}
+      rows={HEADERS_ROWS.map((r) => [r.k, r.d])}
+      kinds={['mono', 'prose']}
+      cols="minmax(120px,.5fr) minmax(260px,1.8fr)"
+      minWidth={440}
+    />
+  </CardGrid>
+
+  ### Пока устройство не в сети
+
+  <Md text={OFFLINE_NOTE} />
+
+  <Table
+    head={['сообщение', 'заголовки', 'итог']}
+    rows={OFFLINE_ROWS.map((r) => [r.k, r.how, r.got])}
+    tones={OFFLINE_ROWS.map((r) => r.tone)}
+    toneColumn={2}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(180px,.9fr) minmax(220px,1.2fr)"
+    minWidth={640}
+  />
+
+  <Md text={OFFLINE_AFTER} />
+
+  ### Что отвечает push-сервис
+
+  <Table
+    head={['код', 'что значит', 'на стенде']}
+    rows={RESPONSES.map((r) => [r.k, r.what, r.stand])}
+    tones={RESPONSES.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(120px,.5fr) minmax(300px,1.7fr) minmax(160px,.7fr)"
+    minWidth={660}
+  />
+
+  <Md text={RESPONSES_NOTE} />
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={GONE_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Service Worker: событие `push`"
+  lead="Браузер получил сообщение, расшифровал его и будит Service Worker сайта событием `push`. Вкладок может не быть ни одной. Задача обработчика — показать уведомление, а по клику открыть нужную страницу."
+  leadWidth={72}
+>
+  <Card title="sw.js магазина" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {SW_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={USER_VISIBLE_NOTE} />
+
+  <Md text={STAND_SW_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Где push не дойдёт"
+  lead="Push работает почти везде, но «почти» здесь важно. Подписку можно не получить, сообщение — не доставить, а сервер в обоих случаях узнает об этом поздно или никогда."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {LIMITS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Push — это звонок в дверь, а не посылка.** Он будит Service Worker и показывает
+      короткое уведомление, но может не дойти, прийти позже или прийти последним из пяти.
+      Само состояние — заказ, сообщения, статус — живёт на сервере, и сайт показывает его при
+      открытии, был push или нет.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

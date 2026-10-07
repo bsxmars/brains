@@ -1,0 +1,170 @@
+---
+/**
+ * Gateway API: три объекта друг над другом, у каждого — владелец и пространство имён.
+ *
+ * Два листинга раздела читаются как два независимых файла, а суть — в связях между ними:
+ * маршрут ссылается на вход, вход — на класс, и вход пускает маршрут только по метке его
+ * пространства. Стрелки между ярусами подписаны теми самыми полями, которые эти ссылки
+ * задают; идут они снизу вверх — от того, кто ссылается, к тому, на кого.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Layer {
+  owner: string;
+  ns: string;
+  kind: string;
+  lines: string[];
+  tone: string;
+}
+
+interface Props {
+  title: string;
+  caption: string;
+  layers: Layer[];
+  links: string[];
+}
+
+const { title, caption, layers, links } = Astro.props;
+---
+
+<figure class="ird">
+  <div class="t-eyebrow t-eyebrow--panel">{title}</div>
+
+  <div class="ird-stack">
+    {
+      layers.map((layer, i) => (
+        <>
+          {i > 0 && (
+            <div class="ird-link">
+              <span class="ird-link-arrow" aria-hidden="true">
+                ↑
+              </span>
+              <span set:html={inlineMd(links[i - 1])} />
+            </div>
+          )}
+          <div class="ird-layer" data-tone={layer.tone}>
+            <div class="ird-owner">
+              <span class="ird-owner-t">{layer.owner}</span>
+              <span class="ird-ns" set:html={inlineMd(layer.ns)} />
+            </div>
+            <div class="ird-obj">
+              <span class="ird-kind" set:html={inlineMd(layer.kind)} />
+              <ul class="ird-lines">
+                {layer.lines.map((line) => (
+                  <li set:html={inlineMd(line)} />
+                ))}
+              </ul>
+            </div>
+          </div>
+        </>
+      ))
+    }
+  </div>
+
+  <figcaption class="t-note" set:html={inlineMd(caption)} />
+</figure>
+
+<style>
+  .ird {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .ird-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ird-layer {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.34fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    background: var(--surface-2);
+  }
+  .ird-layer[data-tone='info'] {
+    border-color: var(--tone-info-line);
+    background: var(--tone-info-bg);
+  }
+  .ird-layer[data-tone='ok'] {
+    border-color: var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+  }
+
+  .ird-owner {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .ird-owner-t {
+    font-size: var(--fs-4);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .ird-ns {
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+
+  .ird-obj {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+  }
+  .ird-kind {
+    font-size: var(--fs-4);
+    font-weight: 600;
+  }
+  .ird-layer[data-tone='info'] .ird-kind {
+    color: var(--tone-info-strong);
+  }
+  .ird-layer[data-tone='ok'] .ird-kind {
+    color: var(--tone-ok-strong);
+  }
+  .ird-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 0;
+    padding-left: 16px;
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    color: var(--prose);
+  }
+
+  .ird-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 24px;
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+  .ird-link-arrow {
+    font-size: var(--fs-6);
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 640px) {
+    .ird {
+      padding: 16px;
+    }
+    .ird-layer {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+    .ird-link {
+      padding-left: 8px;
+    }
+  }
+</style>

@@ -1,0 +1,623 @@
+---
+title: WebGL и конвейер GPU
+order: 7
+kicker: браузер и рендеринг
+lead: "Для браузера WebGL-канвас — отдельный слой: готовая картинка, которую композитор выводит на экран вместе с остальной страницей. Всё, что внутри, рисуется **мимо style, layout и paint** — без стилей, раскладки и браузерной отрисовки. Рисуете вы сами, каждый кадр и целиком, а браузер только показывает результат."
+leadWidth: 66
+summary: "Где кончается конвейер браузера и начинается конвейер GPU: вершины и фрагменты, цена вызова отрисовки, почему время здесь почти нечем померить и что происходит при потере контекста."
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), рендерер ANGLE · Vulkan · SwiftShader — программный растеризатор; сентябрь 2026"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Граница }
+  - { id: s2, label: Конвейер GPU }
+  - { id: s3, label: Что стоит дорого }
+  - { id: s4, label: Почему трудно мерить }
+  - { id: s5, label: Потеря контекста }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import FlowChips from '@/shared/ui/FlowChips.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ContextLoss from '@/widgets/context-loss/ui/ContextLoss.vue';
+import DrawCalls from '@/widgets/draw-calls/ui/DrawCalls.vue';
+import ShaderLab from '@/widgets/shader-lab/ui/ShaderLab.vue';
+import {
+  BOUNDARY,
+  BOUNDARY_FACTS,
+  CALL_PATH,
+  CALL_PATH_NOTE,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  RELATED,
+  COST_ROWS,
+  DRAW_MODES,
+  ENV_ROWS,
+  LOSS_CAUSES,
+  LOSS_STRATEGIES,
+  MEASURE_ROWS,
+  DEPTH_LEAD,
+  PLAIN_DEPTH,
+  DEPTH_FACTS,
+  DEPTH_STEP,
+  DEPTH_STEP_NOTE,
+  TRANSPARENCY_ROWS,
+  TRANSPARENCY_CODE,
+  TRANSPARENCY_NOTE,
+  PLAIN_MIPMAP,
+  TEXTURE_FILTER_ROWS,
+  TEXTURE_FACTS,
+  FRAMEBUFFER_LEAD,
+  FRAMEBUFFER_CODE,
+  FRAMEBUFFER_FACTS,
+  PIPELINE_STEPS,
+  PITFALLS,
+  SHADER_PRESETS,
+  SOURCES,
+  STAGE_FACTS,
+  STATE_NOTE,
+  SYNC_CODE,
+  SYNC_NOTE,
+  TIMER_CODE,
+  VERTEX_NOTE,
+  PLAIN_LAYER,
+  PLAIN_SHADERS,
+  PLAIN_DRAW_CALL,
+  PLAIN_QUEUE,
+  PLAIN_CONTEXT_LOSS,
+  SHADER_DEMO_NOTE,
+  DRAW_DEMO_NOTE,
+  LOSS_DEMO_NOTE,
+  ZFIGHT_SCENE_CODE,
+  ZFIGHT_SCENE_NOTE,
+  ZFIGHT_STEPS,
+  GLASS_SCENE_CODE,
+  GLASS_STEPS,
+  PLAIN_GLASS,
+} from './data';
+
+<Section variant="intro" eyebrow="Идея" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Обычную страницу рисует браузер: сам считает стили, раскладку и отрисовку.
+    С WebGL он не делает почти ничего: выдаёт прямоугольник, соединённый с видеокартой,
+    и уходит. Внутри нет ни элементов, ни стилей, ни раскладки — <b>есть только ваш код
+    и конвейер GPU</b>.
+
+  </Callout>
+
+  Кадр браузера заканчивается шагом `commit`: после него работа уходит с главного потока
+  к композитору — части браузера, которая собирает экран из готовых слоёв. Всё, что делает
+  композитор, продолжает работать, даже когда JS занят. Канвас с контекстом WebGL живёт именно
+  там: [он сам и есть слой композитора](/render/render-pipeline/#s4). Отсюда странное свойство:
+  содержимое канваса не проходит ни через стили, ни через раскладку, ни через браузерную
+  отрисовку.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYER} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Где кончается браузер"
+  lead="Одно и то же действие — «поменять то, что видно» — по разные стороны границы устроено совершенно по-разному. Слева работает браузер, справа не работает никто, кроме вас."
+  leadWidth={72}
+>
+  <Table
+    head={BOUNDARY.head}
+    rows={BOUNDARY.rows}
+    cols={BOUNDARY.cols}
+    kinds={BOUNDARY.kinds}
+    minWidth={BOUNDARY.minWidth}
+  />
+
+  <CardGrid min={280} gap={14} align="start">
+    {BOUNDARY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card pad={22} radius={5} gap={16}>
+    <div class="t-eyebrow t-eyebrow--panel">Кадр страницы и кадр канваса — один и тот же кадр</div>
+
+    <FlowChips
+      minWidth={700}
+      chips={[
+        { label: 'задача' },
+        { label: 'µtasks', tone: 'info' },
+        { label: 'rAF → ваш drawArrays', tone: 'warn' },
+        { label: 'style → layout → paint', tone: 'dashed' },
+        { label: 'commit', tone: 'ok' },
+        { label: 'композитор: слой канваса + слои страницы', tone: 'ok' },
+      ]}
+    />
+
+
+    Пунктиром — шаги, которые к канвасу отношения не имеют: они посчитают страницу вокруг него,
+    а его содержимое уже уехало командами в очередь драйвера. Ваш `rAF` при этом остаётся обычным
+    шагом кадра со всеми его свойствами: в скрытой вкладке его не вызовут вовсе, при занятом
+    главном потоке кадр не наступит ([«Кадр браузера», раздел «Кадра может не быть»](/render/render-pipeline/#s2)).
+
+    Отдельного потока для канваса у страницы нет, пока вы его не заведёте: как отдать канвас
+    воркеру через `transferControlToOffscreen()` — в [«Воркерах и параллелизме», раздел «Сколько
+    их и офскрин»](/js/workers/#s6).
+
+  </Card>
+
+  <DarkPanel eyebrow="Главная мысль темы">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Канвас не ускоряет отрисовку — он меняет, кто её делает.** Браузер перестаёт решать
+      за вас, а вместе с решениями уходят и его оптимизации: пропуск того, что не изменилось,
+      перекраска только затронутого участка, пересчёт только изменившейся части дерева.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Поэтому «переписать на WebGL» — это не про скорость сам по себе. Это размен: вы получаете
+      прямой доступ к железу и обязанность самому не делать лишнего. Выигрыш появляется там,
+      где браузерная модель заведомо не подходит, — десятки тысяч объектов, попиксельные эффекты,
+      трёхмерная сцена, — и исчезает там, где обычный DOM справился бы сам.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Конвейер: вершины, шейдеры, фрагменты"
+  lead="Семь шагов от массива чисел до пикселей на экране. Два из них — ваши программы, и одна из них выполняется по разу на каждый пиксель."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHADERS} />
+
+  <Card title="Что происходит между `bufferData` и картинкой" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={PIPELINE_STEPS} size={15.5} />
+
+    <CardNote tone="prose">
+
+      Шаги фиксированы: их порядок и состав — это устройство железа, а не библиотека, которую
+      можно поменять. Ваши здесь только две программы — вершинная и фрагментная. Всё остальное
+      настраивается, но не переписывается.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SHADER_DEMO_NOTE} />
+  </Card>
+
+  <ShaderLab client:visible presets={SHADER_PRESETS} vertexNote={VERTEX_NOTE} />
+
+  <CardGrid min={300} gap={16} align="start">
+    {STAGE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Ошибка в шейдере не бросается.** `compileShader` возвращает `undefined` и при успехе,
+    и при провале; `linkProgram` — тоже. Программа с несобравшимся шейдером прекрасно доживёт
+    до `useProgram` и просто не нарисует ничего. Единственная точка, где правда доступна, —
+    `getShaderParameter(shader, gl.COMPILE_STATUS)`, а объяснение к ней — `getShaderInfoLog()`.
+    Демо выше печатает его дословно, и именно этот текст вы увидите у себя.
+
+  </Card>
+
+  ### После шейдера: глубина и прозрачность
+
+  <Md text={DEPTH_LEAD} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEPTH} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {DEPTH_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  #### Разметка на дороге: откуда берутся полосы
+
+  <CodeBlock code={ZFIGHT_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <Md text={ZFIGHT_SCENE_NOTE} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {ZFIGHT_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Какие поверхности буфер ещё различает" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Table
+      head={['шаг глубины', ...DEPTH_STEP.dist.map((d) => `на ${d} м`)]}
+      rows={DEPTH_STEP.rows.map((r) => [r.label, ...r.text])}
+      kinds={['prose', 'mono', 'mono', 'mono']}
+      cols="minmax(200px,1.2fr) minmax(90px,.6fr) minmax(90px,.6fr) minmax(90px,.6fr)"
+      minWidth={560}
+    />
+
+    <Md text={DEPTH_STEP_NOTE} />
+
+    <CardNote tone="warn">
+
+      Это расчёт по формуле перспективной глубины (буфер 24 бита, дальняя плоскость 1000 м),
+      а не замер: на программном растеризаторе мерцание не воспроизводится.
+
+    </CardNote>
+  </Card>
+
+  #### Стекло перед стеной
+
+  <CodeBlock code={GLASS_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  <CardGrid min={290} gap={14} align="start">
+    {GLASS_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GLASS} />
+
+  <Card title="Прозрачное: порядок решает цвет" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Table
+      head={['что нарисовали', 'пиксель', 'что вышло']}
+      rows={TRANSPARENCY_ROWS.map((r) => [r.k, r.px, r.what])}
+      tones={TRANSPARENCY_ROWS.map((r) => r.tone)}
+      kinds={['prose', 'mono', 'muted']}
+      cols="minmax(220px,1.1fr) minmax(140px,.6fr) minmax(240px,1.4fr)"
+      minWidth={640}
+    />
+
+    <CodeBlock code={TRANSPARENCY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <Md text={TRANSPARENCY_NOTE} />
+  </Card>
+
+  ### Текстуры: почему далёкое рябит
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MIPMAP} />
+
+  <Card title="Шахматка 512×512 из клеток в пиксель, уменьшенная до 60×60" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Table
+      head={['фильтр уменьшения', 'пиксели на экране', 'почему']}
+      rows={TEXTURE_FILTER_ROWS.map((r) => [r.k, r.px, r.what])}
+      tones={TEXTURE_FILTER_ROWS.map((r) => r.tone)}
+      kinds={['mono', 'prose', 'muted']}
+      cols="minmax(190px,.9fr) minmax(130px,.6fr) minmax(260px,1.5fr)"
+      minWidth={620}
+    />
+
+    <CardNote tone="prose">
+
+      Снято `readPixels` в Chromium 153. Верный ответ — ровно серый: пиксель экрана накрывает
+      десятки клеток, половина из них чёрные. В движении разница сильнее, чем на снимке:
+      без мипмапов при малейшем сдвиге камеры каждый пиксель попадает в другую клетку и мигает.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {TEXTURE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Рисовать не на экран: фреймбуферы
+
+  <Md text={FRAMEBUFFER_LEAD} />
+
+  <Card title="Два прохода: сцена в текстуру, текстура на экран" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={FRAMEBUFFER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={280} gap={14} align="start">
+    {FRAMEBUFFER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Что здесь стоит дорого"
+  lead="Одна и та же тысяча квадратов, нарисованная тремя способами. Картинка во всех трёх побитово одинаковая. Различается только число обращений к драйверу — программе, которая управляет видеокартой, — и дорого стоят именно они."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DRAW_CALL} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DRAW_DEMO_NOTE} />
+  </Card>
+
+  <DrawCalls client:visible modes={DRAW_MODES} count={1000} frames={60} />
+
+  <Table
+    head={COST_ROWS.head}
+    rows={COST_ROWS.rows}
+    cols={COST_ROWS.cols}
+    kinds={COST_ROWS.kinds}
+    minWidth={COST_ROWS.minWidth}
+  />
+
+  <Card title="Путь одного вызова: почему дорог разговор, а не рисование" titleSize={18} pad={22} gap={14}>
+    <NumberedList items={CALL_PATH} size={15.5} />
+
+    <CardNote tone="prose">
+      <Md text={CALL_PATH_NOTE} />
+    </CardNote>
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="Смена состояния — это не «настройка», это работа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+      <Md text={STATE_NOTE} />
+
+      <CardNote tone="warn">
+
+        Отсюда и вся архитектура графических движков: очередь на отрисовку, ключ сортировки,
+        группировка по материалу. Это не украшение кода, а единственный способ сократить
+        число смен программы и текстуры.
+
+      </CardNote>
+    </Card>
+
+    <Card title="Заполнение пикселей считается не в объектах" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Сто маленьких спрайтов дешевле одного полноэкранного прямоугольника с тяжёлым фрагментным
+      шейдером — арифметика фрагментов из раздела про конвейер. По ней же платят и за рисование
+      поверх уже нарисованного (overdraw): каждый слой платит полную цену заполнения, даже если
+      его потом полностью закроют.
+
+      <CardNote tone="prose">
+
+        Та же мысль, что в [«Кадре браузера»](/render/render-pipeline/) про `paint`: стоимость
+        меряется **пикселями, а не элементами**. Сторона границы изменилась, арифметика — нет.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Почему время здесь мерить трудно"
+  lead="Процессор (CPU) и видеокарта (GPU) работают независимо друг от друга. Почти каждый способ узнать «сколько занял кадр» либо меряет не то, либо ломает ту самую независимость, которую пытается измерить."
+  leadWidth={72}
+>
+  <Callout size={18.5} pad="22px 24px">
+
+    `drawArrays` не рисует. Он <b>кладёт команду в очередь</b> и возвращается — чаще всего
+    задолго до того, как GPU за неё возьмётся. Секундомер вокруг него меряет постановку в очередь,
+    и никакие ухищрения этого не исправят.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE} />
+
+  <Table
+    head={MEASURE_ROWS.head}
+    rows={MEASURE_ROWS.rows}
+    cols={MEASURE_ROWS.cols}
+    kinds={MEASURE_ROWS.kinds}
+    tones={MEASURE_ROWS.tones}
+    toneColumn={1}
+    minWidth={MEASURE_ROWS.minWidth}
+  />
+
+  {/* Одна колонка: в этих двух карточках лежит длинный код, и в паре он режется по краю.
+      Ширина колонки заведомо больше полосы текста, поэтому карточки встают друг под другом. */}
+  <CardGrid min={1100} gap={16} align="start">
+    <Card tone="err" title="Как выглядит замер, который врёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SYNC_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="err">
+        <Md text={SYNC_NOTE} />
+      </CardNote>
+    </Card>
+
+    <Card tone="ok" title="И как выглядит правильный" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={TIMER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="ok">
+
+        Две обязательные детали. Результат забирается **позже**, отдельным опросом: ждать его
+        в том же кадре — значит вернуть ту самую синхронизацию. И флаг `GPU_DISJOINT_EXT`
+        («пока шёл замер, GPU менял режим работы») проверяется **всегда**: без него замер врёт
+        молча. Это худший вид вранья — число выглядит правдоподобным.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card title="Что отвечает браузер, которым проверяется этот сайт" titleSize={18} pad={22} gap={14}>
+    <Table
+      head={ENV_ROWS.head}
+      rows={ENV_ROWS.rows}
+      cols={ENV_ROWS.cols}
+      kinds={ENV_ROWS.kinds}
+      minWidth={ENV_ROWS.minWidth}
+    />
+
+    <CardNote tone="warn">
+
+      Поэтому в этой теме нет ни одного времени. Числа здесь структурные — вызовы, экземпляры,
+      байты, живость ресурса, — и они одинаковы на любой машине. Время вы получаете только
+      у себя в браузере, в демо, и это время вашей машины: замер на программном растеризаторе
+      говорит о процессоре, а не о цене рисования на видеокарте.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+
+    Практический вывод для вашего проекта: **сравнивайте варианты по структуре, а не по секундам**.
+    Число вызовов и смен состояния воспроизводимо, его видно в обёртке над контекстом за пять
+    строк кода, и оно не зависит от того, что в этот момент делает соседняя вкладка. Секунды
+    берегите для итоговой проверки на настоящем устройстве — и на том, которое вам важно.
+
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5 · демо"
+  eyebrowTone="demo"
+  title="Потеря контекста"
+  lead="Пользователь пишет: «картинка почернела и больше не появилась», а у вас всё работает. Так выглядит потеря контекста — единственное событие этой темы, которое случается у пользователей само и почти всегда обрабатывается неверно."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT_LOSS} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={LOSS_DEMO_NOTE} />
+  </Card>
+
+  <ContextLoss client:visible strategies={LOSS_STRATEGIES} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="warn" title="Отчего контекст теряется на самом деле" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CheckList items={LOSS_CAUSES} tone="err" size={14.5} />
+
+      <CardNote tone="warn">
+
+        Ни один из этих случаев не зависит от вашего кода, и все они встречаются у пользователей
+        регулярно. Расширение `WEBGL_lose_context` нужно только демо: в жизни событие приходит
+        само и без спроса.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="err" title="Что именно ломается в типичном коде" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+
+      Ресурсы обычно создают один раз при старте — и держат в переменных модуля. После потери
+      все эти переменные указывают на мёртвые дескрипторы — ссылки на ресурсы, которых
+      в видеопамяти больше нет. А код продолжает работать: цикл
+      `rAF` крутится, `drawArrays` вызывается, исключений нет. **Меняется только одно: на экране
+      ничего не появляется.**
+
+      <CardNote tone="err">
+
+        Отсюда требование к архитектуре, а не к обработчику: сборка ресурсов обязана быть
+        **функцией, которую можно позвать второй раз**. Если инициализация размазана по коду
+        и выполняется «при старте», восстановление написать не получится — его придётся
+        проектировать заново.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    И последнее, что стоит проверить у себя: после `preventDefault()` объект контекста остаётся
+    **тем же самым** — `canvas.getContext('webgl2')` вернёт его же. Восстанавливать надо не
+    контекст, а всё, что в нём лежало.
+
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Тонкие места"
+  lead="Пятнадцать штук, и почти все молчат: ошибки нет, исключения нет, картинка просто не та или её нет вовсе."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="Всё, на чём стоит разбор. Спецификации — чтобы проверить формулировку, остальное — чтобы понять, почему формулировка такая."
+  leadWidth={72}
+>
+  <SourceList items={SOURCES} />
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

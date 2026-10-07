@@ -1,0 +1,138 @@
+---
+/**
+ * Булева матрица: строка — операция, колонка — категория, ячейка — да или нет.
+ *
+ * Своя таблица, а не общая `Table`, ровно по той же причине, что у таблицы гарантий в уроке
+ * про колбэки: здесь цвет ячейки — это ответ, и красить надо каждую ячейку отдельно,
+ * а не колонку целиком.
+ *
+ * Режимов два, и отличаются они тем, что в матрице считается новостью (см. `model/types.ts`):
+ * в замках новость — запрет, в перечислении — видимость. Поэтому горит то «нет», то «✓».
+ */
+import type { MatrixMode, MatrixRow } from '../model/types';
+
+interface Props {
+  /** Заголовки колонок. Первый — подпись колонки со строками, обычно пустая. */
+  head: string[];
+  rows: MatrixRow[];
+  mode?: MatrixMode;
+  /** `grid-template-columns` строки. */
+  cols?: string;
+  /** Ниже этой ширины включается прокрутка внутри таблицы. */
+  minWidth?: number;
+}
+
+const { head, rows, mode = 'see', cols, minWidth = 620 } = Astro.props;
+
+const template = cols ?? `minmax(190px, 1.4fr) ${head.slice(1).map(() => 'minmax(90px, .8fr)').join(' ')}`;
+
+const YES = mode === 'allow' ? 'да' : '✓';
+const NO = mode === 'allow' ? 'нет' : '—';
+---
+
+<div class="wrap">
+  <table style={`--matrix-cols:${template};--matrix-min:${minWidth}px`}>
+    <thead>
+      <tr>
+        {head.map((title) => <th scope="col">{title}</th>)}
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row) => (
+          <tr>
+            <th scope="row">{row.name}</th>
+            {row.cells.map((cell) => (
+              <td data-mode={mode} data-cell={cell ? 'yes' : 'no'}>
+                {cell ? YES : NO}
+              </td>
+            ))}
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  /* `min-width: 0` обязателен: во флекс-колонке элемент не сжимается ниже ширины содержимого,
+     и широкая таблица утащила бы вбок всю страницу вместо того, чтобы прокручиваться сама. */
+  .wrap {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    background: var(--surface);
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    min-width: var(--matrix-min);
+    border-collapse: collapse;
+  }
+  tr {
+    display: grid;
+    grid-template-columns: var(--matrix-cols);
+  }
+  thead tr {
+    background: var(--ink);
+  }
+  thead th {
+    padding: 11px 12px;
+    font-family: var(--mono);
+    font-size: var(--fs-2);
+    font-weight: 400;
+    line-height: 1.35;
+    letter-spacing: 0.08em;
+    text-align: center;
+    color: var(--on-ink);
+  }
+  thead th:first-child {
+    text-align: start;
+    text-transform: uppercase;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child {
+    border-bottom: 0;
+  }
+  tbody th {
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: start;
+    color: var(--ink);
+  }
+
+  td {
+    padding: 12px 8px;
+    font-family: var(--mono);
+    text-align: center;
+  }
+
+  /* Замки: новость — запрет. «нет» красное, «да» нейтральное. */
+  td[data-mode='allow'] {
+    font-size: var(--fs-4);
+  }
+  td[data-mode='allow'][data-cell='yes'] {
+    color: var(--dim);
+  }
+  td[data-mode='allow'][data-cell='no'] {
+    font-weight: 600;
+    color: var(--tone-err-strong);
+  }
+
+  /* Перечисление: новость — видимость. «✓» зелёное, прочерк бледный. */
+  td[data-mode='see'] {
+    font-size: var(--fs-5);
+  }
+  td[data-mode='see'][data-cell='yes'] {
+    color: var(--tone-ok-strong);
+  }
+  td[data-mode='see'][data-cell='no'] {
+    color: var(--ghost);
+  }
+</style>

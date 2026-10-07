@@ -1,0 +1,451 @@
+---
+title: Реактивность Vue
+order: 10
+kicker: фреймворки изнутри
+lead: "Vue сам узнаёт, какой код от каких данных зависит: он замечает каждое чтение реактивного значения и запоминает, кто читал. Когда значение меняется, Vue перезапускает этот код. Граф зависимостей, очередь обновлений и `nextTick` вырастают из одного этого правила."
+leadWidth: 66
+summary: "Живой граф зависимостей, очередь обновлений и три режима `flush`, шесть причин «почему не обновляется» — всё на настоящем `@vue/reactivity`."
+verifiedOn: Vue 3.5.42 · Node 24.11
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Модель }
+  - { id: s2, label: Граф }
+  - { id: s3, label: Планировщик }
+  - { id: s4, label: Ловушки }
+  - { id: s5, label: Жизнь эффекта }
+  - { id: s6, label: Источники }
+---
+
+import Md from '@/shared/ui/Md.astro';
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ReactiveGraph from '@/widgets/reactive-graph/ui/ReactiveGraph.vue';
+import ReactivityTraps from '@/widgets/reactivity-traps/ui/ReactivityTraps.vue';
+import SchedulerQueue from '@/widgets/scheduler-queue/ui/SchedulerQueue.vue';
+import {
+  GLOSSARY, INTRO_NOTE,
+  VUE2_ROWS, VUE2_NOTE, TRAP_ROWS, TRACK_NOTE, REF_NOTE, REF_VS_REACTIVE,
+  COST_ROWS, COST_NOTE, COST_WHERE, SCOPE_NOTE,
+  GRAPH_NODES, GRAPH_WRITES, GRAPH_HINT, GRAPH_FACTS,
+  QUEUE_SCENARIOS, QUEUE_PHASES, QUEUE_NOTE,
+  FLUSH_HEAD, FLUSH_ROWS, DEDUP_ROWS, DEDUP_NOTE,
+  TRAPS, NOT_UPDATING, DIAGNOSIS, TOO_OFTEN,
+  OFF_HEAD, OFF_ROWS, CLASS_NOTE, READONLY_NOTE,
+  PITFALLS,
+  PREREQ, PREREQ_NOTE, SOURCES, RELATED,
+  PLAIN_TRACK, PLAIN_PROXY, PLAIN_ACTIVE_SUB, PLAIN_COMPUTED, PLAIN_FLUSH,
+  GRAPH_DEMO_NOTE, QUEUE_DEMO_NOTE, TRAPS_DEMO_NOTE,
+  BRANCH_SCENE_CODE, BRANCH_SCENE_NOTE, BRANCH_STEPS, PLAIN_BRANCH,
+  FLUSH_SCENE_CODE, FLUSH_SCENE_NOTE, FLUSH_STEPS, PLAIN_FLUSH_THREE,
+} from './data';
+
+<Section
+  variant="intro"
+  eyebrow="Зачем тема отдельно"
+  lead={INTRO_NOTE}
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRACK} />
+
+  <CardGrid min={240} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Что именно перехвачено"
+  lead="Чтобы знать, кто что прочитал, Vue обязан видеть каждое чтение и каждую запись. Vue 2 делал это через `Object.defineProperty`: заранее ставил геттер и сеттер **на каждый существующий ключ**, и ключ, добавленный позже, оставался без присмотра. Отсюда известные дыры Vue 2 и костыли `Vue.set` и `Vue.delete`. Vue 3 заворачивает объект в `Proxy`. Прокси перехватывает любую операцию **над объектом целиком** в момент, когда она происходит, — в том числе с ключом, которого вчера не было."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+
+  <Table
+    head={['дырка Vue 2', 'как закрывается в Vue 3']}
+    rows={VUE2_ROWS}
+    kinds={['prose', 'muted']}
+    cols="minmax(220px,1fr) minmax(280px,1.5fr)"
+    minWidth={560}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={VUE2_NOTE} />
+  </Card>
+
+  ### Пять ловушек прокси: одни записывают чтение, другие сообщают об изменении
+
+  <Table
+    head={['ловушка', 'когда срабатывает', 'что делает']}
+    rows={TRAP_ROWS}
+    kinds={['mono', 'mono', 'muted']}
+    cols="minmax(130px,.6fr) minmax(160px,.8fr) minmax(280px,1.6fr)"
+    minWidth={660}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TRACK_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIVE_SUB} />
+
+  ### Зачем `ref`, если есть `reactive`
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card title="Почему `reactive` недостаточно" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <Md text={REF_NOTE} />
+    </Card>
+
+    <Card tone="ok" title="Что брать по умолчанию" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <Md text={REF_VS_REACTIVE} />
+    </Card>
+  </CardGrid>
+
+  ### Сколько стоит сам перехват
+
+  <Table
+    head={['что меряли', 'во сколько раз дороже', 'почему именно столько']}
+    rows={COST_ROWS.map((r) => [r.k, r.v, r.d])}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(220px,1.1fr) minmax(140px,.6fr) minmax(280px,1.7fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={COST_NOTE} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={COST_WHERE} />
+  </Card>
+
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2 · демо"
+  eyebrowTone="demo"
+  title="Живой граф: связь появляется при чтении"
+  lead="Ниже работают настоящие `reactive`, `computed` и `effect` из `@vue/reactivity` — прямо в вашем браузере. Стрелка «кто от кого зависит» появляется, когда код прочитал значение, а не когда его объявили."
+  leadWidth={72}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={GRAPH_DEMO_NOTE} />
+  </Card>
+
+  <ReactiveGraph client:visible nodes={GRAPH_NODES} writes={GRAPH_WRITES} hint={GRAPH_HINT} />
+
+  <Card tone="warn" color="tone" pad={16} radius={4} size={15.5} lh={1.6}>
+
+    **Как увидеть связи в своём приложении.** Штатный способ спросить, от чего зависит эффект, —
+    опции `onTrack` и `onTrigger`, а для компонента — `onRenderTracked`. Работают они только
+    в сборке для разработки: в продакшен-сборке этот код вырезан, и там они молчат без ошибки.
+    Демо выше собрано для продакшена, поэтому отмечает связь само — в той строке, где срабатывает `track`.
+
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPUTED} />
+
+  <CardGrid min={290} gap={14} align="start">
+    {GRAPH_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+
+    Зависимости определяются **по тому, что код выполнил, а не по его тексту**. Ветка `if`
+    не выполнилась — чтений внутри неё не было, и зависимостей от них нет. Поэтому перед
+    каждым запуском эффект помечает старые связи как непроверенные, а после запуска
+    выбрасывает те, которые на этот раз не понадобились.
+
+  </Callout>
+
+  ### Как эффект забывает связи, которые больше не нужны
+
+  <CodeBlock code={BRANCH_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={BRANCH_SCENE_NOTE} />
+
+  Теперь то же самое по шагам — так, как это делает Vue.
+
+  <CardGrid min={290} gap={14} align="start">
+    {BRANCH_STEPS.map((b) => (
+      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${b.when}.`} />
+        <Md text={b.what} />
+        <Md text={`**Чем платит:** ${b.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BRANCH} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Очередь обновлений: почему три записи дают одну перерисовку"
+  lead="Три записи подряд — а компонент перерисовался один раз; записали значение и сразу замерили DOM — а там ещё старое. Обе вещи делает одна очередь. Сама реактивность ничего не откладывает: запись в `ref` сразу оповещает подписчиков. Откладывает другая часть Vue — та, что управляет компонентами. Она отдаёт эффекты планировщику: очереди, которая копит задания и выполняет их одной пачкой."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLUSH} />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={QUEUE_DEMO_NOTE} />
+  </Card>
+
+  <SchedulerQueue client:visible scenarios={QUEUE_SCENARIOS} phases={QUEUE_PHASES} />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={QUEUE_NOTE} />
+  </Card>
+
+  ### Три режима `flush`
+
+  <CodeBlock code={FLUSH_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={FLUSH_SCENE_NOTE} />
+
+  Те же три записи — под каждым из трёх режимов.
+
+  <CardGrid min={290} gap={14} align="start">
+    {FLUSH_STEPS.map((f) => (
+      <Card title={`flush: ${f.k}`} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Когда:** ${f.when}.`} />
+        <Md text={f.what} />
+        <Md text={`**Чем платит:** ${f.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLUSH_THREE} />
+
+  Коротко, в одну таблицу:
+
+  <Table
+    head={FLUSH_HEAD}
+    rows={FLUSH_ROWS}
+    kinds={['prose', 'muted', 'muted', 'muted']}
+    cols="minmax(190px,1fr) minmax(180px,1fr) minmax(170px,1fr) minmax(170px,1fr)"
+    minWidth={760}
+  />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="ok" title="`'post'` — единственный режим, который видит обновлённый DOM" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+      Задание идёт в отдельную очередь. Она выполняется после основной — то есть после того,
+      как Vue внёс изменения в DOM (это называют патчем). Измерения, прокрутка, фокус и связка
+      со сторонней DOM-библиотекой — сюда.
+
+      <CardNote tone="ok">
+
+        Сокращение `watchPostEffect(fn)` — это `watchEffect(fn, { flush: 'post' })`. У него
+        отложен даже первый запуск: в `setup()` он выполнится не сразу, а после первого рендера.
+        Обычно это ровно то, что нужно, — DOM к тому моменту уже есть.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="warn" title="`nextTick` значит «когда очередь разобрана», а не «через тик»" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+
+      Если разбор очереди уже запланирован, ваш колбэк встаёт **за его промисом**. Поэтому он
+      выполнится после `flushJobs` — функции, которая разбирает очередь, — то есть после
+      обновления DOM. Если очередь пуста, колбэк встаёт за уже выполненным промисом и
+      становится обычной следующей микрозадачей.
+
+      <CardNote tone="warn">
+
+        Отсюда порядок: **`flush: 'post'` срабатывает раньше `nextTick`**. Post-очередь
+        разбирается внутри `flushJobs`, а `nextTick` ждёт, пока `flushJobs` закончится.
+        И `await nextTick()` не обещает, что очередь пуста навсегда: post-watcher мог
+        изменить состояние и запустить второй проход.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  ### Три уровня, на которых повторы схлопываются в одно
+
+  <Table
+    head={['уровень', 'механизм', 'что схлопывает']}
+    rows={DEDUP_ROWS}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(150px,.7fr) minmax(190px,.9fr) minmax(300px,1.7fr)"
+    minWidth={700}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEDUP_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Почему не обновляется"
+  lead="Шесть ловушек, в которые попадают чаще всего. Пять из них — не ошибки Vue, а обычные правила JavaScript, которые срабатывают в неожиданном месте."
+  leadWidth={72}
+>
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TRAPS_DEMO_NOTE} />
+  </Card>
+
+  <ReactivityTraps client:visible scenarios={TRAPS} />
+
+  ### Полный список причин — их девять
+
+  <CardGrid min={290} gap={14} align="start">
+    {NOT_UPDATING.map((item) => (
+      <Card index={item.n} title={item.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Как искать причину по шагам" titleSize={17} pad={20} gap={13} size={16} lh={1.6}>
+    <NumberedList items={DIAGNOSIS} size={15.5} />
+  </Card>
+
+  ### Обратная задача: обновляется слишком часто
+
+  <CardGrid min={290} gap={14} align="start">
+    {TOO_OFTEN.map((item) => (
+      <Card tone="warn" index={item.n} title={item.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Чем реактивность выключают
+
+  <Table
+    head={OFF_HEAD}
+    rows={OFF_ROWS}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(170px,.8fr) minmax(220px,1fr) minmax(280px,1.5fr)"
+    minWidth={700}
+  />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="err" title="Классы и внутренние слоты" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <Md text={CLASS_NOTE} />
+
+      <CodeBlock code={"const chart = shallowRef(markRaw(new Chart(el, config)))"} size={12} />
+    </Card>
+
+    <Card tone="warn" title="`readonly` — окно для чтения, а не замок" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+      <Md text={READONLY_NOTE} />
+
+      <CardNote tone="warn">
+
+        Он не защищает от `toRaw(ro).a = 2`, а `shallowReadonly` защищает только верхний
+        уровень: `ro.nested.x = 1` пройдёт.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Жизнь эффекта и тонкие места"
+  lead="Эффект работает, пока его не остановят. Компонент останавливает сам только то, что создано синхронно. Из этого и из того, что `activeSub` указывает на эффект только до первого `await`, растёт большинство мест, где интуиция раз за разом ошибается."
+  leadWidth={72}
+>
+  <Card tone="ok" title="Что останавливается само" titleSize={17} pad={20} gap={12} size={16} lh={1.6}>
+
+    Всё, что создано **синхронно внутри `setup()`** — `watch`, `watchEffect`, `computed`,
+    вложенные `effectScope`, — привязывается к компоненту и останавливается, когда компонент
+    убирают со страницы.
+
+    <CheckList
+      items={[
+        'синхронно в `setup()` — привязано',
+        'синхронно внутри хука жизненного цикла — привязано',
+        '`effectScope()` со своим `scope.stop()` — под вашим контролем',
+      ]}
+      size={15}
+    />
+
+    <CheckList
+      items={[
+        'после `await` — ничьё',
+        'в модуле, на верхнем уровне — живёт вечно',
+        'в колбэке таймера — ничьё',
+      ]}
+      tone="err"
+      size={15}
+    />
+  </Card>
+
+  ### Своя область: `effectScope`
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SCOPE_NOTE} />
+
+  ### Тонкие места
+
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Источники"
+  lead="Документация отвечает на вопрос «как пользоваться», исходники — на вопрос «почему так себя ведёт». Тонкие места этой темы есть только во вторых."
+  leadWidth={72}
+>
+  <Card pad={22} radius={5} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>
+

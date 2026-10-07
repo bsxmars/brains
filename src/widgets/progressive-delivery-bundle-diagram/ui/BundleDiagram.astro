@@ -1,0 +1,172 @@
+---
+/**
+ * Две версии бандла во время выката: как ломается и что спасает.
+ *
+ * Один и тот же путь запроса — HTML → запрос за скриптом → откуда отдали → что вышло —
+ * дважды: при «каждая версия раздаёт свой каталог» и при общем хранилище файлов с хешем.
+ * Разница видна в третьей клетке: в одном месте лежит файл одной версии, в другом — обеих.
+ *
+ * Сравнение «до и после» стоит рядом на широком экране и друг под другом на узком.
+ */
+import { inlineMd } from '@/shared/lib/format';
+
+interface Pane {
+  name: string;
+  tone: 'ok' | 'err';
+  html: string;
+  hop: string;
+  store: { name: string; files: string[] };
+  result: string;
+}
+
+interface Props {
+  data: {
+    title: string;
+    panes: Pane[];
+    caption: string;
+  };
+}
+
+const { data } = Astro.props;
+---
+
+<figure class="pdbd-frame">
+  <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
+
+  <div class="pdbd-panes">
+    {
+      data.panes.map((pane) => (
+        <section class="pdbd-pane" data-tone={pane.tone}>
+          <div class="pdbd-pane__name" set:html={inlineMd(pane.name)} />
+          <div class="pdbd-node pdbd-node--html" set:html={inlineMd(pane.html)} />
+          <div class="pdbd-hop">
+            <span class="pdbd-hop__glyph" aria-hidden="true">↓</span>
+            <span set:html={inlineMd(pane.hop)} />
+          </div>
+          <div class="pdbd-node pdbd-node--store">
+            <span class="pdbd-store__name">{pane.store.name}</span>
+            <span class="pdbd-files">
+              {pane.store.files.map((f) => (
+                <span class="pdbd-file" set:html={inlineMd(f)} />
+              ))}
+            </span>
+          </div>
+          <div class="pdbd-hop">
+            <span class="pdbd-hop__glyph" aria-hidden="true">↓</span>
+          </div>
+          <div class="pdbd-result" set:html={inlineMd(pane.result)} />
+        </section>
+      ))
+    }
+  </div>
+
+  <figcaption class="pdbd-caption" set:html={inlineMd(data.caption)} />
+</figure>
+
+<style>
+  .pdbd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 24px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+  }
+  .pdbd-frame :global(code) {
+    font-size: 1em;
+  }
+
+  .pdbd-panes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+    gap: 18px;
+  }
+  .pdbd-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px;
+    border-radius: var(--r3);
+    background: var(--surface-2);
+  }
+  .pdbd-pane__name {
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .pdbd-pane[data-tone='err'] .pdbd-pane__name {
+    color: var(--tone-err-strong);
+  }
+  .pdbd-pane[data-tone='ok'] .pdbd-pane__name {
+    color: var(--tone-ok-strong);
+  }
+
+  .pdbd-node {
+    padding: 10px 13px;
+    border-radius: var(--r2);
+    border: 1px solid var(--ink);
+    background: var(--surface);
+    color: var(--prose);
+  }
+  .pdbd-node--store {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-width: 2px;
+  }
+  .pdbd-store__name {
+    font-weight: 600;
+    color: var(--text);
+  }
+  .pdbd-files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pdbd-file {
+    padding: 3px 10px;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    color: var(--chip-text);
+  }
+
+  .pdbd-hop {
+    display: grid;
+    grid-template-columns: 1.4em 1fr;
+    gap: 6px;
+    align-items: center;
+    padding-left: 10px;
+    color: var(--text-muted);
+  }
+  .pdbd-hop__glyph {
+    font-size: var(--fs-7);
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  .pdbd-result {
+    padding: 10px 13px;
+    border-radius: var(--r2);
+  }
+  .pdbd-pane[data-tone='err'] .pdbd-result {
+    border: 1px solid var(--tone-err-line);
+    background: var(--tone-err-bg);
+    color: var(--tone-err-text);
+  }
+  .pdbd-pane[data-tone='ok'] .pdbd-result {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-text);
+  }
+
+  .pdbd-caption {
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    color: var(--text-muted);
+  }
+</style>

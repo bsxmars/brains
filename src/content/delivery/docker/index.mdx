@@ -1,0 +1,609 @@
+---
+title: "Docker: образ и слои"
+order: 1
+kicker: доставка
+lead: "Образ Docker — не архив с приложением, а стопка слоёв. Каждый слой хранит только то, что изменила одна строка Dockerfile, а короткий JSON-файл перечисляет, какие слои входят в образ. Отсюда следует всё остальное: почему удаление файла не уменьшает образ, почему от порядка строк в Dockerfile зависит скорость сборки и почему ваш код — всего четыре процента того, что уезжает на сервер."
+leadWidth: 66
+summary: "Из чего состоит образ; как Docker решает, какой шаг сборки взять из кеша; почему важен порядок строк в Dockerfile; как многоступенчатая сборка оставляет инструменты сборки за бортом и откуда на самом деле берётся вес образа."
+verifiedOn: "Docker 27.4.0 (BuildKit), платформа arm64/linux, macOS, сентябрь 2026. Базовые образы node:22, node:22-slim, node:22-alpine (Node 22.23.2, Alpine 3.24.1). Числа сняты на arm64 — на amd64 веса другие. Реестры, опись и подпись образов, сканирование уязвимостей, bake и права контейнера при запуске замером не закрыты — описаны по документации."
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Что такое образ }
+  - { id: s2, label: Как кеш решает }
+  - { id: s3, label: Порядок инструкций }
+  - { id: s4, label: Многоступенчатая сборка }
+  - { id: s5, label: Размер образа }
+  - { id: s6, label: 'Запуск, сигналы, права' }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CheckList from '@/shared/ui/CheckList.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import LayersDiagram from '@/widgets/docker-layers-diagram/ui/LayersDiagram.astro';
+import StagesDiagram from '@/widgets/docker-stages-diagram/ui/StagesDiagram.astro';
+import LayerCache from '@/widgets/layer-cache/ui/LayerCache.vue';
+import ImageSize from '@/widgets/image-size/ui/ImageSize.vue';
+import {
+  BASE_LAYERS_ROWS,
+  BAKE_CODE,
+  BAKE_FACTS,
+  BUILD_CHANGES,
+  BUILD_VARIANTS,
+  CACHE_RULES,
+  CI_CACHE_CODE,
+  CI_CACHE_FACTS,
+  CI_CACHE_LEAD,
+  CONTEXT_CODE,
+  CONTEXT_NOTE,
+  DEMO_CAPTION,
+  DISTROLESS_NOTE,
+  DOCKERFILE_BAD,
+  DOCKERFILE_GOOD,
+  HARDEN_CODE,
+  HARDEN_FACTS,
+  HARDEN_NOTE,
+  HEALTHCHECK_NOTE,
+  HISTORY_CODE,
+  MANIFEST_CODE,
+  MULTISTAGE_CODE,
+  MULTI_FACTS,
+  MULTI_HISTORY_CODE,
+  ORDER_ROWS,
+  OVERLAY_FACTS,
+  ORDER_DEMO_NOTE,
+  PID1_CODE,
+  PID1_FACTS,
+  PITFALLS,
+  PLAIN_CACHE,
+  PLAIN_CAPS,
+  PLAIN_CONTEXT,
+  PLAIN_LAYER,
+  PLAIN_STAGE,
+  PLAIN_SUPPLY,
+  REGISTRY_CODE,
+  REGISTRY_FACTS,
+  RUN_LEAD,
+  SHUTDOWN_CODE,
+  SHUTDOWN_NOTE,
+  SIZE_BARS,
+  SIZE_CAPTION,
+  SIZE_ROWS,
+  SOURCES,
+  STOP_STEPS,
+  SUPPLY_CODE,
+  SUPPLY_FACTS,
+  SUPPLY_LEAD,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  CACHE_SCENE,
+  CACHE_STEPS,
+  CACHE_SCENE_FOOT,
+  PLAIN_CACHE_SCENE,
+  STOP_SCENE,
+  STOP_VARIANTS,
+  PLAIN_STOP,
+  LAYERS_DIAGRAM,
+  STAGES_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Почему про образ стоит знать больше, чем «это коробка с приложением»" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Образ удобно представлять архивом: положили приложение, закрыли, увезли. Но эта картинка
+    не объясняет ни одной странности Docker, с которыми сталкиваешься на практике.
+    **Образ — это стопка слоёв плюс JSON-файл, который их перечисляет. Каждый слой хранит
+    только изменения: какие файлы одна строка Dockerfile добавила или поменяла.** Всё остальное
+    в теме следует отсюда.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYER} />
+
+  <Card tone="warn" title="Одно правило, из которого выводится вся тема" titleSize={17} pad={20} gap={11} size={16} lh={1.6}>
+
+    Каждая инструкция Dockerfile даёт **слой**. У слоя есть **ключ кеша** — отпечаток того,
+    из чего слой сделан. Слои выстроены в **цепочку**. Если ключ совпал с прошлой сборкой,
+    Docker берёт готовый слой с диска и ничего не выполняет. Если не совпал — пересобирает этот
+    слой и **все слои ниже по тексту файла**, даже если их строки не менялись.
+
+    <CardNote tone="warn">
+
+      Отсюда главное правило для автора Dockerfile: **что меняется реже, ставь выше**. Цену
+      ошибки показывает замер ниже. Правка одной строки кода пересобирается за 1.1 секунды при
+      правильном порядке и за 3.0 — при неправильном. Во втором случае Docker заново ставит
+      зависимости, которых никто не трогал.
+
+    </CardNote>
+  </Card>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Что такое образ на самом деле"
+  lead="Реестр — хранилище, откуда образы скачивают. Под одним именем образа там лежат три разных объекта: манифест, конфиг и слои. Если их путать, непонятны даже простые вещи — например, почему `docker images` и `docker system df` показывают разный размер."
+  leadWidth={72}
+>
+  <CodeBlock code={MANIFEST_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <CardGrid min={290} gap={14}>
+    {OVERLAY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card title="Из чего состоит «маленький» alpine" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+
+    `node:22-alpine` принято называть лёгким. Он весит **160.9 МБ**, и вот куда они уходят.
+
+    <Table
+      head={['слой', 'вес', 'что это']}
+      rows={BASE_LAYERS_ROWS.map((r) => [r.k, r.size, r.what])}
+      kinds={['mono', 'mono', 'prose']}
+      cols="minmax(230px,1.3fr) minmax(90px,.4fr) minmax(250px,1.4fr)"
+      minWidth={720}
+    />
+
+    <CardNote tone="prose">
+
+      **Сам Node — 147 МБ из 160.9, то есть 91%.** Маленький здесь только сам Alpine: вся
+      операционная система занимает 8.66 МБ. Ваш образ от этого маленьким не становится.
+      Выбирая базовый образ, вы меняете то, что лежит вокруг Node, а сам Node весит столько же.
+      И у Alpine есть своя цена: другая системная библиотека языка C — musl вместо привычной
+      glibc. Подробно — в тонких местах.
+
+    </CardNote>
+  </Card>
+
+  <LayersDiagram {...LAYERS_DIAGRAM} />
+
+  <DarkPanel eyebrow="Почему слой — это разница, а не снимок">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Если бы слой был снимком файловой системы, образ из десяти шагов весил бы десять
+      образов.** Вместо этого слой хранит только то, что изменила его инструкция. При запуске
+      контейнера Docker накладывает слои друг на друга и показывает их как одну папку с файлами:
+      если файл есть в двух слоях, виден верхний.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      У этой экономии есть неприятное следствие — первое в списке тонких мест. Слой умеет
+      **дописывать**, но не умеет вычитать. Удаление файла записывается в верхний слой особой
+      пометкой, а сами байты остаются в нижнем — и скачиваются заново при каждом `docker pull`.
+
+    </DarkText>
+
+    <DarkText size={16} lh={1.6}>
+
+      Запущенный контейнер получает поверх стопки ещё один слой — пустой и единственный
+      доступный для записи. Всё, что приложение пишет на диск, попадает туда и исчезает вместе
+      с контейнером. Поэтому данные, которые должны пережить перезапуск, держат не в контейнере,
+      а в томе — об этом [раздел «Тома и данные»](/delivery/compose/#s4) темы про Compose.
+
+    </DarkText>
+  </DarkPanel>
+
+  ### Реестр: как образ едет на сервер
+
+  Реестр хранит не «файл образа», а те же три вида объектов: манифест, конфиг и слои, каждый
+  под своим digest. Поэтому `push` и `pull` передают **только недостающие слои** — это видно
+  прямо в выводе команд.
+
+  <CodeBlock code={REGISTRY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <CardGrid min={290} gap={14}>
+    {REGISTRY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Что едет рядом с образом: опись, происхождение, подпись
+
+  <Md text={SUPPLY_LEAD} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SUPPLY} />
+
+  <CodeBlock code={SUPPLY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <CardGrid min={290} gap={14}>
+    {SUPPLY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Как кеш решает, пересобирать ли слой"
+  lead="Перед каждым шагом Docker решает: взять готовый слой из прошлой сборки или выполнить шаг заново. Решает он по ключу кеша, и для разных инструкций ключ считается по-разному. Зная эти правила, можно заранее сказать, что пересоберётся."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE} />
+
+  <NumberedList items={CACHE_RULES} size={15} />
+
+  ### Одна правка кода, семь шагов сборки
+
+  {CACHE_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {CACHE_STEPS.map((c) => (
+      <Card title={`\`${c.k}\``} titleSize={15} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Ключ:** ${c.key}.`} />
+        <Md text={c.verdict} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Md text={CACHE_SCENE_FOOT} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE_SCENE} />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+
+    **Ключ `RUN` — это текст команды, а не её результат.** Docker не запускает команду, чтобы
+    узнать, изменилось ли что-то снаружи. Он сравнивает строку. Поэтому `RUN apt-get update`
+    совпадает с прошлой сборкой всегда, даже через год. Это не полезная оптимизация, а ловушка —
+    она разобрана в тонких местах.
+
+  </Card>
+
+  <Card title="Что видно в уже собранном образе" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={HISTORY_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+    <CardNote tone="prose">
+
+      `docker history` — главный инструмент темы: он показывает **вес каждого слоя и строку,
+      которая его создала**. Читая его, помните две вещи. Первая: `0B` значит не «мало», а «ни
+      одного файла» — `WORKDIR`, `ENV` и `CMD` меняют только конфиг. Вторая: размеры в колонке
+      **округлены**, поэтому их сумма не сойдётся с `docker image inspect` до байта. Вес
+      приложения точнее считать вычитанием: размер образа минус размер базы.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+
+  <Card tone="info" title="Контекст сборки уезжает демону целиком — ещё до первой инструкции" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CONTEXT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+    <CheckList items={CONTEXT_NOTE} tone="ok" size={14.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3 · демо"
+  eyebrowTone="demo"
+  title="Почему от порядка инструкций зависит скорость сборки"
+  lead={ORDER_DEMO_NOTE}
+  leadWidth={72}
+>
+  <LayerCache client:visible variants={BUILD_VARIANTS} changes={BUILD_CHANGES} caption={DEMO_CAPTION} />
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="Так делать не надо" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DOCKERFILE_BAD} size={11} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="err">
+
+        `COPY . .` стоит перед установкой. Поэтому **любая** правка любого файла — запятая
+        в `README`, строка в тесте — ломает кеш этого слоя, а за ним и `npm ci`. Зависимости
+        ставятся заново на каждый коммит, хотя их никто не менял.
+
+      </CardNote>
+    </Card>
+
+    <Card tone="ok" title="Так надо" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DOCKERFILE_GOOD} size={11} lh={1.7} pad="14px 16px" />
+
+      <CardNote tone="ok">
+
+        Файлы со списком зависимостей копируются отдельно и раньше кода. Теперь слой
+        с `node_modules` зависит **только от `package-lock.json`** и переживает любую правку
+        кода. Приём работает в любом языке: `go.sum`, `requirements.txt`, `Cargo.lock`
+        копируют так же и по той же причине.
+
+      </CardNote>
+    </Card>
+  </CardGrid>
+
+  <Table
+    head={['что изменили', 'зависимости раньше кода', '`COPY . .` раньше установки']}
+    rows={ORDER_ROWS.map((r) => [r.k, r.good, r.bad])}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(190px,1fr) minmax(190px,1fr) minmax(190px,1fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" title="Две оговорки, без которых эти числа читаются неверно" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    **Первая: приложение крошечное.** В нём семьдесят пакетов, а не тысяча, поэтому `npm ci`
+    укладывается в две секунды, и разница выглядит несерьёзной. Смотрите не на секунды, а на то,
+    во сколько раз отличаются варианты и сколько слоёв взято из кеша. На настоящем проекте та же
+    ошибка в порядке строк стоит минут.
+
+    <CardNote tone="warn">
+
+      **Вторая: в варианте «`COPY . .` раньше установки» правка `package.json` собирается
+      быстрее правки кода** — 1.9 с против 3.0 с. Это не значит, что правка `package.json`
+      дешевле: в обоих случаях пересобраны одни и те же слои. Разница только в том, как быстро
+      в тот момент отвечал реестр npm. Сколько идёт `RUN npm ci`, зависит от сети, а не от
+      вас, — как это смягчить, сказано в тонком месте про кеш монтирования.
+
+    </CardNote>
+  </Card>
+
+  ### Кеш на чистой машине CI
+
+  <Md text={CI_CACHE_LEAD} />
+
+  <CodeBlock code={CI_CACHE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <CheckList items={CI_CACHE_FACTS} tone="ok" size={14.5} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Многоступенчатая сборка"
+  lead="Компилятор и другие инструменты сборки нужны, чтобы получить готовый код, но не нужны, чтобы его запускать. Многоступенчатая сборка делит Dockerfile на части: в одной код собирают, в другую переносят только результат. Компилятор в итоговый образ тогда просто не попадает."
+  leadWidth={72}
+>
+  <CodeBlock code={MULTISTAGE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <StagesDiagram {...STAGES_DIAGRAM} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STAGE} />
+
+  <Card title="Что из этого доехало до финального образа" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
+    <CodeBlock code={MULTI_HISTORY_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+    <CheckList items={MULTI_FACTS} tone="ok" size={14.5} />
+  </Card>
+
+  <Card tone="info" title="Почему компилятор не попадает в итоговый образ" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    Каждая ступень начинается со своего `FROM` и **со своей стопкой слоёв**. Вторая ступень
+    не наследует слои первой. `COPY --from=build /app/dist ./dist` просто копирует из первой
+    ступени готовые файлы — так же, как обычный `COPY` берёт их из контекста. Этим приём
+    и отличается от `RUN rm -rf`: там файл прячут поверх слоя, где он лежит, а здесь **его
+    туда не клали**.
+
+    <CardNote tone="info">
+
+      Что именно из сборки нужно для запуска, зависит не от Docker, а от вашего сборщика: он
+      может выдавать один файл, дерево чанков или ещё и карты исходников. Это разобрано
+      в [теме про модули и сборку](/tooling/modules/). Здесь достаточно правила: «копируй
+      результат, а не папку, в которой он получился».
+
+    </CardNote>
+  </Card>
+
+  ### Когда одной команды `docker build` мало
+
+  В репозитории уже два образа — API и воркер, — и каждый нужен под две платформы. Команды
+  сборки обрастают флагами, расходятся между CI и машинами разработчиков, и собираются
+  образы по очереди, хотя друг от друга не зависят.
+
+  <CodeBlock code={BAKE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <CheckList items={BAKE_FACTS} tone="ok" size={14.5} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Размер образа и откуда он берётся"
+  lead="Одно и то же приложение упаковано четырьмя способами. Размер образа — от 165.9 МБ до 1166.5 МБ, то есть различается в семь раз. И почти вся эта разница — не ваш код."
+  leadWidth={72}
+>
+  <ImageSize client:visible bars={SIZE_BARS} unit="МБ" caption={SIZE_CAPTION} />
+
+  <Table
+    head={['база', 'образ целиком', 'вклад приложения', 'вердикт']}
+    rows={SIZE_ROWS.map((r) => [r.k, r.image, r.delta, r.verdict])}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(150px,.8fr) minmax(120px,.6fr) minmax(130px,.6fr) minmax(240px,1.6fr)"
+    minWidth={760}
+  />
+
+  <Card tone="ok" title="Главное наблюдение таблицы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+
+    **На всех трёх базах приложение добавляет к образу одни и те же 35.21 МБ — с точностью
+    до сотни килобайт.** Это один и тот же `npm ci`, один и тот же `tsc`, одни и те же файлы.
+    Меняя базовый образ, вы меняете **фундамент**, а не то, что на нём стоит. Уменьшить саму
+    постройку может только многоступенчатая сборка: 5.05 МБ вместо 35.21, то есть в **7.0 раза**.
+
+    <CardNote tone="ok">
+
+      Отсюда порядок действий, если образ великоват. Сначала посмотрите `docker history`
+      и найдите тяжёлый слой — обычно это установка зависимостей. Потом уберите из рантайма то,
+      что нужно только сборке (многоступенчатая сборка). И только потом выбирайте другой
+      дистрибутив. Смена базы сильнее всего меняет числа, но и рискует больше всего: другая
+      библиотека C (musl), нативные модули, неудобная отладка.
+
+    </CardNote>
+  </Card>
+
+  <Card title="Меньше Alpine: distroless и `scratch`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={DISTROLESS_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Запуск: первый процесс и сигналы"
+  lead={RUN_LEAD}
+  leadWidth={72}
+>
+  <Card title="Что происходит при `docker stop`" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={STOP_STEPS} size={15} />
+  </Card>
+
+  ### Кто в контейнере первый процесс
+
+  <CodeBlock code={PID1_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <CardGrid min={290} gap={14}>
+    {PID1_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Аккуратная остановка в самом приложении
+
+  <CodeBlock code={SHUTDOWN_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SHUTDOWN_NOTE} />
+  </Card>
+
+  ### Один `docker stop` при четырёх способах запуска
+
+  {STOP_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {STOP_VARIANTS.map((v) => (
+      <Card title={v.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Первый процесс:** ${v.pid1}.`} />
+        <Md text={v.what} />
+        <Md text={`**Чем платит:** ${v.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STOP} />
+
+  ### `HEALTHCHECK`: проверка, записанная в образ
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={HEALTHCHECK_NOTE} />
+  </Card>
+
+  ### Сколько прав у контейнера
+
+  Процесс в контейнере по умолчанию работает от root и с набором прав ядра, которые серверу
+  на Node не нужны. Пока приложение не взломали, это незаметно. Когда взломали — всё это
+  достаётся взломщику. Снимают лишнее флагами запуска.
+
+  <CodeBlock code={HARDEN_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CAPS} />
+
+  <CardGrid min={290} gap={14}>
+    {HARDEN_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={HARDEN_NOTE} />
+  </Card>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Источники"
+  lead="Спецификации OCI меняются медленно и объясняют, как устроен образ. Документация Docker описывает поведение конкретного сборщика. Статьи о практике устаревают быстрее всего."
+  leadWidth={72}
+>
+  <CardGrid min={320} gap={16} align="start">
+    {SOURCES.map((group) => (
+      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
+        {group.items.map((item) => (
+          <Md text={item} />
+        ))}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+
+    Смежное на сайте: [Docker Compose](/delivery/compose/) — несколько контейнеров, их сеть,
+    тома и ожидание готовности. [Kubernetes](/delivery/kubernetes/) — пробы, лимиты и выкат
+    образа волнами. [Сеть и кеширование](/platform/network/) — слои скачиваются по сети
+    и кешируются по хешу содержимого, так же как файлы сайта в браузере. [Память Node](/js/node-memory/) —
+    почему лимит памяти контейнера и предел кучи Node нужно согласовывать вручную.
+    [Модули и сборка](/tooling/modules/) — что выдаёт сборщик и, значит, что переносить
+    в финальную ступень.
+    [Цепочка поставок](/platform/supply-chain/) — `integrity` в lock-файле, скрипты установки
+    и подменённые имена пакетов.
+
+  </Card>
+</Section>

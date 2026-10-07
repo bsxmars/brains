@@ -1,0 +1,378 @@
+---
+title: "Proxy и Reflect: перехват операций над объектом"
+heading: "Proxy и Reflect: перехват операций над объектом"
+headingWidth: 24
+order: 25
+lead: "Прокси встаёт перед объектом и получает каждую операцию над ним: чтение, запись, `in`, `delete`, перебор ключей, вызов. `Reflect` выполняет ту же операцию «как было». На этой паре построены реактивность Vue, черновики Immer и мембраны. А то, чего прокси не видит, — `===`, внутренние слоты, `#`-поля — объясняет, почему ломается `Map` в прокси и почему состояние не уходит в воркер."
+leadWidth: 66
+summary: "Ловушка и `Reflect`; все тринадцать ловушек и операции, которые их вызывают; receiver и `set` → `boolean`; двадцать инвариантов; что прокси не перехватывает — личность, слоты, `#`-поля, `Array.isArray`, `DataCloneError` у `structuredClone`; реактивность на прокси, сверенная с Vue, и Immer; `Proxy.revocable` и мембрана; цена перехвата."
+verifiedOn: "Node 24.11.0 (V8 13.6), Chromium 153.0.8010.12 (Playwright 1.63), @vue/reactivity 3.5.42, immer 11.1.18, октябрь 2026: журналы ловушек сняты handler’ом темы, реактивность сверена с Vue, клонирование прокси — в Node и в Chromium. Всё, кроме браузера, повторяет tests/unit/proxy-reflect.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Ловушка }
+  - { id: s2, label: Тринадцать }
+  - { id: s3, label: Receiver }
+  - { id: s4, label: Инварианты }
+  - { id: s5, label: Личность и слоты }
+  - { id: s6, label: Реактивность }
+  - { id: s7, label: Мембрана }
+  - { id: s8, label: Цена }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import ProxyCost from '@/widgets/proxy-traps/ui/ProxyCost.astro';
+import ProxyTraps from '@/widgets/proxy-traps/ui/ProxyTraps.vue';
+import ProxyReactivity from '@/widgets/proxy-reactivity/ui/ProxyReactivity.vue';
+import SnippetLab from '@/widgets/snippet-lab/ui/SnippetLab.vue';
+import {
+  PLAIN_PROXY, GLOSSARY, PREREQ, PREREQ_NOTE,
+  PROXY_INTRO_NOTE, TRACE_CODE, PROXY_HANDLER_NOTE, REFLECT_PAIRS, REFLECT_NOTE,
+  TRAP_TABLE, TRAP_TABLE_NOTE, PROXY_TARGET, PROXY_OPS, PROXY_DEMO_NOTE,
+  PLAIN_RECEIVER, RECEIVER_CODE, RECEIVER_NOTE, SET_BOOL_CODE, SET_BOOL_NOTE,
+  INVARIANT_TABLE, INVARIANTS_NOTE,
+  IDENTITY_CODE, IDENTITY_PROBES, IDENTITY_NOTE, PRIVATE_CODE, PRIVATE_PROBES, PRIVATE_FACTS,
+  CLONE_CODE, CLONE_NOTE, CLONE_FIX_NOTE, LAB_SNIPPETS, LAB_DEMO_NOTE,
+  PLAIN_REACTIVE, REACTIVE_CODE, REACTIVE_SCENARIOS, REACTIVE_FACTS, RECEIVER_LINE, RECEIVER_LOST,
+  IMMER_CODE, IMMER_FACTS,
+  MEMBRANE_CODE, PLAIN_MEMBRANE, MEMBRANE_FACTS,
+  PROXY_COST, PROXY_COST_CAPTION, PROXY_COST_NOTE, PROXY_POLYFILL_NOTE,
+  PITFALLS, SOURCES, RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Перехват операции" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Прокси перехватывает не свойства, а **операции**. Всё, что движок делает с объектом через
+    внутренний метод, приходит в ловушку. Всё, что идёт мимо внутренних методов, — сравнение
+    ссылок, внутренние слоты, `#`-поля — прокси не видит и не изменит никогда.
+
+  </Callout>
+
+  `const p = new Proxy(target, handler)` создаёт новый объект `p`. Читаете `p.name` — движок
+  не идёт в `target` сам, а зовёт `handler.get(target, 'name', p)`. Функция может вернуть что
+  угодно, записать чтение в журнал или передать его дальше вызовом `Reflect.get`. Если
+  в handler’е нужной функции нет, операция уходит в `target` как обычно.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Ловушка и Reflect"
+  lead={PROXY_INTRO_NOTE}
+  leadWidth={72}
+>
+  Handler, который замечает каждую операцию, пишется в несколько строк. Имена ловушек
+  совпадают с именами функций `Reflect`, поэтому handler собирается циклом: на каждое имя —
+  функция, которая пишет имя в журнал и выполняет операцию так, как выполнил бы её движок
+  без прокси.
+
+  <CodeBlock code={TRACE_CODE} size={12} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PROXY_HANDLER_NOTE} />
+
+  ### `Reflect` — не утилита, а спутник `Proxy`
+
+  Ловушка умеет операцию перехватить, а выполнить её «как было» может только `Reflect`:
+  каждому внутреннему методу отвечает функция `Reflect` с тем же именем и теми же аргументами.
+
+  <CardGrid min={290} gap={14} align="start">
+    {REFLECT_PAIRS.map((item) => (
+      <Card label={item.k} labelSize={13} pad={18} radius={5} gap={10} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={REFLECT_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Тринадцать ловушек"
+  lead="Каждая ловушка отвечает одному внутреннему методу, а вызывает её не одна операция, а целое семейство — и часто не та, на которую думаешь."
+  leadWidth={72}
+>
+  <Table
+    head={['ловушка', 'внутренний метод', 'что её вызывает', 'почему']}
+    rows={TRAP_TABLE}
+    kinds={['mono', 'muted', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(150px,.7fr) minmax(260px,1.3fr) minmax(280px,1.4fr)"
+    minWidth={880}
+  />
+
+  <Md text={TRAP_TABLE_NOTE} />
+
+  ### Одна строка — сколько ловушек
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PROXY_DEMO_NOTE} />
+  </Card>
+
+  <ProxyTraps client:visible ops={PROXY_OPS} traceCode={TRACE_CODE} target={PROXY_TARGET} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Receiver и ответ set"
+  lead="Две ошибки, которые делают почти все, кто пишет первый прокси: ловушка забывает, от чьего имени идёт чтение, и ловушка `set` забывает ответить."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RECEIVER} />
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card tone="err" title="Потерянный receiver" titleSize={16.5} pad={18} gap={11} size={15}>
+      <CodeBlock code={RECEIVER_CODE} />
+      <Md text={RECEIVER_NOTE} />
+    </Card>
+
+    <Card tone="warn" title="Ловушка `set` обязана вернуть boolean" titleSize={16.5} pad={18} gap={11} size={15}>
+      <CodeBlock code={SET_BOOL_CODE} />
+      <Md text={SET_BOOL_NOTE} />
+    </Card>
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Инварианты"
+  lead="Ловушка вольна ответить что угодно, но движок сверяет ответ с target и принимает не всякий."
+  leadWidth={72}
+>
+  <DarkPanel eyebrow="Почему ловушка не может врать">
+    <DarkText>
+
+      После каждого вызова ловушки спецификация сверяется с дескрипторами target и бросает
+      <b> TypeError</b> при расхождении. Умей прокси отвечать что угодно — <code>Object.freeze</code>
+
+      не значил бы ничего, а оптимизации движка стали бы некорректными.
+
+    </DarkText>
+
+  </DarkPanel>
+
+  {/* ⚠️ Таблицу никто не набирал «по спецификации»: каждая строка — исполнимое нарушение,
+      и тест склеивает его в `new Proxy(target, handler)` и требует `TypeError`, а тот же
+      handler над открытым target — без ошибки. Сорвётся любая строка — покраснеет тест. */}
+  <Table
+    head={['ловушка', 'что запрещено', 'нарушение: target · handler · операция']}
+    rows={INVARIANT_TABLE}
+    kinds={['mono', 'prose', 'muted']}
+    cols="minmax(150px,.8fr) minmax(220px,1.2fr) minmax(320px,1.6fr)"
+    minWidth={760}
+  />
+
+  У `apply` инвариантов нет вовсе: вызов прокси над функцией может вернуть что угодно.
+  А правило «`set` обязан вернуть `true`» — не инвариант, а требование строгого режима:
+  оно разобрано в разделе «Receiver и ответ set».
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={INVARIANTS_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Личность и слоты"
+  lead="Прокси перехватывает внутренние методы — и только их. Ссылка на объект и его внутренние слоты к внутренним методам не относятся, поэтому здесь прокси ничего не может: ни перехватить, ни пропустить к цели."
+  leadWidth={72}
+>
+  <CodeBlock code={IDENTITY_CODE} size={12} />
+
+  <CardGrid min={260} gap={12} align="start">
+    {IDENTITY_PROBES.map((probe) => (
+      <Card label={probe.expr} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={probe.why} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={IDENTITY_NOTE} />
+  </Card>
+
+  ### `#`-поля сквозь прокси
+
+  <CodeBlock code={PRIVATE_CODE} size={12} />
+
+  <CardGrid min={260} gap={12} align="start">
+    {PRIVATE_PROBES.map((probe) => (
+      <Card label={probe.expr} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={probe.why} />
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {PRIVATE_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={17} radius={4} gap={9} size={15} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Почему прокси не клонируется
+
+  <CodeBlock code={CLONE_CODE} size={12} />
+
+  <Md text={CLONE_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CLONE_FIX_NOTE} />
+  </Card>
+
+  ### Попробуйте сами
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={LAB_DEMO_NOTE} />
+  </Card>
+
+  <SnippetLab client:visible snippets={LAB_SNIPPETS} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Реактивность на прокси"
+  lead="Реактивность — это «перезапусти код, когда изменится то, что он читал». Прокси даёт ровно две нужные вещи: узнать о каждом чтении и о каждой записи. Остальное — журнал, кто что читал."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REACTIVE} />
+
+  <CodeBlock code={REACTIVE_CODE} size={12} />
+
+  <CardGrid min={260} gap={12} align="start">
+    {REACTIVE_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={16} radius={4} gap={8} size={15} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Тот же сценарий — мини-версия и Vue
+
+  Каждый сценарий выполняют и мини-версия, и настоящий Vue, и вывод эффектов у них
+  одинаковый. В журнале мини-версии видно, какое чтение записал `track` и какую запись
+  разбудил `trigger`. Если в ловушке `get` потерять receiver, ломается сценарий с геттером —
+  и, неожиданно, начинает работать сценарий с `#`-полем.
+
+  <ProxyReactivity
+    client:visible
+    code={REACTIVE_CODE}
+    scenarios={REACTIVE_SCENARIOS}
+    receiverLine={RECEIVER_LINE}
+    receiverLost={RECEIVER_LOST}
+  />
+
+  ### Immer: прокси, который пишет в копию
+
+  <CodeBlock code={IMMER_CODE} size={12} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {IMMER_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={17} radius={4} gap={9} size={15} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Отзыв и мембрана"
+  lead="Прокси задумывался не для реактивности, а для изоляции: дать чужому коду доступ к объекту — и уметь забрать его обратно."
+  leadWidth={72}
+>
+  <CodeBlock code={MEMBRANE_CODE} size={12} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MEMBRANE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {MEMBRANE_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={17} radius={4} gap={9} size={15} lh={1.6} text={fact.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Цена перехвата"
+  lead="Каждое чтение через прокси — вызов функции вместо прямого доступа к полю. Движок не может «запомнить», где лежит свойство: между кодом и объектом стоит handler."
+  leadWidth={72}
+>
+  <ProxyCost bars={PROXY_COST} caption={PROXY_COST_CAPTION} note={PROXY_COST_NOTE} />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PROXY_POLYFILL_NOTE} />
+  </Card>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

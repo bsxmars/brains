@@ -1,0 +1,228 @@
+---
+/**
+ * Одна потеря под тремя версиями HTTP — схема к «Одна потеря под тремя версиями HTTP».
+ *
+ * Столбец схемы — номер пакета в общей ленте, поэтому пакеты разных файлов стоят в одних
+ * и тех же столбцах во всех трёх версиях. Меняется только то, **сколько лент** под ними:
+ * три соединения, одна лента TCP или три потока QUIC. Дыра на месте #4 держит всё, что
+ * правее неё **в той же ленте**, — и это видно по тому, сколько клеток стали штриховыми.
+ *
+ * HTML-сетка: восемь столбцов по ~30px помещаются и в колонку телефона без прокрутки.
+ * Все строки — из `data.ts` темы (`HOL_DIAGRAM`), печатаются через `inlineMd`.
+ */
+import { inlineMd } from '@/shared/lib/format';
+import type { HolDiagramData } from '../model/types';
+
+interface Props {
+  diagram: HolDiagramData;
+}
+
+const { diagram } = Astro.props;
+const columns = Array.from({ length: diagram.total }, (_, i) => i + 1);
+---
+
+<figure class="nhd-frame">
+  <div class="t-eyebrow t-eyebrow--panel">{diagram.title}</div>
+
+  <ul class="nhd-legend">
+    {
+      diagram.legend.map((item) => (
+        <li>
+          <span class={`nhd-swatch nhd-cell--${item.state}`} aria-hidden="true" />
+          <span set:html={inlineMd(item.t)} />
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="nhd-versions">
+    {
+      diagram.versions.map((version) => (
+        <section class="nhd-version">
+          <div class="nhd-head">
+            <span class="nhd-k">{version.k}</span>
+            <span class="nhd-sub" set:html={inlineMd(version.sub)} />
+            <span class={`nhd-verdict nhd-verdict--${version.tone}`} set:html={inlineMd(version.verdict)} />
+          </div>
+
+          <div class="nhd-lanes">
+            {version.lanes.map((lane) => (
+              <div class="nhd-lane">
+                <span class="nhd-lane-name" set:html={inlineMd(lane.name)} />
+                <div class="nhd-row" style={`--nhd-total:${diagram.total}`}>
+                  {columns.map((n) => {
+                    const p = lane.packets.find((x) => x.n === n);
+                    return p ? (
+                      <span class={`nhd-cell nhd-cell--${p.state}`}>
+                        <span class="nhd-n">#{p.n}</span>
+                        <span class="nhd-file">{p.file}</span>
+                      </span>
+                    ) : (
+                      <span class="nhd-cell nhd-cell--none" aria-hidden="true" />
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))
+    }
+  </div>
+
+  <figcaption class="nhd-caption" set:html={inlineMd(diagram.caption)} />
+</figure>
+
+<style>
+  .nhd-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-2);
+    border-radius: var(--r4);
+    background: var(--surface);
+  }
+
+  .nhd-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+  .nhd-legend li {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .nhd-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: var(--r1);
+  }
+
+  .nhd-versions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .nhd-version {
+    display: grid;
+    grid-template-columns: minmax(170px, 0.34fr) minmax(0, 1fr);
+    gap: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+  }
+  .nhd-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .nhd-k {
+    font-family: var(--mono);
+    font-size: var(--fs-5);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .nhd-sub {
+    font-size: var(--fs-3);
+    line-height: 1.45;
+    color: var(--text-muted);
+  }
+  .nhd-verdict {
+    margin-top: 4px;
+    font-size: var(--fs-4);
+    font-weight: 600;
+  }
+  .nhd-verdict--ok {
+    color: var(--tone-ok-strong);
+  }
+  .nhd-verdict--err {
+    color: var(--tone-err-strong);
+  }
+
+  .nhd-lanes {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .nhd-lane {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .nhd-lane-name {
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    color: var(--text-muted);
+  }
+  .nhd-row {
+    display: grid;
+    grid-template-columns: repeat(var(--nhd-total), minmax(0, 1fr));
+    gap: 4px;
+    max-width: 520px;
+  }
+
+  .nhd-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    border-radius: var(--r1);
+    font-family: var(--mono);
+    line-height: 1.2;
+  }
+  .nhd-n {
+    font-size: var(--fs-3);
+    font-weight: 600;
+  }
+  .nhd-file {
+    font-size: var(--fs-3);
+  }
+  .nhd-cell--got {
+    border: 1px solid var(--tone-ok-line);
+    background: var(--tone-ok-bg);
+    color: var(--tone-ok-strong);
+  }
+  .nhd-cell--lost {
+    border: 1.5px dashed var(--tone-err-line);
+    color: var(--tone-err-strong);
+  }
+  /* Дошёл, но придержан: штриховка — «лежит в памяти, браузеру не отдан». */
+  .nhd-cell--lost .nhd-n {
+    text-decoration: line-through;
+  }
+  .nhd-cell--held {
+    border: 1px solid var(--tone-warn-line);
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--tone-warn-bg) 0 5px,
+      var(--surface) 5px 9px
+    );
+    color: var(--tone-warn-strong);
+  }
+  .nhd-cell--none {
+    border: 1px dashed var(--hairline);
+  }
+
+  .nhd-caption {
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--fs-4);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 720px) {
+    .nhd-version {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+    }
+  }
+</style>

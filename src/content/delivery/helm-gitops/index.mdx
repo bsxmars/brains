@@ -1,0 +1,649 @@
+---
+title: "Один манифест на много окружений: Helm, Kustomize и GitOps"
+order: 8
+kicker: доставка
+lead: "У dev, stage и prod одинаковые манифесты с разными числами и строками. **Kustomize** накладывает на базу патчи, **Helm** заполняет шаблоны значениями, и у обоих есть место, где интуиция промахивается: список из файла окружения может заменить базовый целиком. **GitOps** забирает применение у конвейера: кластер сам тянет из Git то, что там записано, и держит это состояние, а откат становится `git revert`."
+leadWidth: 68
+summary: "Окружения как данные и один образ на все; Kustomize — база и слои, images, namePrefix, commonLabels, генератор ConfigMap и хеш в имени; strategic merge против JSON 6902 и ловушка замены списка; Helm — чарт, шаблоны, values и их порядок, релиз, история, откат и хуки; GitOps — Argo CD и Flux, дрейф и self-heal, pull против push; секреты в Git — Sealed Secrets и SOPS."
+verifiedOn: "Слияние патчей, порядок values, синтаксис --set и поведение шаблонов — учебной моделью темы; её сверяет тест на таблицах случаев из документации Kubernetes, kustomize, Helm и RFC 6902/7386. kubectl, kustomize и helm не запускались, кластера не было: Argo CD, Flux, хранение релизов, хуки, Sealed Secrets и SOPS — по документации, сентябрь 2026, и помечены в тексте"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Три окружения }
+  - { id: s2, label: Kustomize }
+  - { id: s3, label: Патчи }
+  - { id: s4, label: 'Helm: шаблоны' }
+  - { id: s5, label: Values }
+  - { id: s6, label: 'Релиз и откат' }
+  - { id: s7, label: Сравнить на деле }
+  - { id: s8, label: GitOps }
+  - { id: s9, label: Секреты в Git }
+  - { id: s10, label: Тонкие места }
+  - { id: s11, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import KzEnvs from '@/widgets/kz-envs/ui/KzEnvs.vue';
+import PushPullDiagram from '@/widgets/helm-gitops-push-pull-diagram/ui/PushPullDiagram.astro';
+import {
+  ARGO_CODE,
+  ARGO_FACTS,
+  CHART_TREE,
+  COMMANDS,
+  COMPARE,
+  COMPARE_NOTE,
+  DEMO_CAPTION,
+  DEMO_NOTE,
+  DEMO_WHY,
+  DEV_PATCH_NOTE,
+  ENV_NOTE,
+  ENV_TABLE,
+  FIELDS_NOTE,
+  FILES,
+  FLOW_STEPS,
+  FLUX_CODE,
+  FLUX_FACTS,
+  GITOPS_WHY,
+  GLOSSARY,
+  HASH_NOTE,
+  HASH_TABLE,
+  HASH_WHY,
+  HELM_WHY,
+  HOOK_CODE,
+  HOOK_NOTE,
+  IMAGES_CODE,
+  IMAGES_NOTE,
+  IMAGES_TABLE,
+  INTRO_NOTE,
+  JSON6902_WHY,
+  KUSTOMIZE_FIELDS,
+  KUSTOMIZE_TREE,
+  KUSTOMIZE_WHY,
+  LIST_TRAP_NOTE,
+  MERGE_CODE,
+  MODEL_PARTS,
+  ONE_IMAGE_NOTE,
+  PITFALLS,
+  PLAIN_GITOPS,
+  PLAIN_HASH,
+  PLAIN_MERGE_KEY,
+  PLAIN_TEMPLATE,
+  PLAIN_TWO_WAYS,
+  PRECEDENCE,
+  PREFIX_CODE,
+  PREFIX_NOTE,
+  PREREQ,
+  PREREQ_NOTE,
+  PUSH_NOTE,
+  PUSH_PULL,
+  RELATED,
+  RELEASE_CODE,
+  RELEASE_FACTS,
+  RELEASE_WHY,
+  REVERT_NOTE,
+  SEALED_CODE,
+  SECRET_NOTE,
+  SECRET_TOOLS,
+  SECRET_WHY,
+  SET_TABLE,
+  SMP_TABLE,
+  SMP_TABLE_NOTE,
+  SMP_WHY,
+  SOPS_CODE,
+  SOURCES,
+  TEMPLATE_FACTS,
+  TEMPLATE_TABLE,
+  TEMPLATE_TABLE_NOTE,
+  TYPO_NOTE,
+  VALUES_CODE,
+  VALUES_NOTE,
+  VALUES_TABLE,
+  VALUES_WHY,
+  VALUES_SCENE,
+  VALUES_WALK,
+  PLAIN_VALUES,
+  DRIFT_SCENE,
+  DRIFT_WALK,
+  PLAIN_DRIFT,
+  PUSH_PULL_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE} leadWidth={72}>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_WAYS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Три окружения — одна задача"
+  lead="Сквозной пример темы — фронтенд магазина с серверным рендером: Deployment с двумя контейнерами, Service, Ingress и ConfigMap с адресом API. Одно и то же приложение едет в три окружения, и вот всё, чем они отличаются."
+  leadWidth={72}
+>
+  <Table
+    head={ENV_TABLE.head}
+    rows={ENV_TABLE.rows}
+    cols={ENV_TABLE.cols}
+    kinds={ENV_TABLE.kinds}
+    minWidth={ENV_TABLE.minWidth}
+  />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={ENV_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={ONE_IMAGE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Kustomize: база и слои"
+  lead="База — обычные манифесты, которые применяются и сами по себе. Слой окружения ссылается на базу и перечисляет только отличия."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={KUSTOMIZE_WHY} />
+  </Card>
+
+  <CodeBlock code={KUSTOMIZE_TREE} />
+
+  ### База
+
+  <CodeBlock code={FILES['base/kustomization.yaml']} />
+
+  <CodeBlock code={FILES['base/deployment.yaml']} />
+
+  <CodeBlock code={FILES['base/service.yaml']} />
+
+  <CodeBlock code={FILES['base/ingress.yaml']} />
+
+  ### Слой prod
+
+  <CodeBlock code={FILES['overlays/prod/kustomization.yaml']} />
+
+  <CodeBlock code={FILES['overlays/prod/app.yaml']} />
+
+  <Table
+    head={KUSTOMIZE_FIELDS.head}
+    rows={KUSTOMIZE_FIELDS.rows}
+    cols={KUSTOMIZE_FIELDS.cols}
+    kinds={KUSTOMIZE_FIELDS.kinds}
+    minWidth={KUSTOMIZE_FIELDS.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={FIELDS_NOTE} />
+  </Card>
+
+  ### Образ без патча: `images`
+
+  <CodeBlock code={IMAGES_CODE} />
+
+  <Table
+    head={IMAGES_TABLE.head}
+    rows={IMAGES_TABLE.rows}
+    cols={IMAGES_TABLE.cols}
+    kinds={IMAGES_TABLE.kinds}
+    minWidth={IMAGES_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={IMAGES_NOTE} />
+  </Card>
+
+  ### ConfigMap с хешем в имени
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HASH} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={HASH_WHY} />
+  </Card>
+
+  <Table
+    head={HASH_TABLE.head}
+    rows={HASH_TABLE.rows}
+    cols={HASH_TABLE.cols}
+    kinds={HASH_TABLE.kinds}
+    minWidth={HASH_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={HASH_NOTE} />
+  </Card>
+
+  ### Приставка к именам и ссылки
+
+  <CodeBlock code={PREFIX_CODE} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={PREFIX_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Патчи: strategic merge и JSON 6902"
+  lead="Strategic merge — кусок манифеста, который сливается с базой. JSON 6902 — список операций по адресам. Первый удобнее, второй точнее, а ловушка у них общая: список, который сливается не так, как ждёшь."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MERGE_KEY} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={SMP_WHY} />
+  </Card>
+
+  ### Слой dev: оба вида патча
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={DEV_PATCH_NOTE} />
+  </Card>
+
+  <CodeBlock code={FILES['overlays/dev/kustomization.yaml']} />
+
+  <CodeBlock code={FILES['overlays/dev/app.yaml']} />
+
+  <CodeBlock code={FILES['overlays/dev/host.yaml']} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={JSON6902_WHY} />
+  </Card>
+
+  ### Как ложится патч: функция
+
+  <CodeBlock code={MERGE_CODE} />
+
+  ### Таблица случаев из документации
+
+  <Table
+    head={SMP_TABLE.head}
+    rows={SMP_TABLE.rows}
+    cols={SMP_TABLE.cols}
+    kinds={SMP_TABLE.kinds}
+    minWidth={SMP_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SMP_TABLE_NOTE} />
+  </Card>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={LIST_TRAP_NOTE} />
+  </Callout>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Helm: чарт и шаблоны"
+  lead="Чарт — папка с шаблонами манифестов и значениями по умолчанию. Шаблон — текст, а не YAML: Helm подставляет значения, а разбирать результат будет уже Kubernetes."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={HELM_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEMPLATE} />
+
+  <CodeBlock code={CHART_TREE} />
+
+  <CodeBlock code={FILES['chart/Chart.yaml']} />
+
+  <CodeBlock code={FILES['chart/values.yaml']} />
+
+  <CodeBlock code={FILES['chart/templates/deployment.yaml']} />
+
+  <CodeBlock code={FILES['chart/templates/configmap.yaml']} />
+
+  <CodeBlock code={FILES['chart/templates/service.yaml']} />
+
+  <CodeBlock code={FILES['chart/templates/ingress.yaml']} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {TEMPLATE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Что напечатает шаблон
+
+  <Table
+    head={TEMPLATE_TABLE.head}
+    rows={TEMPLATE_TABLE.rows}
+    cols={TEMPLATE_TABLE.cols}
+    kinds={TEMPLATE_TABLE.kinds}
+    minWidth={TEMPLATE_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={TEMPLATE_TABLE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Values: кто кого перекрывает"
+  lead="Значения собираются из трёх мест, и у каждого свой вес. Словари сливаются вглубь, а списки — нет."
+  leadWidth={72}
+>
+  <Card title="Порядок, от слабого к сильному" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={PRECEDENCE} size={15.5} />
+  </Card>
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={VALUES_WHY} />
+  </Card>
+
+  ### Одна команда prod, пять ключей
+
+  {VALUES_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {VALUES_WALK.map((v) => (
+      <Card title={v.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Как сливается:** ${v.how}.`} />
+        <Md text={`**Итог:** ${v.result}.`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VALUES} />
+
+  ### Файлы окружений
+
+  <CodeBlock code={FILES['values-dev.yaml']} />
+
+  <CodeBlock code={FILES['values-stage.yaml']} />
+
+  <CodeBlock code={FILES['values-prod.yaml']} />
+
+  <CodeBlock code={[COMMANDS.dev, COMMANDS.stage, COMMANDS.prod].join('\n')} />
+
+  ### Как собираются values: функция
+
+  <CodeBlock code={VALUES_CODE} />
+
+  <Table
+    head={VALUES_TABLE.head}
+    rows={VALUES_TABLE.rows}
+    cols={VALUES_TABLE.cols}
+    kinds={VALUES_TABLE.kinds}
+    minWidth={VALUES_TABLE.minWidth}
+  />
+
+  ### Синтаксис `--set`
+
+  <Table
+    head={SET_TABLE.head}
+    rows={SET_TABLE.rows}
+    cols={SET_TABLE.cols}
+    kinds={SET_TABLE.kinds}
+    minWidth={SET_TABLE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={VALUES_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={TYPO_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Релиз, история, откат и хуки"
+  lead="Helm помнит, что ставил: каждое обновление — новая ревизия релиза, и к любой из них можно вернуться. Хранится это в самом кластере."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={RELEASE_WHY} />
+  </Card>
+
+  <CodeBlock code={RELEASE_CODE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {RELEASE_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Хуки: миграция перед обновлением
+
+  Новой версии приложения нужна новая схема базы. Миграция должна пройти до того, как поды
+  начнут обновляться, а не одновременно с ними, — и если она упала, обновляться нельзя вовсе.
+
+  <CodeBlock code={HOOK_CODE} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={HOOK_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7 · демо"
+  eyebrowTone="demo"
+  title="Шаблоны против патчей — на одном приложении"
+  lead="Одна и та же задача двумя способами. Итог почти совпадает, а расходится там, где способы расходятся идейно: в списках и в том, как меняется ConfigMap."
+  leadWidth={72}
+>
+  <Table
+    head={COMPARE.head}
+    rows={COMPARE.rows}
+    cols={COMPARE.cols}
+    kinds={COMPARE.kinds}
+    minWidth={COMPARE.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={COMPARE_NOTE} />
+  </Card>
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={DEMO_WHY} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEMO_NOTE} />
+  </Card>
+
+  <KzEnvs client:visible parts={MODEL_PARTS} files={FILES} commands={COMMANDS} caption={DEMO_CAPTION} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="GitOps: кластер сам тянет из Git"
+  lead="Конвейер больше не ходит в кластер: он собирает образ и делает коммит. Применяет контроллер внутри кластера, и он же держит кластер таким, как записано."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={GITOPS_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GITOPS} />
+
+  ### Push против pull
+
+  <PushPullDiagram data={PUSH_PULL_DIAGRAM} />
+
+  <Table
+    head={PUSH_PULL.head}
+    rows={PUSH_PULL.rows}
+    cols={PUSH_PULL.cols}
+    kinds={PUSH_PULL.kinds}
+    minWidth={PUSH_PULL.minWidth}
+  />
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={PUSH_NOTE} />
+  </Card>
+
+  <Card title="Выкат и откат по шагам" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={FLOW_STEPS} size={15.5} />
+  </Card>
+
+  ### Одна ручная правка ночью
+
+  {DRIFT_SCENE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {DRIFT_WALK.map((d) => (
+      <Card title={d.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**Восемь реплик вместо четырёх:** ${d.scale}.`} />
+        <Md text={`**Файл Ingress удалён из Git:** ${d.removed}.`} />
+        <Md text={`**Чем платит:** ${d.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DRIFT} />
+
+  ### Argo CD
+
+  <CodeBlock code={ARGO_CODE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {ARGO_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Flux
+
+  <CodeBlock code={FLUX_CODE} />
+
+  <CardGrid min={270} gap={14} align="start">
+    {FLUX_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={REVERT_NOTE} />
+  </Callout>
+</Section>
+
+<Section
+  id="s9"
+  eyebrow="Раздел 9"
+  title="Секреты в Git"
+  lead="Secret как есть в Git класть нельзя: base64 — не шифр. Кладут шифр, а ключ от него есть только у кластера."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={SECRET_WHY} />
+  </Card>
+
+  <CardGrid min={270} gap={14} align="start">
+    {SECRET_TOOLS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### SealedSecret
+
+  <CodeBlock code={SEALED_CODE} />
+
+  ### Файл SOPS
+
+  <CodeBlock code={SOPS_CODE} />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={SECRET_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s10"
+  eyebrow="Раздел 10"
+  title="Тонкие места"
+  lead="Почти все они молчат: манифест собрался, команда вернула успех, а в кластере не то, что задумано."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s11"
+  eyebrow="Раздел 11"
+  title="Источники"
+>
+  <Card title="Документация" titleSize={18} pad={22} gap={14}>
+
+    Правила слияния и порядок values — из документации. Поведение Argo CD, Flux и инструментов для секретов — из их документации: оно меняется от версии к версии.
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

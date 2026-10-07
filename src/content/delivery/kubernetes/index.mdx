@@ -1,0 +1,665 @@
+---
+title: "Kubernetes: развёртывание"
+order: 3
+kicker: доставка
+lead: "Kubernetes не выполняет команды «запусти» и «останови». Вы описываете, каким должно быть приложение, а он **сводит желаемое с действительным**: снова и снова сравнивает описание с тем, что работает на самом деле, и по шагу исправляет разницу. Отсюда и выкат по частям, и то, почему успешный `rollout status` ещё не значит, что приложение отвечает."
+leadWidth: 68
+summary: "Под, ReplicaSet и Deployment, а рядом DaemonSet, Job и CronJob; как сервис находит поды и кто вообще может до них достучаться; что решают три проверки здоровья — пробы; сколько стоят выкат новой версии и откат — на числах, снятых в учебном кластере kind; бюджет перерывов и автомасштабирование."
+verifiedOn: kind 0.33.0 · kubectl 1.30.5 · Kubernetes 1.37.0
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Под и контроллеры }
+  - { id: s2, label: Сервис }
+  - { id: s3, label: Пробы }
+  - { id: s4, label: Выкат и откат }
+  - { id: s5, label: Ресурсы }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkCard from '@/shared/ui/DarkCard.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import RolloutTimeline from '@/widgets/rollout-timeline/ui/RolloutTimeline.vue';
+import ServiceDiagram from '@/widgets/kubernetes-service-diagram/ui/ServiceDiagram.astro';
+import TerminationDiagram from '@/widgets/kubernetes-termination-diagram/ui/TerminationDiagram.astro';
+import {
+  CHAIN_NOTE,
+  CRASHLOOP_MEASURE,
+  CRASHLOOP_NOTE,
+  CRONJOB_CODE,
+  CRONJOB_NOTE,
+  CRONJOB_SETTINGS,
+  DNS_NOTE,
+  GLOSSARY,
+  HPA_CODE,
+  HPA_FACTS,
+  INTRO_NOTE,
+  LIVENESS_MEASURE_NOTE,
+  MANIFEST_CODE,
+  NETPOL_CODE,
+  NETPOL_FACTS,
+  NODE_MEMORY_LINK,
+  OOM_NOTE,
+  OOM_TRAP_NOTE,
+  OWNERS,
+  PDB_CODE,
+  PDB_FACTS,
+  PENDING_NOTE,
+  PITFALLS,
+  POD_CARDS,
+  POD_WHY,
+  PROBES_WHY,
+  PROBE_CODE,
+  PROBE_DEFAULTS_NOTE,
+  PROBE_KINDS,
+  PROBE_RULES,
+  PROGRESS_NOTE,
+  QOS_NOTE,
+  READY_MEASURE,
+  READY_MEASURE_NOTE,
+  RESOURCES_MEASURE,
+  RESOURCES_WHY,
+  REVISION_NOTE,
+  ROLLOUT_CLOCK,
+  ROLLOUT_FOOT,
+  ROLLOUT_MEASURE,
+  ROLLOUT_MEASURE_NOTE,
+  ROLLOUT_PRESETS,
+  ROLLOUT_STATUS_CODE,
+  ROLLOUT_WHY,
+  ROUNDING_NOTE,
+  RS_NOTE,
+  SA_NOTE,
+  SA_PRACTICE,
+  SCALE_NOTE,
+  SELECTOR_NOTE,
+  SERVICE_CODE,
+  SERVICE_KINDS,
+  SERVICE_NOTE,
+  SERVICE_STEPS,
+  SERVICE_WHY,
+  SOURCES,
+  STATUS_NOTE,
+  UNDO_STEPS,
+  WORKLOADS,
+  PREREQ,
+  PREREQ_NOTE,
+  ROLLOUT_DEMO_NOTE,
+  RELATED,
+  STARTUP_MEASURE,
+  STARTUP_NOTE,
+  THROTTLE_MEASURE,
+  THROTTLE_NOTE,
+  THROTTLE_PRACTICE,
+  ENDPOINT_MEASURE,
+  ENDPOINT_NOTE,
+  TERMINATION_NOTE,
+  TERMINATION_STEPS,
+  PLAIN_NETPOL,
+  PLAIN_PDB,
+  PLAIN_POD,
+  PLAIN_PROBES,
+  PLAIN_RECONCILE,
+  PLAIN_RESOURCES,
+  PROBE_SCENE_NOTE,
+  PROBE_STEPS,
+  PLAIN_PROBE_SCENE,
+  ROLLOUT_SCENE_NOTE,
+  ROLLOUT_STEPS,
+  PLAIN_ROLLOUT,
+  SERVICE_DIAGRAM,
+  TERMINATION_DIAGRAM,
+} from './data';
+
+<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE} leadWidth={72}>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RECONCILE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Под, ReplicaSet, Deployment — кто кем управляет"
+  lead="Три объекта, и каждый следующий нужен потому, что предыдущий чего-то не умеет. Под не умеет восстанавливаться — пропавший под заменяет ReplicaSet. ReplicaSet не умеет менять версию — это делает Deployment. Зная, кто за что отвечает, причину поломки ищут на нужном уровне, а не наугад."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={POD_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POD} />
+
+  <CardGrid min={290} gap={16} align="start">
+    {POD_CARDS.map((item) => (
+      <Card title={item.t} titleSize={16.5} pad={20} gap={11} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  ### Кто за чем следит
+
+  <Table
+    head={OWNERS.head}
+    rows={OWNERS.rows}
+    cols={OWNERS.cols}
+    kinds={OWNERS.kinds}
+    minWidth={OWNERS.minWidth}
+  />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={CHAIN_NOTE} />
+  </Callout>
+
+  ### Манифест: главное в YAML-описании Deployment
+
+  <CodeBlock code={MANIFEST_CODE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SELECTOR_NOTE} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={RS_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SCALE_NOTE} />
+  </Card>
+
+  ### Замер: сколько идёт запуск пода
+
+  <Table
+    head={STARTUP_MEASURE.head}
+    rows={STARTUP_MEASURE.rows}
+    kinds={['prose', 'mono', 'muted']}
+    cols="minmax(250px,1.3fr) minmax(140px,.7fr) minmax(250px,1.5fr)"
+    minWidth={700}
+  />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={STARTUP_NOTE} />
+  </Card>
+
+  ### Не только Deployment: DaemonSet, Job и CronJob
+
+  Deployment держит поды, которые должны работать всегда. Но миграция базы должна отработать
+  и выйти, ночной отчёт — запускаться по расписанию, а сборщик логов — стоять на каждом узле.
+  Для этого у Kubernetes свои контроллеры.
+
+  <Table
+    head={WORKLOADS.head}
+    rows={WORKLOADS.rows}
+    cols={WORKLOADS.cols}
+    kinds={WORKLOADS.kinds}
+    minWidth={WORKLOADS.minWidth}
+  />
+
+  <CodeBlock code={CRONJOB_CODE} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={CRONJOB_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={CRONJOB_SETTINGS} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Сервис и как трафик находит поды"
+  lead="Сервис — не прокси и не балансировщик, а **имя поверх списка адресов**. Список ведёт отдельный контроллер. Под попадает в него, если подходит по меткам и считается готовым."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={SERVICE_WHY} />
+  </Card>
+
+  <CodeBlock code={SERVICE_CODE} />
+
+  <ServiceDiagram {...SERVICE_DIAGRAM} />
+
+  <Card title="Как запрос находит под: четыре шага" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={SERVICE_STEPS} size={15.5} />
+  </Card>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SERVICE_NOTE} />
+  </Card>
+
+  ### Пять видов сервиса, и почти всегда нужен первый
+
+  <Table
+    head={SERVICE_KINDS.head}
+    rows={SERVICE_KINDS.rows}
+    cols={SERVICE_KINDS.cols}
+    kinds={SERVICE_KINDS.kinds}
+    minWidth={SERVICE_KINDS.minWidth}
+  />
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={DNS_NOTE} />
+  </Card>
+
+  ### Замер: между «под готов» и «запросы пошли»
+
+  <Table
+    head={ENDPOINT_MEASURE.head}
+    rows={ENDPOINT_MEASURE.rows}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(120px,.6fr) minmax(150px,.8fr) minmax(180px,.9fr) minmax(110px,.6fr)"
+    minWidth={600}
+  />
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={ENDPOINT_NOTE} />
+  </Card>
+
+  ### Кто может достучаться до пода и что может сам под
+
+  Сервис даёт базе имя, но не прячет её: любой под кластера может к ней подключиться.
+  Если взломают витрину магазина, из неё откроется прямой путь к базе платежей. Закрывают
+  этот путь сетевой политикой.
+
+  <CodeBlock code={NETPOL_CODE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NETPOL} />
+
+  <CardGrid min={280} gap={14}>
+    {NETPOL_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SA_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SA_PRACTICE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Пробы: одна решает, слать ли запросы, другая — перезапускать ли"
+  lead="Проба — это проверка, которую kubelet регулярно выполняет над контейнером, например HTTP-запрос на `/healthz`. Три пробы настраиваются одинаково, а последствия у них совсем разные. Одна решает, идут ли на под запросы. Вторая перезапускает процесс. Третья только откладывает первые две."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={PROBES_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROBES} />
+
+  ### Три пробы на одном приложении
+
+  {PROBE_SCENE_NOTE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {PROBE_STEPS.map((p) => (
+      <Card title={`Проба ${p.k}`} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={`**На старте:** ${p.start}.`} />
+        <Md text={`**Пропала база:** ${p.db}.`} />
+        <Md text={`**Процесс завис:** ${p.hang}.`} />
+        <Md text={`**Чем платит:** ${p.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROBE_SCENE} />
+
+  Коротко, в одну таблицу:
+
+  <Table
+    head={PROBE_KINDS.head}
+    rows={PROBE_KINDS.rows}
+    cols={PROBE_KINDS.cols}
+    kinds={PROBE_KINDS.kinds}
+    minWidth={PROBE_KINDS.minWidth}
+  />
+
+  ### Замер: readiness решает, идёт ли трафик
+
+  <Table
+    head={READY_MEASURE.head}
+    rows={READY_MEASURE.rows}
+    cols={READY_MEASURE.cols}
+    kinds={READY_MEASURE.kinds}
+    minWidth={READY_MEASURE.minWidth}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={READY_MEASURE_NOTE} />
+  </Card>
+
+  ### Замер: без liveness зависший процесс живёт вечно
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={LIVENESS_MEASURE_NOTE} />
+  </Callout>
+
+  <CodeBlock code={PROBE_CODE} />
+
+  <Card title="Пять правил настройки проб" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={PROBE_RULES} size={15.5} />
+    <CardNote tone="prose">
+
+      Коротко: readiness защищает **пользователя** от неготового пода, liveness защищает **под**
+      от зависшего процесса внутри него. Если перепутать роли, проба делает обратное тому, ради
+      чего её ставили.
+
+    </CardNote>
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PROBE_DEFAULTS_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Как выкатывается новая версия и как её откатить"
+  lead="Выкат задают два числа и одно условие. Числа — `maxSurge` и `maxUnavailable`, условие — когда Kubernetes считает под готовым. Числа легко найти в документации, а ломает выкаты условие."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={ROLLOUT_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ROUNDING_NOTE} />
+  </Card>
+
+  ### Одна замена по шагам: четыре пода и две границы
+
+  {ROLLOUT_SCENE_NOTE.map((t) => <Md text={t} />)}
+
+  <CardGrid min={290} gap={14} align="start">
+    {ROLLOUT_STEPS.map((r) => (
+      <Card title={r.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={r.how} />
+        <Md text={`**Чем платит:** ${r.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROLLOUT} />
+
+  ### Три прогона в кластере, и два из них отличаются одной строкой
+
+  <Table
+    head={ROLLOUT_MEASURE.head}
+    rows={ROLLOUT_MEASURE.rows}
+    cols={ROLLOUT_MEASURE.cols}
+    kinds={ROLLOUT_MEASURE.kinds}
+    minWidth={ROLLOUT_MEASURE.minWidth}
+  />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ROLLOUT_MEASURE_NOTE} />
+  </Card>
+
+  <CodeBlock code={ROLLOUT_STATUS_CODE} />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={STATUS_NOTE} />
+  </Callout>
+
+  ### Тот же процесс по шагам
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ROLLOUT_DEMO_NOTE} />
+  </Card>
+
+  <RolloutTimeline
+    client:visible
+    presets={ROLLOUT_PRESETS}
+    replicas={4}
+    clock={ROLLOUT_CLOCK}
+    foot={ROLLOUT_FOOT}
+  />
+
+  ### Остановка пода: `SIGTERM`, `preStop` и список адресов
+
+  <TerminationDiagram {...TERMINATION_DIAGRAM} />
+
+  <Card title="Что происходит, когда под удаляют" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={TERMINATION_STEPS} size={15.5} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={TERMINATION_NOTE} />
+  </Card>
+
+  ### Откат
+
+  <Card title="Что делает `kubectl rollout undo`" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={UNDO_STEPS} size={15.5} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={REVISION_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PROGRESS_NOTE} />
+  </Card>
+
+  ### Плановые перерывы: PodDisruptionBudget
+
+  Администратор выводит узел на обслуживание — и все поды с него выселяются разом. Если все
+  четыре реплики стояли на этом узле, сервис на время ляжет, хотя выката никто не затевал.
+
+  <CodeBlock code={PDB_CODE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PDB} />
+
+  <CardGrid min={280} gap={14}>
+    {PDB_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <DarkPanel eyebrow="Три способа соврать себе про выкат">
+    <CardGrid min={260} gap={14}>
+      <DarkCard title="«rollout status зелёный»" titleTone="warn">
+        <Md text="Команда ждёт, пока сойдутся числа, а не пока ответит приложение. Без readiness-пробы числа сходятся за секунду." />
+      </DarkCard>
+
+      <DarkCard title="«поды Running 1/1»" titleTone="warn">
+        <Md text="`Running` говорит о том, что контейнер запущен, а `1/1` — сколько контейнеров готово по пробам. Нет пробы — проверять нечего." />
+      </DarkCard>
+
+      <DarkCard title="«откатимся, если что»" titleTone="warn">
+        <Md text="Откат — такой же выкат: теми же волнами и за то же время. Мгновенного возврата нет." />
+      </DarkCard>
+    </CardGrid>
+
+    <DarkText>
+
+      Во всех трёх случаях Kubernetes верно отвечает на заданный вопрос — просто спросили не то.
+      Он знает, сколько подов считает доступными, но не знает, отвечает ли приложение. Связать
+      одно с другим может только readiness-проба.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Ресурсы, лимиты и что бывает при их нехватке"
+  lead="`requests` и `limits` стоят в одном блоке манифеста, но значат совсем разное. Перепутаете — получите одну из двух непохожих аварий: под, которому не находится места, или под, который убивают на ходу."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESOURCES} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={RESOURCES_WHY} />
+  </Card>
+
+  <Table
+    head={RESOURCES_MEASURE.head}
+    rows={RESOURCES_MEASURE.rows}
+    cols={RESOURCES_MEASURE.cols}
+    kinds={RESOURCES_MEASURE.kinds}
+    minWidth={RESOURCES_MEASURE.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={PENDING_NOTE} />
+  </Card>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={OOM_NOTE} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={OOM_TRAP_NOTE} />
+  </Card>
+
+  ### Замер: как выглядит торможение процессора (троттлинг)
+
+  <Table
+    head={THROTTLE_MEASURE.head}
+    rows={THROTTLE_MEASURE.rows}
+    kinds={['mono', 'mono', 'mono', 'mono', 'prose']}
+    cols="minmax(170px,.9fr) minmax(90px,.5fr) minmax(130px,.6fr) minmax(120px,.6fr) minmax(230px,1.4fr)"
+    minWidth={780}
+  />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={THROTTLE_NOTE} />
+  </Card>
+
+  <Card tone="ok" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={THROTTLE_PRACTICE} />
+  </Card>
+
+  ### Замер: как растут паузы между перезапусками (CrashLoopBackOff)
+
+  <Table
+    head={CRASHLOOP_MEASURE.head}
+    rows={CRASHLOOP_MEASURE.rows}
+    cols={CRASHLOOP_MEASURE.cols}
+    kinds={CRASHLOOP_MEASURE.kinds}
+    minWidth={CRASHLOOP_MEASURE.minWidth}
+  />
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={CRASHLOOP_NOTE} />
+  </Callout>
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={QOS_NOTE} />
+  </Card>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={NODE_MEMORY_LINK} />
+  </Card>
+
+  ### Автомасштабирование: HPA
+
+  Днём нагрузка втрое выше, чем ночью. Держать реплики под пик круглые сутки дорого, а под
+  ночную нагрузку — опасно. HPA меняет число реплик сам, по загрузке.
+
+  <CodeBlock code={HPA_CODE} />
+
+  <CardGrid min={280} gap={14}>
+    {HPA_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Тонкие места"
+  lead="Почти все они молчат: ошибки нет, событий нет, объект создан — просто запросы уходят не туда, конфигурация не та, а откатываться не на что."
+  leadWidth={72}
+>
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="Документация — чтобы проверить формулировку. Исходники контроллера — чтобы увидеть порядок действий, которого в документации нет."
+  leadWidth={72}
+>
+  <CardGrid min={280} gap={14} align="start">
+    {SOURCES.map((item) => (
+      <Card label={item.t} labelSize={12.5} pad={18} radius={4} gap={9} size={15} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

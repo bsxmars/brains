@@ -1,0 +1,269 @@
+---
+title: "Создание объектов: фабрика, строитель, прототип, одиночка"
+order: 1
+kicker: паттерны
+lead: "Четыре порождающих паттерна придуманы для языков, где класс — не значение, копировать объект умеет только он сам, а глобальную переменную надо прятать в класс. В JavaScript половина этого есть из коробки, а книжные реализации ломаются на стирании типов, `#`-полях и кеше модулей."
+leadWidth: 66
+summary: "Фабрика как реестр классов и как фабричная функция, типизация реестра картой типов и ключ `constructor` из адреса; строитель с цепочкой, заготовка, которая копит чужие шаги, неизменяемый строитель и `build()`, запрещённый типами; прототип против `.prototype`, четыре способа скопировать экземпляр с `#`-полем и общий `Date`; одиночка через `private constructor`, модуль как одиночка, второй экземпляр от `?v=2`, двух копий пакета и SSR."
+verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, примеры с модулями запущены настоящим `node` — `tests/unit/patterns-creational.test.ts`"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Зачем }
+  - { id: s2, label: Фабрика }
+  - { id: s3, label: Строитель }
+  - { id: s4, label: Прототип }
+  - { id: s5, label: Одиночка }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
+---
+
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  PLAIN_PATTERN,
+  PROBLEM_CODE,
+  PATTERN_ROWS,
+  FACTORY_CLASSIC_CODE,
+  FACTORY_REGISTRY_CODE,
+  FACTORY_REGISTRY_NOTES,
+  FACTORY_FN_CODE,
+  FACTORY_FN_NOTES,
+  REGISTRY_KEY_CODE,
+  REGISTRY_KEY_NOTE,
+  PLAIN_BUILDER,
+  BUILDER_CODE,
+  FROZEN_BUILDER_CODE,
+  STRICT_BUILDER_CODE,
+  BUILDER_NOTES,
+  BUILDER_OPTIONS_NOTE,
+  PLAIN_PROTOTYPE,
+  CLONE_CODE,
+  CLONE_ROWS,
+  CLONE_NOTES,
+  SHARED_DATE_CODE,
+  SHARED_DATE_NOTE,
+  PLAIN_SINGLETON,
+  SINGLETON_CLASS_CODE,
+  MODULE_CODE,
+  DUPLICATE_CODE,
+  SSR_LEAK_CODE,
+  SINGLETON_NOTES,
+  SINGLETON_DI_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Паттерны и язык" gap={24}>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PATTERN} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Зачем: где рождается объект"
+  lead="Страховой агент отправляет заявки двум партнёрам — «ТФ» и «АБ». У каждого свой API и своя анкета, но остальной код хочет работать с полисом вообще, не зная, чей он. Проблема видна сразу: решение «какой класс создать» оказывается в каждом месте, где нужен полис."
+  leadWidth={72}
+>
+  <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  Порождающие паттерны собирают это решение в одно место. Но в JavaScript у каждого из них
+  уже есть встроенный ответ, и книжная версия нужна не всегда:
+
+  <Table
+    head={['паттерн', 'что решает', 'что уже есть в JS', 'когда нужна книжная версия']}
+    rows={PATTERN_ROWS.map((r) => [r.k, r.task, r.js, r.book])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(170px,.9fr) minmax(220px,1.2fr) minmax(220px,1.2fr)"
+    minWidth={760}
+  />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Фабрика"
+  lead="Фабрика отвечает на вопрос «какой класс создать» в одном месте. В книге это иерархия: абстрактная фабрика и по наследнику на каждый вариант. В JS класс — обычное значение, поэтому фабрика чаще всего сворачивается в объект-реестр или в функцию, которая возвращает объект."
+  leadWidth={72}
+>
+  ### Книжная версия: фабричный метод
+
+  <CodeBlock code={FACTORY_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  Иерархия окупается, когда у фабрик есть **общая логика** — здесь `saveHistory`, учёт
+  выпущенных полисов, — и когда наследнику нужно что-то своё кроме создания. Если фабрика
+  только выбирает класс, хватает реестра.
+
+  ### Реестр: класс как значение
+
+  <CodeBlock code={FACTORY_REGISTRY_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Card title="Почему сошёлся только третий вариант" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={FACTORY_REGISTRY_NOTES} size={14.5} />
+  </Card>
+
+  ### Фабричная функция
+
+  <CodeBlock code={FACTORY_FN_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Что даёт замыкание и чем за него платят" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={FACTORY_FN_NOTES} size={14.5} />
+  </Card>
+
+  ### Ключ из адреса
+
+  <CodeBlock code={REGISTRY_KEY_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card tone="err" title="Реестр на объекте наследует лишние ключи" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <Md text={REGISTRY_KEY_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Строитель"
+  lead="Строитель собирает объект по шагам: каждый метод добавляет кусок и возвращает сам строитель, а последний — `build()` — отдаёт результат. Пример: задание на конвертацию картинки, все сочетания форматов и размеров."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUILDER} />
+
+  <CodeBlock code={BUILDER_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card tone="ok" title="Неизменяемый строитель" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FROZEN_BUILDER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="`build()` только после обоих шагов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STRICT_BUILDER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card title="Что показывают три версии" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={BUILDER_NOTES} size={14.5} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={BUILDER_OPTIONS_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Прототип"
+  lead="Паттерн «прототип» — это копия готового объекта, которую потом меняют: черновик заявки, из которого делают вторую с другим адресом почты. В JS скопировать объект можно четырьмя встроенными способами, и ни один не копирует экземпляр класса целиком."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROTOTYPE} />
+
+  <CodeBlock code={CLONE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  <Table
+    head={['способ', 'класс и методы', '`#`-поля', 'вложенные объекты']}
+    rows={CLONE_ROWS.map((r) => [r.k, r.cls, r.priv, r.deep])}
+    tones={CLONE_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1.1fr) minmax(160px,.8fr) minmax(170px,.9fr) minmax(220px,1.1fr)"
+    minWidth={760}
+  />
+
+  <Card title="Почему `clone()` остаётся за классом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={CLONE_NOTES} size={14.5} />
+  </Card>
+
+  ### Общий `Date`
+
+  <CodeBlock code={SHARED_DATE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={SHARED_DATE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Одиночка"
+  lead="Одиночка — класс, у которого может быть только один экземпляр: общий кеш, настройки, логгер. В книге его прячут за закрытым конструктором. В JS второй экземпляр возникает не от лишнего `new`, а от того, что модуль выполнился второй раз."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SINGLETON} />
+
+  ### Книжная версия
+
+  <CodeBlock code={SINGLETON_CLASS_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  ### Модуль как одиночка — и где их становится два
+
+  <CodeBlock code={MODULE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <CodeBlock code={DUPLICATE_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  ### Одиночка на сервере
+
+  <CodeBlock code={SSR_LEAK_CODE} size={11} lh={1.7} pad="14px 16px" />
+
+  <Card title="Четыре способа получить второго одиночку — или одного на всех" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <NumberedList items={SINGLETON_NOTES} size={14.5} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={SINGLETON_DI_NOTE} />
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Источники"
+  lead="Книга «банды четырёх» описывает паттерны для C++ и Smalltalk; источники ниже показывают, как те же идеи выглядят на JavaScript и где у языка свои правила."
+  leadWidth={72}
+>
+  <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>
