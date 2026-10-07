@@ -8,6 +8,14 @@
  * `normal`. Preflight или `* { box-sizing: border-box }` сдвинули бы вёрстку уроков.
  */
 @layer lesson-base {
+  /* Вся страница мельче на широком экране — как масштаб браузера, а не только шрифт: отступы
+     и ширина колонки уменьшаются вместе с текстом. Число — `--page-zoom` в `shared/ui/theme.ts`. */
+  @media (min-width: 1024px) {
+    html {
+      zoom: var(--page-zoom);
+    }
+  }
+
   body {
     margin: 0;
     background: var(--canvas);
