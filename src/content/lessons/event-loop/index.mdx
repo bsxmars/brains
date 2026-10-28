@@ -23,8 +23,6 @@ import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -295,7 +293,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
       но выполняется раньше них. С булевым флагом он красился как `rAF`, хотя стоит
       на противоположном конце шкалы. */}
   <Table
-    head={['что', 'когда выполняется']}
+    head={['что', 'это микрозадача?']}
     rows={MICRO_ROWS.map((r) => [r.k, r.v])}
     tones={MICRO_ROWS.map((r) => (r.ok === true ? 'info' : r.ok === 'ahead' ? 'warn' : 'err'))}
     kinds={['mono', 'prose']}
@@ -332,34 +330,32 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
     </Card>
   </CardGrid>
 
-  ### Голодание: очередь, которая не кончается
+  ### Очередь, которая не кончается
 
-  <Card tone="err" pad={20} gap={13}>
-    <CardGrid min={270} gap={14}>
-      <Card tone="err" color="tone" pad={0} radius={0} gap={9} size={15}>
-        <CodeBlock code={'function starve() {\n  queueMicrotask(starve);\n}'} />
+  <CardGrid min={270} gap={14}>
+    <Card tone="err" color="tone" gap={11}>
+      <CodeBlock code={'function starve() {\n  queueMicrotask(starve);\n}'} />
 
-        **Вкладка зависает.** Браузер перестаёт выполнять микрозадачи, только когда их очередь
-        пуста, а здесь она не пустеет никогда. Страница не рисуется, не отвечает на клики,
-        таймеры не срабатывают, одно ядро процессора загружено полностью.
+      **Вкладка зависает.** Браузер перестаёт выполнять микрозадачи, только когда их очередь
+      пуста, а здесь она не пустеет никогда. Страница не рисуется, не отвечает на клики,
+      таймеры не срабатывают, одно ядро процессора загружено полностью.
 
-      </Card>
-      <Card tone="ok" color="tone" pad={0} radius={0} gap={9} size={15}>
-        <CodeBlock code={'function ok() {\n  setTimeout(ok, 0);\n}'} />
+    </Card>
+    <Card tone="ok" color="tone" gap={11}>
+      <CodeBlock code={'function ok() {\n  setTimeout(ok, 0);\n}'} />
 
-        **Вкладка работает.** Колбэк ставит **задачу**, а между задачами цикл успевает
-        и рисовать, и обрабатывать ввод. Вкладка живая, просто нагруженная.
+      **Вкладка работает.** Колбэк ставит **задачу**, а между задачами цикл успевает
+      и рисовать, и обрабатывать ввод. Вкладка живая, просто нагруженная.
 
-      </Card>
-    </CardGrid>
+    </Card>
+  </CardGrid>
 
-
-    Вывод: самодельный планировщик работы должен уступать поток через **задачу** —
-    `MessageChannel`, `scheduler.yield()` или `setTimeout`, но не через `queueMicrotask`. В Node
-    так же ведёт себя рекурсивный `process.nextTick`: он вешает процесс целиком. Процессор при этом
-    занят «полезной» работой, поэтому в мониторинге проблему легко не заметить.
-
-  </Card>
+  Отсюда правило для долгой работы, которую режут на куски, чтобы страница не замирала: следующий
+  кусок ставят **задачей** — через `setTimeout`, `MessageChannel` или `scheduler.yield()`. Тогда между
+  кусками браузер успевает нарисовать кадр и обработать клик. Через `queueMicrotask` следующий кусок
+  выполнится сразу, и поток так и не освободится. В Node так же ведёт себя рекурсивный
+  `process.nextTick`: он вешает процесс целиком. Процессор при этом занят «полезной» работой,
+  поэтому в мониторинге проблему легко не заметить.
 
   ### `queueMicrotask` против `Promise.resolve().then`
 
@@ -384,8 +380,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
   <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
 
     Считать полезно не «синхронно или асинхронно», а **сколько раз код встаёт в очередь
-    микрозадач**: одна постановка — один тик. `await` нативного промиса стоит 1 тик (до V8 7.2
-    и Node 12 было 3 — отсюда неверные ответы в старых статьях), а `return await p`
+    микрозадач**: одна постановка — один тик. `await` нативного промиса стоит 1 тик, а `return await p`
     в `async`-функции на тик дешевле, чем `return p`. Линейка, которой это меряют в своём
     браузере, и разбор по операциям спецификации — в [«Промис изнутри», раздел
     «Линейка»](/js/promise-internals/#s3).
@@ -415,9 +410,10 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
 
   </CardGrid>
 
-  Кламп — правило только для таймеров. Сообщение порта `MessageChannel` приходит задачей
-  другого источника, и 4 мс на него не действуют; поэтому самодельные планировщики строят
-  на нём — [«MessageChannel», раздел «Почему планировщик React построен не на `setTimeout`»](/js/message-channel/#s2).
+  Правило 4 мс касается только таймеров. Сообщение из `MessageChannel` — тоже задача, но из другого
+  источника, и 4 мс к нему не добавляются. Поэтому код, который режет долгую работу на куски,
+  ставит следующий кусок через `MessageChannel`, а не через `setTimeout`. Так устроен, например,
+  планировщик React — подробно в теме [«MessageChannel»](/js/message-channel/#s2).
 
   ### Рендер-шаги: где живёт `requestAnimationFrame`
 
@@ -430,7 +426,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
     <FlowChips
       chips={[
         { label: 'task' },
-        { label: 'µtasks', tone: 'info' },
+        { label: 'микрозадачи', tone: 'info' },
         { label: 'rAF → µ', tone: 'warn' },
         { label: 'rAF → µ', tone: 'warn' },
         { label: 'style → layout → paint → composite', tone: 'ok' },
@@ -539,7 +535,9 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
 
   Лечится это двумя путями. Размер пула задаёт переменная окружения `UV_THREADPOOL_SIZE` —
   больше потоков, больше одновременных хешей и чтений. А тяжёлые вычисления, которым пул
-  вообще не место, уносят в `worker_threads`, как сказано в карточке «Куда выносить CPU».
+  вообще не место, уносят в `worker_threads` — отдельные потоки со своим циклом событий. Как они
+  устроены и чем отличаются от `cluster` — в теме [«Воркеры и параллелизм», раздел «Агент
+  и его изоляция»](/js/workers/#s1).
 
   ### Очередь `nextTick` выполняется до конца — вместе с добавленным по ходу
 
@@ -551,40 +549,13 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
 
     <Md text={NEXTTICK_NOTE} />
   </Card>
-
-  <DarkPanel eyebrow="Диагностика на боевом сервере · задержка цикла (event loop lag)">
-    <CodeBlock
-      tone="deep"
-      code={"const { monitorEventLoopDelay } = require('node:perf_hooks');\nconst h = monitorEventLoopDelay({ resolution: 10 }); h.enable();\nsetInterval(() => console.log('p99 lag ms', h.percentile(99) / 1e6), 5000);"}
-      pad="14px 16px"
-    />
-
-    <FlowChips
-      minWidth={0}
-      chips={[
-        { label: 'около шага resolution (здесь 10 мс) — простой', tone: 'ok' },
-        { label: 'десятки — уже проблема', tone: 'warn' },
-        { label: 'сотни — блокирующая работа в цикле', tone: 'dashed' },
-      ]}
-    />
-
-    <DarkText>
-
-      Задержка цикла — насколько позже положенного цикл берёт задачу, потому что поток занят.
-      Признак беды: время ответа растёт у **всех** эндпоинтов сразу (смотрят 99-й перцентиль,
-      p99), а процессорное время на каждый запрос в норме. Значит, тормозит цикл, а не код
-      конкретного обработчика. Подозреваемые: синхронная криптография, `JSON.parse` на мегабайты,
-      `fs.*Sync`, регулярное выражение с катастрофическим перебором (backtracking).
-
-    </DarkText>
-  </DarkPanel>
 </Section>
 
 <Section
   id="s6"
   eyebrow="Раздел 6"
   title="Кто с кем делит цикл"
-  lead="В спецификации то, у чего есть собственный цикл событий, называется **агентом**. У агента своя память (куча) и свои очереди, общих объектов с соседями нет. Окно — агент, каждый воркер — отдельный агент. На практике отсюда важен один вопрос: **кто может подвесить кого.**"
+  lead="У вкладки свой цикл событий, у каждого воркера — тоже свой. Спецификация называет такого владельца цикла **агентом**: у него свои объекты и свои очереди, а с соседями он только обменивается сообщениями. Отсюда главное следствие: долгий код подвешивает только свой цикл. Зависший воркер страницу не остановит, а долгий скрипт страницы остановит всё, что работает в её цикле."
   leadWidth={70}
 >
   <Table

@@ -16,6 +16,7 @@ import { runWithRuler, rulerLines } from '@/features/run-snippet';
 import { ticks } from '@/shared/lib/format';
 import { simulate } from '@/shared/lib/promise-sim';
 import { SegmentedControl } from '@/shared/ui';
+import Md from '@/shared/ui/Md.vue';
 import { RULER_PRESETS } from '../model/presets';
 
 /*
@@ -136,7 +137,7 @@ watch(picked, measure);
           </div>
         </div>
 
-        <div class="why" :class="heavy ? 'why--warn' : 'why--info'">{{ preset.why }}</div>
+        <Md class="why" :class="heavy ? 'why--warn' : 'why--info'" :text="preset.why" />
       </div>
     </div>
   </div>

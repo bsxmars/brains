@@ -5,7 +5,7 @@ headingWidth: 24
 order: 19
 lead: "Отмена в JS — не прерывание, а договорённость двух объектов. Контроллер решает, что работа больше не нужна. Сигнал сообщает об этом всем, кто работу делает, и каждый сам решает, как остановиться. Отсюда и всё неочевидное: что видит сервер, когда `fetch` отменён, чей `reason` побеждает в `AbortSignal.any`, почему `{ once: true }` не спасает от утечки и почему отмена после ответа ничего не делает."
 leadWidth: 66
-summary: "Разделение прав между контроллером и сигналом; событие `abort` — синхронное и однократное; учебная реализация с `any` и `timeout` против настоящей; что отменяет `fetch` на каждой стадии и что видит сервер по HTTP/1.1 и HTTP/2; правило «проверь — подпишись — отпишись» и утечка слушателей числом; API Node и их `AbortError`; гонка отмены с завершением и общий запрос для нескольких потребителей."
+summary: "Разделение прав между контроллером и сигналом; событие `abort` — синхронное и однократное; учебная реализация с `any` и `timeout` против настоящей; что отменяет `fetch` на каждой стадии и что видит сервер по HTTP/1.1 и HTTP/2; один сигнал вместо шести способов отписаться; правило «проверь — подпишись — отпишись» и утечка слушателей числом; API Node и их `AbortError`; гонка отмены с завершением и общий запрос для нескольких потребителей."
 verifiedOn: "Node 24.11.0 и 26.8.2, Chromium 153.0.8010.12 (Playwright, headless), октябрь 2026: сценарии демо исполнены на учебных и настоящих классах в Node и Chromium; fetch — на свой node:http и node:http2; сборка зависимых сигналов — WeakRef и gc() в отдельном процессе. Примеры исполняет tests/unit/abort-controller.test.ts. Без таймерных замеров"
 nav:
   - { id: s0, label: Перед началом }
@@ -32,12 +32,16 @@ import Table from '@/shared/ui/Table.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AbortLab from '@/widgets/abort-lab/ui/AbortLab.vue';
+import UnsubscribeFunnel from '@/widgets/unsubscribe-funnel/ui/UnsubscribeFunnel.astro';
 import {
   GLOSSARY,
   PLAIN_PAIR,
   PREREQ,
   PREREQ_NOTE,
   PAIR_CODE,
+  UNSUB_OLD,
+  UNSUB_CODE,
+  UNSUB_DEMO_NOTE,
   PAIR_NOTE,
   SIGNAL_API_ROWS,
   ORDER_FACTS,
@@ -185,6 +189,23 @@ import {
   </CardGrid>
 
   <Md text={REASON_NOTE} />
+
+  ### Один сигнал вместо шести способов отписаться
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={UNSUB_DEMO_NOTE} />
+  </Card>
+
+  <UnsubscribeFunnel old={UNSUB_OLD} code={UNSUB_CODE} />
+
+  <Card tone="err" color="tone" pad={16} radius={4} size={15.5}>
+
+    **Опцию `signal` понимают не все.** `addEventListener` и `fetch` — да, `EventEmitter.on` —
+    нет: у него два параметра, третий молча отбрасывается, и после `abort()` слушатель
+    остаётся живым (Node 24.11). Снимать такую подписку приходится самому, через
+    `events.addAbortListener`, как в коде выше.
+
+  </Card>
 </Section>
 
 <Section

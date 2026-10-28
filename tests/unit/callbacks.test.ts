@@ -1,7 +1,7 @@
 import { EventEmitter, addAbortListener } from 'node:events';
 import { describe, expect, it } from 'vitest';
+import { UNSUB_CODE } from '@/content/lessons/abort-controller/data';
 import {
-  ABORT_CODE,
   BIND_TRAP,
   DISPATCH_DOM,
   DISPATCH_EMITTER,
@@ -16,7 +16,6 @@ import {
 } from '@/content/lessons/callbacks/data';
 // Те же модули, что выполняются у читателя в демо. Импорт именно их — и есть весь смысл
 // блока «демо и таблица спрашивают движок одинаково» ниже.
-import { simulateDebounce, simulateThrottle } from '@/widgets/debounce-throttle/model/simulate';
 import { SCENARIOS, runScenario } from '@/widgets/dispatch-lab/model/run';
 import { THIS_CASES } from '@/widgets/this-in-callback/model/cases';
 import { runThisCase } from '@/widgets/this-in-callback/model/run';
@@ -44,9 +43,9 @@ import { runThisCase } from '@/widgets/this-in-callback/model/run';
  * Десять шагов, пять строк вердикта и оба листинга `STACK_MODES` пока держатся только
  * на вычитке.
  *
- * А вот у трёх демо исполняемая модель есть, и последний блок файла зовёт **ровно её**:
- * `this-in-callback` (вычисляет настоящий `this`), `dispatch-lab` (настоящая диспетчеризация
- * и реентерантность), `debounce-throttle` (расчёт окон). Пока тест держал бы свою копию
+ * А вот у двух демо исполняемая модель есть, и последний блок файла зовёт **ровно её**:
+ * `this-in-callback` (вычисляет настоящий `this`) и `dispatch-lab` (настоящая диспетчеризация
+ * и реентерантность). Пока тест держал бы свою копию
  * той же логики, «проверено тестом» означало бы «проверено чем-то похожим».
  */
 
@@ -173,41 +172,6 @@ describe('демо и таблица спрашивают движок один�
     expect(bound.errorName, '`bind` возвращает привязку — падать нечему').toBe('');
     expect(bound.verdict).toBe('ok');
   });
-
-  /**
-   * Обёртки: закрепляем окна, а не факт «не упало».
-   *
-   * Числа взяты из докстринга самой модели, где они сверены с разбором по шагам из конспекта,
-   * а вырожденный случай — с настоящим lodash. Теперь эта сверка повторяется командой.
-   *
-   * ⚠️ Прошлая версия проверки звала модель **тремя** аргументами вместо четырёх и требовала
-   * лишь отсутствия броска. Она проходила: недостающий флаг приезжал `undefined`, ничего
-   * не ронял — то есть проверка была снисходительной и пропустила бы настоящую поломку.
-   * Поймали это не тесты, а `astro check`.
-   */
-  it('обёртки · debounce и throttle дают ровно те окна, что заявлены в модели', () => {
-    const fired = (fires: { t: number; arg: number }[]) => fires.map((f) => `${f.t}:${f.arg}`);
-
-    expect(fired(simulateThrottle([0, 40, 80, 300], 100, true, true))).toEqual([
-      '0:0',
-      '100:80',
-      '300:300',
-    ]);
-    expect(fired(simulateDebounce([0, 40, 80, 300], 100, false, true))).toEqual([
-      '180:80',
-      '400:300',
-    ]);
-    expect(fired(simulateDebounce([0, 50, 250], 100, true, true))).toEqual([
-      '0:0',
-      '150:50',
-      '250:250',
-    ]);
-  });
-
-  it('обёртки · выключенные leading и trailing не дают ни одного вызова', () => {
-    // Вырожденная пара флагов: модель сверена с настоящим lodash — ни одного срабатывания.
-    expect(simulateThrottle([0, 120, 260], 100, false, false)).toEqual([]);
-  });
 });
 
 /**
@@ -305,8 +269,9 @@ describe(`${pitfall('01').n} · ${pitfall('01').t}`, () => {
     ac.abort();
     expect(emitter.listenerCount('tick'), 'вот так третий аргумент и заменяется').toBe(0);
 
-    // Лечение на странице — именно это, а не `{ signal }` у `on`.
-    expect(ABORT_CODE).toContain('addAbortListener');
+    // Лечение на странице — именно это, а не `{ signal }` у `on`. Пример отписки живёт
+    // в «Отмене», раздел «Контроллер и сигнал», тонкое место — здесь.
+    expect(UNSUB_CODE).toContain('addAbortListener');
     expect(pitfall('01').code).toContain('addAbortListener');
   });
 

@@ -18,7 +18,7 @@ import Pill from '@/shared/ui/Pill.astro';
       <div class="row row--stack">
         <div class="line">
           <span class="slot">[[PromiseState]]</span>
-          <span class="warnings">переход РОВНО ОДИН раз</span>
+          <span class="warnings">меняется только один раз</span>
         </div>
         <div class="states">
           <Pill tone="neutral">pending</Pill>
@@ -31,12 +31,12 @@ import Pill from '@/shared/ui/Pill.astro';
 
       <div class="row line">
         <span class="slot">[[PromiseResult]]</span>
-        <span class="hint">значение либо причина</span>
+        <span class="hint">значение или ошибка</span>
       </div>
 
       <div class="row line">
         <span class="slot">[[PromiseIsHandled]]</span>
-        <span class="hint">по нему стреляет unhandled</span>
+        <span class="hint">есть ли обработчик ошибки</span>
       </div>
 
       <div class="row row--lists">
@@ -47,7 +47,7 @@ import Pill from '@/shared/ui/Pill.astro';
           <Pill tone="info" shape="chip">r2</Pill>
           <Pill tone="info" shape="chip">r3</Pill>
         </div>
-        <div class="lists-note">Пока pending — это <b>просто списки</b>. И это сильные ссылки.</div>
+        <div class="lists-note">Пока промис ждёт, колбэки <b>просто лежат в списках</b> — и держат в памяти всё, на что ссылаются.</div>
       </div>
     </div>
   </div>
@@ -60,8 +60,8 @@ import Pill from '@/shared/ui/Pill.astro';
         <span class="op__cost">в список · 0 тиков</span>
       </div>
       <div class="op__body">
-        <code>.then / .catch / .finally / await</code> на pending-промисе только кладут реакцию
-        в список. В очередь не попадает ничего.
+        <code>.then / .catch / .finally / await</code> на промисе, который ещё ждёт, только
+        дописывают колбэк в список. В очередь не попадает ничего.
       </div>
     </div>
 
@@ -69,16 +69,17 @@ import Pill from '@/shared/ui/Pill.astro';
       <div class="op__head">
         <span class="op__name">ResolvePromise(v)</span>
         <span class="op__glyph">▶</span>
-        <span class="op__cost">в очередь · 0, +1 или +2</span>
+        <span class="op__cost">в очередь · тик на колбэк</span>
       </div>
       <div class="op__body">
-        Вот здесь и появляются тики. Каждое обращение к <code>HostEnqueuePromiseJob</code> — один
-        тик.
+        Тики появляются здесь: когда у промиса появился результат, каждый колбэк из списка встаёт
+        в очередь микрозадач (<code>HostEnqueuePromiseJob</code>), по тику на колбэк. Если результат
+        сам промис, его сначала разворачивают — это ещё один-два тика.
       </div>
     </div>
 
     <Callout size={16.5} lh={1.55} fg="code">
-      Считать надо <b>постановки в очередь</b>, а не синтаксис. Тик тратится не на слово <code>await</code> и не на вызов <code>.then</code>.
+      Тик тратится не на слово <code>await</code> и не на вызов <code>.then</code>, а на каждую <b>постановку в очередь</b>. Считать надо их.
     </Callout>
   </div>
 </div>

@@ -38,13 +38,65 @@ export function escapeHtml(text: string): string {
 // не разбирался вовсе: `[«Отмена»](#s8)` доезжал до читателя сырой разметкой в трёх темах.
 const LINK = /\[([^\]]+)\]\(((?:\/|#)[^)\s]*)\)/g;
 
+/**
+ * Текст ссылки — по словам, каждое в своём `<span>`; подчёркивает CSS только их (`a.words`).
+ *
+ * Проза курса выровнена по ширине, и браузер растягивает пробелы. Подчёркивание самой `<a>`
+ * шло и по растянутому пробелу: в узкой карточке под «изнутри», раздел» тянулась черта
+ * в полстроки (замечание автора курса 2026-10-27). Режем только по пробелам вне тегов,
+ * чтобы не разорвать `<code>` и `<b>`.
+ */
+export function splitWords(label: string): string {
+  const out: string[] = [];
+  let word = '';
+  let depth = 0;
+  for (const token of label.match(/<[^>]+>|\s+|[^<\s]+/g) ?? []) {
+    if (token.startsWith('</')) depth--;
+    else if (token.startsWith('<')) depth++;
+    if (depth === 0 && /^\s+$/.test(token)) {
+      if (word) out.push(`<span>${word}</span>`);
+      out.push(' ');
+      word = '';
+    } else word += token;
+  }
+  if (word) out.push(`<span>${word}</span>`);
+  return out.join('');
+}
+
+/**
+ * То же для готовой страницы: ссылки из MDX (`[текст](/js/…)` в теле темы) до `inlineMd`
+ * не доходят. Режем только ссылки без `class` — это ссылки прозы; у навигации и кнопок класс
+ * есть, и подчёркивания у них нет. Острова Vue и React не трогаем: их разметку сверяет
+ * гидратация, и чужой `<span>` в ней — расхождение.
+ */
+const ISLAND = /<astro-island\b[\s\S]*?<\/astro-island>/g;
+const PLAIN_LINK = /<a href="([^"]*)">([^<]*(?:<(?!\/a>)[^<]*)*)<\/a>/g;
+
+export function splitLinkWordsInHtml(html: string): string {
+  const fix = (part: string) =>
+    part.replace(PLAIN_LINK, (whole, href: string, label: string) =>
+      /\s/.test(label) ? `<a class="words" href="${href}">${splitWords(label)}</a>` : whole,
+    );
+  let out = '';
+  let last = 0;
+  for (const m of html.matchAll(ISLAND)) {
+    out += fix(html.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  return out + fix(html.slice(last));
+}
+
 export function inlineMd(text: string): string {
   return (
     escapeHtml(text)
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
       // Ссылка разбирается последней: внутри её текста работают обе предыдущие метки.
-      .replace(LINK, (_, label: string, href: string) => `<a href="${withBase(href)}">${label}</a>`)
+      .replace(LINK, (_, label: string, href: string) =>
+        /\s/.test(label)
+          ? `<a class="words" href="${withBase(href)}">${splitWords(label)}</a>`
+          : `<a href="${withBase(href)}">${label}</a>`,
+      )
   );
 }
 

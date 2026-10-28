@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import mdx from '@astrojs/mdx';
 import react from '@astrojs/react';
 import vue from '@astrojs/vue';
+import { compileStyle } from '@vue/compiler-sfc';
 import { defineConfig } from 'astro/config';
 
 /**
@@ -26,6 +27,34 @@ import { defineConfig } from 'astro/config';
 const disableReactRefresh = {
   name: 'lesson:no-react-refresh',
   config: () => ({ oxc: { jsx: { refresh: false } } }),
+};
+
+/**
+ * Scoped-стили Vue в дев-сервере.
+ *
+ * ⚠️ Без него в `astro dev` стили Vue-виджетов попадают в страницу **без** `[data-v-…]`: общий
+ * класс виджета (`.lead`, `.body`, `.title`) бьёт по всей странице. Так `.lead` из `MicroProbe`
+ * уменьшал лиды разделов, а `.body` из `TickRuler` разложил текст карточки в столбик.
+ *
+ * Причина в Astro 7: дев-плагин CSS запоминает содержимое стиля в своём `transform`, а он стоит
+ * раньше `transform` плагина Vue, который и навешивает область видимости. В страницу уходит сырой
+ * блок `<style scoped>`. В сборке путь другой, и там всё верно, — поэтому плагин только для `serve`.
+ *
+ * Делаем область видимости сами, раньше Astro (`enforce: 'pre'`). Плагин Vue потом проходит по
+ * уже ограниченному стилю ещё раз и добавляет тот же атрибут повторно — `.x[data-v-1][data-v-1]`
+ * ведёт себя так же, как `.x[data-v-1]`.
+ */
+const SCOPED_STYLE = /\.vue\?vue&type=style&index=\d+&scoped=([0-9a-f]+)&lang\.css$/;
+const vueScopedStylesInDev = {
+  name: 'lesson:vue-scoped-styles-in-dev',
+  apply: 'serve',
+  enforce: 'pre',
+  transform(code, id) {
+    const m = SCOPED_STYLE.exec(id);
+    if (!m) return null;
+    const out = compileStyle({ source: code, filename: id.split('?')[0], id: `data-v-${m[1]}`, scoped: true });
+    return out.errors.length ? null : { code: out.code, map: null };
+  },
 };
 
 /**
@@ -132,7 +161,7 @@ export default defineConfig({
   markdown: { syntaxHighlight: false },
 
   vite: {
-    plugins: [disableReactRefresh],
+    plugins: [disableReactRefresh, vueScopedStylesInDev],
     resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   },
 });

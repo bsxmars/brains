@@ -112,7 +112,7 @@ const fmt = (value: number): string => (value < 0.05 ? '< 0.1' : value.toFixed(1
     <div class="split">
       <div class="pane">
         <Md class="title" :text="scenario.title" />
-        <Md class="lead" :text="scenario.lead" />
+        <Md class="pane-lead" :text="scenario.lead" />
         <CodeListing :lines="scenario.code" label="что исполняется" />
       </div>
 
@@ -140,7 +140,7 @@ const fmt = (value: number): string => (value < 0.05 ? '< 0.1' : value.toFixed(1
           </div>
 
           <p v-if="run.levels.length" class="hint">
-            Граница проходит между уровнями {{ FIRST_CLAMPED_LEVEL - 1 }} и {{ FIRST_CLAMPED_LEVEL }}: клампится не тот
+            Граница проходит между уровнями {{ FIRST_CLAMPED_LEVEL - 1 }} и {{ FIRST_CLAMPED_LEVEL }}: 4 мс получает не тот
             колбэк, у которого вложенность больше {{ CLAMP_AFTER_LEVEL }}, а тот таймер, который он ставит.
           </p>
 
@@ -226,7 +226,7 @@ const fmt = (value: number): string => (value < 0.05 ? '< 0.1' : value.toFixed(1
   line-height: 1.35;
   color: var(--ink);
 }
-.lead {
+.pane-lead {
   font-size: var(--fs-5);
   line-height: 1.55;
   color: var(--prose);

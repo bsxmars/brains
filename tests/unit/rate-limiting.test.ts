@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { debounce as ldDebounce, throttle as ldThrottle } from 'lodash-es';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as t from '@/content/algorithms/rate-limiting/data';
-import { THROTTLE_CODE as CALLBACKS_THROTTLE_CODE } from '@/content/lessons/callbacks/data';
+import { simulateDebounce, simulateThrottle } from '@/widgets/debounce-throttle/model/simulate';
 import { loadLimiters, loadWrappers, maxInWindow, runLimiters, runTape, runWrappers, seededTape } from '@/widgets/rate-lab/model/run';
 import type { Call, WrapperApi } from '@/widgets/rate-lab/model/types';
 
@@ -26,6 +26,14 @@ const W: WrapperApi = loadWrappers(t.RATE_CODE);
 const L = loadLimiters(t.RATE_CODE);
 
 const pairs = (calls: Call[]) => calls.map((c) => [c.t, c.arg] as [number, number]);
+
+/** `SIMPLE_THROTTLE_CODE` со страницы, исполненный как есть: на настоящем `setTimeout` (под фальшивыми таймерами). */
+function simpleThrottle() {
+  return new Function(`${t.SIMPLE_THROTTLE_CODE}\nreturn throttle;`)() as (
+    fn: (a: number) => void,
+    wait: number,
+  ) => (a: number) => void;
+}
 
 /** Тот же прогон, но настоящим lodash на фальшивых таймерах vitest. */
 function runLodash(times: number[], make: (fn: (arg: number) => void) => (arg: number) => void, end: number) {
@@ -65,6 +73,52 @@ const DEBOUNCE_OPTS = [
 ];
 const THROTTLE_OPTS = [{}, { leading: false }, { trailing: false }, { leading: false, trailing: false }];
 const WAITS = [0, 1, 30, 100, 250];
+
+describe('раздел 1 · демо debounce и throttle', () => {
+  /**
+   * Модель демо: закрепляем окна, а не факт «не упало».
+   *
+   * Числа взяты из докстринга самой модели, где они сверены с разбором по шагам из конспекта,
+   * а вырожденный случай — с настоящим lodash. Теперь эта сверка повторяется командой.
+   *
+   * ⚠️ Прошлая версия проверки звала модель **тремя** аргументами вместо четырёх и требовала
+   * лишь отсутствия броска. Она проходила: недостающий флаг приезжал `undefined`, ничего
+   * не ронял — то есть проверка была снисходительной и пропустила бы настоящую поломку.
+   * Поймали это не тесты, а `astro check`.
+   */
+  it('обёртки · debounce и throttle дают ровно те окна, что заявлены в модели', () => {
+    const fired = (fires: { t: number; arg: number }[]) => fires.map((f) => `${f.t}:${f.arg}`);
+
+    expect(fired(simulateThrottle([0, 40, 80, 300], 100, true, true))).toEqual([
+      '0:0',
+      '100:80',
+      '300:300',
+    ]);
+    expect(fired(simulateDebounce([0, 40, 80, 300], 100, false, true))).toEqual([
+      '180:80',
+      '400:300',
+    ]);
+    expect(fired(simulateDebounce([0, 50, 250], 100, true, true))).toEqual([
+      '0:0',
+      '150:50',
+      '250:250',
+    ]);
+  });
+
+  it('обёртки · выключенные leading и trailing не дают ни одного вызова', () => {
+    // Вырожденная пара флагов: модель сверена с настоящим lodash — ни одного срабатывания.
+    expect(simulateThrottle([0, 120, 260], 100, false, false)).toEqual([]);
+  });
+
+  it('throttle со страницы на лентах демо зовёт там же, где модель виджета', () => {
+    for (const seq of t.DEMO_SEQUENCES) {
+      // Модель отдаёт аргументом момент события, прогон — его номер на ленте.
+      const model = simulateThrottle(seq.times, t.DEMO_WAIT, true, true).map((f) => [f.t, f.arg]);
+      const page = runLodash(seq.times, (fn) => simpleThrottle()(fn, t.DEMO_WAIT), seq.max);
+      expect(page.map(([at, i]) => [at, seq.times[i]]), seq.label).toEqual(model);
+    }
+  });
+});
 
 describe('пример на виртуальных часах', () => {
   it('USAGE_CODE даёт то, что написано в комментарии', () => {
@@ -181,15 +235,15 @@ describe('таблицы темы', () => {
     expect(t.DEBOUNCE_NOTE).toContain(`ставит ${t.STEADY_TIMERS} таймер`);
   });
 
-  it('THROTTLE_QUIRK: lodash 0/100/150, throttle из «Колбэков» — 0/100/200', () => {
+  it('THROTTLE_QUIRK: lodash 0/100/150, самописный throttle из раздела 1 — 0/100/200', () => {
     const q = t.THROTTLE_QUIRK;
     expect(runLodash(q.tape, (fn) => ldThrottle(fn, q.wait), 1000)).toEqual(q.lodash);
     expect(mine(q.tape, (fn, c) => W.throttle(fn, q.wait, {}, c), 1000)).toEqual(q.lodash);
-    const cbThrottle = new Function(`${CALLBACKS_THROTTLE_CODE}\nreturn throttle;`)() as (
+    const cbThrottle = simpleThrottle() as (
       fn: (a: number) => void,
       wait: number,
     ) => (a: number) => void;
-    expect(runLodash(q.tape, (fn) => cbThrottle(fn, q.wait), 1000)).toEqual(q.callbacks);
+    expect(runLodash(q.tape, (fn) => cbThrottle(fn, q.wait), 1000)).toEqual(q.simple);
   });
 });
 

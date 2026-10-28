@@ -118,7 +118,7 @@ describe('Compose: листинги, дописанные по документ�
   it('BUILD_CODE: build с target и args рядом с image', () => {
     const api = one(compose.BUILD_CODE).services.api;
     expect(api.build).toMatchObject({ context: '.', target: 'runtime' });
-    expect(api.build.args.NODE_VERSION).toBe('22');
+    expect(api.build.args.NODE_VERSION).toBe('24');
     expect(typeof api.image).toBe('string');
   });
 

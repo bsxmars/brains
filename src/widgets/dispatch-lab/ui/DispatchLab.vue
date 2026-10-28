@@ -67,7 +67,7 @@ const SOURCE_LABEL: Record<string, string> = {
     <div class="split">
       <div class="pane">
         <Md class="title" :text="scenario.title" />
-        <Md class="lead" :text="scenario.lead" />
+        <Md class="pane-lead" :text="scenario.lead" />
         <CodeListing :lines="scenario.code" label="что исполнилось" />
       </div>
 
@@ -153,7 +153,7 @@ const SOURCE_LABEL: Record<string, string> = {
   line-height: 1.35;
   color: var(--ink);
 }
-.lead {
+.pane-lead {
   font-size: var(--fs-5);
   line-height: 1.55;
   color: var(--prose);

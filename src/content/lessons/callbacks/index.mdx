@@ -3,7 +3,7 @@ title: Колбэки
 order: 2
 lead: "Колбэк — функция, которую вы отдаёте чужому коду, чтобы тот вызвал её сам. Отдать функцию — значит отдать право её вызвать: когда, сколько раз, с какими аргументами и с каким `this`, решаете уже не вы. Промисы колбэки не заменили, а добавили к ним гарантии. Понять, какие именно, можно, только зная, чего у простого колбэка нет."
 leadWidth: 66
-summary: "Инверсия управления, граница синхронного и асинхронного, Zalgo, `this`, error-first, шесть гарантий промиса, debounce против throttle и отмена."
+summary: "Инверсия управления, граница синхронного и асинхронного, Zalgo, `this`, error-first, шесть гарантий промиса и реентерантность: колбэк, который меняет того, кто его вызвал."
 verifiedOn: Node 24.11
 nav:
   - { id: s0, label: Перед началом }
@@ -13,10 +13,9 @@ nav:
   - { id: s4, label: this }
   - { id: s5, label: Ошибки }
   - { id: s6, label: Гарантии }
-  - { id: s7, label: Обёртки }
-  - { id: s8, label: Отмена }
-  - { id: s9, label: Тонкости }
-  - { id: s10, label: Источники }
+  - { id: s7, label: Реентерантность }
+  - { id: s8, label: Тонкости }
+  - { id: s9, label: Источники }
 ---
 
 import Md from '@/shared/ui/Md.astro';
@@ -33,7 +32,6 @@ import Table from '@/shared/ui/Table.astro';
 import IocBoundary from '@/widgets/ioc-boundary/ui/IocBoundary.astro';
 import CallbackGuarantees from '@/widgets/callback-guarantees/ui/CallbackGuarantees.astro';
 import CallbackCompare from '@/widgets/callback-guarantees/ui/CallbackCompare.astro';
-import UnsubscribeFunnel from '@/widgets/unsubscribe-funnel/ui/UnsubscribeFunnel.astro';
 import ErrorPaths from '@/widgets/error-paths/ui/ErrorPaths.vue';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -42,12 +40,10 @@ import DispatchLab from '@/widgets/dispatch-lab/ui/DispatchLab.vue';
 import CallbackStack from '@/widgets/callback-stack/ui/CallbackStack.vue';
 import ZalgoDemo from '@/widgets/zalgo-demo/ui/ZalgoDemo.vue';
 import ThisInCallback from '@/widgets/this-in-callback/ui/ThisInCallback.vue';
-import DebounceThrottle from '@/widgets/debounce-throttle/ui/DebounceThrottle.vue';
 import {
   IOC_ROWS,
   STACK_MODES,
   CALLER_ROWS,
-  LEAK_CODE,
   ZALGO_CODE,
   ZALGO_MODES,
   ZALGO_FIX,
@@ -59,13 +55,6 @@ import {
   GUARANTEES,
   HELL_ROWS,
   COMPARE_ROWS,
-  SEQUENCES,
-  WAIT,
-  THROTTLE_CODE,
-  UNSUB_OLD,
-  ABORT_CODE,
-  ABORT_FACTS,
-  LEAKS,
   REENTRANT,
   DISPATCH_EMITTER,
   DISPATCH_DOM,
@@ -83,17 +72,11 @@ import {
   PREREQ_NOTE,
   ERRORS_DEMO_NOTE,
   STACK_DEMO_NOTE, ZALGO_DEMO_NOTE, THIS_DEMO_NOTE, DISPATCH_DEMO_NOTE, LAB_DEMO_NOTE,
-  UNSUB_DEMO_NOTE,
-  DEBOUNCE_DEMO_NOTE,
   PLAIN_IOC,
   PLAIN_STACK,
   PLAIN_CONTEXT,
   PLAIN_ZALGO,
   PLAIN_THIS,
-  CONTEXT_STEPS,
-  CONTEXT_FIX_CODE,
-  CONTEXT_WAYS,
-  PLAIN_CONTEXT_STEPS,
   DISPATCH_SCENE_CODE,
   DISPATCH_SCENE_NOTE,
   DISPATCH_STEPS,
@@ -173,7 +156,7 @@ import {
     <Card pad={16} radius={4} size={15.5}>
 
       **Синхронный колбэк может сломать того, кто его вызвал.** Ошибка из колбэка прерывает
-      чужой цикл на середине. Подробнее — в разделе [«Отмена, утечки, реентерантность»](#s8).
+      чужой цикл на середине. Подробнее — в разделе [«Реентерантность: колбэк внутри чужого цикла»](#s7).
 
     </Card>
   </CardGrid>
@@ -225,7 +208,7 @@ import {
       Из-за второго поля колбэк «помнит» переменные — и из-за него же бывают утечки. Пока
       чужой код хранит вашу функцию, он через `[[Environment]]` держит в памяти **весь
       Context** скоупа, а не только те переменные, которые функция использует. Пример с замером
-      и лечение — в разделе [«Отмена, утечки, реентерантность»](#s8).
+      и лечение — в [«Замыканиях», раздел «Что на самом деле держит V8»](/js/closures/#s5).
 
     </Card>
   </CardGrid>
@@ -254,7 +237,7 @@ import {
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
 
     **Что именно случится при `fn()`, зависит от среды:** Node бросает ошибку сразу, а браузер
-    молча принимает результат и через 100 мс исполняет его как код. Подробнее — в [«Тонких местах»](#s9).
+    молча принимает результат и через 100 мс исполняет его как код. Подробнее — в [«Тонких местах»](#s8).
 
   </Card>
 
@@ -555,9 +538,6 @@ import {
 
   ### «Ад колбэков» (callback hell) — три настоящие проблемы, а не лесенка отступов
 
-  Обычно «ад колбэков» показывают как визуальную проблему и лечат именованными функциями.
-  Отступы уходят, проблемы остаются — потому что они не про отступы.
-
   <CardGrid min={280} gap={14} align="start">
     {HELL_ROWS.map((row) => (
       <Card label={row.n} labelSize={11} title={row.t} titleSize={17} pad={18} gap={11} size={15.5} lh={1.6}>
@@ -572,172 +552,24 @@ import {
   <CallbackCompare rows={COMPARE_ROWS} />
 
 
-  Строки про число одновременных операций и отмену показывают предел: промисы починили
-  не всё, и это остаётся ручной работой в обеих моделях. Пул на N задач разобран в [«Промис
-  изнутри», раздел «Цены»](/js/promise-internals/#s6), отмена — в разделе [«Отмена, утечки,
-  реентерантность»](#s8).
+  Две вещи промисы не решили: ограничить, сколько операций идёт одновременно, и отменить
+  уже начатую. И с колбэками, и с промисами это пишется вручную. Пул на N задач разобран
+  в [«Промис изнутри», раздел «Цены»](/js/promise-internals/#s6), отмена — в теме
+  [«Отмена: AbortController и AbortSignal»](/js/abort-controller/).
 
-  В Node переход между моделями встроен. `util.promisify(fs.readFile)` возвращает функцию,
-  которая отдаёт промис, а `err` из колбэка превращает в отказ. `util.callbackify` делает
-  обратное. Обёртка получает гарантии из таблицы выше бесплатно — ради них её и пишут.
+  В Node функцию с колбэком можно превратить в функцию с промисом одной строкой:
+  `util.promisify(fs.readFile)` возвращает функцию, которая отдаёт промис, а `err` из колбэка
+  превращает в отказ. `util.callbackify` делает обратное. Обёрнутая функция сразу получает
+  всё, что умеет промис: результат можно вернуть, а ошибки ловит один `.catch`.
 
 </Section>
 
 <Section
   id="s7"
-  eyebrow="Раздел 7 · демо"
-  eyebrowTone="demo"
-  title="Обёртки: debounce и throttle"
-  lead="Оба прореживают поток событий, но по-разному, и их постоянно путают. **Debounce** — «сделай, когда поток утихнет». **Throttle** — «делай, но не чаще чем раз в `wait`». Подсказки в поле поиска — debounce: запрос уходит, когда пользователь перестал печатать. Индикатор прокрутки — throttle: он движется на ходу, но не на каждый пиксель."
+  eyebrow="Раздел 7"
+  title="Реентерантность: колбэк внутри чужого цикла"
+  lead="Реентерантность — повторный вход в код, который ещё не закончил работу. Синхронный колбэк выполняется **внутри** чужого алгоритма: пока он работает, `sort`, `forEach` или рассылка события стоят на середине. Если колбэк меняет то, по чему его вызывают, он портит чужое состояние."
 >
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={DEBOUNCE_DEMO_NOTE} />
-  </Card>
-
-  <DebounceThrottle client:visible sequences={SEQUENCES} wait={WAIT} />
-
-  Throttle с обеими опциями — полтора десятка строк. Первое событие окна вызывает функцию
-  сразу (leading), остальные только запоминаются, а в конце окна функция зовётся с последним
-  из них (trailing):
-
-  <CodeBlock code={THROTTLE_CODE} />
-
-  <CardGrid min={280} gap={14}>
-    <Card pad={16} radius={4} size={15.5}>
-
-      **Обе зовут функцию с аргументами последнего события в окне**, а не первого. Поэтому
-      индикатор скролла покажет актуальную позицию, а не устаревшую.
-
-    </Card>
-    <Card pad={16} radius={4} size={15.5}>
-
-      **Одиночное событие не должно вызвать функцию дважды.** Поэтому `endOfWindow` сначала
-      проверяет `lastArgs === null`: вызов в конце окна (trailing) бывает, только если
-      за окно пришло ещё хотя бы одно событие.
-
-    </Card>
-    <Card pad={16} radius={4} size={15.5}>
-
-      **Наивный throttle через один флаг теряет последнее событие.** Пользователь остановил
-      скролл в середине окна — индикатор застынет в устаревшем положении. Вызов в конце окна
-      (trailing) нужен как раз для этого.
-
-    </Card>
-    <Card tone="err" color="tone" pad={16} radius={4} size={15.5}>
-
-      **Debounce нельзя применять к функции, чей результат вам нужен.** Вызов `debounced()`
-      отдаёт результат **предыдущего** фактического вызова — текущий ещё не состоялся.
-
-    </Card>
-  </CardGrid>
-
-  <Card tone="warn" color="tone" title="Обёртка держит в памяти последний аргумент" titleSize={17} pad={20} gap={12} size={16.5} lh={1.6}>
-
-    `debounce` и `throttle` хранят `lastArgs` и `lastThis`, чтобы вызвать функцию позже.
-    Если последний аргумент тяжёлый — событие со ссылкой на DOM, большой объект данных, — он
-    останется в замыкании обёртки до следующего вызова, а возможно, навсегда. Поэтому
-    в рабочих реализациях — и в коде выше — после каждого вызова стоит `lastArgs = lastThis = null`.
-    Не для красоты. Тот же класс утечки разобран в теме про [память и сборщик](/js/memory-gc/).
-
-  </Card>
-</Section>
-
-<Section
-  id="s8"
-  eyebrow="Раздел 8"
-  title="Отмена, утечки, реентерантность"
-  lead="Пользователь ушёл со страницы, компонент убран, а слушатель `resize` и таймер опроса живут дальше: зовут колбэк, который обновляет уже несуществующий интерфейс, и держат в памяти всё, что он помнит. Отписка — такая же часть работы с колбэком, как подписка."
->
-  ### Шесть способов отписаться → один
-
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={UNSUB_DEMO_NOTE} />
-  </Card>
-
-  <UnsubscribeFunnel old={UNSUB_OLD} code={ABORT_CODE} facts={ABORT_FACTS} />
-
-  <Card tone="err" color="tone" pad={16} radius={4} size={15.5}>
-
-    **Опцию `signal` понимают не все.** `addEventListener` и `fetch` — да, `EventEmitter.on` —
-    нет: у него два параметра, третий молча отбрасывается, и после `abort()` слушатель
-    остаётся живым (Node 24.11). Подробнее — в [«Тонких местах»](#s9).
-
-  </Card>
-
-  Третий аргумент `addEventListener` несёт и другое обещание: `{ passive: true }` говорит
-  браузеру, что слушатель не позовёт `preventDefault()`, и прокрутка его не ждёт. Почему один
-  слушатель `wheel` без этой опции возвращает прокрутку на главный поток — [«Кадр браузера»,
-  раздел «Что дешевле двигать»](/render/render-pipeline/#s4).
-
-  ### Колбэк как источник утечки
-
-  <CardGrid min={260} gap={12}>
-    {LEAKS.map((leak) => (
-      <Card tone="err" title={leak.t} titleSize={16} pad={16} radius={5} gap={8} size={15}>
-        <Md text={leak.d} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
-  ### Колбэк держит весь Context: по шагам
-
-  Колбэк ниже не трогает большой массив — и всё равно держит его в памяти, пока висит
-  подписка.
-
-  <CodeBlock code={LEAK_CODE} />
-
-  <CardGrid min={250} gap={12} align="start">
-    {CONTEXT_STEPS.map((step) => (
-      <Card label={`шаг ${step.n}`} labelSize={12} title={step.t} titleSize={16} pad={16} radius={5} gap={8} size={15} lh={1.6}>
-        <Md text={step.d} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
-  Два выхода — на том же примере. Первый переносит массив туда, где нет долгоживущих
-  колбэков:
-
-  <CodeBlock code={CONTEXT_FIX_CODE} />
-
-  <CardGrid min={280} gap={14} align="start">
-    {CONTEXT_WAYS.map((way) => (
-      <Card tone={way.tone} color="tone" label={way.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
-        <Md text={way.what} />
-        <Md text={`**Чем платит:** ${way.cost}`} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT_STEPS} />
-
-  <Card tone="warn" color="tone" pad={15} radius={4} size={15.5}>
-
-      Правило из этого разбора: **тяжёлые данные и долгоживущие колбэки не должны жить
-      в одном скоупе.** Как этот
-      `Context` выглядит со стороны кучи — в [теме про память и сборщик](/js/memory-gc/).
-
-  </Card>
-
-  <Card tone="warn" color="tone" title="Одиннадцатый слушатель — предупреждение, а не ошибка" titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6}>
-
-    `EventEmitter` зовёт слушателей в порядке подписки; `prependListener` ставит в начало.
-    На одиннадцатом слушателе одного события Node печатает `MaxListenersExceededWarning`
-    (Node 26.8): подписка прошла, но похоже на утечку — кто-то подписывается
-    в цикле и не отписывается. Порог меняют `setMaxListeners`, но сначала стоит найти,
-    кто подписывается лишний раз.
-
-  </Card>
-
-  ### Реентерантность: колбэк, который ломает вызывающего
-
-  Реентерантность — повторный вход в код, который ещё не закончил работу. Синхронный колбэк
-  выполняется **внутри** чужого алгоритма и поэтому может испортить его состояние.
 
   <CardGrid min={290} gap={14} align="start">
     {REENTRANT.map((item) => (
@@ -810,7 +642,7 @@ import {
   <DispatchLab client:visible />
 </Section>
 
-<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
 
   ### Проверьте сами
@@ -823,8 +655,8 @@ import {
 </Section>
 
 <Section
-  id="s10"
-  eyebrow="Раздел 10"
+  id="s9"
+  eyebrow="Раздел 9"
   title="Источники и смежные темы"
 >
   <Card title="Источники" titleSize={17} pad={20} gap={12}>
@@ -840,8 +672,8 @@ import {
     держит целое поддерево.
     [Отмена: AbortController и AbortSignal](/js/abort-controller/) — сигнал, `any` и `timeout`,
     что отменяет `fetch` и как не оставить слушателей на долгоживущем сигнале.
-    [Debounce, throttle и token bucket](/algorithms/rate-limiting/) — debounce и throttle
-    из lodash по шагам и ограничители частоты.
+    [Debounce, throttle и token bucket](/algorithms/rate-limiting/) — обёртки, которые зовут
+    ваш колбэк реже, чем приходят события, и ограничители частоты.
 
   </Card>
 </Section>

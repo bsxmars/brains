@@ -132,7 +132,7 @@ const yesNo = (value: boolean) => (value ? 'да' : 'нет');
     <div class="split">
       <div class="pane">
         <Md class="title" :text="scenario.title" />
-        <Md class="lead" :text="scenario.lead" />
+        <Md class="pane-lead" :text="scenario.lead" />
         <CodeListing :lines="scenario.code" label="что исполняется" />
       </div>
 
@@ -185,7 +185,7 @@ const yesNo = (value: boolean) => (value ? 'да' : 'нет');
                 <span class="value__box">{{ yesNo(orderRun.taskLast) }}</span>
               </div>
               <div class="value">
-                <span class="t-label">вложенная микрозадача в том же сливе</span>
+                <span class="t-label">вложенная микрозадача выполнилась до задачи</span>
                 <span class="value__box">{{ yesNo(orderRun.nestedInSameDrain) }}</span>
               </div>
             </div>
@@ -310,7 +310,7 @@ const yesNo = (value: boolean) => (value ? 'да' : 'нет');
   line-height: 1.35;
   color: var(--ink);
 }
-.lead {
+.pane-lead {
   font-size: var(--fs-5);
   line-height: 1.55;
   color: var(--prose);

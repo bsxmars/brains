@@ -79,6 +79,11 @@ import {
   RETAIN_CODE,
   RETAIN_OUT,
   RETAIN_NOTE,
+  LEAK_CODE,
+  CONTEXT_STEPS,
+  CONTEXT_FIX_CODE,
+  CONTEXT_WAYS,
+  PLAIN_CONTEXT_STEPS,
   DEBUG_CODE,
   DEBUG_ROWS,
   DEBUG_NOTE,
@@ -353,8 +358,7 @@ import {
   leadWidth={72}
 >
   Как Context устроен по слотам и как он выглядит в снимке кучи, разобрано в
-  [«Памяти и GC», раздел «Замыкания»](/js/memory-gc/#s3). Утечка через колбэк, который держит
-  чужой Context, с замером на двадцати подписках — в [«Колбэках», раздел «Отмена»](/js/callbacks/#s8).
+  [«Памяти и GC», раздел «Замыкания»](/js/memory-gc/#s3).
 
   ### Что лежит в Context
 
@@ -381,6 +385,41 @@ import {
 
     <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={RETAIN_NOTE} />
   </CardGrid>
+
+  ### Колбэк держит чужие данные: по шагам
+
+  Колбэк ниже не трогает большой массив — и всё равно держит его в памяти, пока висит
+  подписка.
+
+  <CodeBlock code={LEAK_CODE} />
+
+  <CardGrid min={250} gap={12} align="start">
+    {CONTEXT_STEPS.map((step) => (
+      <Card label={`шаг ${step.n}`} labelSize={12} title={step.t} titleSize={16} pad={16} radius={5} gap={8} size={15} lh={1.6}>
+        <Md text={step.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Два выхода — на том же примере. Первый переносит массив туда, где нет долгоживущих
+  колбэков:
+
+  <CodeBlock code={CONTEXT_FIX_CODE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {CONTEXT_WAYS.map((way) => (
+      <Card tone={way.tone} color="tone" label={way.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={way.what} />
+        <Md text={`**Чем платит:** ${way.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT_STEPS} />
 
   ### Что видит отладчик
 

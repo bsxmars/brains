@@ -851,28 +851,28 @@ export const MATRIX_CODE = `strategy:
   fail-fast: false        # не гасить соседей при первом падении
   max-parallel: 2         # больше двух одновременно не запускать
   matrix:
-    node: [20, 22]
+    node: [24, 26]
     flavour: [slim, alpine]
     exclude:
-      - { node: 20, flavour: alpine }     # убрать сочетание
+      - { node: 24, flavour: alpine }     # убрать сочетание
     include:
-      - { node: 24, flavour: slim, extra: added-by-include }  # добавить строку целиком`;
+      - { node: 26, flavour: distroless, extra: added-by-include }  # добавить строку целиком`;
 
 export const MATRIX_ROWS: { k: string; v: string; why: string; tone: Tone }[] = [
   {
-    k: '`node: [20, 22]` × `flavour: [slim, alpine]`',
+    k: '`node: [24, 26]` × `flavour: [slim, alpine]`',
     v: '4 сочетания',
     tone: 'info',
     why: 'каждое значение одного списка сочетается с каждым значением другого: 2 × 2',
   },
   {
-    k: '`exclude: {node: 20, flavour: alpine}`',
+    k: '`exclude: {node: 24, flavour: alpine}`',
     v: '3 сочетания',
     tone: 'info',
     why: 'убирает одно конкретное сочетание',
   },
   {
-    k: '`include: {node: 24, …, extra: …}`',
+    k: '`include: {node: 26, flavour: distroless, …}`',
     v: '4 сочетания',
     why: 'добавляет строку **и** новое поле, которого у остальных нет — у них оно пустое',
     tone: 'warn' as const,
@@ -1059,7 +1059,7 @@ export const COMPOSITE_CODE = `# .github/actions/setup/action.yml — соста
 name: setup
 inputs:
   node-version:
-    default: "22"
+    default: "24"
 runs:
   using: composite
   steps:
@@ -1075,7 +1075,7 @@ steps:
   - uses: actions/checkout@v4
   - uses: ./.github/actions/setup
     with:
-      node-version: "22"`;
+      node-version: "24"`;
 
 export const CALL_CODE = `# .github/workflows/deploy.yml — вызываемый конвейер
 on:
@@ -1122,7 +1122,7 @@ export const REUSE_FACTS: Fact[] = [
   },
   {
     t: 'Три вида действий',
-    d: 'Поле `runs.using` в `action.yml` говорит, чем действие является: `composite` — список шагов, как выше; `node20`/`node24` — программа на JavaScript, которую раннер запускает своим Node; `docker` — контейнер со своим образом (работает только на Linux-раннерах). Для конвейера разницы нет: всё это одна строка `uses:`. Ссылаются на действие и на вызываемый конвейер одинаково — путём в своём репозитории или `владелец/репо/путь@версия`, и правило про закрепление по хешу из раздела «Права и секреты» действует для обоих.',
+    d: 'Поле `runs.using` в `action.yml` говорит, чем действие является: `composite` — список шагов, как выше; `node24` — программа на JavaScript, которую раннер запускает своим Node; `docker` — контейнер со своим образом (работает только на Linux-раннерах). Для конвейера разницы нет: всё это одна строка `uses:`. Ссылаются на действие и на вызываемый конвейер одинаково — путём в своём репозитории или `владелец/репо/путь@версия`, и правило про закрепление по хешу из раздела «Права и секреты» действует для обоих.',
   },
   {
     t: 'В GitLab та же задача решается иначе',

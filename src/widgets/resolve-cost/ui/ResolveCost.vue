@@ -84,8 +84,8 @@ const NO_MODEL =
   <DemoFrame>
     <template #toolbar>
       <div class="rc-toolbar">
-        <span class="rc-toolbar__label">ResolvePromise(v) — чем резолвим:</span>
-        <SegmentedControl v-model="picked" class="l-pills" label="Случай резолва" :options="options" />
+        <span class="rc-toolbar__label">чем завершаем промис:</span>
+        <SegmentedControl v-model="picked" class="l-pills" label="Чем завершаем промис" :options="options" />
       </div>
     </template>
 
@@ -104,6 +104,7 @@ const NO_MODEL =
 
           <CodeListing :lines="lane.lane.code.split('\n')" />
 
+          <div class="rc-lane__body">
           <ConsoleView
             :lines="lane.measure.lines"
             :label="lane.measure.measured ? 'движок · выполнено в вашем браузере' : 'движок · заранее посчитанный вывод'"
@@ -111,7 +112,7 @@ const NO_MODEL =
           />
 
           <div class="rc-model">
-            <div class="t-label">модель спеки · из чего сложилась цена</div>
+            <div class="t-label">модель по спецификации · из чего сложилась цена</div>
             <div v-if="lane.model" class="rc-tape">
               <div
                 v-for="step in lane.model.steps"
@@ -128,6 +129,7 @@ const NO_MODEL =
             </div>
             <Md v-else class="rc-none" :text="NO_MODEL" />
           </div>
+          </div>
 
           <div class="rc-verdict" :data-state="lane.verdict">{{ verdictOf(lane) }}</div>
           <div v-if="lane.drift" class="rc-drift">
@@ -142,7 +144,7 @@ const NO_MODEL =
       <div class="rc-source">
         {{
           measured
-            ? 'Оба столбца получены прямо сейчас: левый — вашим движком, правый — моделью спеки.'
+            ? 'Оба столбца получены прямо сейчас: левый — вашим движком, правый — моделью по спецификации.'
             : 'Выполнить примеры не удалось — показаны заранее посчитанные числа.'
         }}
       </div>
@@ -195,13 +197,19 @@ const NO_MODEL =
   color: var(--prose);
 }
 
-/* Одна дорожка — во всю ширину; три — рядом, иначе разницу в цене не увидеть глазом. */
+/* Дорожки — строками, одна под другой (решение автора курса 2026-10-28: три узкие колонки
+   ломали код и подписи в столбик). Разницу в цене видно по плашке «N тика» в заголовке строки. */
 .rc-lanes {
   display: grid;
   gap: 16px;
 }
-.rc-lanes[data-many='yes'] {
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+
+/* Внутри строки вывод движка и разбор по тикам — рядом; на узком экране — друг под другом. */
+.rc-lane__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 16px;
+  align-items: start;
 }
 
 .rc-lane {

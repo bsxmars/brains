@@ -16,8 +16,7 @@ import Card from '@/shared/ui/Card.astro';
   </div>
 
   <div class="body">
-    То, что делает <code>await</code> и <code>Promise.resolve</code>. Если <code>v</code> — уже
-    нативный промис и его конструктор совпадает, возвращается <b>тот же объект</b>, без обёртки.
+    Это то, что делают <code>await v</code> и <code>Promise.resolve(v)</code>. Если <code>v</code> уже настоящий промис, возвращается <b>он сам</b>, без новой обёртки и без лишних тиков.
   </div>
 
   <div class="chip">Promise.resolve(p) === p · 0 тиков</div>

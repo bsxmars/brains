@@ -6,7 +6,7 @@ order: 28
 lead: "Каждая строка лога должна знать id своего запроса. Передавать его аргументом через все слои — утомительно, положить в глобальную переменную — нельзя: два запроса перекрываются по времени, и после `await` там окажется чужой id. Node решает это `AsyncLocalStorage`: значение, которое едет вместе с цепочкой `await`, таймеров и колбэков. Как оно устроено, в какой момент запоминается и почему в браузере его до сих пор нет."
 leadWidth: 66
 summary: "Гонка на глобальной переменной на сервере `node:http`; `run`, `getStore`, `exit` и опасный `enterWith`; момент снимка — регистрация, а не вызов: `then`, `await`, таймеры, `nextTick`, `EventEmitter` и `AsyncResource.bind`; `AsyncContextFrame` в Node 24 против `async_hooks` по числу вызовов хука; учебная переменная контекста на подмене `then` и `setTimeout` и её предел на `await`; предложение `AsyncContext`, zone.js, React, Vue и OpenTelemetry."
-verifiedOn: "Node 24.11.0 (V8 13.6) в обоих режимах AsyncLocalStorage, Node 20.14.0 и 26.8.2 для флагов, @opentelemetry/api 1.9.1, @vue/compiler-sfc 3.5.42, Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: сервер, снимки, enterWith и счётчики хука повторяет tests/unit/async-context.test.ts; учебная обёртка сверена с настоящим AsyncLocalStorage на шести сценариях"
+verifiedOn: "Node 24.11.0 (V8 13.6) в обоих режимах AsyncLocalStorage, Node 26.8.2 для флагов, @opentelemetry/api 1.9.1, @vue/compiler-sfc 3.5.42, Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: сервер, снимки, enterWith и счётчики хука повторяет tests/unit/async-context.test.ts; учебная обёртка сверена с настоящим AsyncLocalStorage на шести сценариях"
 nav:
   - { id: s0, label: Перед началом }
   - { id: s1, label: Гонка }
@@ -60,7 +60,6 @@ import {
   COST_CODE,
   COST_ROWS,
   COST_NOTE,
-  FLAG_ROWS,
   MINI_CODE,
   GLOBAL_CODE,
   ALS_CTX_CODE,
@@ -288,14 +287,6 @@ import {
   />
 
   <Md text={COST_NOTE} />
-
-  <Table
-    head={['версия', 'реализация', 'флаги']}
-    rows={FLAG_ROWS.map((r) => [r.k, r.v, r.d])}
-    kinds={['prose', 'prose', 'prose']}
-    cols="minmax(90px,.4fr) minmax(160px,.8fr) minmax(280px,1.8fr)"
-    minWidth={560}
-  />
 </Section>
 
 <Section

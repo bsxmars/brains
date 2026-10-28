@@ -73,6 +73,9 @@ const {
   text,
 } = Astro.props;
 
+// Метка карточки не мельче 14px: у сотни карточек стояли 11–12.5px, и подпись над заголовком
+// терялась (решение автора курса 2026-10-27).
+const labelPx = Math.max(labelSize, 14);
 const padding = typeof pad === 'number' ? `${pad}px` : pad;
 
 /**
@@ -97,7 +100,7 @@ const cardRadius = RADIUS[radius] ?? 'var(--r3)';
   data-label-tone={labelTone}
   data-emphasis={emphasis ? 'yes' : 'no'}
   data-flat={radius === 0 ? 'yes' : 'no'}
-  style={`--card-pad:${padding};--card-radius:${cardRadius};--card-gap:${gap}px;--card-fs:calc(${size}px * var(--fs-scale));--card-lh:${lh};--card-title-fs:calc(${titleSize}px * var(--fs-scale));--card-label-fs:calc(${labelSize}px * var(--fs-scale))`}
+  style={`--card-pad:${padding};--card-radius:${cardRadius};--card-gap:${gap}px;--card-fs:calc(${size}px * var(--fs-scale));--card-lh:${lh};--card-title-fs:calc(${titleSize}px * var(--fs-scale));--card-label-fs:calc(${labelPx}px * var(--fs-scale))`}
 >
   {/* Через `inlineMd`, как и заголовок: метка — тоже строковый проп, и в ней почти всегда
       стоит имя в обратных кавычках (`activeSub`, `[[Get]]`). Голый вывод доставил бы кавычки

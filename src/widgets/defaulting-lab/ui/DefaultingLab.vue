@@ -146,7 +146,7 @@ const FOOTER_NOTE =
     </template>
 
     <div class="body">
-      <Md class="lead" :text="subject.note" />
+      <Md class="pane-lead" :text="subject.note" />
 
       <div :id="ROOT" class="stage">
         <div class="parent">
@@ -200,7 +200,7 @@ const FOOTER_NOTE =
   padding: 22px 20px;
   min-width: 0;
 }
-.lead {
+.pane-lead {
   font-size: var(--fs-6);
   line-height: 1.6;
   color: var(--prose);

@@ -487,7 +487,7 @@ export const INTEROP_STEPS: { k: string; when: string; what: string; cost: strin
 ];
 
 export const REQUIRE_ESM_NOTE =
-  'Обратное направление — CommonJS, который подключает ESM, — с Node 20.19+ / 22.12+ делается обычным `require`: он вернёт namespace-объект модуля. Где это ломается — в подразделе «`require(esm)` и `await` на верхнем уровне».';
+  'Обратное направление — CommonJS, который подключает ESM, — в Node 24 делается обычным `require`: он вернёт namespace-объект модуля. Где это ломается — в подразделе «`require(esm)` и `await` на верхнем уровне».';
 
 export const EXPORTS_CODE = `{
   "name": "my-lib",

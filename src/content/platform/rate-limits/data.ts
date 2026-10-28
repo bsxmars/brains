@@ -256,7 +256,7 @@ export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; 
   {
     t: 'Как ограничитель считает запросы',
     d: 'Ведро жетонов, дырявое ведро, фиксированное и скользящее окно — алгоритмы, которые решают, пропустить запрос или отказать. Здесь они не разбираются: тема о том, как отказ выглядит в HTTP и что с ним делает клиент.',
-    href: '/algorithms/rate-limiting/#s5',
+    href: '/algorithms/rate-limiting/#s6',
     hrefLabel: '«Debounce, throttle и token bucket», раздел «Ведро жетонов»',
     tone: 'info',
   },
@@ -277,7 +277,7 @@ export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; 
   {
     t: 'Виртуальные часы',
     d: 'Симуляции темы идут на часах, которые двигает сам код: пауза в 4 секунды проходит мгновенно, а одинаковое зерно случайности даёт одинаковый результат при каждом запуске.',
-    href: '/algorithms/rate-limiting/#s1',
+    href: '/algorithms/rate-limiting/#s2',
     hrefLabel: '«Debounce, throttle и token bucket», раздел «Часы»',
     tone: 'info',
   },
@@ -526,7 +526,7 @@ export const CLUSTER_FACTS: { t: string; d: string; tone?: 'ok' | 'warn' | 'err'
 ];
 
 export const CLUSTER_NOTE =
-  'Счётчик растёт и на отказанных запросах: после тридцати обращений в Redis лежит 30, хотя пропущено 10. Для фиксированного окна это не важно — сравнивается только `count <= limit`. Срок ставится с `NX` один раз, на первом `INCR` окна; ключ живёт два окна и исчезает сам. Почему `INCR` и срок нельзя разносить по двум командам — в [«Кеше перед базой», раздел «Срок ключа»](/data/redis-cache/#s2). Чем окно хуже ведра жетонов — в [«Debounce, throttle и token bucket», раздел «Окна»](/algorithms/rate-limiting/#s7).';
+  'Счётчик растёт и на отказанных запросах: после тридцати обращений в Redis лежит 30, хотя пропущено 10. Для фиксированного окна это не важно — сравнивается только `count <= limit`. Срок ставится с `NX` один раз, на первом `INCR` окна; ключ живёт два окна и исчезает сам. Почему `INCR` и срок нельзя разносить по двум командам — в [«Кеше перед базой», раздел «Срок ключа»](/data/redis-cache/#s2). Чем окно хуже ведра жетонов — в [«Debounce, throttle и token bucket», раздел «Окна»](/algorithms/rate-limiting/#s8).';
 
 // ─── Раздел 6. Что повторять ───────────────────────────────────────────────────────────────
 
@@ -834,4 +834,4 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Debounce, throttle и token bucket](/algorithms/rate-limiting/#s5) — сами алгоритмы ограничителя: ведро жетонов, дырявое ведро, окна. [Балансировка нагрузки, раздел «Повторы»](/delivery/load-balancing/#s6) — повторы на стороне прокси и `Idempotency-Key`. [Nginx как обратный прокси, раздел «Заголовки к бэкенду»](/delivery/nginx-proxy/#s4) — откуда берётся `X-Forwarded-For`. [Кеш перед базой, раздел «Толпа»](/data/redis-cache/#s5) — то же стадо, но на промахе кеша. [CDN и серверный кеш, раздел «Кеш в приложении»](/platform/cdn-cache/#s6) — джиттер в сроке жизни ключей. [Долгие соединения, раздел «Переподключение и heartbeat»](/platform/realtime/#s6) — полный джиттер при переподключении сокетов. [Кеш данных на клиенте, раздел «Фокус и повторы»](/frameworks/data-cache/#s4) — повторы в TanStack Query.';
+  'Смежное на сайте: [Debounce, throttle и token bucket](/algorithms/rate-limiting/#s6) — сами алгоритмы ограничителя: ведро жетонов, дырявое ведро, окна. [Балансировка нагрузки, раздел «Повторы»](/delivery/load-balancing/#s6) — повторы на стороне прокси и `Idempotency-Key`. [Nginx как обратный прокси, раздел «Заголовки к бэкенду»](/delivery/nginx-proxy/#s4) — откуда берётся `X-Forwarded-For`. [Кеш перед базой, раздел «Толпа»](/data/redis-cache/#s5) — то же стадо, но на промахе кеша. [CDN и серверный кеш, раздел «Кеш в приложении»](/platform/cdn-cache/#s6) — джиттер в сроке жизни ключей. [Долгие соединения, раздел «Переподключение и heartbeat»](/platform/realtime/#s6) — полный джиттер при переподключении сокетов. [Кеш данных на клиенте, раздел «Фокус и повторы»](/frameworks/data-cache/#s4) — повторы в TanStack Query.';

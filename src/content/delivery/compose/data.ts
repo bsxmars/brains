@@ -950,7 +950,7 @@ export const BUILD_CODE = `services:
       dockerfile: Dockerfile
       target: runtime            # ступень многоступенчатой сборки
       args:
-        NODE_VERSION: "22"       # значение для ARG в Dockerfile
+        NODE_VERSION: "24"       # значение для ARG в Dockerfile
     image: registry.example.com/shop/api:dev   # имя, под которым сохранить результат`;
 
 export const BUILD_FACTS = [

@@ -17,41 +17,41 @@ import Callout from '@/shared/ui/Callout.astro';
   <div class="head">
     <span class="head__index">операция 2</span>
     <span class="head__name">ResolvePromise(v)</span>
-    <span class="head__note">— самая содержательная часть</span>
+    <span class="head__note">— что происходит при <code>resolve(v)</code></span>
   </div>
 
   <div class="flow">
     <div class="branch">
-      <div class="question">v === сам промис?</div>
+      <div class="question">v — это сам промис?</div>
       <div class="glyph glyph--err">▶</div>
       <div class="outcome outcome--err">
-        <span class="outcome__text">отказ TypeError — защита от цикла</span>
+        <span class="outcome__text">отказ с TypeError: промис не может ждать сам себя</span>
         <span class="outcome__cost">—</span>
       </div>
     </div>
     <div class="down"><span class="down__line"></span><span class="down__label">нет ↓</span></div>
 
     <div class="branch">
-      <div class="question">v — не объект?</div>
+      <div class="question">v — не объект (число, строка, undefined…)?</div>
       <div class="glyph glyph--ok">▶</div>
       <div class="outcome outcome--ok">
-        <span class="outcome__name">FulfillPromise(v)</span>
+        <span class="outcome__text">промис выполнен значением v</span>
         <span class="outcome__cost">+0</span>
       </div>
     </div>
     <div class="down"><span class="down__line"></span><span class="down__label">нет ↓</span></div>
 
     <div class="getter">
-      <div class="getter__name">then = v.then</div>
-      <div class="getter__text">Это <b>ГЕТТЕР</b>. Может бросить, может быть побочным.</div>
+      <div class="getter__name">читается v.then</div>
+      <div class="getter__text">Чтение свойства может запустить чужой код — <b>геттер</b>. Он может бросить ошибку или сделать что-то ещё.</div>
     </div>
     <div class="down"><span class="down__line"></span></div>
 
     <div class="branch">
-      <div class="question">then не функция?</div>
+      <div class="question">v.then — не функция?</div>
       <div class="glyph glyph--ok">▶</div>
       <div class="outcome outcome--ok">
-        <span class="outcome__name">FulfillPromise(v)</span>
+        <span class="outcome__text">промис выполнен значением v</span>
         <span class="outcome__cost">+0</span>
       </div>
     </div>
@@ -61,24 +61,22 @@ import Callout from '@/shared/ui/Callout.astro';
 
     <div class="job">
       <div class="job__line">
-        <span class="job__name">HostEnqueuePromiseJob(NewPromiseResolveThenableJob)</span>
+        <span class="job__name">в очередь встаёт микрозадача, которая вызовет v.then</span>
         <span class="job__cost">+1</span>
       </div>
       <div class="job__line job__line--nested">
-        <span class="job__text">job зовёт then(resolveFn, rejectFn) — синхронный thenable зовёт resolveFn прямо здесь</span>
+        <span class="job__text">если v.then сразу вызывает resolve — на этом всё</span>
         <span class="job__cost">+0</span>
       </div>
       <div class="job__line job__line--nested">
-        <span class="job__text">...а нативный промис откладывает вызов ещё на одну реакцию</span>
+        <span class="job__text">у настоящего промиса v.then сам ставит колбэк в очередь — ещё один тик</span>
         <span class="job__cost">+1</span>
       </div>
     </div>
   </div>
 
   <Callout size={17} lh={1.5}>
-    Вот и «<b>+2 тика за промис на выходе</b>». Не магия — две последовательные постановки в
-    очередь: сам job и реакция внутри его <code>then</code>. Синхронный thenable обходится
-    одной.
+    Поэтому промис, который вернули из <code>.then</code> или <code>async</code>-функции, стоит <b>на два тика больше</b>, чем обычное значение: одна микрозадача вызывает его <code>then</code>, вторая — колбэк внутри этого <code>then</code>. Объект с методом <code>then</code>, который вызывает <code>resolve</code> сразу, обходится одним тиком.
   </Callout>
 </div>
 
@@ -166,9 +164,7 @@ import Callout from '@/shared/ui/Callout.astro';
     font-size: var(--fs-6);
     color: var(--tone-err-text);
   }
-  .outcome__name {
-    font-family: var(--mono);
-    font-size: var(--fs-4);
+  .outcome--ok .outcome__text {
     color: var(--tone-ok-text);
   }
   .outcome__cost {
@@ -257,7 +253,7 @@ import Callout from '@/shared/ui/Callout.astro';
   .job__name,
   .job__text,
   .question,
-  .outcome__name {
+  .outcome__text {
     overflow-wrap: anywhere;
   }
 

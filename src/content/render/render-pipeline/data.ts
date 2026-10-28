@@ -103,7 +103,7 @@ export const FRAME_BUDGET_MS = 16.7;
  */
 export const FRAME_PHASES: FramePhase[] = [
   { id: 'task', label: 'задача JS', at: 0, ms: 5.6, lane: 'main', tone: 'ink' },
-  { id: 'micro', label: 'µtasks', at: 5.6, ms: 0.6, lane: 'main', tone: 'info' },
+  { id: 'micro', label: 'микрозадачи', at: 5.6, ms: 0.6, lane: 'main', tone: 'info' },
   { id: 'raf', label: 'rAF → µ', at: 6.2, ms: 1.8, lane: 'main', tone: 'warn' },
   { id: 'observers', label: 'RO → IO', at: 8.0, ms: 0.7, lane: 'main', tone: 'warn' },
   { id: 'style', label: 'style', at: 8.7, ms: 1.1, lane: 'main', tone: 'ok' },

@@ -131,7 +131,7 @@ export function createRuntime(): SimRuntime {
 
     performPromiseThen(target, label, options = {}) {
       const reaction: Job = {
-        job: 'реакция',
+        job: 'колбэк',
         note: label,
         kind: 'reaction',
         run: () => {
@@ -155,11 +155,11 @@ export function createRuntime(): SimRuntime {
 
       // Всё, у чего `then` оказался функцией, разворачивается через отдельную job.
       queue.push({
-        job: 'NewPromiseResolveThenableJob',
+        job: 'вызов then',
         note:
           'thenable' in value
-            ? `job зовёт then(resolveFn) — ${value.label} зовёт resolveFn прямо здесь`
-            : 'job зовёт then(resolveFn) нативного промиса',
+            ? `вызываем then у ${value.label} — он сразу вызывает resolve`
+            : 'вызываем then у промиса — он ответит через очередь',
         kind: 'thenable-job',
         run: () => {
           if ('thenable' in value) {
@@ -167,7 +167,7 @@ export function createRuntime(): SimRuntime {
             fulfill(target);
           } else {
             // У нативного промиса свой `then`: он ставит ещё одну реакцию, и это второй тик.
-            rt.performPromiseThen(value, 'resolveFn фулфилит промис', {
+            rt.performPromiseThen(value, 'промис получает результат', {
               then: () => fulfill(target),
             });
           }

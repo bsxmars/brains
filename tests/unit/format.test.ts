@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inlineMd, plainMd, topics } from '@/shared/lib/format';
+import { inlineMd, plainMd, splitLinkWordsInHtml, topics } from '@/shared/lib/format';
 
 /**
  * Строчная разметка — шов, через который проходит почти весь текст курса: заголовки, лиды,
@@ -23,13 +23,13 @@ describe('inlineMd', () => {
 
   it('делает ссылку на соседнюю тему', () => {
     expect(inlineMd('см. [event loop](/js/event-loop/)')).toBe(
-      'см. <a href="/js/event-loop/">event loop</a>',
+      'см. <a class="words" href="/js/event-loop/"><span>event</span> <span>loop</span></a>',
     );
   });
 
   it('внутри текста ссылки работают обе остальные метки', () => {
     expect(inlineMd('[тема про `Promise`](/js/promise-internals/)')).toBe(
-      '<a href="/js/promise-internals/">тема про <code>Promise</code></a>',
+      '<a class="words" href="/js/promise-internals/"><span>тема</span> <span>про</span> <span><code>Promise</code></span></a>',
     );
   });
 
@@ -63,5 +63,20 @@ describe('topics', () => {
       '22 темы',
       '25 тем',
     ]);
+  });
+});
+
+describe('splitLinkWordsInHtml: ссылки прозы на готовой странице', () => {
+  it('режет ссылку без класса по словам, вместе с переводом строки из MDX', () => {
+    expect(splitLinkWordsInHtml('в <a href="/js/x/#s3">«Промис изнутри»,\n раздел</a>.')).toBe(
+      'в <a class="words" href="/js/x/#s3"><span>«Промис</span> <span>изнутри»,</span> <span>раздел</span></a>.',
+    );
+  });
+
+  it('не трогает ссылки с классом, из одного слова и внутри острова', () => {
+    const html =
+      '<a class="nav" href="/a">два слова</a><a href="/b">одно</a>' +
+      '<astro-island uid="1"><a href="/c">в острове</a></astro-island>';
+    expect(splitLinkWordsInHtml(html)).toBe(html);
   });
 });

@@ -12,10 +12,11 @@ interface Props {
   /** Старые способы отписки — по одному на API. */
   old: string[];
   code: string;
-  facts: string[];
+  /** Короткие факты под кодом. Без них блок кончается кодом. */
+  facts?: string[];
 }
 
-const { old, code, facts } = Astro.props;
+const { old, code, facts = [] } = Astro.props;
 ---
 
 <div class="funnel">
@@ -32,9 +33,13 @@ const { old, code, facts } = Astro.props;
 
   <CodeBlock code={code} size={12.5} lh={1.75} pad="16px 18px" />
 
-  <div class="facts">
-    {facts.map((fact) => <div class="fact">{fact}</div>)}
-  </div>
+  {
+    facts.length > 0 && (
+      <div class="facts">
+        {facts.map((fact) => <div class="fact">{fact}</div>)}
+      </div>
+    )
+  }
 </div>
 
 <style>

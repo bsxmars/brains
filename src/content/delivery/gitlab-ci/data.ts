@@ -872,7 +872,7 @@ export const EXTENDS_FACTS = [
 /** Раздел 1 · раннеры, исполнители и теги. */
 export const RUNNER_TAGS_CODE = `e2e:
   tags: [docker, gpu]     # раннер обязан иметь ОБА тега
-  image: node:22          # образ учитывают только исполнители с контейнерами
+  image: node:24          # образ учитывают только исполнители с контейнерами
   script: npm run e2e`;
 
 export const RUNNER_FACTS = [
@@ -1003,7 +1003,7 @@ export const COMPONENT_CODE = `# templates/node-test.yml в проекте-ка�
 spec:
   inputs:
     node-version:
-      default: "22"
+      default: "24"
 ---
 test:
   image: node:$[[ inputs.node-version ]]
@@ -1013,7 +1013,7 @@ test:
 include:
   - component: $CI_SERVER_FQDN/my-group/ci-templates/node-test@1.2.0
     inputs:
-      node-version: "20"`;
+      node-version: "26"`;
 
 export const SCALE_FACTS = [
   {
