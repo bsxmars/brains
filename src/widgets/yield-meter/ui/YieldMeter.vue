@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Цена уступки — прибором, а не константой.
+ * Сколько стоит отдать поток — прибором, а не константой.
  *
  * Тема целиком про измеримые величины, и соседний калькулятор (`widgets/yield-cost`) честно
  * пишет в подвале: «числа модельные, меряйте на своём железе». Померить было нечем — теперь есть.
@@ -51,7 +51,7 @@ const props = withDefaults(
 
 /** Текст тревоги про скрытую вкладку. Строкой и через `Md`: в шаблоне разметка не разбирается. */
 const HIDDEN_ALARM =
-  'Вкладка была скрыта в момент замера. Браузер замедляет таймеры в фоне — до одного срабатывания в секунду, — так что строка `setTimeout` показывает не цену уступки, а это замедление.';
+  'Вкладка была скрыта в момент замера. Браузер замедляет таймеры в фоне — до одного срабатывания в секунду, — так что строка `setTimeout` показывает не цену отдачи потока, а это замедление.';
 
 const report = ref<YieldReport | null>(null);
 const busy = ref(false);
@@ -87,7 +87,7 @@ const baseLabel = computed(() => {
   return data?.rows.find((row) => row.key === data.base)?.label ?? '';
 });
 
-/** Самая дорогая уступка задаёт длину полосы: остальные — доли от неё. */
+/** Самый дорогой способ задаёт длину полосы: остальные — доли от неё. */
 const worst = computed(() =>
   (report.value?.rows ?? []).reduce((max, row) => (row.available ? Math.max(max, row.perYieldMs) : max), 0),
 );
@@ -118,7 +118,7 @@ const log = computed<string[]>(() => {
   for (const row of data.rows) {
     lines.push(
       row.available
-        ? `${row.label.padEnd(18)} ${String(row.iterations).padStart(9)} уступок за ${fmtSpan(row.spanMs)}`
+        ? `${row.label.padEnd(18)} ${String(row.iterations).padStart(9)} раз отдан поток за ${fmtSpan(row.spanMs)}`
         : `${row.label.padEnd(18)} — не меряли`,
     );
   }
@@ -158,9 +158,9 @@ const log = computed<string[]>(() => {
           <table class="ym-grid">
             <thead>
               <tr>
-                <th>чем уступаем</th>
-                <th>уступок в секунду</th>
-                <th>цена одной</th>
+                <th>чем отдаём поток</th>
+                <th>раз в секунду</th>
+                <th>цена одного раза</th>
                 <th>кратность</th>
               </tr>
             </thead>
@@ -168,7 +168,7 @@ const log = computed<string[]>(() => {
               <tr v-for="row in report.rows" :key="row.key" :data-tone="row.tone">
                 <td>
                   <span class="ym-name" data-code>{{ row.label }}</span>
-                  <span v-if="!row.yields" class="ym-flag">не уступка</span>
+                  <span v-if="!row.yields" class="ym-flag">поток не отдан</span>
                 </td>
                 <template v-if="row.available">
                   <td class="ym-num ym-num--lead">{{ fmtRate(row.perSecond) }}</td>
@@ -184,12 +184,12 @@ const log = computed<string[]>(() => {
         <p class="ym-hint">
           Кратность отсчитывается от самого дешёвого способа, который поток действительно
           отпускает<template v-if="baseLabel"> — здесь это <span class="ym-name" data-code>{{ baseLabel }}</span></template>.
-          У микрозадачи она поэтому меньше единицы: дешевле любой уступки она ровно потому,
-          что уступкой не является.
+          У микрозадачи она поэтому меньше единицы: микрозадача дешевле всех ровно потому,
+          что поток не отдаёт.
         </p>
 
         <div class="ym-chart">
-          <div class="ym-chart__title t-label">цена одной уступки, доля от самой дорогой</div>
+          <div class="ym-chart__title t-label">цена одного раза, доля от самого дорогого способа</div>
           <div v-for="row in report.rows" :key="row.key" class="ym-track">
             <span class="ym-track__name">{{ row.label }}</span>
             <span class="ym-track__rail">
@@ -218,7 +218,7 @@ const log = computed<string[]>(() => {
           <span class="ym-source__tag">снято на вашей машине · величина зависит от браузера и нагрузки</span>
           <Md
             class="ym-source__text"
-            text="Обвязка замера — один промис и одно чтение часов на оборот — входит в каждую строку **одинаково**, поэтому строки сравнимы между собой. Строка `queueMicrotask` этой обвязкой почти и исчерпывается: она показывает пол измерения, а не способ уступить."
+            text="Обвязка замера — один промис и одно чтение часов на оборот — входит в каждую строку **одинаково**, поэтому строки сравнимы между собой. Строка `queueMicrotask` этой обвязкой почти и исчерпывается: она показывает пол измерения, а не способ отдать поток."
           />
         </div>
 

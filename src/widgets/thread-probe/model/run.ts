@@ -112,8 +112,8 @@ function finish(mode: ThreadMode, workMs: number, tookMs: number, checksum: numb
  * Работа на главном потоке.
  *
  * `burn` синхронна, и в этом весь смысл: пока она крутится, цикл событий занят, кадры не
- * выдаются, обработчики не зовутся. Никакой уступки внутри нет намеренно — демо показывает
- * именно то, что случается, когда её нет.
+ * выдаются, обработчики не зовутся. Поток она намеренно не отдаёт ни разу — демо показывает
+ * именно то, что случается, когда браузеру не дают вклиниться.
  */
 export async function measureMain(workMs: number, onFrame?: (frames: number) => void): Promise<ThreadRun> {
   if (!hasRaf()) return failed('main', workMs, 'в этой среде нет `requestAnimationFrame` — считать кадры нечем');

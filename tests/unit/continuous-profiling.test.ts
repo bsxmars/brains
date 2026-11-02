@@ -461,7 +461,7 @@ console.log(JSON.stringify(rows));`;
     expect(Math.min(...rows.map((r) => r.delayP99Ms)), 'после вычета шага простой близок к нулю').toBeLessThan(8);
   }, 60_000);
 
-  it('записи gc: доставка после уступки, виды и флаг принудительной сборки', () => {
+  it('записи gc: доставка после того, как поток отдан циклу, виды и флаг принудительной сборки', () => {
     const code = `import { PerformanceObserver, constants as C } from 'node:perf_hooks';
 const seen = { minor: 0, major: 0, forced: 0 };
 const obs = new PerformanceObserver((list) => {
@@ -487,7 +487,7 @@ obs.disconnect();`;
     expect(r.minor, 'мусор даёт молодые сборки').toBeGreaterThan(0);
     expect(r.forced, 'gc() помечен флагом FORCED').toBe(2);
     expect(r.major).toBeGreaterThanOrEqual(2);
-    // Синхронно сразу после gc() — ноль, пока поток не уступлен (без флага, одной записью).
+    // Синхронно сразу после gc() — ноль, пока поток не отдан циклу (без флага, одной записью).
     const syncCode = `import { PerformanceObserver } from 'node:perf_hooks';
 let n = 0;
 const o = new PerformanceObserver((l) => { n += l.getEntries().length; });

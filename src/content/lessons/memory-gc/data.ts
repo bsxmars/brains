@@ -23,7 +23,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
  * Уточнено при втором проходе (Node 24.11.0 и 26.8.2, `--expose-gc`, каждый прогон 3–5 раз
  * подряд с одинаковым ответом; команды — в докстрингах `GC_KEPT_PROBE` и `LOS_PROBE`):
  *
- *   gc() без уступки   причиной называли регистры и кадр. Настоящая причина — KeptObjects:
+ *   gc() без паузы     причиной называли регистры и кадр. Настоящая причина — KeptObjects:
  *                      `new WeakRef(obj)` и `deref()` держат цель до конца задачи. Объект
  *                      без WeakRef синхронный gc() собирает сразу — `GC_KEPT_PROBE_OUT`;
  *   третья доля        «третье полупространство нужно под эвакуацию» — неверно: Scavenge
@@ -86,7 +86,7 @@ export const OBSERVABLE_NODE: string[][] = [
 /**
  * ⚠️ ГЛАВНАЯ ОГОВОРКА РАЗДЕЛА. Цель `WeakRef` не собирается в той задаче, где создан сам
  * `WeakRef`, — пять прогонов из пяти. Ни один вызов, ни два подряд, ни
- * `gc({ type: 'major', execution: 'sync' })`. Рецепт: сперва уступить потоку, потом звать сборку.
+ * `gc({ type: 'major', execution: 'sync' })`. Рецепт: сперва отдать поток циклу событий, потом звать сборку.
  *
  * Причина — не регистры и не кадр, как было написано раньше, а KeptObjects (ECMA-262,
  * AddToKeptObjects / ClearKeptObjects): конструктор `WeakRef` и `deref()` кладут цель в список,
@@ -94,7 +94,7 @@ export const OBSERVABLE_NODE: string[][] = [
  *
  * Вторая половина рецепта не менее важна: ссылку создаём ВНУТРИ функции. Оставленная
  * в кадре вызывающего переменная держит объект сама, и тогда не собирается ничего
- * независимо от уступки — а выглядит это ровно как «gc() не работает».
+ * независимо от того, отдан ли поток, — а выглядит это ровно как «gc() не работает».
  */
 export const GC_YIELD_PROBE = `// node --expose-gc файл.mjs
 function makeRef() {                  // объект живёт и умирает внутри кадра функции:
@@ -105,25 +105,25 @@ const ref = makeRef();
 globalThis.gc();                            // ← не собрано
 globalThis.gc();                            // ← и два подряд не собирают
 gc({ type: 'major', execution: 'sync' });   // ← и этот не собирает
-console.log('без уступки потоку:  deref() →', ref.deref() ? 'объект' : undefined);
+console.log('поток не отдан:      deref() →', ref.deref() ? 'объект' : undefined);
 
 await new Promise((r) => setTimeout(r, 0)); // ← вот без этой строки не работает ничего
 globalThis.gc();
 console.log('после setTimeout(0): deref() →', ref.deref() ? 'объект' : undefined);`;
 
 /** Сверяет с исполнением листинга `tests/unit/memory-gc.test.ts`, блок «рецепт сборки»: строка в строку. */
-export const GC_YIELD_PROBE_OUT = `без уступки потоку:  deref() → объект
+export const GC_YIELD_PROBE_OUT = `поток не отдан:      deref() → объект
 после setTimeout(0): deref() → undefined`;
 
 /**
- * Почему без уступки не собирается: виноват сам `WeakRef`, а не сборщик.
+ * Почему, пока поток не отдан, не собирается: виноват сам `WeakRef`, а не сборщик.
  *
  * Проверено на Node 24.11.0 и 26.8.2 (`node --expose-gc файл.mjs`), каждая строка вывода —
  * 5 прогонов из 5 на 26.8 и 3 из 3 на 24.11. Прогоны, из которых собраны строки вывода:
  *
- *   (а) объект только в FinalizationRegistry, gc() до уступки, после уступки второго gc() нет —
+ *   (а) объект только в FinalizationRegistry, gc() до паузы, после паузы второго gc() нет —
  *       колбэк пришёл: сборка случилась синхронно. Контроль без gc() — колбэка нет;
- *   (б) WeakRef создан в прошлой задаче, в этой — gc() без уступки: deref() → undefined;
+ *   (б) WeakRef создан в прошлой задаче, в этой — gc() без паузы: deref() → undefined;
  *   (в) WeakRef создан в этой же задаче: не собран;
  *   (г) WeakRef из прошлой задачи, но в этой вызван deref(), потом gc(): не собран;
  *   (д) две микрозадачи (`await Promise.resolve()` ×2) вместо setTimeout: не собран;
@@ -145,7 +145,7 @@ function withWeakRef() {                 // такой же объект, плю
 }
 onlyRegistry();
 const ref = withWeakRef();
-globalThis.gc();                         // один вызов, до всякой уступки
+globalThis.gc();                         // один вызов, поток ещё не отдан
 
 await new Promise((r) => setTimeout(r, 0));   // только чтобы пришли колбэки
 console.log('собран «без WeakRef»:', fired.includes('без WeakRef') ? 'да' : 'нет');
@@ -983,7 +983,7 @@ function plain() {                     // контроль: значение о 
 }
 cycleOnly(); valueHeldOutside(); plain();
 
-await new Promise((r) => setTimeout(r, 0));   // сперва уступить потоку
+await new Promise((r) => setTimeout(r, 0));   // сперва отдать поток циклу
 gc();
 await new Promise((r) => setTimeout(r, 0));   // чтобы пришли колбэки
 for (const t of ['cycle-only', 'value-held', 'plain']) console.log(t, fired.has(t));`;

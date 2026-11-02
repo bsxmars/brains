@@ -267,7 +267,7 @@ describe('мини-планировщик против настоящего sche
     expect(t.STARVE_NOTE).toContain(`${t.STARVE_FACTS.clicksBefore} кликов`);
   });
 
-  it('после продолжения уступает всегда, даже через 0 мс работы', () => {
+  it('после продолжения отдаёт поток всегда, даже через 0 мс работы', () => {
     for (const create of [miniCreate, realScheduler]) {
       const host = new Function(`${t.HOST_CODE}\nreturn createHost();`)() as Host & {
         run(): void;
@@ -287,7 +287,7 @@ describe('мини-планировщик против настоящего sche
     }
   });
 
-  it('квант — 5 мс: уступка после пятого куска по 1 мс', () => {
+  it('квант — 5 мс: поток отдаётся после пятого куска по 1 мс', () => {
     const jobs: Job[] = [{ name: 'A', priority: 3, units: Array.from({ length: 12 }, () => 1) }];
     const log = fmt(runReal(jobs));
     expect(log[4]).toBe('#1 t=4 A4');

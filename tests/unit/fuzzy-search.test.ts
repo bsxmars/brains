@@ -160,11 +160,11 @@ describe('trie и словарь курса', () => {
   it('словарь курса — числа из текста', () => {
     expect(entries.length).toBe(843);
     expect(t.SEARCH_TOPICS.length).toBe(114);
-    expect(words.length).toBe(1140);
-    expect(index.trie.nodes).toBe(4499);
-    expect(words.reduce((s, w) => s + [...w].length, 0)).toBe(7552);
-    expect(radix.countNodes(radix.compress(index.trie.root))).toBe(1553);
-    expect(t.MEMORY_ROWS[0]).toMatchObject({ words: '1 140', chars: '7 552', trie: '4 499', radix: '1 553' });
+    expect(words.length).toBe(1139);
+    expect(index.trie.nodes).toBe(4494);
+    expect(words.reduce((s, w) => s + [...w].length, 0)).toBe(7543);
+    expect(radix.countNodes(radix.compress(index.trie.root))).toBe(1552);
+    expect(t.MEMORY_ROWS[0]).toMatchObject({ words: '1 139', chars: '7 543', trie: '4 494', radix: '1 552' });
   });
 
   it('withPrefix совпадает с filter(startsWith) на всех префиксах словаря', () => {
@@ -258,7 +258,7 @@ describe('Левенштейн и Дамерау', () => {
       band += within(q, w, 2).cells;
     }
     expect({ full, band }).toEqual(t.WITHIN);
-    expect(t.WITHIN_NOTE).toContain('90 624');
+    expect(t.WITHIN_NOTE).toContain('90 516');
     expect(t.WITHIN_NOTE).toContain('2329');
   });
 

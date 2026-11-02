@@ -36,7 +36,7 @@ import type { LanesScenarioApi } from '@/widgets/mini-lanes/model/types';
  * вовсе, это проверено чтением `react-dom-client.development.js`. Поэтому здесь `act` нет,
  * а планировщик подменён на `scheduler/unstable_mock` — тот самый, на котором пишет тесты
  * команда React. Он лежит в `node_modules/scheduler` рядом с настоящим и отличается одним:
- * время и уступки задаёт тест. `shouldYield` отвечает «пора», когда компоненты вывели
+ * время и моменты, когда отдавать поток, задаёт тест. `shouldYield` отвечает «пора», когда компоненты вывели
  * заданное число строк (`unstable_flushNumberOfYields`), а часы двигает `unstable_advanceTime`.
  * Ни `performance.now()`, ни настоящих таймеров в прогоне нет — это те же виртуальные часы,
  * что у мини-версии, только чужие.
@@ -411,14 +411,14 @@ describe('мини-версия и React 19.3 на одних и тех же с�
     const react = await runReact(SCENARIO_INTERRUPT);
     react.fire('transition', 'default');
     await microtasks();
-    // Четыре строки лога — и планировщик говорит «уступи»: App и три строки списка.
+    // Четыре строки лога — и планировщик говорит «отдай поток»: App и три строки списка.
     Scheduler.unstable_flushNumberOfYields(4);
     expect(react.logs).toEqual(INTERRUPT_LOG.slice(0, 4));
     react.fire('input', 'discrete');
     await settle();
     expect(react.logs).toEqual(INTERRUPT_LOG);
 
-    // У мини-версии уступает квант в 5 мс: App и три строки по 2 мс — те же четыре строки.
+    // У мини-версии поток отдаётся по кванту в 5 мс: App и три строки по 2 мс — те же четыре строки.
     const mini = runMini(SCENARIO_INTERRUPT);
     mini.fire('transition', 'default');
     mini.runUntilLogs(4);
@@ -565,24 +565,24 @@ describe('мини-версия и React 19.3 на одних и тех же с�
     errors.mockRestore();
   });
 
-  it('голодание: переход, который прерывают после каждого кванта, через 5 с рендерится без уступок', async () => {
-    // React: две строки — и уступить; но после 6 с виртуального времени полоса просрочена,
+  it('голодание: переход, который прерывают после каждого кванта, через 5 с рендерится без перерывов', async () => {
+    // React: две строки — и отдать поток; но после 6 с виртуального времени полоса просрочена,
     // и тот же запрет на работу уже не действует — рендер идёт до конца.
     const react = await runReact(SCENARIO_STARVE);
     react.fire('transition', 'default');
     await microtasks();
     Scheduler.unstable_flushNumberOfYields(2);
     expect(react.logs).toEqual(['App text="" query="x"', 'Item 0 query="x"']);
-    // Счёт уступок у поддельного планировщика — по строкам с последней очистки его лога.
+    // Счёт пауз у поддельного планировщика — по строкам с последней очистки его лога.
     react.logs.length = 0;
     Scheduler.unstable_clearLog();
     Scheduler.unstable_flushNumberOfYields(1);
-    expect(react.logs).toEqual(['Item 1 query="x"']); // контроль: без просрочки уступает сразу
+    expect(react.logs).toEqual(['Item 1 query="x"']); // контроль: без просрочки отдаёт поток сразу
     react.logs.length = 0;
     Scheduler.unstable_clearLog();
     Scheduler.unstable_advanceTime(6000);
     Scheduler.unstable_flushNumberOfYields(1);
-    expect(react.logs).toHaveLength(6); // Item 2…7 — без единой уступки
+    expect(react.logs).toHaveLength(6); // Item 2…7 — ни разу не отдав поток
     expect(react.html()).toContain('x7');
 
     // Мини-версия: срочный ввод после каждого кванта — пока переход не просрочится.
@@ -603,7 +603,7 @@ describe('мини-версия и React 19.3 на одних и тех же с�
     }
     expect(restarts).toBe(STARVE_FACTS.restarts);
     expect(mini.clock.time()).toBe(STARVE_FACTS.committedAt);
-    // Последний заход — весь переход одним куском: App и восемь строк, без уступки.
+    // Последний заход — весь переход одним куском: App и восемь строк, не отдавая поток.
     expect(lastPass).toHaveLength(9);
     expect(lastPass.every((line) => line.includes('query="x"'))).toBe(true);
   });
@@ -739,7 +739,7 @@ describe('модель демо mini-lanes', () => {
     const session = createSession(MINI_LANES_CODE, scenario);
     const [transition, input] = scenario.actions;
     const from = session.fire(transition);
-    // Шагаем, пока переход не уступит в первый раз (монтирование тоже уступало — его не считаем).
+    // Шагаем, пока переход впервые не отдаст поток (монтирование тоже отдавало — его не считаем).
     let guard = 0;
     while (!session.frames.slice(from).some((f) => f.kind === 'yield') && ++guard < 50) session.step();
     const beforeClick = session.frames.at(-1)!;

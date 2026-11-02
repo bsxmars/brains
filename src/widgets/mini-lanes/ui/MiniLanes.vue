@@ -39,7 +39,7 @@ const KIND_LABEL: Record<LaneFrameKind, string> = {
   schedule: 'заказ',
   task: 'задача',
   unit: 'render',
-  yield: 'уступка',
+  yield: 'пауза',
   restart: 'выброшено',
   commit: 'commit',
   suspend: 'suspense',
@@ -185,7 +185,7 @@ const timeline = computed(() => {
 
 const OUTCOME: Record<TimelineSegment['outcome'], string> = {
   running: 'идёт',
-  yield: 'уступил',
+  yield: 'отдал поток',
   commit: 'закоммичен',
   thrown: 'выброшен',
   suspended: 'отложен',

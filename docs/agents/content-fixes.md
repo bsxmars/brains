@@ -1123,3 +1123,7 @@ Knex изменяемый (у него ради этого есть `.clone()`);
 | `package-managers` · `LOCK_CODE`, `PNPM_LOCK_CODE`, `INTEGRITY_NOTE` | integrity снят на Homebrew-zlib | семь тарболов пересобраны на официальных сборках; в тексте — integrity зависит от zlib |
 | `vue-vapor` · `BUNDLE_ROWS` | gzip 21 483 / 15 377 / 41 198 | 21 538 / 15 409 / 41 232 |
 | `node-memory` · `FIELDS` heapTotal | «сумма space_size 5.34 МБ против heapTotal 5.59 МБ» | одно число в МиБ и в МБ: сумма равна heapTotal байт в байт |
+
+### «Уступка» → «отдать поток» по всему курсу (2026-11-02)
+
+Автор: «что значит "уступок"? плохой термин». Калька yield заменена на «отдать поток» (действие), «сколько раз / цена одного раза» (счёт), «пауза» (момент) — в task-scheduling (разделы «Чем отдать поток», «Сколько это стоит»), виджетах yield-cost, yield-meter, yield-ceiling, long-task-timeline, mini-lanes, reachability-lab и др., в schedulers, render-pipeline, rendering-crp, react-concurrent-internals, memory-gc, node-memory, event-loop и ещё десятке тем. Оставлены «уступает» = хуже и «уступка» = компромисс (typescript, security). Снимок разделов в fuzzy-search обновлён — числа поиска сдвинулись (слов 1140 → 1139 и т.д.). Ещё: врезка `PLAIN_SCHEDULER` (откуда берётся `scheduler`), переписана `PLAIN_YIELD` (повар).

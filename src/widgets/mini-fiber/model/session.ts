@@ -138,7 +138,7 @@ export function createSession(code: string, scenario: MiniScenario): Session {
     onOp: (line) => snap('op', line),
     onSchedule: (kind, name) =>
       snap('schedule', kind === 'micro' ? `запланирована микрозадача: ${name}` : `запланирована задача: ${name}`),
-    // Квант — один файбер: первый вопрос за задачу получает «работай», второй — «уступи».
+    // Квант — один файбер: первый вопрос за задачу получает «работай», второй — «отдай поток».
     shouldYield: () => {
       if (unitUsed) return true;
       unitUsed = true;

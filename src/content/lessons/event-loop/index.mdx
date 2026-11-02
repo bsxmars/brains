@@ -100,7 +100,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
       интерфейсов это слишком дорого.
 
     </Card>
-    <Card tone="ok" color="tone" emphasis label="вариант 3 · выбран" labelTone="tone" labelSize={11} title="Один поток, который уступает сам" titleSize={18} pad={20} gap={11}>
+    <Card tone="ok" color="tone" emphasis label="вариант 3 · выбран" labelTone="tone" labelSize={11} title="Один поток, который сам отдаёт управление" titleSize={18} pad={20} gap={11}>
 
       Это кооперативная однопоточность. Код никто не прерывает насильно, зато он обязан **сам**
       быстро вернуть управление. События копятся в очередях, а цикл разбирает их по одному
@@ -575,7 +575,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
 
     Задачу дольше 50 мс называют длинной (long task): как её находят у настоящих
     пользователей и как она складывается в метрику отклика INP — [«Планирование задач»,
-    раздел «Long Task, INP и когда уступать»](/js/task-scheduling/#s3). Как нарезать работу
+    раздел «Long Task, INP и когда отдавать поток»](/js/task-scheduling/#s3). Как нарезать работу
     с приоритетом через `scheduler.postTask` и `scheduler.yield()` — там же, раздел
     [«Чем возвращать управление циклу»](/js/task-scheduling/#s1).
 
@@ -640,8 +640,8 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
 
     Смежное на сайте: [промис изнутри](/js/promise-internals/) — те же микрозадачи, но со
-    стороны состояний и реакций, линейка тиков и `await` в цикле. [Планирование работы](/js/task-scheduling/) — как уступать
-    поток и чем меряют отзывчивость. [Обмен сообщениями](/js/message-channel/) — задача
+    стороны состояний и реакций, линейка тиков и `await` в цикле. [Планирование работы](/js/task-scheduling/) — как отдавать
+    поток браузеру и чем меряют отзывчивость. [Обмен сообщениями](/js/message-channel/) — задача
     без обязательных 4 мс. [Кадр браузера](/render/render-pipeline/) — что происходит между оборотами.
     [Цикл событий Node](/js/node-event-loop/) — фазы libuv по исходнику, сон в poll и пул потоков.
 

@@ -165,7 +165,7 @@ export function createSession(code: string, scenario: LanesScenario): LanesSessi
       if (name === 'flushWork') {
         snap('task', `макрозадача планировщика: квант 5 мс, с t=${now} до t=${now + 5}`);
       } else if (name === 'performSyncWork') {
-        snap('task', 'микрозадача: срочная работа SyncLane — без квантов и уступок');
+        snap('task', 'микрозадача: срочная работа SyncLane — без квантов и пауз');
       } else if (name === 'renderRoot') {
         committedNow = false;
         open = { from: now, to: now, lane: args[0] as number, attempt, outcome: 'running' };

@@ -15,12 +15,12 @@ import type { HeapScenario, Job, SchedScenario } from '@/widgets/sched-lab/model
  *   — **настоящий планировщик на виртуальных часах.** `cjs/scheduler.production.js` исполняется
  *     в `vm`-контексте, где `performance.now`, `setImmediate`, `setTimeout` и `clearTimeout`
  *     подменены хостом темы (`HOST_CODE`). Время идёт только тогда, когда работа сценария
- *     говорит `work(ms)`, поэтому кванты и уступки воспроизводятся одинаково на любой машине.
+ *     говорит `work(ms)`, поэтому кванты и моменты, когда поток отдаётся, воспроизводятся одинаково на любой машине.
  *     Мини-планировщик темы (`SCHED_CODE`) и настоящий прогоняются **одним** `SCENARIO_CODE`;
  *     журналы (номер кванта, время, кусок, `didTimeout`) совпали дословно на всех сценариях
  *     темы и на 300 случайных (стенд), в тесте — на своих 200 случайных;
  *   — **`scheduler/unstable_mock`** (тестовая сборка команды React: часы двигает
- *     `unstable_advanceTime`, уступок по времени нет вовсе — `shouldYield` там отвечает по числу
+ *     `unstable_advanceTime`, по времени поток не отдаётся вовсе — `shouldYield` там отвечает по числу
  *     записей в журнале) — второй, независимый оракул **порядка**: на сценариях без нарезки
  *     последовательность задач совпала с мини-версией (200 случайных, `ORDER_LOG` дословно,
  *     со временем);
@@ -30,8 +30,8 @@ import type { HeapScenario, Job, SchedScenario } from '@/widgets/sched-lab/model
  *   — `COST_ROWS`: счётчики сравнений и перемещений на n = 100/1000/10 000, ключи случайные
  *     (mulberry32, зерно 1, ключ 0…9999) и растущие (`5000 + i`). Это счёт операций, не время;
  *   — сроки приоритетов (`PRIORITY_ROWS`) — `expirationTime − startTime` задач, поставленных
- *     настоящим планировщиком; квант 5 мс — по моменту уступки на виртуальных часах;
- *   — «после продолжения уступает всегда» — у настоящего и у мини: колбэк, вернувший функцию
+ *     настоящим планировщиком; квант 5 мс — по моменту, когда поток отдан, на виртуальных часах;
+ *   — «после продолжения отдаёт поток всегда» — у настоящего и у мини: колбэк, вернувший функцию
  *     через 0 мс работы, всё равно получает новую макрозадачу;
  *   — выбор хоста: при `setImmediate` планировщик ставит кванты им, без него — `MessageChannel`
  *     (в `vm` подложен счётчик портов).
@@ -42,13 +42,13 @@ import type { HeapScenario, Job, SchedScenario } from '@/widgets/sched-lab/model
  *   — Chromium 153, `scheduler.postTask`: `background` и `user-visible`, поставленные первыми,
  *     ждали всю цепочку из 300 задач `user-blocking` по 2 мс (каждая ставит следующую):
  *     выполнились 301-й и 302-й;
- *   — Node 24.11: настоящий `scheduler` с `busy(1)` в цикле уступает каждые 5 кусков,
+ *   — Node 24.11: настоящий `scheduler` с `busy(1)` в цикле отдаёт поток каждые 5 кусков,
  *     кванты ставит `setImmediate` (5 вызовов, `setTimeout` — 0).
  *
  * Из документации и исходников, без проверки запуском: правило выбора очереди в спецификации
  * Prioritized Task Scheduling (самый высокий приоритет, при равенстве — самая старая задача по
- * «enqueue order») и отсутствие в ней старения; комментарий в `Scheduler.js` про уступку после
- * продолжения и файл `SchedulerFeatureFlags.js` с `frameYieldMs` — ссылки в `SOURCES`.
+ * «enqueue order») и отсутствие в ней старения; комментарий в `Scheduler.js` про то, что после продолжения
+ * поток отдаётся сразу, и файл `SchedulerFeatureFlags.js` с `frameYieldMs` — ссылки в `SOURCES`.
  */
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; 
     tone: 'info',
   },
   {
-    t: 'Уступить поток',
+    t: 'Отдать поток',
     d: 'Длинную работу режут на куски и между кусками отдают управление циклу. Чем отдавать — `setTimeout`, `MessageChannel`, `scheduler.postTask`, `scheduler.yield` — и сколько это стоит, разобрано отдельно.',
     href: '/js/task-scheduling/#s1',
     hrefLabel: '«Планирование задач», раздел «Чем возвращать управление циклу»',
@@ -326,7 +326,7 @@ export const PLAIN_TWO_HEAPS =
 
 /** Сроки приоритетов: `expirationTime − startTime` у настоящего `scheduler` 0.28. Сверяется тестом. */
 export const PRIORITY_ROWS = [
-  { name: 'ImmediatePriority', n: 1, timeout: -1, meaning: 'просрочена в момент постановки: выполняется с `didTimeout = true` и не уступает' },
+  { name: 'ImmediatePriority', n: 1, timeout: -1, meaning: 'просрочена в момент постановки: выполняется с `didTimeout = true` и поток не отдаёт' },
   { name: 'UserBlockingPriority', n: 2, timeout: 250, meaning: 'отклик на ввод: четверть секунды — и задача просрочена' },
   { name: 'NormalPriority', n: 3, timeout: 5000, meaning: 'приоритет по умолчанию' },
   { name: 'LowPriority', n: 4, timeout: 10000, meaning: 'то, что подождёт' },
@@ -334,14 +334,14 @@ export const PRIORITY_ROWS = [
 ];
 
 export const PRIORITY_NOTE =
-  'Приоритет в планировщике не хранится как отдельный ключ кучи. Он превращается в **срок**: `expirationTime = startTime + timeout`, и задачи сравниваются только по сроку. Отсюда два следствия. Задача Normal, поставленная пять секунд назад, срочнее только что пришедшей UserBlocking. А у Immediate срок уже в прошлом — она выполняется первой и без уступок.';
+  'Приоритет в планировщике не хранится как отдельный ключ кучи. Он превращается в **срок**: `expirationTime = startTime + timeout`, и задачи сравниваются только по сроку. Отсюда два следствия. Задача Normal, поставленная пять секунд назад, срочнее только что пришедшей UserBlocking. А у Immediate срок уже в прошлом — она выполняется первой и поток не отдаёт до конца.';
 
 export const HOST_CODE = `// Виртуальная среда вместо браузера: часы стоят, пока задача не скажет work(ms).
 // Цикл событий — одна очередь макрозадач; таймер встаёт в неё, когда подошло его время.
 function createHost() {
   let time = 0;
   let nextTimerId = 1;
-  let turn = 0;                          // номер макрозадачи — по нему видно уступки
+  let turn = 0;                          // номер макрозадачи — по нему видно, где поток отдан
   const ready = [];                      // очередь макрозадач
   const timers = [];                     // { at, id, fn }
 
@@ -386,7 +386,7 @@ export const SCHED_CODE = `// Приоритеты и сроки ожидани�
 const ImmediatePriority = 1, UserBlockingPriority = 2, NormalPriority = 3,
   LowPriority = 4, IdlePriority = 5;
 const TIMEOUT = { 1: -1, 2: 250, 3: 5000, 4: 10000, 5: 1073741823 };
-const FRAME_MS = 5;                       // квант: столько работать без уступки
+const FRAME_MS = 5;                       // квант: столько работать, не отдавая поток
 
 function createScheduler(host) {
   const taskQueue = [];                   // готовые задачи; ключ — срок, expirationTime
@@ -463,7 +463,7 @@ function createScheduler(host) {
     advanceTimers(now);
     let task = peek(taskQueue);
     while (task !== null) {
-      if (task.expirationTime > now && shouldYield()) break;  // просроченная не уступает
+      if (task.expirationTime > now && shouldYield()) break;  // просроченная поток не отдаёт
       const callback = task.callback;
       if (typeof callback !== 'function') { pop(taskQueue); task = peek(taskQueue); continue; }
       task.callback = null;
@@ -472,7 +472,7 @@ function createScheduler(host) {
       if (typeof next === 'function') {   // продолжение: та же задача, то же место в куче
         task.callback = next;
         advanceTimers(now);
-        host.postTask(workLoop);          // и уступить сразу, даже если квант не кончился
+        host.postTask(workLoop);          // и отдать поток сразу, даже если квант не кончился
         return;
       }
       if (task === peek(taskQueue)) pop(taskQueue);
@@ -560,7 +560,7 @@ export const CONTINUATION_NOTE =
   '**Продолжение сохраняет срок.** Задача, вернувшая функцию, остаётся в куче с прежним `expirationTime`. Задачи того же приоритета, пришедшие позже, её не обгонят: их срок дальше. Обгонит только более срочная — клик UserBlocking со сроком «сейчас + 250».';
 
 export const ALWAYS_YIELD_NOTE =
-  '**В 0.28 после продолжения планировщик уступает всегда** — даже если квант не кончился. Так написано в исходнике: «If a continuation is returned, immediately yield to the main thread regardless of how much time is left in the current time slice». Задача, вернувшая функцию через 0 мс работы, всё равно получает новую макрозадачу — у настоящего пакета и у мини-версии. Цикл не тратит остаток кванта на следующую задачу: браузер получает поток при каждой возможности.';
+  '**В 0.28 после продолжения планировщик отдаёт поток всегда** — даже если квант не кончился. Так написано в исходнике: «If a continuation is returned, immediately yield to the main thread regardless of how much time is left in the current time slice». Задача, вернувшая функцию через 0 мс работы, всё равно получает новую макрозадачу — у настоящего пакета и у мини-версии. Цикл не тратит остаток кванта на следующую задачу: браузер получает поток при каждой возможности.';
 
 /** «Нарезка и клик»: журнал при клике UserBlocking и при клике Normal. Сверяется тестом. */
 export const SLICE_LOGS = {
@@ -604,7 +604,7 @@ export const SCHED_SCENARIOS: SchedScenario[] = [
   {
     id: 'continue',
     label: 'Продолжение',
-    note: 'A и B — Normal, поставлены подряд. A уступает после пяти кусков, но во втором кванте продолжается **A**, а не B: продолжение сохраняет срок. Клик C (UserBlocking) на 3-й мс встаёт перед ним.',
+    note: 'A и B — Normal, поставлены подряд. A отдаёт поток после пяти кусков, но во втором кванте продолжается **A**, а не B: продолжение сохраняет срок. Клик C (UserBlocking) на 3-й мс встаёт перед ним.',
     pickPriorityOf: 'C',
     jobs: [
       { name: 'A', priority: 3, units: [1, 1, 1, 1, 1, 1, 1, 1] },
@@ -615,7 +615,7 @@ export const SCHED_SCENARIOS: SchedScenario[] = [
   {
     id: 'expired',
     label: 'Просрочка',
-    note: 'U — UserBlocking, сорок кусков по 10 мс. Каждый кусок длиннее кванта, и до 250-й мс задача уступает после каждого. На 250-й её срок прошёл: она получает `didTimeout = true` и доделывает остаток одним квантом в 150 мс. N ждёт до конца.',
+    note: 'U — UserBlocking, сорок кусков по 10 мс. Каждый кусок длиннее кванта, и до 250-й мс задача отдаёт поток после каждого. На 250-й её срок прошёл: она получает `didTimeout = true` и доделывает остаток одним квантом в 150 мс. N ждёт до конца.',
     jobs: [
       { name: 'U', priority: 2, units: Array.from({ length: 40 }, () => 10) },
       { name: 'N', priority: 3, units: [1] },
@@ -676,7 +676,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '04',
     t: 'Immediate — не синхронно',
-    d: 'Задача ImmediatePriority всё равно ждёт макрозадачи. Зато, начавшись, она не уступает вовсе: её срок `−1` в прошлом с момента постановки. Длинная Immediate блокирует страницу целиком.',
+    d: 'Задача ImmediatePriority всё равно ждёт макрозадачи. Зато, начавшись, она не отдаёт поток вовсе: её срок `−1` в прошлом с момента постановки. Длинная Immediate блокирует страницу целиком.',
     tone: 'warn',
   },
   {
@@ -709,7 +709,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
   {
     title: 'React — packages/scheduler/src/forks/Scheduler.js',
     href: 'https://github.com/facebook/react/blob/main/packages/scheduler/src/forks/Scheduler.js',
-    what: '`unstable_scheduleCallback`, `workLoop`, `advanceTimers`, `shouldYieldToHost`, уступка после продолжения, выбор `setImmediate` / `MessageChannel` / `setTimeout`',
+    what: '`unstable_scheduleCallback`, `workLoop`, `advanceTimers`, `shouldYieldToHost`, поток отдаётся сразу после продолжения, выбор `setImmediate` / `MessageChannel` / `setTimeout`',
   },
   {
     title: 'React — packages/scheduler/src/SchedulerMinHeap.js',
@@ -744,4 +744,4 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Планирование задач](/js/task-scheduling/) — чем уступать поток, `scheduler.postTask` и `scheduler.yield`, цена уступки. [MessageChannel, раздел «Тайминг»](/js/message-channel/#s2) — почему кванты ставятся сообщением порта. [React изнутри: конкурентность и lanes](/frameworks/react-concurrent-internals/#s2) — как React отдаёт планировщику рендер и что делает с полосами. [Ре-рендеринг в React, раздел «Батчинг и нарезка»](/frameworks/react-rerender/#s4) — нарезка глазами компонента. [Event Loop](/js/event-loop/) и [Цикл событий Node](/js/node-event-loop/#s4) — откуда берутся макрозадачи. [Debounce, throttle и token bucket](/algorithms/rate-limiting/) — один бюджет событий во времени: обёртки и ограничители. [Пространственные индексы](/algorithms/spatial-index/) — сетка, quadtree и R-tree для попадания курсором и рамки. [Кеши с вытеснением](/algorithms/eviction/) — LRU на `Map` и в `lru-cache`, провалы LRU на скане и цикле, LFU, W-TinyLFU и SIEVE.';
+  'Смежное на сайте: [Планирование задач](/js/task-scheduling/) — чем отдавать поток, `scheduler.postTask` и `scheduler.yield`, во что обходится каждая пауза. [MessageChannel, раздел «Тайминг»](/js/message-channel/#s2) — почему кванты ставятся сообщением порта. [React изнутри: конкурентность и lanes](/frameworks/react-concurrent-internals/#s2) — как React отдаёт планировщику рендер и что делает с полосами. [Ре-рендеринг в React, раздел «Батчинг и нарезка»](/frameworks/react-rerender/#s4) — нарезка глазами компонента. [Event Loop](/js/event-loop/) и [Цикл событий Node](/js/node-event-loop/#s4) — откуда берутся макрозадачи. [Debounce, throttle и token bucket](/algorithms/rate-limiting/) — один бюджет событий во времени: обёртки и ограничители. [Пространственные индексы](/algorithms/spatial-index/) — сетка, quadtree и R-tree для попадания курсором и рамки. [Кеши с вытеснением](/algorithms/eviction/) — LRU на `Map` и в `lru-cache`, провалы LRU на скане и цикле, LFU, W-TinyLFU и SIEVE.';

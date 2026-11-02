@@ -67,7 +67,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
  *                      забрал полпроцента» про строку Scavenge было неверно;
  *   третья доля        «третье полупространство — под эвакуацию» снято: это ёмкость
  *                      new_large_object_space (SEMI_SPACE_NOTE, докстринг там);
- *   gc() без уступки   причина — KeptObjects у WeakRef; дом объяснения — «Память и GC».
+ *   gc() без паузы     поток не отдан циклу; причина — KeptObjects у WeakRef; дом объяснения — «Память и GC».
  *   process.report     переехал из «за кадром» строкой FLAGS `--report-on-fatalerror`. Проверено:
  *                      `node --report-on-fatalerror --max-old-space-size=16` с бесконечным
  *                      ростом кучи пишет report.*.json (javascriptHeap, nativeStack, libuv,
@@ -480,8 +480,8 @@ export const GC_SAMPLES = [
  * тест делает своим кодом — `ref` рождается в той же задаче, два gc() его не собирают,
  * после setTimeout собирают. Снимать константу — вместе с этим утверждением теста.
  */
-export const FORCE_GC_OUT = `два gc() подряд:       жив
-после уступки потоку: собран`;
+export const FORCE_GC_OUT = `два gc() подряд:          жив
+поток отдан, затем gc(): собран`;
 
 /** Подпись под шпаргалкой флагов. Идёт через `Md` — ссылки разбираются. */
 export const FORCE_GC_NOTE =

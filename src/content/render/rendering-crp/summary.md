@@ -18,7 +18,7 @@
 - Адрес из CSS-фона не видит preload scanner — главная невидимая причина плохого LCP → «раздел LCP».
 - Разложение LCP: TTFB, load delay, load duration, render delay — лечить ту часть, что длиннее → «раздел LCP».
 - CLS = impact × distance; сдвиги сразу после ввода не считаются; `sources` называют виновников → «раздел CLS».
-- INP: input delay, processing, presentation; чинится уступкой потока, а не микрозадачей → «раздел INP».
+- INP: input delay, processing, presentation; чинится тем, что поток отдают браузеру задачей, а не микрозадачей → «раздел INP».
 - Поле против лаборатории, Lighthouse не мерит INP, LoAF, CrUX → «раздел Чем это мерить».
 
 </details>
@@ -26,7 +26,7 @@
 <details>
 <summary><b>Подвох</b> — крайние случаи и частые ошибки</summary>
 
-- `await Promise.resolve()` поток не уступает — INP тот же.
+- `await Promise.resolve()` поток не отпускает — INP тот же.
 - LCP: брать последнюю запись, а не первую, и не забыть `buffered: true`.
 - Зелёные TBT и FID ничего не говорят про INP.
 

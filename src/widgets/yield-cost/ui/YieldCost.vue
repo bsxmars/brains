@@ -1,16 +1,16 @@
 <script setup lang="ts">
 /**
- * Калькулятор «сколько стоит сама уступка».
+ * Калькулятор «сколько стоит отдать поток».
  *
- * Два решения — как часто уступать и чем — перемножаются, и именно произведение объясняет
+ * Два решения — как часто отдавать поток и чем — перемножаются, и именно произведение объясняет
  * случаи вроде «работы на две секунды, а цикл идёт сорок». По отдельности ни одно из решений
- * катастрофы не даёт: уступка на каждом элементе дешёвым инструментом терпима, `setTimeout`
+ * катастрофы не даёт: отдавать поток на каждом элементе дешёвым способом терпимо, `setTimeout`
  * по бюджету тоже. Убивает сочетание.
  *
- * ⚠️ Числа модельные, и демо говорит об этом вслух в подвале: цена элемента и цена уступки
+ * ⚠️ Числа модельные, и демо говорит об этом вслух в подвале: цена элемента и цена одного раза
  * заданы константами, а не замерены. Единственная величина здесь, взятая не с потолка, —
  * 4 мс у вложенного `setTimeout`: это кламп из HTML Standard (nesting level > 5 и timeout < 4
- * → timeout = 4), а цепочка таймеров в чанкере доходит до шестого уровня на шестой уступке.
+ * → timeout = 4), а цепочка таймеров в чанкере доходит до шестого уровня на шестом разе.
  */
 import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
@@ -23,11 +23,11 @@ const props = defineProps<{
   tools: YieldTool[];
   /** Модельная цена обработки одного элемента, мс. */
   perItem: number;
-  /** Бюджет между уступками, мс. Он же порог long task. */
+  /** Бюджет куска — сколько работаем, прежде чем отдать поток, мс. Он же порог long task. */
   budget: number;
 }>();
 
-// Стартовое состояние — то же, что в оригинале: десять тысяч элементов, уступка на каждом,
+// Стартовое состояние — то же, что в оригинале: десять тысяч элементов, поток отдаётся на каждом,
 // setTimeout. Демо открывается на самом частом сочетании ошибок, а не на правильном ответе.
 const sizeKey = ref(props.sizes[Math.min(1, props.sizes.length - 1)].key);
 const strategyKey = ref(props.strategies[0].key);
@@ -44,7 +44,7 @@ const strategy = computed(
 const tool = computed(() => props.tools.find((t) => t.key === toolKey.value) ?? props.tools[0]);
 
 const work = computed(() => size.value.items * props.perItem);
-/** Сколько уступок было бы по бюджету времени — с ним и сравнивается «на каждом элементе». */
+/** Сколько раз поток отдавался бы по бюджету времени — с ним и сравнивается «на каждом элементе». */
 const byBudget = computed(() => Math.max(1, Math.floor(work.value / props.budget)));
 const yields = computed(() => {
   if (tool.value.key === 'no') return 0;
@@ -84,9 +84,9 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
     return {
       tone: 'err',
       text:
-        'Классическая катастрофа: уступка стоит дороже самой работы. Каждый шаг — таймер, ' +
+        'Классическая катастрофа: отдать поток стоит дороже самой работы. Каждый шаг — таймер, ' +
         'поставленный из колбэка предыдущего, то есть вложенный, а вложенность растёт: ' +
-        'с седьмой уступки задержка поднимается до 4 мс. ' +
+        'с седьмого раза задержка поднимается до 4 мс. ' +
         `${fmt(work.value)} полезной работы превращаются в ${fmt(total.value)}.`,
     };
   }
@@ -94,9 +94,9 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
     return {
       tone: 'warn',
       text:
-        `Уступка на каждом элементе — всё ещё лишнее: ${groups(yields.value)} уступок вместо ` +
-        `${groups(byBudget.value)}. Даже дешёвый инструмент не окупает такой частоты. ` +
-        'Уступать надо по бюджету времени.',
+        `Отдавать поток на каждом элементе — всё ещё лишнее: ${groups(yields.value)} раз вместо ` +
+        `${groups(byBudget.value)}. Даже дешёвый способ не окупает такой частоты. ` +
+        'Отдавать поток надо по бюджету времени.',
     };
   }
   if (tool.value.key === 'st') {
@@ -110,7 +110,7 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
   return {
     tone: 'ok',
     text:
-      `Так и надо: ${groups(yields.value)} уступок по бюджету ${props.budget} мс, накладные ` +
+      `Так и надо: поток отдан ${groups(yields.value)} раз, по бюджету ${props.budget} мс, накладные ` +
       `${fmt(over.value)} на ${fmt(work.value)} работы. Куски не длиннее бюджета, а ${tool.value.note}.`,
   };
 });
@@ -125,17 +125,17 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
           <SegmentedControl v-model="sizeKey" class="l-pills" label="Сколько элементов" :options="sizeOptions" />
         </div>
         <div class="control">
-          <span class="t-label">уступать</span>
+          <span class="t-label">отдавать поток</span>
           <SegmentedControl
             v-model="strategyKey"
             class="l-pills"
-            label="Как часто уступать"
+            label="Как часто отдавать поток"
             :options="strategyOptions"
           />
         </div>
         <div class="control">
           <span class="t-label">чем</span>
-          <SegmentedControl v-model="toolKey" class="l-pills" label="Чем уступать" :options="toolOptions" />
+          <SegmentedControl v-model="toolKey" class="l-pills" label="Чем отдавать поток" :options="toolOptions" />
         </div>
       </div>
     </template>
@@ -147,7 +147,7 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
           <span class="metric__value" data-tone="ok">{{ fmt(work) }}</span>
         </div>
         <div class="metric">
-          <span class="t-label">уступок</span>
+          <span class="t-label">раз отдали поток</span>
           <span class="metric__value" data-tone="chip">{{ groups(yields) }}</span>
         </div>
         <div class="metric">
@@ -167,7 +167,7 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
         </div>
         <div class="legend">
           <span class="legend__item" data-tone="ok"><i data-tone="ok"></i>работа</span>
-          <span class="legend__item" data-tone="warn"><i data-tone="warn"></i>ожидание из-за уступок</span>
+          <span class="legend__item" data-tone="warn"><i data-tone="warn"></i>ожидание, пока поток отдан</span>
         </div>
       </div>
 
@@ -176,7 +176,7 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
 
     <template #footer>
       <div class="disclaimer">
-        Числа модельные: {{ perItem }} мс на элемент и фиксированная цена уступки у каждого
+        Числа модельные: {{ perItem }} мс на элемент и фиксированная цена одного раза у каждого
         инструмента. Это порядки величин для иллюстрации, а не замер — кроме 4 мс у вложенного
         setTimeout, они из спецификации. Свою работу меряйте на своём железе.
       </div>

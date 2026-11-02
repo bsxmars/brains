@@ -1251,8 +1251,8 @@ export const TEAR_SCENE_STEPS: { k: string; plain: string; sync: string }[] = [
   },
   {
     k: '2 · ячейка `A`',
-    plain: '`store.get()` вернул `0`. Кусок работы кончился, цикл уступил поток.',
-    sync: '`useSyncExternalStore` вернул снимок `0` и запомнил его в ячейке хука. Поток уступлен.',
+    plain: '`store.get()` вернул `0`. Кусок работы кончился, React отдал поток браузеру.',
+    sync: '`useSyncExternalStore` вернул снимок `0` и запомнил его в ячейке хука. Поток отдан браузеру.',
   },
   {
     k: '3 · между кусками: `store.set`',

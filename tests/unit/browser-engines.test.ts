@@ -11,7 +11,7 @@ describe('проверка возможности — строка со стра
    * `DETECT_CODE` исполняется как напечатан. В Node нет ни `scheduler`, ни `CSS` — значит,
    * обязан сработать запасной путь, а не упасть: ради этого проверка возможности и пишется.
    */
-  it('без планировщика уступает через setTimeout, без CSS — не падает', async () => {
+  it('без планировщика отдаёт поток через setTimeout, без CSS — не падает', async () => {
     const run = new Function(`${DETECT_CODE}\nreturn { yieldToMain, scrollAnimations };`) as () => {
       yieldToMain: () => Promise<unknown>;
       scrollAnimations: boolean;
@@ -22,7 +22,7 @@ describe('проверка возможности — строка со стра
     expect(scrollAnimations).toBe(false);
   });
 
-  it('с планировщиком уступает через scheduler.yield', async () => {
+  it('с планировщиком отдаёт поток через scheduler.yield', async () => {
     let called = 0;
     const scheduler = { yield: () => { called++; return Promise.resolve('из планировщика'); } };
     (globalThis as { scheduler?: unknown }).scheduler = scheduler;
