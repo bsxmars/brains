@@ -413,6 +413,9 @@ describe('PROTO_CODE: protobuf по спецификации', () => {
       if (fromSpans.length === heads.length) break;
     }
     expect(fromSpans).toEqual(heads);
+    // Имена строк: позиции первого заказа — items[0] и items[1] (у o1001 их две), а не номер по всему экрану.
+    const itemIdx = t.ORDER_BYTES.map((r) => /^items\[(\d+)\]/.exec(r.k)?.[1]).filter((x): x is string => !!x);
+    expect([...new Set(itemIdx)]).toEqual(['0', String((screen[0] as { items: unknown[] }).items.length - 1)]);
 
     const order = screen[0] as Record<string, unknown>;
     const strs: string[] = [];

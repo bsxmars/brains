@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { MEASURED, SIZE_BARS, BUILD_VARIANTS } from '@/content/delivery/docker/data';
+import {
+  MEASURED,
+  SIZE_BARS,
+  BUILD_VARIANTS,
+  PID1_CODE,
+  PID1_FACTS,
+  STOP_VARIANTS,
+} from '@/content/delivery/docker/data';
 import {
   appLayers,
   deltaOverBase,
@@ -145,6 +152,18 @@ describe('числа страницы совпадают со снятыми', (
     }
   });
 
+  it('«три процента» в лиде темы — доля приложения в образе', () => {
+    // Было «четыре процента»: ни одна строка таблицы размера столько не даёт.
+    // Приложение поверх базы — 3.02% образа на node:22 и 3.04% у многоступенчатой сборки.
+    const share = (image: number, base: number) => Math.round(((image - base) / image) * 100);
+    expect(share(MEASURED.images.full, MEASURED.base['node:22'])).toBe(3);
+    expect(share(MEASURED.images.multi, MEASURED.base['node:22-alpine'])).toBe(3);
+    const mdx = readFileSync(new URL('../../src/content/delivery/docker/index.mdx', import.meta.url), 'utf8');
+    const lead = mdx.match(/^lead: "(.*)"$/m)![1];
+    expect(lead).toContain('всего три процента того, что уезжает на сервер');
+    expect(lead).not.toContain('четыре процента');
+  });
+
   it('полосы диаграммы показывают те же числа, что inspect', () => {
     // Диаграмма рисуется в мегабайтах — сверяем перевод, чтобы подпись не разъехалась с осью.
     const bar = (label: string) => SIZE_BARS.find((b) => b.label === label)!;
@@ -214,5 +233,18 @@ describe('данные демо не противоречат сами себе'
     // А правку манифеста обязаны заметить оба: тут переустановка законна.
     expect(npmStep('good', 'pkg').state).toBe('rebuilt');
     expect(npmStep('bad', 'pkg').state).toBe('rebuilt');
+  });
+});
+
+describe('shell-форма и первый процесс', () => {
+  // Замер Docker 27.4.0, arm64: `CMD node -e "…"` с обработчиком SIGTERM.
+  // node:22-slim — PID 1 `/bin/sh -c …`, node PID 7, `docker stop -t 4` → 5 с, код 137;
+  // node:22-alpine — PID 1 сам node (busybox sh делает exec последней команды, даже после `&&`),
+  // stop → 0 с, обработчик сработал, код 0. «Оболочка глотает сигнал» — свойство dash, не Docker.
+  it('утверждение про оболочку привязано к образам на Debian, alpine оговорён', () => {
+    expect(PID1_CODE).toContain('node:22-slim — dash');
+    expect(PID1_CODE).toContain('в node:22-alpine sh из busybox заменяет себя последней командой');
+    expect(PID1_FACTS[0].d).toContain('`node:22-alpine`');
+    expect(STOP_VARIANTS[0].k).toContain('(база на Debian)');
   });
 });

@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -106,6 +106,17 @@ describe('задержка таймера', () => {
     for (const row of t.TIMER_ROWS.filter((x) => x.warning !== '—')) expect(r.stderr).toContain(row.warning);
     expect(r.stderr.match(/Timeout\w+Warning:/g)).toHaveLength(3);
   });
+
+  it('TIMER_NOTE и выжимка: 1 мс вместо нуля — особенность Node, а не браузера; `< 1` без предупреждения', () => {
+    // HTML Standard (timer initialisation steps): отрицательное → 0, нижней границы в 1 мс нет;
+    // курс говорит то же в «Event Loop» (виджет timer-clamp: «0 приводится к 1 мс» — только Node).
+    expect(t.TIMER_NOTE).not.toContain('как в браузере');
+    expect(t.TIMER_NOTE).toContain('в браузере `0` так и остаётся нулём');
+    // 0 и 0.5 — строки без предупреждения: в выжимке `< 1` отделено от `Timeout*Warning`.
+    expect(t.TIMER_ROWS.filter((r) => ['setTimeout(f, 0)', 'setTimeout(f, 0.5)'].includes(r.call)).map((r) => r.warning)).toEqual(['—', '—']);
+    const summary = readFileSync('src/content/lessons/node-event-loop/summary.md', 'utf8');
+    expect(summary).toContain('`< 1` → 1 мс; отрицательная');
+  });
 });
 
 describe('пул потоков', () => {
@@ -178,6 +189,26 @@ describe('выход процесса и сон в poll', () => {
     const out = node('tla', `(async () => { await new Promise(() => {}); console.log('after'); })();
 process.on('exit', (code) => console.log('exit ' + code));`);
     expect(out).toEqual(['exit 0']);
+  });
+
+  it('ESM: вечный `await` верхнего уровня — код 13 и предупреждение; в CommonJS он — SyntaxError', () => {
+    const esm = join(dir, 'tla.mjs');
+    writeFileSync(esm, "await new Promise(() => {}); console.log('after');");
+    const r = spawnSync(process.execPath, [esm], { encoding: 'utf8' });
+    expect(r.status).toBe(13);
+    expect(r.stdout).not.toContain('after');
+    expect(r.stderr).toContain('unsettled top-level await');
+
+    const cjs = join(dir, 'tla-top.cjs');
+    writeFileSync(cjs, 'await new Promise(() => {});');
+    const c = spawnSync(process.execPath, [cjs], { encoding: 'utf8' });
+    expect(c.status).toBe(1);
+    expect(c.stderr).toContain('SyntaxError');
+
+    const pitfall = t.PITFALLS.find((p) => p.n === '08')!;
+    expect(pitfall.d).toContain('кодом 13');
+    expect(pitfall.d).toContain('`async`-функции');
+    expect(pitfall.d).not.toContain('тихо (в CommonJS)');
   });
 
   it('beforeExit, поставивший таймер, запускает цикл снова', () => {

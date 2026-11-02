@@ -785,6 +785,9 @@ describe('серверные функции', () => {
   it('encodeReply и decodeReply: тот же $-синтаксис, Date возвращается Date', () => {
     expect(client.action.reply).toBe(REPLY);
     expect(t.ACTION_CODE).toContain(`'${REPLY}'`);
+    // строка encodeReply подписана теми аргументами, которые закодированы: три, с Date третьим
+    expect(t.ACTION_CODE).toContain("encodeReply — onSave(7, { note: 'x' }, new Date(0))");
+    expect((JSON.parse(REPLY) as unknown[]).length).toBe(3);
     expect(prod.decoded.isDate).toBe(true);
     expect(prod.decoded.json).toBe('[7,{"note":"x"},"1970-01-01T00:00:00.000Z"]');
   });
@@ -820,6 +823,8 @@ describe('async, Suspense и cache', () => {
       expect(withS[0]).toContain('"$Sreact.suspense"');
       expect(none[0]).not.toContain('$S');
     }
+    const pit = t.PITFALLS.find((p) => p.n === '01')!;
+    expect(pit.d).toContain('ни дыр, ни порядка кусков — только добавляет обёртки и строку символа');
   });
 
   it('SSR на первом куске: с Suspense каркас готов с заглушкой, без — не готов', () => {
@@ -851,5 +856,38 @@ describe('текст темы не расходится с прогоном', ()
     const f = JSON.stringify(t.BOUNDARY_FACTS);
     expect(f).toContain('Symbol(react.client.reference)');
     expect(f).toContain('#Like');
+  });
+});
+
+describe('тонкое место 04: URL в пропе', () => {
+  const URL_SCRIPT = `
+const React = require('react');
+const S = require('react-server-dom-webpack/server.node');
+const { Writable } = require('node:stream');
+const Like = S.registerClientReference(function () {}, 'like', 'Like');
+const warned = [];
+console.error = (...a) => warned.push(String(a[0]));
+let out = '';
+const s = S.renderToPipeableStream(React.createElement(Like, { v: new URL('https://example.com/') }),
+  { like: { id: 'like', chunks: [], name: 'Like' } }, { onError(e) { warned.push('onError ' + e.message); } });
+s.pipe(new Writable({ write(c, _, cb) { out += c; cb(); }, final(cb) {
+  process.stdout.write(JSON.stringify({ out, warned })); cb();
+} }));
+`;
+  const run = (build: Build) => JSON.parse(execFileSync(process.execPath, ['--conditions=react-server', '-e', URL_SCRIPT], {
+    cwd: ROOT, encoding: 'utf8', env: { ...process.env, NODE_ENV: build },
+  })) as { out: string; warned: string[] };
+
+  it('строкой в обеих сборках; продакшен молчит, отладочная предупреждает в консоль', () => {
+    const p = run('production');
+    const d = run('development');
+    expect(p.out).toContain('{"v":"https://example.com/"}');
+    expect(d.out).toContain('{"v":"https://example.com/"}');
+    expect(p.warned).toEqual([]);
+    expect(d.warned).toHaveLength(1);
+    expect(d.warned[0]).toMatch(/^Only plain objects can be passed to Client Components from Server Components\. %s objects are not supported\./);
+    const pit = t.PITFALLS.find((x) => x.n === '04')!;
+    expect(pit.d).toContain('Продакшен-сборка молчит, отладочная лишь пишет в консоль');
+    expect(pit.d).not.toContain('без единого предупреждения');
   });
 });

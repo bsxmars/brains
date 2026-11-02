@@ -106,7 +106,7 @@ export function makeScene(options: Partial<SceneOptions> = {}): Scene {
   // `fill` вычислил бы аргумент однажды и положил в массив один объект пятьсот тысяч раз.
   const rows = tag(
     Array.from({ length: count }, (_, i) => ({ id: i })),
-    { id: 'rows', label: '(array) rows', ref: '(array)', kind: 'array', shallow: WEIGHTS.array },
+    { id: 'rows', label: 'Array rows', ref: 'Array', kind: 'array', shallow: WEIGHTS.array },
   );
 
   const heldScope = tag(
@@ -141,7 +141,7 @@ export function makeScene(options: Partial<SceneOptions> = {}): Scene {
   );
 
   const resizeScope = tag(
-    { Chart: chart },
+    { this: chart },
     {
       id: 'on-resize-context',
       label: 'system / Context',

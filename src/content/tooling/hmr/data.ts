@@ -833,7 +833,7 @@ if (import.meta.hot) {
   if (root) renderButton(root);
 }`;
 
-export const PROD_BUNDLE_CODE = `// vite build без минификации: всё, что осталось от этих восьми строк
+export const PROD_BUNDLE_CODE = `// vite build без минификации: всё, что осталось от этих семи строк
 var count = 0;`;
 
 export const PROD_BARE_CODE = `// исходник без охраны

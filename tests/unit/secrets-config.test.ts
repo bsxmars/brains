@@ -357,3 +357,36 @@ describe('сканер: SCAN_CODE на настоящих бандлах', () =>
     for (const b of t.SCAN_THRESHOLDS) expect(at('react', b, true).noise).toEqual([]);
   });
 });
+
+describe('вычитка: NODE_ENV=development в .env переключает сборку', () => {
+  // Vite 8.3.0, resolveConfig: оболочка NODE_ENV не задала → VITE_USER_NODE_ENV=development
+  // становится process.env.NODE_ENV процесса сборки, и бандл собирается как development.
+  it('vite build: NODE_ENV процесса — development, в бандле DEV: true и VITE_USER_NODE_ENV', () => {
+    const root = join(dir, 'node-env');
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, '.env'), 'NODE_ENV=development\nVITE_X=1\n');
+    writeFileSync(join(root, 'index.html'), '<script type="module" src="/src/main.js"></script>');
+    writeFileSync(join(root, 'src/main.js'), 'console.log(import.meta.env);');
+    const runner = join(root, 'run.mjs');
+    writeFileSync(
+      runner,
+      `import { build } from ${JSON.stringify(pathToFileURL(require.resolve('vite')).href)};
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+const root = process.argv[2];
+let seen = null;
+await build({ root, mode: 'production', configFile: false, logLevel: 'silent',
+  build: { outDir: join(root, 'dist'), modulePreload: { polyfill: false } },
+  plugins: [{ name: 'seen', buildStart() { seen = process.env.NODE_ENV; } }] });
+const js = readdirSync(join(root, 'dist/assets')).map((f) => readFileSync(join(root, 'dist/assets', f), 'utf8')).join('');
+console.log(JSON.stringify({ seen, js }));`,
+    );
+    const res = JSON.parse(node([runner, root], { env: { PATH: '/usr/bin:/bin' } }));
+    expect(res.seen).toBe('development');
+    expect(res.js).toContain('DEV:!0');
+    expect(res.js).toContain('VITE_USER_NODE_ENV:`development`');
+    const fact = t.ENV_FACTS.find((f) => f.t.startsWith('`NODE_ENV`'))!;
+    expect(fact.d).not.toContain('не меняет `NODE_ENV` процесса сборки');
+    expect(fact.d).toContain('переключает сборку в `development`');
+  }, 60_000);
+});

@@ -110,6 +110,16 @@ describe('тринадцать ловушек: каждая операция т�
     expect(t2.log.slice(0, 2)).toEqual(['get', 'set']);
   });
 
+  it('Object.isFrozen после заморозки — четыре вызова, а не один isExtensible (подпись к Object.freeze)', () => {
+    const { p, log } = trace({ name: 'Аня', age: 29 });
+    Object.freeze(p);
+    log.length = 0;
+    expect(Object.isFrozen(p)).toBe(true);
+    expect(log).toEqual(['isExtensible', 'ownKeys', 'getOwnPropertyDescriptor', 'getOwnPropertyDescriptor']);
+    const note = PROXY_OPS.find((op) => op.op === 'Object.freeze(p)')!.note;
+    expect(note).toContain('ещё четыре вызова');
+  });
+
   it('construct: после ловушки — get за prototype у самого прокси', () => {
     const { p, log } = trace(function () {});
     new (p as unknown as new () => object)();
@@ -510,8 +520,13 @@ describe('тонкие места: листинги делают то, что н
   });
 
   it('05: консоль Node показывает цель, JSON — ответ ловушки', () => {
-    const p = new Function(`${pitfall('05').split('\n')[0]}\nreturn p;`)() as object;
-    expect(inspect(p)).toBe('{ a: 1 }');
+    const code = pitfall('05');
+    const p = new Function(`${code.split('\n')[0]}\nreturn p;`)() as object;
+    // Ответ консоли — из комментария листинга для мажорной версии прогона
+    const major = process.versions.node.split('.')[0];
+    const shown = code.match(new RegExp(`// Node ${major}: (.+)`))?.[1];
+    expect(shown).toBeDefined();
+    expect(inspect(p)).toBe(shown);
     expect(JSON.stringify(p)).toBe('{"a":42}');
   });
 });

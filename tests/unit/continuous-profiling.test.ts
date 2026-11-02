@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import * as v8 from 'node:v8';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   CAPTURE_CODE,
@@ -316,12 +317,21 @@ console.log(JSON.stringify(out));`;
   }, 60_000);
 
   it('умолчания интервала: 512 КБ у v8.startHeapProfile и --heap-prof', () => {
-    const src = execFileSync(
-      process.execPath,
-      ['--expose-internals', '-e', "process.stdout.write(process.binding('natives')['internal/v8/heap_profile'] ?? '')"],
-      { encoding: 'utf8' },
-    );
-    expect(src, 'исходник normalizeHeapProfileOptions').toContain('sampleInterval = 512 * 1024');
+    // --heap-prof: умолчание из справки самого Node — в 24 и в 26 одно.
+    const help = execFileSync(process.execPath, ['--help'], { encoding: 'utf8' }).replace(/\s+/g, ' ');
+    expect(help).toMatch(/--heap-prof-interval=\.\.\. specified sampling interval in bytes for the V8 heap profile generated with --heap-prof\. \(default: 512 \* 1024\)/);
+    const pitfall = PITFALLS.find((p) => p.d.includes('normalizeHeapProfileOptions'))!.d;
+    expect(pitfall).toContain('В Node 24 этого метода нет, но флаг `--heap-prof` и там пишет профиль с теми же 512 КБ');
+    if (!hasV8Profile) {
+      expect(typeof (v8 as { startHeapProfile?: unknown }).startHeapProfile).toBe('undefined');
+    } else {
+      const src = execFileSync(
+        process.execPath,
+        ['--expose-internals', '-e', "process.stdout.write(process.binding('natives')['internal/v8/heap_profile'] ?? '')"],
+        { encoding: 'utf8' },
+      );
+      expect(src, 'исходник normalizeHeapProfileOptions').toContain('sampleInterval = 512 * 1024');
+    }
     expect(CAPTURE_CODE).toContain('samplingInterval: 32768');
     expect(PITFALLS.some((p) => p.d.includes('32 КБ') && p.d.includes('512 КБ'))).toBe(true);
   });
@@ -345,6 +355,28 @@ const samples = profile.samples.filter((x) => ids.has(x.nodeId)).reduce((a, x) =
 console.log(JSON.stringify({ self, samples }));`;
     const { self, samples } = JSON.parse(runModule('medium.mjs', code)) as { self: number; samples: number };
     expect(samples / self, 'по сэмплам больше, чем по дереву').toBeGreaterThan(1.05);
+  }, 60_000);
+
+  /**
+   * SAMPLING_OBJECTS[2]: крупный объект — это массив в куче JS. Буфер на мегабайт (`Buffer`,
+   * `ArrayBuffer`) лежит вне кучи (`external`), и выборочный профиль его не видит вовсе.
+   */
+  it('крупный массив попадает в выборку всегда, мегабайтный буфер — нет', () => {
+    const code = `import { Session } from 'node:inspector/promises';
+const s = new Session(); s.connect();
+await s.post('HeapProfiler.enable');
+const self = (n) => n.selfSize + n.children.reduce((a, c) => a + self(c), 0);
+const out = {};
+for (const [name, make] of [['array', () => new Array(131072).fill(0)], ['buffer', () => Buffer.alloc(1 << 20)]]) {
+  await s.post('HeapProfiler.startSampling', { samplingInterval: 32768, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true });
+  const keep = []; for (let i = 0; i < 50; i++) keep.push(make());
+  const { profile } = await s.post('HeapProfiler.stopSampling');
+  out[name] = self(profile.head) / 2 ** 20;
+}
+console.log(JSON.stringify(out));`;
+    const { array, buffer } = JSON.parse(runModule('large.mjs', code)) as { array: number; buffer: number };
+    expect(array, '50 массивов по 1 МБ').toBeGreaterThan(45);
+    expect(buffer, '50 буферов по 1 МБ').toBeLessThan(1);
   }, 60_000);
 });
 

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   BASIC_CODE,
+  ABORT_EXTRA,
   ABORT_HEAD,
   ABORT_ROWS,
   DUP_HEAD,
@@ -286,5 +287,11 @@ describe('данные темы согласованы с демо', () => {
     const vue = readFileSync(new URL('../../src/widgets/vt-lab/ui/VtLab.vue', import.meta.url), 'utf8');
     expect(vue).toContain(`view-transition-class: ${VT_CLASS};`);
     expect(vue).toContain(`::view-transition-group(*.${VT_CLASS})`);
+  });
+});
+
+describe('skipTransition при ждущем колбэке', () => {
+  it('число кадров за 150 мс — как в шапке стенда (9–10)', () => {
+    expect(ABORT_EXTRA).toContain('150 мс прошло 9–10 кадров');
   });
 });

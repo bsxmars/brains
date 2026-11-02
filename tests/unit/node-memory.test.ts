@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import v8 from 'node:v8';
@@ -258,16 +258,29 @@ describe('раскладка кучи по пространствам', () => {
     expect(names).toContain('code_large_object_space');
   });
 
-  it('сумма пространств сходится с heapTotal', () => {
+  it('сумма пространств — это heapTotal, байт в байт', () => {
     /**
-     * Замер темы: сумма `space_size` 5.34 МБ против `heapTotal` 5.59 МБ — то есть сумма
-     * чуть меньше. Закрепляется отношение (сумма того же порядка, что heapTotal), а не
-     * конкретные мегабайты: на этой машине выходило и 0.91, и ровно 1.00.
+     * Снимаются в один момент: между двумя замерами в разных местах файла куча успевает
+     * вырасти. В этом процессе — равенство; в свежем — ещё и число из таблицы темы по версии Node.
      */
-    const sum = spaces.reduce((acc, s) => acc + s.space_size, 0);
-    const ratio = sum / process.memoryUsage().heapTotal;
-    expect(ratio).toBeGreaterThan(0.7);
-    expect(ratio).toBeLessThan(1.1);
+    const sumNow = () => v8.getHeapSpaceStatistics().reduce((acc, s) => acc + s.space_size, 0);
+    expect(sumNow()).toBe(process.memoryUsage().heapTotal);
+
+    const fresh = JSON.parse(
+      execFileSync(
+        process.execPath,
+        ['-e', "const v8 = require('node:v8'); console.log(JSON.stringify([v8.getHeapSpaceStatistics().reduce((a, s) => a + s.space_size, 0), process.memoryUsage().heapTotal]))"],
+        { encoding: 'utf8' },
+      ),
+    ) as [number, number];
+    expect(fresh[0]).toBe(fresh[1]);
+    const mb = (fresh[0] / 1024 ** 2).toFixed(2);
+    const major = process.versions.node.split('.')[0];
+    const what = FIELDS.find((f) => f.key === 'heapTotal')!.what;
+    const expected: Record<string, string> = { '24': '5.34', '26': '5.14' };
+    expect(expected[major], `нет числа heapTotal для Node ${major}`).toBeDefined();
+    expect(mb).toBe(expected[major]);
+    expect(what).toContain('совпадает с heapTotal байт в байт: на пустом процессе это 5.34 МБ в Node 24.11 и 5.14 МБ в Node 26.8');
   });
 });
 
@@ -551,6 +564,44 @@ describe('resourceLimits · воркер падает свой, процесс �
     expect(row.owner).toBe('node');
     expect(row.misses).toContain('ERR_WORKER_OUT_OF_MEMORY');
     expect(row.misses).toContain('процесс остаётся жив');
+  });
+});
+
+describe('resourceLimits · флаг процесса доходит и до воркера', () => {
+  /**
+   * Было «--max-old-space-size действует только на главный поток». Флаг V8 общий для процесса:
+   * он задаёт потолок каждой куче и перекрывает `maxOldGenerationSizeMb` воркера.
+   */
+  const body = `
+    const { Worker } = require('node:worker_threads');
+    const lim = () => require('node:v8').getHeapStatistics().heap_size_limit / 1024 ** 2;
+    const code = "require('node:worker_threads').parentPort.postMessage(require('node:v8').getHeapStatistics().heap_size_limit / 1024 ** 2)";
+    const ask = (resourceLimits) => new Promise((done) =>
+      new Worker(code, { eval: true, resourceLimits }).once('message', done));
+    Promise.all([ask(undefined), ask({ maxOldGenerationSizeMb: 32 })])
+      .then(([plain, limited]) => console.log(JSON.stringify({ main: lim(), plain, limited })));
+  `;
+
+  it('под флагом воркер получает тот же потолок, что главный поток, даже с resourceLimits', () => {
+    const { main, plain, limited } = probe<{ main: number; plain: number; limited: number }>(
+      ['--max-old-space-size=100'],
+      body,
+    );
+    expect(plain).toBe(main);
+    expect(limited).toBe(main);
+    expect(limited).toBeGreaterThan(100);
+  });
+
+  it('без флага resourceLimits работает', () => {
+    const { main, limited } = probe<{ main: number; limited: number }>([], body);
+    expect(limited).toBeLessThan(main);
+  });
+
+  it('тема больше не говорит «только на главный поток»', () => {
+    expect(flagRow('maxOldGenerationSizeMb').what).not.toMatch(/только на главный/u);
+    expect(flagRow('maxOldGenerationSizeMb').what).toContain('перекрывает');
+    expect(readFileSync(new URL('../../src/content/lessons/node-memory/index.mdx', import.meta.url), 'utf8'))
+      .not.toMatch(/действует только на главный/u);
   });
 });
 

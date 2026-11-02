@@ -53,7 +53,7 @@ for (const [name, type, expected] of ENGINES) {
 
 test('текст темы называет те же движки', () => {
   const mdx = readFileSync('src/content/lessons/task-scheduling/index.mdx', 'utf8');
-  expect(mdx).toContain('Оба метода есть в Chromium 153 и Firefox 155, а в WebKit 26.6');
+  expect(mdx).toContain('Оба метода есть в Chromium и Firefox, а в WebKit (Safari)');
   const longtask = LONGTASK_FACTS.find((f) => f.t.includes('наблюдателя нет'));
   if (!longtask) throw new Error('карточки «… наблюдателя нет» в LONGTASK_FACTS нет — проверка осталась без предмета');
   expect(longtask.t).toContain('Firefox');

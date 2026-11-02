@@ -73,11 +73,11 @@ function verdictOf(lane: LaneReport): string {
   if (lane.verdict === 'clash') {
     return `расхождение: движок дал ${ticks(lane.measure.price)}, модель — ${ticks(lane.model?.price ?? 0)}`;
   }
-  return `модели нет: цену сказал только движок — ${ticks(lane.measure.price)}`;
+  return `цена в вашем браузере — ${ticks(lane.measure.price)}`;
 }
 
 const NO_MODEL =
-  'Модели для этой дорожки нет, и это не пропуск: `promise-sim` намеренно не знает отказов — так записано в её докстринге. Тащить их туда ради одного случая значило бы переписать её семантику.';
+  'Для отказа разбора по шагам нет: здесь только то, что показал ваш браузер.';
 </script>
 
 <template>
@@ -133,8 +133,8 @@ const NO_MODEL =
 
           <div class="rc-verdict" :data-state="lane.verdict">{{ verdictOf(lane) }}</div>
           <div v-if="lane.drift" class="rc-drift">
-            Записано было {{ ticks(lane.lane.n) }} — ваш движок считает иначе. Число на странице
-            снято сейчас, а не вспомнено.
+            В тексте темы стоит {{ ticks(lane.lane.n) }}, а ваш браузер насчитал иначе. Верьте
+            числу браузера: оно снято только что.
           </div>
 
           <Md class="rc-lane__note" :text="lane.lane.note" />
@@ -144,7 +144,7 @@ const NO_MODEL =
       <div class="rc-source">
         {{
           measured
-            ? 'Оба столбца получены прямо сейчас: левый — вашим движком, правый — моделью по спецификации.'
+            ? 'Вывод получен прямо сейчас в вашем браузере, а разбор по тикам построен по правилам спецификации.'
             : 'Выполнить примеры не удалось — показаны заранее посчитанные числа.'
         }}
       </div>

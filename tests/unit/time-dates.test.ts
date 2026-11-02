@@ -21,6 +21,9 @@ import type { Disambiguation, ZoneTable } from '@/widgets/tz-lab/model/types';
  *
  * Строки, снятые в другой среде (Node 26.8, Chromium, Firefox, WebKit), — снимок стенда:
  * проверяется та из них, что относится к версии Node, где идёт прогон.
+ *
+ * `temporal-polyfill` 1.0.5 отдаёт встроенный `Temporal`, если он есть: на Node 24.11 блок
+ * «Temporal» проверяет полифил, на Node 26.8.2 (официальная сборка) — встроенный объект.
  */
 
 const MINUTE = 60_000;
@@ -101,8 +104,26 @@ describe('база поясов', () => {
     if (row) {
       expect(row.icu).toBe(process.versions.icu);
       expect(row.tz).toBe(process.versions.tz);
+      // Колонка «Temporal»: «есть, встроенный…» — объект на месте без флагов, «нет…» — его нет.
+      const native = (globalThis as { Temporal?: unknown }).Temporal;
+      expect(row.temporal.startsWith('есть'), row.temporal).toBe(native !== undefined);
+      if (native) expect(Object.prototype.toString.call(native)).toBe('[object Temporal]');
     }
-    expect(typeof (globalThis as { Temporal?: unknown }).Temporal).toBe('undefined');
+  });
+
+  it('CHISINAU_NOTE: Ванкувер и Касабланка по 2025b и 2026c', () => {
+    const offset = (zone: string, iso: string) =>
+      new Intl.DateTimeFormat('en', { timeZone: zone, timeZoneName: 'longOffset' }).formatToParts(new Date(iso)).at(-1)?.value;
+    const expected: Record<string, [string, string, string]> = {
+      '2025b': ['GMT-08:00', 'GMT-07:00', 'GMT+01:00'],
+      '2026c': ['GMT-07:00', 'GMT-06:00', 'GMT+00:00'],
+    };
+    const want = expected[process.versions.tz!];
+    if (want) {
+      expect([offset('America/Vancouver', '2026-12-01T12:00Z'), offset('America/Edmonton', '2026-12-01T12:00Z'), offset('Africa/Casablanca', '2026-10-01T12:00Z')]).toEqual(want);
+    }
+    expect(t.CHISINAU_NOTE).toContain('по базе 2026c Ванкувер и Эдмонтон с 1 ноября 2026 остались на летнем времени');
+    expect(t.CHISINAU_NOTE).toContain('Касабланка с 20 сентября 2026 живёт на `+00:00`');
   });
 
   it('CHISINAU_CODE: ответ совпадает со строкой своей версии tzdata', () => {
@@ -212,13 +233,27 @@ describe('Temporal (полифил)', () => {
     expect(Temporal.Instant.fromEpochMilliseconds(Date.UTC(2026, 2, 29)).toString()).toBe('2026-03-29T00:00:00Z');
     expect(JSON.stringify({ at: a })).toBe('{"at":"2026-03-29T00:00:00Z"}');
 
-    // Импорт по имени `Date.prototype` не трогает, `temporal-polyfill/global` — добавляет метод.
-    expect(typeof (Date.prototype as { toTemporalInstant?: unknown }).toTemporalInstant).toBe('undefined');
-    const withGlobal = execFileSync(process.execPath, ['-e', "require('temporal-polyfill/global'); console.log(typeof Date.prototype.toTemporalInstant)"], {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    }).trim();
-    expect(withGlobal).toBe('function');
+    // Импорт по имени `Date.prototype` не трогает, `temporal-polyfill/global` добавляет метод —
+    // там, где встроенного Temporal нет. Где он есть (Node 26), метод уже встроенный, полифил
+    // его не подменяет, а `Temporal` из пакета — тот же встроенный объект. Свежий процесс на каждый случай.
+    const probe = (load: string) =>
+      JSON.parse(
+        execFileSync(
+          process.execPath,
+          ['-e', `const before = Date.prototype.toTemporalInstant, T = globalThis.Temporal; const p = ${load}; console.log(JSON.stringify([typeof before, Date.prototype.toTemporalInstant === before, typeof Date.prototype.toTemporalInstant, T !== undefined && p.Temporal === T]))`],
+          { cwd: process.cwd(), encoding: 'utf8' },
+        ),
+      ) as [string, boolean, string, boolean];
+    const native = (globalThis as { Temporal?: unknown }).Temporal !== undefined;
+    expect(t.TEMPORAL_FACTS.find((f) => f.t === 'Мост к `Date`')?.d).toContain('только там, где встроенного Temporal нет');
+    if (native) {
+      expect(Temporal).toBe((globalThis as { Temporal?: unknown }).Temporal);
+      expect(probe("require('temporal-polyfill')")).toEqual(['function', true, 'function', true]);
+      expect(probe("(require('temporal-polyfill/global'), require('temporal-polyfill'))")).toEqual(['function', true, 'function', true]);
+    } else {
+      expect(probe("require('temporal-polyfill')")).toEqual(['undefined', true, 'undefined', false]);
+      expect(probe("(require('temporal-polyfill/global'), require('temporal-polyfill'))")).toEqual(['undefined', false, 'function', false]);
+    }
   });
 
   it('Kathmandu: начало 1 января 1986 года — 00:15', () => {
@@ -242,7 +277,7 @@ describe('Temporal (полифил)', () => {
 });
 
 /** Таблицы, снятые по той же базе, что у процесса. Таблицы другой версии tzdata — снимок стенда. */
-const ACTIVE = Object.entries(t.ZONE_TABLES).filter(([, table]) => table.tzdata === process.versions.tz);
+const ACTIVE = Object.entries(t.ZONE_TABLES).filter(([, table]) => table.tzdata.includes(process.versions.tz!));
 
 /** Переходы зоны полифилом на отрезке таблицы. */
 function rebuild(table: ZoneTable) {

@@ -32,6 +32,13 @@ import type { Registry } from '@/widgets/pm-lab/model/layout';
  *     из `widgets/pm-lab/model/layout.ts` обязано повторить их строка в строку. Закреплено тестом.
  *   — `LOCK_CODE` — `package-lock.json` сценария «две копии»; integrity тарбола тест
  *     считает сам — `INTEGRITY_CODE` — и сверяет с lock-файлом и с `npm pack --json`.
+ *     Integrity в `LOCK_CODE` и `PNPM_LOCK_CODE` пересняты 2026-11-02: стенд оказался Node 26.8.2
+ *     из Homebrew с системной zlib 1.2.12, а она сжимает тот же tar в другие байты, чем zlib
+ *     официальных сборок nodejs.org. Все семь тарболов (a, c@1.5.0, c@2.1.0, d, e, host@1.5.0,
+ *     plug) восстановлены из учебных исходников — на Homebrew хеши совпали со старыми байт
+ *     в байт — и пересобраны на официальных Node 24.11.0 (npm 11.6.1, zlib 1.3.1) и 26.8.2
+ *     (npm 11.19.1, zlib 1.3.2.1): там хеши одинаковые. Хеш подложенного архива в `CI_ROWS`
+ *     этим способом не восстановить, поэтому он не напечатан.
  *   — Остальные таблицы (`CI_ROWS`, `PEER_ROWS`, `OVERRIDE_ROWS`, `SCRIPT_ROWS`, `AGE_ROWS`,
  *     `WORKSPACE_ROWS`, `STORE_FACTS`) — снятые прогоны, **сторожем не закреплены**: для них
  *     нужен живой реестр и три менеджера, в unit-тест это не помещается.
@@ -565,7 +572,7 @@ export const HISTORY_NOTE =
   'Раскладка npm зависит не только от `package.json`, но и от **порядка, в котором пакеты добавлялись**: установка поверх существующего дерева не переставляет то, что уже стоит. Один и тот же `package.json` даёт два разных дерева — и узнать, какое у коллеги, можно только из lock-файла. Вывод для своего кода: коммитьте lock-файл и не удаляйте его «чтобы починить установку» — вместе с ним уходит и раскладка. (Строки сняты до публикации `c@1.5.0`, поэтому старшая единица здесь — `1.3.0`.)';
 
 export const PROJECT_DUPES =
-  'Живой пример — собственный `node_modules` этого сайта. `npm ls semver` показывает: `@babel/core` требует `semver@^6`, и `semver@6.3.1` занял корень. Всем остальным — Astro, sharp, плагинам ESLint, typescript-eslint — нужен седьмой, и **`semver@7.8.5` лежит на диске девять раз**, по 268 КБ, под каждым, кто его просит. А `import semver from \'semver\'` из кода сайта получил бы шестую версию — фантом, которого сайт не объявлял. Тест этой темы поэтому берёт `semver` не по голому имени, а от лица Astro: `createRequire` из папки `astro`.';
+  'Живой пример — собственный `node_modules` этого сайта. `npm ls semver` показывает: `@babel/core` требует `semver@^6`, и `semver@6.3.1` занял корень. Всем остальным — Astro, sharp, плагинам ESLint, typescript-eslint — нужен седьмой, и **`semver@7.8.5` лежит на диске тринадцать раз**, по 268 КБ, под каждым, кто его просит. А `import semver from \'semver\'` из кода сайта получил бы шестую версию — фантом, которого сайт не объявлял. Тест этой темы поэтому берёт `semver` не по голому имени, а от лица Astro: `createRequire` из папки `astro`.';
 
 /* ──────────────────── Раздел 3 · lock-файл ──────────────────── */
 
@@ -588,7 +595,7 @@ export const LOCK_CODE = `{
     "node_modules/a": {
       "version": "1.0.0",
       "resolved": "http://127.0.0.1:48731/a/-/a-1.0.0.tgz",
-      "integrity": "sha512-kXYxHjCogzRk7YQKPB/VnjO7yi4GJ3VbjchcET6c7ys4HeehHX4ggdoKfSJL376s6/iYxCmhGWdfq4CX32fC4Q==",
+      "integrity": "sha512-KxtjZozXCZGToaFg+16AMHiMpsTIvuuyMS8v7bluuCNbOrY/V3kZj5LTncY5yKOlPtkbsQHqkN+t+lhXfUGirg==",
       "dependencies": {
         "c": "^1.0.0"
       }
@@ -596,12 +603,12 @@ export const LOCK_CODE = `{
     "node_modules/c": {
       "version": "1.5.0",
       "resolved": "http://127.0.0.1:48731/c/-/c-1.5.0.tgz",
-      "integrity": "sha512-0Uh32IzSPPylbeQjxHXQMYhH/o7yJkgqpnfmS/3M7g2iZNABAMVjGlfdppGY+fXCiGZHbUsFQAMuJ6BBRDnDLw=="
+      "integrity": "sha512-bKcTaZKZQ4S727QD2hjMLvcc2ChYmOkhQej+lGMtrnt67+SKoUH4FDJaAad7B5AYvyABX/hRu7W4SPPnsJpRFw=="
     },
     "node_modules/d": {
       "version": "1.0.0",
       "resolved": "http://127.0.0.1:48731/d/-/d-1.0.0.tgz",
-      "integrity": "sha512-6fDmntqJbNtWlDwEaxzlit+a9tz3PW2Bi7ZJVkXRLCXlQShOOUzG+jxvoRbrUoEeuM6lfx6o0XMl53omaRrbVA==",
+      "integrity": "sha512-cirND7tmHO60ZC3XZFDYtC4Yg6hUNQF8Fw529RjY8EBEIotCnH3paMfJXWTfJ2mecGEiJ2xyExMbnZLU6bhdMA==",
       "dependencies": {
         "c": "^2.0.0"
       }
@@ -609,12 +616,12 @@ export const LOCK_CODE = `{
     "node_modules/d/node_modules/c": {
       "version": "2.1.0",
       "resolved": "http://127.0.0.1:48731/c/-/c-2.1.0.tgz",
-      "integrity": "sha512-5a88B1iUpIKRNqymld35JFEw+LKXniqbh69mYmL6JAXckQTJNZWy3iaz0MXGQcawxotsZKS4d45JoBbXNf0PuQ=="
+      "integrity": "sha512-hoTKlVv3ipAcLsIJlTBhYNrMVGvoHzy/fzkmQWPFg69ALdZaQ83bEN4Kn4pPg6uY2cUA5AAf9278rPdk4+7/aA=="
     },
     "node_modules/e": {
       "version": "1.0.0",
       "resolved": "http://127.0.0.1:48731/e/-/e-1.0.0.tgz",
-      "integrity": "sha512-XveRFwXcB/5i/BftIuigKXN7hQ2bBXA2xDnEB7Lyt2TVL3K+aFgxY1dP74OtCvnmwgu2c1J/Sj1kVRauPO0C6A==",
+      "integrity": "sha512-4eWPOAmDQGk4jMlvX5njkpf5C3t0o3dqljdKmZmSDVi1sjb+MSQFgQ9sHy6OSjUgr5V2AzaJR3KvEWVmSVvDJQ==",
       "dependencies": {
         "c": "^2.0.0"
       }
@@ -622,7 +629,7 @@ export const LOCK_CODE = `{
     "node_modules/e/node_modules/c": {
       "version": "2.1.0",
       "resolved": "http://127.0.0.1:48731/c/-/c-2.1.0.tgz",
-      "integrity": "sha512-5a88B1iUpIKRNqymld35JFEw+LKXniqbh69mYmL6JAXckQTJNZWy3iaz0MXGQcawxotsZKS4d45JoBbXNf0PuQ=="
+      "integrity": "sha512-hoTKlVv3ipAcLsIJlTBhYNrMVGvoHzy/fzkmQWPFg69ALdZaQ83bEN4Kn4pPg6uY2cUA5AAf9278rPdk4+7/aA=="
     }
   }
 }`;
@@ -659,9 +666,10 @@ export const LOCK_FIELDS: { t: string; d: string; tone?: 'info' | 'ok' | 'warn' 
 
 /**
  * Integrity тарбола — считается здесь, этим кодом, и сверяется тестом с lock-файлом выше
- * и с тем, что печатает `npm pack --json`. Тест собирает тарбол сам: `npm pack`
+ * и с тем, что печатает `npm pack --json`. Тест собирает все семь тарболов сам: `npm pack`
  * детерминирован — время файлов в архиве всегда 26 октября 1985 года, права нормализованы, —
- * и повторная упаковка дала тот же хеш байт в байт.
+ * и повторная упаковка дала тот же хеш байт в байт. Но только при той же zlib: сжатие делает
+ * Node, и Node из Homebrew (системная zlib 1.2.12) даёт другие байты, чем сборки nodejs.org.
  */
 export const INTEGRITY_CODE = `const { createHash } = require('node:crypto');
 
@@ -671,7 +679,7 @@ function integrity(tarball) {
 }`;
 
 export const INTEGRITY_NOTE =
-  'Тот же хеш — имя файла в кеше npm: тарбол `c@1.5.0` лежит в `_cacache/content-v2/sha512/d1/48/77d8…` — это его sha512 в шестнадцатеричной записи, разбитый на папки. Кеш npm адресуется по содержимому, поэтому `npm ci` с остановленным реестром прошёл: все архивы нашлись по `integrity` из lock-файла, и в сеть он не пошёл. А `npm install zero --offline` для пакета, которого в кеше не было, упал с `ENOTCACHED`.';
+  'Тот же хеш — имя файла в кеше npm: тарбол `c@1.5.0` лежит в `_cacache/content-v2/sha512/6c/a7/1369…` — это его sha512 в шестнадцатеричной записи, разбитый на папки. Кеш npm адресуется по содержимому, поэтому `npm ci` с остановленным реестром прошёл: все архивы нашлись по `integrity` из lock-файла, и в сеть он не пошёл. А `npm install zero --offline` для пакета, которого в кеше не было, упал с `ENOTCACHED`. И хеш берётся от сжатого архива, а не от файлов: сжимает его zlib внутри Node, и тот же исходник, упакованный тем же npm 11.19.1 на Node 26.8.2 из Homebrew (системная zlib), даёт другие байты и другой `integrity`, чем на сборке с nodejs.org.';
 
 export const CI_ROWS: { k: string; install: string; ci: string; tone: 'ok' | 'warn' | 'err' }[] = [
   {
@@ -695,7 +703,7 @@ export const CI_ROWS: { k: string; install: string; ci: string; tone: 'ok' | 'wa
   {
     k: 'тарбол на реестре подменён',
     install: '`EINTEGRITY` — lock-файл знает хеш',
-    ci: '`EINTEGRITY` после двух повторов: «wanted sha512-0Uh3… but got sha512-qN3g…»',
+    ci: '`EINTEGRITY` после двух повторов: «wanted sha512-bKcT… but got sha512-…» — второй хеш у подложенного архива свой',
     tone: 'err',
   },
   {
@@ -931,10 +939,10 @@ importers:
 packages:
 
   host@1.5.0:
-    resolution: {integrity: sha512-m2JvEHguD7LKTq8VRnm/ZzPr/eIvb7SRLlD9QRqQ6u/duZ1NjpW08Gf89aDGBL3d3wtCzGxhQdjH510Qffm6VQ==}
+    resolution: {integrity: sha512-RgURDmNYuYZBjzUDmnUMJv3rmCu131qRt/jFcB+yDvVofaqZh8zVIaAfBNUJOxxZm/DNXP6W8mqdV7mDtnyuUw==}
 
   plug@1.0.0:
-    resolution: {integrity: sha512-rk9ERG07pPjwHJRyB50bjK8a0ERHFdZOlxBUl4odUxQlKVXn5Mtke2ld2edYP61Ljk1jF2NAnd94ZezjJFTTHw==}
+    resolution: {integrity: sha512-A/qJyKs7iCufVwA9tgvolUrPWJbgux1JQ14MI7OJ/SpODggofpfM9+ZuF2Rz9Wh+sRif312w0672orqqgD52tQ==}
     peerDependencies:
       host: ^1.0.0
 

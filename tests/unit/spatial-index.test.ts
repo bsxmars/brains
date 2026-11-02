@@ -256,6 +256,23 @@ describe('таблицы темы пересчитываются', () => {
     }
   });
 
+  it('PILE_NOTE: при maxDepth 4 курсор рядом со стопкой — 1 023 проверки, из них 1 007 по точкам листа', () => {
+    const root = buildQuad(api, gen.makeShapes(2000, seed, 'pile', 0), cap, 4);
+    const s = emptyStats();
+    api.quadSearch(root, { minX: 505, minY: 505, maxX: 511, maxY: 511 }, [], s);
+    const leaves = (s.nodes as unknown as { kids: unknown; points: unknown[] }[]).filter((n) => !n.kids);
+    expect(leaves).toHaveLength(1);
+    expect([s.checks, leaves[0].points.length]).toEqual([1023, 1007]);
+    expect(t.PILE_NOTE).toContain('делает 1 023 проверки зря: все 1 007 точек листа');
+  });
+
+  it('TREE_NOTE: «в семь раз больше перекрытия» — на точках, на прямоугольниках втрое', () => {
+    const ov = (set: string, tree: string) => parseFloat(t.TREE_ROWS.find((r) => r.set === set && r.tree.startsWith(tree))!.overlap.replace(',', '.'));
+    expect(Math.round(ov('точки', 'учебное') / ov('точки', 'rbush: insert'))).toBe(7);
+    expect(Math.round(ov('прямоугольники', 'учебное') / ov('прямоугольники', 'rbush: insert'))).toBe(3);
+    expect(t.TREE_NOTE).toMatch(/^На точках квадратичное разбиение даёт в семь раз/);
+  });
+
   it('без предела глубины стопка роняет вставку с RangeError', () => {
     const shapes = gen.makeShapes(2000, seed, 'pile', 0);
     expect(() => buildQuad(api, shapes, cap, Infinity)).toThrow(RangeError);

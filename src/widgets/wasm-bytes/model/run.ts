@@ -2,7 +2,7 @@
  * Исполнение учебного модуля — в браузере читателя и в тесте одним и тем же кодом.
  *
  * Здесь нет ни одной заготовленной строки результата: каждое число берётся у движка —
- * `WebAssembly.instantiate`, вызов экспорта, чтение `memory.buffer`, `memory.grow`.
+ * `WebAssembly.instantiate`, вызов экспорта, чтение `memory.buffer`.
  */
 
 /** Сколько байт памяти показывать: адрес строки плюс запас. */
@@ -22,14 +22,6 @@ export interface ModuleRun {
   result: string;
   /** Что модуль передал в импорт `env.report` — число поменянных букв. */
   reported: number[];
-  grow: {
-    /** `memory.grow(1)` вернул прежний размер в страницах. */
-    previousPages: number;
-    oldByteLength: number;
-    oldDetached: boolean | null;
-    newByteLength: number;
-    sameObject: boolean;
-  };
   tableHoldsAdd: boolean;
 }
 
@@ -40,7 +32,7 @@ interface Exports {
   table: WebAssembly.Table;
 }
 
-/** Создать экземпляр, сложить, провести строку через память и вырастить память на страницу. */
+/** Создать экземпляр, сложить и провести строку через память. */
 export async function runModule(bytes: ArrayLike<number>, text: string, a: number, b: number): Promise<ModuleRun> {
   const reported: number[] = [];
   const { instance } = await WebAssembly.instantiate(new Uint8Array(bytes), {
@@ -59,11 +51,6 @@ export async function runModule(bytes: ArrayLike<number>, text: string, a: numbe
   const after = [...new Uint8Array(e.memory.buffer, 0, WINDOW)];
   const result = new TextDecoder().decode(new Uint8Array(e.memory.buffer, STRING_PTR, encoded.length));
 
-  // Рост памяти: старый ArrayBuffer отсоединяется, у памяти — новый.
-  const old = e.memory.buffer;
-  const previousPages = e.memory.grow(1);
-  const detached = (old as ArrayBuffer & { detached?: boolean }).detached;
-
   return {
     add: { a, b, result: sum },
     chars: text.length,
@@ -72,13 +59,6 @@ export async function runModule(bytes: ArrayLike<number>, text: string, a: numbe
     after,
     result,
     reported,
-    grow: {
-      previousPages,
-      oldByteLength: old.byteLength,
-      oldDetached: typeof detached === 'boolean' ? detached : null,
-      newByteLength: e.memory.buffer.byteLength,
-      sameObject: e.memory.buffer === old,
-    },
     tableHoldsAdd: e.table.get(0) === (e.add as unknown),
   };
 }

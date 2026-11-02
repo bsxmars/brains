@@ -75,7 +75,15 @@ describe('примеры: Node печатает то, что напечатан�
 
   it.each(t.ASYNC_CASES.map((c) => [c.id, c] as const))('асинхронный сценарий %s — стек Node', (_id, c) => {
     const r = runFile(c.file, c.code);
-    expect(r.out).toBe(normalize(`$ node ${c.file}\n${c.node}`));
+    const node = t.ASYNC_NODE_BY_MAJOR[process.versions.node.split('.')[0]]?.[c.id] ?? c.node;
+    expect(r.out).toBe(normalize(`$ node ${c.file}\n${node}`));
+  });
+
+  it('ASYNC_NODE_BY_MAJOR: в Node 26 отличаются только кадры node:internal', () => {
+    for (const [id, stack] of Object.entries(t.ASYNC_NODE_BY_MAJOR['26'])) {
+      const own = (s: string) => s.split('\n').filter((l) => !l.includes('node:internal'));
+      expect(own(stack)).toEqual(own(t.ASYNC_CASES.find((c) => c.id === id)!.node));
+    }
   });
 });
 

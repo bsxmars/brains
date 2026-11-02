@@ -3,6 +3,7 @@ import { Readable, Writable, getDefaultHighWaterMark } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { describe, expect, it } from 'vitest';
 import {
+  BACKPRESSURE_WAVE,
   BYOB_CODE,
   BYOB_FACTS,
   ITER_CODE,
@@ -13,6 +14,7 @@ import {
   PIPE_DEFAULTS,
   RESUME_CODE,
   SSE_CASES,
+  WAVE_DIAGRAM,
 } from '@/content/platform/streams/data';
 import { runPipe } from '@/widgets/backpressure-pipe/model/pipe';
 import {
@@ -543,5 +545,19 @@ describe('раздел 6 · for await и BYOB: то, что стояло без 
     expect(BYOB_CODE).toContain('ДРУГОЙ буфер');
     const fact = BYOB_FACTS.find((f) => f.t.includes('не «те же'));
     expect(fact?.d).toContain('`value.buffer !== view.buffer`');
+  });
+});
+
+describe('схема обратной волны', () => {
+  it('шаг 7 на схеме говорит то же, что в тексте: по HTTP/2 снят стендом, а не «требует проверки»', () => {
+    // Было: в тексте шаг 7 снят стендом HTTP/2 (окно 65 535), на схеме — «требует проверки», штрихом.
+    const row = WAVE_DIAGRAM.rows.find((r) => r.n === '7')!;
+    expect(row.unsure).toBeUndefined();
+    expect(row.step).not.toContain('требует проверки');
+    expect(row.step).toContain('65 535');
+    expect(BACKPRESSURE_WAVE).toHaveLength(7);
+    expect(BACKPRESSURE_WAVE[6]).toContain('снято стендом');
+    expect(BACKPRESSURE_WAVE[6]).toContain('65 535');
+    for (const r of WAVE_DIAGRAM.rows) expect(r.step).not.toContain('требует проверки');
   });
 });

@@ -60,8 +60,18 @@ const LISTINGS = {
   WEAKSET_CODE: t.WEAKSET_CODE,
 };
 
+/** Пара upsert — Node 26; в Node 24 её нет, и тема говорит это в `UPSERT_NOTE`. */
+const HAS_UPSERT = 'getOrInsert' in Map.prototype;
+const UPSERT_ERROR = 'TypeError: byTag.getOrInsert is not a function';
+
 describe('листинги: каждый комментарий-вывод — ответ движка', () => {
-  it.each(Object.entries(LISTINGS))('%s', (_name, code) => {
+  it.each(Object.entries(LISTINGS))('%s', (name, code) => {
+    if (name === 'UPSERT_CODE' && !HAS_UPSERT) {
+      // Node 24: листинг падает на первой строке цикла — ровно с той ошибкой, что названа в теме.
+      expect(() => probes(code)).toThrow(UPSERT_ERROR.replace('TypeError: ', ''));
+      expect(t.UPSERT_NOTE).toContain(`\`${UPSERT_ERROR}\``);
+      return;
+    }
     const list = probes(code);
     expect(list.length, 'в листинге нет ни одной пробы — проверять нечего').toBeGreaterThan(0);
     for (const p of list) expect(p.got, p.expr).toBe(p.expected);
@@ -86,6 +96,15 @@ describe('утверждения прозы', () => {
   });
 
   it('getOrInsert создаёт значение по умолчанию при каждом вызове, Computed — только для нового ключа', () => {
+    expect(t.UPSERT_NOTE).toContain('есть в Node 26 и в браузерах; в Node 24 их нет');
+    if (!HAS_UPSERT) {
+      expect(process.versions.node.split('.')[0]).toBe('24');
+      for (const proto of [Map.prototype, WeakMap.prototype]) {
+        expect('getOrInsert' in proto).toBe(false);
+        expect('getOrInsertComputed' in proto).toBe(false);
+      }
+      return;
+    }
     const m = new Map<string, unknown[]>([['k', []]]);
     let made = 0;
     const fresh = () => {
@@ -117,6 +136,30 @@ describe('утверждения прозы', () => {
     expect(w.size).toBeUndefined();
     expect(w.clear).toBeUndefined();
     expect(w[Symbol.iterator as unknown as string]).toBeUndefined();
+  });
+
+  // getOrInsert у WeakMap — Node 26 (стенд темы); в Node 24 его нет, как и у Map (UPSERT_NOTE).
+  it('«Слабые»: методы WeakMap — get/set/has/delete и пара upsert, как в WEAK_FACTS', () => {
+    const own = Object.getOwnPropertyNames(WeakMap.prototype)
+      .filter((k) => k !== 'constructor')
+      .sort();
+    if (!HAS_UPSERT) {
+      expect(own).toEqual(['delete', 'get', 'has', 'set']);
+      for (const k of own) expect(t.WEAK_FACTS[2].d).toContain(`\`${k}\``);
+      return;
+    }
+    expect(own).toEqual(['delete', 'get', 'getOrInsert', 'getOrInsertComputed', 'has', 'set']);
+    for (const k of own) expect(t.WEAK_FACTS[2].d).toContain(`\`${k}\``);
+  });
+
+  it('SameValueZero расходится с === только на NaN, с Object.is — только на нулях', () => {
+    const [nan, negZero] = [Number.NaN, -0];
+    expect(nan === nan).toBe(false);
+    expect(negZero === 0).toBe(true);
+    expect(Object.is(-0, 0)).toBe(false);
+    expect(new Map([[-0, 1]]).has(0)).toBe(true);
+    expect(t.SAMEVALUE_NOTE).toContain('`===` или с `Object.is`');
+    expect(t.SAMEVALUE_NOTE).toContain('`Object.is(-0, 0)` ложно');
   });
 });
 

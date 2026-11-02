@@ -13,6 +13,7 @@ import {
   STEP_PULL,
   STEP_PUSH,
   STEP_SIGNAL,
+  INTRO_NOTE,
 } from '@/content/frameworks/signals/data';
 import { API_NAMES, DomLab, GraphLab, loadSignals, patchCode } from '@/widgets/mini-signals';
 import type { GraphScenario, GraphStep, SignalsApi, TraceEntry } from '@/widgets/mini-signals';
@@ -448,5 +449,17 @@ describe('рендер без виртуального DOM', () => {
     const { ops, html } = lab.start();
     expect(ops.at(-1)).toBe('<div>#0.append(<p>#1)');   // после монтирования — ни одной операции
     expect(html).toBe('<p>n = 0</p>');
+  });
+});
+
+describe('размер мини-реализации в тексте', () => {
+  it('«около ста сорока строк» — это `MINI_SIGNALS_CODE`, а не «двести»', () => {
+    const lines = MINI_SIGNALS_CODE.split('\n').length;
+    expect(lines).toBeGreaterThanOrEqual(130);
+    expect(lines).toBeLessThanOrEqual(150);
+    expect(INTRO_NOTE).toContain('около ста сорока строк');
+    const mdx = readFileSync(join(process.cwd(), 'src/content/frameworks/signals/index.mdx'), 'utf8');
+    expect(mdx).toContain('lead="Сто сорок строк ведут себя');
+    expect(mdx).not.toContain('Двести строк');
   });
 });

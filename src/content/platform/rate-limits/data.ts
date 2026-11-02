@@ -28,7 +28,8 @@ import type { HerdPreset, PolicyOptions, RetryAfterMode, RetryCode, Strategy } f
  *     сервер получил ровно один запрос; без `Access-Control-Expose-Headers` `retry-after`
  *     и `ratelimit` читаются как `null`). Браузерная часть тестом не повторяется;
  *   — **`RetryAgent` в Node без пакета нет**: среди имён `globalThis` Node 24.11 нет ни одного
- *     `*Agent`/`undici`; `fetch` построен на встроенном undici 7.16.0, но наружу он не отдан;
+ *     `*Agent`/`undici`; `fetch` построен на встроенном undici 7.16.0 (в Node 26.8.2 — 8.10.2,
+ *     и там тоже ни одного такого имени), но наружу он не отдан;
  *   — **AWS OCC-модель** (`AWS_ROWS`): исходник `src/backoff_simulator.py` из
  *     github.com/aws-samples/aws-arch-backoff-simulator, Python 3.14 (`xrange` → `range`),
  *     `random.seed(1)`, по 100 прогонов на точку. Тест портирует ту же модель на JS с `backoff`
@@ -735,7 +736,7 @@ const res = await request(url, { dispatcher: agent });
 res.statusCode;               // 200 — после двух ответов 503`;
 
 export const UNDICI_NOTE =
-  '`RetryAgent` — обёртка над диспетчером undici: повторы прозрачны, наружу приходит последний ответ. Во встроенном `fetch` Node его нет: `fetch` в Node 24 построен на undici 7.16, но сам undici наружу не отдан, и `RetryAgent` требует пакета `undici`. Поведение по умолчанию: методы `GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`, `TRACE`, `QUERY`; коды 429, 500, 502, 503, 504; пять повторов, паузы 500 мс × 2ⁿ до 30 с, **без джиттера**. `Retry-After` уважает — в секундах и датой, — но срезает его до `maxTimeout`. Когда попытки кончились, `request` не возвращает последний 503, а бросает `RequestRetryError` с `statusCode: 503`.';
+  '`RetryAgent` — обёртка над диспетчером undici: повторы прозрачны, наружу приходит последний ответ. Во встроенном `fetch` Node его нет: `fetch` построен на встроенном undici (Node 24 — undici 7.16, Node 26 — undici 8.10), но сам undici наружу не отдан, и `RetryAgent` требует пакета `undici`. Поведение по умолчанию: методы `GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`, `TRACE`, `QUERY`; коды 429, 500, 502, 503, 504; пять повторов, паузы 500 мс × 2ⁿ до 30 с, **без джиттера**. `Retry-After` уважает — в секундах и датой, — но срезает его до `maxTimeout`. Когда попытки кончились, `request` не возвращает последний 503, а бросает `RequestRetryError` с `statusCode: 503`.';
 
 export const CLIENT_ROWS: { k: string; retries: string; ra: string; jitter: string; how: string; tone?: 'ok' | 'warn' | 'err' }[] = [
   { k: '`fetch` (браузер, Node)', retries: 'нет', ra: 'нет; на чужом источнике без expose заголовок не прочитать', jitter: '—', how: 'запуск: Node 24, Chromium 153', tone: 'err' },

@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { CLONE_CASES } from '@/widgets/clone-survival/model/cases';
+import { CLONE_CASES, Money } from '@/widgets/clone-survival/model/cases';
 import { runCloneCase } from '@/widgets/clone-survival/model/run';
+import type { CloneCase, CloneOutcome } from '@/widgets/clone-survival/model/types';
+
+/**
+ * Исполнить **напечатанный** код карточки (`code`), а не фабрику `make`: последняя строка —
+ * вызов `structuredClone`, её результат и отдаётся. `Money` подставляется тем же классом,
+ * что в `cases.ts` (его исходник — листинг `MONEY_CODE` темы).
+ */
+function runPrinted(item: CloneCase): CloneOutcome {
+  const lines = item.code.trim().split('\n');
+  lines[lines.length - 1] = `return ${lines[lines.length - 1]}`;
+  let clone: unknown;
+  try {
+    clone = new Function('Money', `"use strict";\n${lines.join('\n')}`)(Money);
+  } catch (failure) {
+    return { verdict: 'throw', note: (failure as { name?: string }).name ?? 'Error' };
+  }
+  return item.inspect ? item.inspect(clone) : { verdict: 'ok', note: '' };
+}
 
 /**
  * Таблица «что переживёт клонирование» — это тест, а не утверждение автора.
@@ -23,6 +41,23 @@ describe('structuredClone — что переживает клонировани
       expect(outcome.verdict, `${item.label}: ${outcome.note}`).toBe(item.expected);
     });
   }
+
+  it('напечатанный код карточки даёт тот же исход, что исполняет демо', () => {
+    for (const item of CLONE_CASES.filter((c) => !c.browserOnly)) {
+      const printed = runPrinted(item);
+      const shown = runCloneCase(item);
+      expect(printed.verdict, item.label).toBe(shown.verdict);
+      if (shown.verdict === 'throw') expect(printed.note, item.label).toBe(shown.note);
+    }
+  });
+
+  it('вердикт вычисляется проверками: «целый» объект проверки признают целым', () => {
+    // Если бы вердикт был константой, карточка класса сказала бы «lossy» и про сам оригинал.
+    const item = CLONE_CASES.find((c) => c.key === 'class')!;
+    expect(item.inspect!(new Money(1250)).verdict).toBe('ok');
+    const regexp = CLONE_CASES.find((c) => c.key === 'regexp')!;
+    expect(regexp.inspect!(regexp.make()).verdict).toBe('ok');
+  });
 
   it('всё, что падает, падает именно DataCloneError', () => {
     for (const item of CLONE_CASES.filter((c) => !c.browserOnly && c.expected === 'throw')) {
@@ -81,7 +116,7 @@ describe('молчаливые потери — то, что не видно п�
     expect(clone).toBeInstanceOf(RegExp);
     expect(clone.source).toBe('ab');
     expect(clone.flags).toBe('g');
-    // Конспект урока утверждал обратное; проверка в Node 24.11 и Chromium 153 говорит «ноль».
+    // Конспект урока утверждал обратное; проверка в Node и Chromium 153 говорит «ноль».
     expect(clone.lastIndex, 'позиция поиска в сериализацию не входит').toBe(0);
   });
 

@@ -67,8 +67,8 @@ const heavy = computed(() => price.value >= 3);
 const ladder = computed(
   () =>
     `// линейка: каждая ступень — ровно одна микрозадача\n` +
-    `let p = Promise.resolve();\n` +
-    `for (let i = 1; i <= ${props.steps}; i++) { const n = i; p = p.then(() => console.log('tick', n)); }\n\n` +
+    `let ruler = Promise.resolve();\n` +
+    `for (let i = 1; i <= ${props.steps}; i++) { const n = i; ruler = ruler.then(() => console.log('tick', n)); }\n\n` +
     `// измеряемое:\n${preset.value.code}`,
 );
 

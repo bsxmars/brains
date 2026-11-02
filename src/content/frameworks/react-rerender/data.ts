@@ -106,7 +106,10 @@ export const PHASES = {
 /**
  * Порядок рендера и эффектов. Проверено запуском на React 19.3 (jsdom + `react-dom/client`),
  * см. задачу A в `SELF_CHECK`. Граница «кадр» в выводе — вывод из устройства кадра, а не замер:
- * в jsdom отрисовки нет.
+ * в jsdom отрисовки нет. Граница подписана «может»: у нового корня `useEffect` уходит в отдельную
+ * задачу, но в замере третьего прохода (Chromium 153) он выполнился до `rAF` 14 раз из 15 —
+ * кадр между layout и `useEffect` бывает, а не обязателен. Безусловное «браузер рисует кадр»
+ * спорило с `EFFECTS_TIMING` (снято 2026-10-29, закреплено `tests/unit/react-rerender.test.ts`).
  */
 export const EFFECTS_ORDER = `function Parent() {
   console.log('render Parent');
@@ -118,8 +121,8 @@ export const EFFECTS_ORDER = `function Parent() {
 // первое монтирование:
 // render Parent → render Child          ← render-фаза, спуск
 // layout Child  → layout Parent         ← коммит, та же задача
-//                 ── браузер рисует кадр ──
-// effect Child  → effect Parent         ← отдельно, после коммита`;
+//    ── конец задачи: браузер может нарисовать кадр, а может и нет ──
+// effect Child  → effect Parent         ← отдельная задача, после коммита`;
 
 export const EFFECTS_NOTE =
   'Рендер идёт **сверху вниз** — это спуск по дереву. Эффекты выполняются **снизу вверх**: их список собирается на обратном пути, и ребёнок попадает в него раньше родителя. Поэтому в эффекте родителя все дочерние `ref` уже присвоены, а дочерние эффекты уже отработали; обратное неверно.';
@@ -655,7 +658,7 @@ export const SELF_CHECK: SelfCheckItem[] = [
       '**H. Хук в условии — что именно сломается.** `function Widget({ withTooltip }) { const [open, setOpen] = useState(false); if (withTooltip) { const [text, setText] = useState(""); } const boxRef = useRef(null); useEffect(() => { boxRef.current?.focus(); }, []); return <div ref={boxRef} />; }` Компонент рендерится с `withTooltip === true`, потом проп меняется на `false`. React не всегда падает с ошибкой. Что окажется в `boxRef` и почему?',
     hint: 'У ячейки хука нет имени. Единственный её адрес — позиция в связном списке на фибере.',
     answer:
-      'Рендер с `withTooltip === true` даёт ячейки `[useState(open) → #0, useState(text) → #1, useRef → #2, useEffect → #3]`. Рендер с `false` — `[useState(open) → #0, useRef → #1, useEffect → #2]`.\n\n`useRef` во втором рендере читает ячейку **#1**, в которой лежит хук от `useState(text)`. Его `memoizedState` — строка `""`, а не объект `{ current }`. То есть `boxRef` станет **пустой строкой**. Дальше `boxRef.current` — `undefined`, `?.focus()` не выполнится, а `ref={boxRef}` React отвергнет: строковые ref удалены в React 19.\n\nРантайм-проверка ловит только случай, когда хуков стало **больше**, чем в прошлый раз («Rendered more hooks than during the previous render») — там `updateWorkInProgressHook` упирается в `null`. Здесь хуков стало меньше, список не кончился, исключения нет: просто типы значений в ячейках перестали соответствовать тому, что от них ждут, и ошибка проявится в другом месте.\n\nИменно поэтому правило «хуки только на верхнем уровне» контролируется линтером, а не рантаймом: рантайм физически не может отличить `useState`, читающий чужую ячейку, от корректного вызова.',
+      'Рендер с `withTooltip === true` даёт ячейки `[useState(open) → #0, useState(text) → #1, useRef → #2, useEffect → #3]`. Рендер с `false` — `[useState(open) → #0, useRef → #1, useEffect → #2]`.\n\n`useRef` во втором рендере читает ячейку **#1**, в которой лежит хук от `useState(text)`. Его `memoizedState` — строка `""`, а не объект `{ current }`. То есть `boxRef` станет **пустой строкой**. Следом `useEffect` читает ячейку **#2** — там объект `{ current }` от `useRef`, без списка зависимостей, — и рендер падает с `TypeError: Cannot read properties of undefined (reading \'length\')` в обеих сборках; отладочная перед этим предупреждает «React has detected a change in the order of Hooks called by Widget». Проверено запуском на React 19.3.\n\nРантайм-проверок две: хуков стало **больше** — «Rendered more hooks than during the previous render», **меньше** — «Rendered fewer hooks than expected» в конце рендера. Здесь до второй не доходит: чужая ячейка ломает `useEffect` раньше, и ошибка указывает не на условие, а на эффект.\n\nИменно поэтому правило «хуки только на верхнем уровне» контролируется линтером, а не рантаймом: рантайм ловит сдвиг поздно и в чужом месте, а перестановку двух `useState` местами не отличит от корректного вызова.',
   },
 ];
 

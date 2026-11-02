@@ -604,6 +604,9 @@ describe('SRI_CODE в режиме browser против Chromium', () => {
     for (const s of ["Failed to find a valid digest in the 'integrity' attribute", 'requires the request to be CORS enabled', "or 'ed21159'."]) {
       expect(t.BROWSER_CONSOLE_CODE.replace(/\n/g, ' ')).toContain(s);
     }
+    // 'ed21159' — не опечатка темы: так печатает сам Chromium (строка выше снята с него).
+    // Чтобы читатель не принял её за имя алгоритма, рядом стоит пометка про ed25519.
+    expect(t.BROWSER_CONSOLE_CODE).toContain("// 'ed21159' — опечатка самого Chromium; подписи в черновике SRI — ed25519");
 
     // без integrity и того же источника — работает как обычно
     expect((await load(null, 'http://cdn.test/lib.js', false)).ran).toBe(true);

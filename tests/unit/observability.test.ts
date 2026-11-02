@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
@@ -527,5 +528,16 @@ describe('STATS_CODE и утверждения про перцентили', () 
       expect(t.CARDINALITY_TABLE[i].n).toBe(want[i]);
       expect(t.CARDINALITY_TABLE[i].series).toBe((want[i] * 18).toLocaleString('ru-RU'));
     });
+  });
+});
+
+describe('вычитка: интервал экспорта метрик', () => {
+  // Спецификация OTel, SDK environment variables: OTEL_METRIC_EXPORT_INTERVAL по умолчанию 60000 мс.
+  it('текст не обещает «раз в несколько секунд», а называет умолчание — минуту', () => {
+    expect(t.METRICS_NOTE).not.toContain('раз в несколько секунд');
+    expect(t.METRICS_NOTE).toContain('`OTEL_METRIC_EXPORT_INTERVAL` = 60 000 мс');
+    const mdx = readFileSync(new URL('../../src/content/delivery/observability/index.mdx', import.meta.url), 'utf8');
+    expect(mdx).not.toContain('раз в несколько секунд');
+    expect(mdx).toContain('по умолчанию раз в минуту');
   });
 });

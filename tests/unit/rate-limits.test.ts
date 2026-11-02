@@ -205,7 +205,8 @@ describe('fetch не повторяет', () => {
   it('RetryAgent в Node без пакета недоступен: встроенный undici наружу не отдан', () => {
     expect(process.versions.undici).toMatch(/^\d+\.\d+\.\d+$/);
     expect(Object.getOwnPropertyNames(globalThis).filter((k) => /undici|Agent$/i.test(k))).toEqual([]);
-    expect(t.UNDICI_NOTE).toContain(`undici ${process.versions.undici!.split('.').slice(0, 2).join('.')}`);
+    const major = process.versions.node.split('.')[0];
+    expect(t.UNDICI_NOTE).toContain(`Node ${major} — undici ${process.versions.undici!.split('.').slice(0, 2).join('.')}`);
   });
 });
 

@@ -7,7 +7,7 @@ kicker: сеть и безопасность
 lead: "Сервер отвечает 429 и просит подождать две секунды. Что сделает ваш клиент — повторит сразу, повторит через две секунды вместе с остальными сорока клиентами или не повторит вовсе? Лимит частоты — разговор двух сторон: сервер решает, кого и как считать, клиент — когда и что повторять. Ошибиться можно на обеих."
 leadWidth: 66
 summary: "429 против 503, `Retry-After` секундами и датой, заголовки `RateLimit` и `RateLimit-Policy` (черновик IETF, редакция 11) и `X-RateLimit-*` GitHub, CORS и чтение этих заголовков; ключ лимита и `X-Forwarded-For`; счётчик в Redis против счётчика на каждом экземпляре; что можно повторять, экспонента и три вида джиттера, громовое стадо, бюджет повторов и предохранитель; как ведут себя `fetch`, undici `RetryAgent`, TanStack Query, ky и axios-retry."
-verifiedOn: "Node 24.11.0, undici 8.10.2, Chromium 153.0.8010.12 (Playwright 1.63), nginx 1.30.0, Redis 7.4.11, aws-arch-backoff-simulator на Python 3.14, октябрь 2026: решения undici RetryAgent и fetch сняты на живом node:http и повторяются tests/unit/rate-limits.test.ts вместе с политикой и симуляцией темы; ky и axios-retry — по документации"
+verifiedOn: "Node 24.11.0 и 26.8.2, undici 8.10.2, Chromium 153.0.8010.12 (Playwright 1.63), nginx 1.30.0, Redis 7.4.11, aws-arch-backoff-simulator на Python 3.14, октябрь 2026: решения undici RetryAgent и fetch сняты на живом node:http и повторяются tests/unit/rate-limits.test.ts вместе с политикой и симуляцией темы; ky и axios-retry — по документации"
 nav:
   - { id: s0, label: Перед началом }
   - { id: s1, label: 429 и 503 }

@@ -26,6 +26,15 @@ interface Props {
 const { href = '/', label = 'все уроки', sticky = false, stickyTop = 0 } = Astro.props;
 ---
 
+{
+  sticky && (
+    <div class="pin" style={stickyTop ? `--back-top:${stickyTop}px` : undefined}>
+      <a class="pin__link" href={href} aria-label={label}>
+        ←
+      </a>
+    </div>
+  )
+}
 <div
   class:list={['row', sticky && 'row--sticky']}
   style={sticky && stickyTop ? `--back-top:${stickyTop}px` : undefined}
@@ -57,6 +66,42 @@ const { href = '/', label = 'все уроки', sticky = false, stickyTop = 0 }
     }
     .row--sticky .back {
       pointer-events: auto;
+    }
+  }
+
+  /* Уже 1400px сбоку нет поля под всю подпись, и липнет одна стрелка (решение автора курса
+     2026-10-28). Она стоит ровно на месте стрелки подписи: вверху страницы накрывает её, и двойной
+     не видно, а при прокрутке подпись уходит, стрелка остаётся. Нулевая высота — ничего не сдвигает.
+     Уже 1024px страница идёт без масштаба 0.8, поле до колонки — 24px, и стрелка легла бы на текст:
+     там не липнет ничего (замер 2026-10-28 на 390–1100px). */
+  .pin {
+    display: none;
+  }
+  @media (min-width: 1024px) and (max-width: 1399px) {
+    .pin {
+      display: block;
+      position: sticky;
+      top: var(--back-top, 0px);
+      z-index: 20;
+      height: 0;
+    }
+    .pin__link {
+      position: absolute;
+      top: var(--pin-y, 28px);
+      left: var(--pin-x, 0px);
+      font-family: var(--mono);
+      font-size: var(--fs-8);
+      line-height: 1;
+      text-decoration: none;
+      color: var(--text-muted);
+      transition: transform 0.18s, color 0.18s;
+    }
+    .pin__link:hover {
+      color: var(--ink);
+      transform: translateX(-3px);
+    }
+    .row--sticky .back__arrow {
+      visibility: hidden;
     }
   }
 

@@ -18,12 +18,16 @@ import { loadVerify, toCertLike } from '@/widgets/tls-lab/model/run';
  * сертификатах, которые тест выпускает сам скриптом `MAKE_CA_CODE` из темы. Рукопожатие,
  * 0-RTT, SNI, ALPN, keylog, возобновление и mTLS — запуском `openssl` и `node:tls`.
  *
- * Нужен OpenSSL 3.4+ (флаги `-not_before`/`-not_after`): берётся Homebrew, если он есть,
- * иначе `openssl` из PATH. Длины `ClientHello`/`ServerHello` зависят от версии OpenSSL
- * клиента — сменится версия, покраснеет сверка с `HANDSHAKE_ROWS`, и это нарочно.
+ * Нужен OpenSSL 3.4+ (флаги `-not_before`/`-not_after`). Длины `ClientHello`/`ServerHello`
+ * зависят от версии OpenSSL клиента, а тема снята клиентом OpenSSL 3.6 — поэтому первым берётся
+ * Homebrew `openssl@3`, потом `openssl` Homebrew, потом из PATH. Сменится версия клиента —
+ * покраснеет сверка с `HANDSHAKE_ROWS`, и это нарочно. Для справки, OpenSSL 4.1.0 шлёт
+ * `ClientHello` на 1502 байта (только x25519 — 262): больше групп (SecP256r1MLKEM768, SM2),
+ * подписи SLH-DSA и SM2, без `ec_point_formats`. Сервер `node:tls` отвечает одинаково в Node 24.11
+ * и 26.8 — длины `ServerHello` и дальше от версии Node не зависят.
  */
 
-const OPENSSL = existsSync('/opt/homebrew/bin/openssl') ? '/opt/homebrew/bin/openssl' : 'openssl';
+const OPENSSL = ['/opt/homebrew/opt/openssl@3/bin/openssl', '/opt/homebrew/bin/openssl'].find((p) => existsSync(p)) ?? 'openssl';
 const ENV = { ...process.env, PATH: `${dirname(OPENSSL)}:${process.env.PATH}` };
 const verify = loadVerify(t.VERIFY_CODE);
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'tls-certificates-')));
@@ -507,5 +511,21 @@ describe('сроки в таблице совпадают с Baseline Requiremen
   it('398 → 200 → 100 → 47 и даты 15 марта', () => {
     const rows = t.LIFETIME_ROWS.slice(0, 4).map((r) => `${r.k} ${r.v}`);
     expect(rows).toEqual(['до 15.03.2026 398 дней', 'с 15.03.2026 200 дней', 'с 15.03.2027 100 дней', 'с 15.03.2029 **47 дней**']);
+  });
+});
+
+describe('вычитка: ACME и выжимка не противоречат теме', () => {
+  // RFC 8555, 6.3 и 7.1: каталог — GET, newNonce — HEAD/GET; остальное — POST (в том числе POST-as-GET).
+  it('лид ACME не говорит «все запросы — POST», раз первый шаг — GET /directory', () => {
+    expect(t.ACME_STEPS[0].req).toBe('`GET /directory`');
+    expect(t.ACME_LEAD).toContain('кроме каталога и `newNonce`');
+  });
+
+  // NODE_VERDICTS: недоверенный корень без присланного корня — UNABLE_TO_GET_ISSUER_CERT_LOCALLY.
+  it('выжимка называет оба кода недоверенного корня, как NODE_VERDICTS', () => {
+    expect(t.NODE_VERDICTS['shop|leaf+int|notrust|shop.test']).toBe('UNABLE_TO_GET_ISSUER_CERT_LOCALLY');
+    expect(t.NODE_VERDICTS['shop|leaf+int+root|notrust|shop.test']).toBe('SELF_SIGNED_CERT_IN_CHAIN');
+    const summary = readFileSync(new URL('../../src/content/delivery/tls-certificates/summary.md', import.meta.url), 'utf8');
+    expect(summary).toContain('корень не доверен — `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`');
   });
 });

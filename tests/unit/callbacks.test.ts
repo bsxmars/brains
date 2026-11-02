@@ -922,3 +922,69 @@ describe('функция через границу потока не прохо�
     expect(mdx).toContain('бросает `DataCloneError` ещё у отправителя');
   });
 });
+
+describe('вычитка 2026-10-30: правда в тексте', () => {
+  it('thisArg в THIS_OPTIONS — те же методы, что в тонком месте 06, с findLastIndex', async () => {
+    const note = THIS_OPTIONS.find((o) => o.label.includes('thisArg'))!.note;
+    expect(note).toContain('findLastIndex');
+    const MARKER = {};
+    const seen: unknown[] = [];
+    [1].findLastIndex(function (this: unknown) {
+      seen.push(this);
+      return false;
+    }, MARKER);
+    expect(seen[0]).toBe(MARKER);
+  });
+
+  it('uncaughtException получает необработанный отказ, если слушателя unhandledRejection нет', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const out = execFileSync(
+      process.execPath,
+      ['-e', 'process.on("uncaughtException", (e, origin) => console.log(origin)); Promise.reject(new Error("x"));'],
+      { encoding: 'utf8' },
+    );
+    expect(out.trim()).toBe('unhandledRejection');
+    const { ERROR_DESTINATIONS_NOTE } = await import('@/content/lessons/callbacks/data');
+    expect(ERROR_DESTINATIONS_NOTE).not.toContain('`uncaughtException` не увидит отказ промиса');
+    expect(ERROR_DESTINATIONS_NOTE).toContain('только если слушателя `unhandledRejection` нет');
+  });
+
+  it('sort с pop в компараторе: длина восстанавливается, до нуля падает не всегда', () => {
+    const minDuring = (init: number[]) => {
+      const arr = [...init];
+      let min = arr.length;
+      arr.sort((a, b) => {
+        arr.pop();
+        min = Math.min(min, arr.length);
+        return a - b;
+      });
+      return { len: arr.length, min };
+    };
+    expect(minDuring([3, 1, 2])).toEqual({ len: 3, min: 0 });
+    // Свидетель «не всегда»: на десяти по возрастанию и V8 13.6 (Node 24), и V8 14.6 (Node 26)
+    // держат длину ≥ 1; на пяти V8 14.6 уже доходит до нуля, V8 13.6 — нет
+    const ten = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    expect(minDuring(ten).len).toBe(10);
+    expect(minDuring(ten).min).toBeGreaterThan(0);
+    expect(REENTRANT[0].why).toContain('может упасть до нуля');
+  });
+
+  it('песочница — воркер без имени: оторванный greet даёт «привет, », а не «привет, undefined»', async () => {
+    const { LAB_SNIPPETS } = await import('@/content/lessons/callbacks/data');
+    const lab = LAB_SNIPPETS.find((s) => s.label === 'потерянный this')!;
+    expect(lab.note).not.toContain('привет, undefined');
+    // `new Worker(url)` без `name` в `worker.ts`: по HTML `WorkerOptions.name` по умолчанию ''.
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync('src/features/run-snippet/lib/worker.ts', 'utf8')).toContain('new Worker(url);');
+    const greet = function (this: { name: string }) {
+      return 'привет, ' + this.name;
+    };
+    expect(greet.call({ name: '' })).toBe('привет, ');
+  });
+
+  it('висящий промис держит реакции, только пока на него есть ссылка', async () => {
+    const { readFileSync } = await import('node:fs');
+    const mdx = readFileSync('src/content/lessons/callbacks/index.mdx', 'utf8');
+    expect(mdx).toContain('пока на него есть ссылка, молча держит в памяти все реакции');
+  });
+});

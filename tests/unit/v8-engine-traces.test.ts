@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   BENCH_LIES,
+  BENCH_SNIPPETS,
   FIELD_REP_SCENE_CODE,
+  FIELD_REP_STEPS,
   IC_STEPS,
   MYTHS,
   PIPELINE,
@@ -88,8 +90,13 @@ describe('конвейер ярусов: пример `get` проходит т�
 });
 
 describe('представление поля: Smi → Double → Tagged', () => {
+  /**
+   * `--no-concurrent-recompilation` — чтобы `next` гарантированно успел оптимизироваться
+   * до `new P(1.5)`: иначе под нагрузкой фоновая компиляция могла бы не закончиться,
+   * и откатывать было бы нечего.
+   */
   const out = run(
-    ['--allow-natives-syntax', '--trace-generalization'],
+    ['--allow-natives-syntax', '--trace-generalization', '--trace-deopt', '--no-concurrent-recompilation'],
     `${FIELD_REP_SCENE_CODE}\na.x;\nconsole.log('SAME', %HaveSameMap(a, b), %HaveSameMap(b, c));`,
   );
   const gen = out.split('\n').filter((l) => l.startsWith('[generalizing]x:'));
@@ -101,6 +108,21 @@ describe('представление поля: Smi → Double → Tagged', () =>
 
   it('форма остаётся одна: после обращения `a` переезжает на форму `b` и `c`', () => {
     expect(out).toMatch(/^SAME true true$/m);
+  });
+
+  /**
+   * ⚠️ До 2026-10-29 листинг объявлял `next` «горячей функцией», но ни разу её не вызывал,
+   * а карточки рассуждали об «оптимизированном `next`». Теперь `next` вызывается, и тест
+   * держит то, что говорит шаг «Double»: код `next` помечается на откат при расширении поля.
+   */
+  it('оптимизированный `next` помечается на откат, когда поле расширяется до Double', () => {
+    expect(FIELD_REP_SCENE_CODE).toMatch(/next\(a\)/);
+    const lines = out.split('\n');
+    const toDouble = lines.findIndex((l) => /^\[generalizing\]x:s\{.*\}->d\{/.test(l));
+    const marked = lines.findIndex((l) => /marking dependent code .*SharedFunctionInfo next>.*for deoptimization/.test(l));
+    expect(marked, '`next` помечен на откат').toBeGreaterThanOrEqual(0);
+    expect(marked, 'в момент расширения поля, а не раньше').toBeLessThanOrEqual(toDouble + 1);
+    expect(FIELD_REP_STEPS.find((st) => st.k === 'Double')?.what).toContain('помечает его на откат');
   });
 
   it('тема называет флаг и буквы, которые он печатает', () => {
@@ -116,6 +138,8 @@ describe('флаги, которые тема советует, существу
    * темы, чтобы совет не устарел молча.
    */
   const v8options = execFileSync(process.execPath, ['--v8-options'], { encoding: 'utf8' });
+  /** Флаги самого Node (`--cpu-prof`) в списке V8 не значатся — их знает Node. */
+  const nodeFlags = process.allowedNodeEnvironmentFlags;
   const text = MDX + IC_STEPS.map((s) => s.what).join('\n');
   const flags = [...new Set(text.match(/--[a-z][a-z-]+(?:=\S+)?/g) ?? [])];
 
@@ -126,6 +150,7 @@ describe('флаги, которые тема советует, существу
   for (const flag of flags) {
     const name = flag.replace(/=.*/, '').replace(/^--no-/, '--');
     it(`${flag}`, () => {
+      if (nodeFlags.has(name)) return;
       expect(v8options, `V8 не знает флага ${flag}`).toMatch(
         new RegExp(`^\\s+${name.replace(/-/g, '\\-')}( |$)`, 'm'),
       );
@@ -186,21 +211,71 @@ describe('защитные ячейки: что гасит их, а что не�
 });
 
 describe('мифы: имена байткода и таймер', () => {
-  /** ⚠️ Тема называла `ForInContinue` — такой инструкции нет ни на Node 24.11, ни на 26.8. */
-  it('инструкции `for...in`, названные в мифе, есть в байткоде', () => {
+  /**
+   * ⚠️ Тема называла `ForInContinue` — такой инструкции нет ни на Node 24.11, ни на 26.8.
+   * С 2026-10-29 имён инструкций в тексте нет вовсе (пять имён из исходников V8 читателю
+   * ничего не давали): тема говорит «у `for...in` свои инструкции», тест держит это.
+   */
+  it('у `for...in` в байткоде свои инструкции, как пишет миф', () => {
     const bytecode = run(
       ['--print-bytecode', '--print-bytecode-filter=keys'],
       'function keys(o) { let n = 0; for (const k in o) n++; return n; } keys({ a: 1 });',
     );
+    const ops = new Set(bytecode.match(/\bForIn[A-Za-z]+/g) ?? []);
+    expect(ops.size, 'несколько разных инструкций ForIn*').toBeGreaterThan(2);
     const myth = MYTHS.find((m) => m.myth.includes('for...in'));
-    const named = myth?.now.match(/ForIn[A-Za-z]+/g) ?? [];
-    expect(named.length).toBeGreaterThan(2);
-    for (const op of named) expect(bytecode, `инструкции ${op} нет`).toContain(op);
+    expect(myth?.now).toContain('свои инструкции');
   });
 
-  it('пункт «Разрешение таймера» подписан движками и версиями, а не «десятки–сотни мкс»', () => {
+  /**
+   * Шаг таймера снят в сборках Playwright: 0.1 мс в Chromium 153, 1 мс в Firefox 155
+   * и WebKit 26.6. Версии — здесь, а не на странице: читателю они ничего не говорят.
+   */
+  it('пункт «Разрешение таймера» называет шаг по движкам и объясняет изоляцию', () => {
     const timer = BENCH_LIES.find((p) => p.t === 'Разрешение таймера');
-    expect(timer?.d).toContain('Chromium 153');
-    expect(timer?.d).toContain('Firefox 155');
+    expect(timer?.d).toContain('0.1 мс в Chromium');
+    expect(timer?.d).toContain('миллисекунда в Firefox');
+    expect(timer?.d).toContain('cross-origin isolation');
+    expect(timer?.d).not.toMatch(/Chromium \d|Firefox \d/);
+  });
+});
+
+describe('прогрев: второй замер быстрый из-за OSR, а не из-за оптимизации функции', () => {
+  /**
+   * ⚠️ Подпись к примеру говорила «после двадцати прогонов функция с первой итерации идёт
+   * оптимизированным кодом». Запуск показал другое: каждый вызов `work` входит в готовый код
+   * OSR («OSR - entry» на каждый вызов), а сама функция так и не оптимизирована. Бит
+   * «оптимизирована» в маске `%GetOptimizationStatus` от версии к версии сдвигается, поэтому
+   * он вычисляется на месте: общие биты TurboFan- и Maglev-функций минус биты
+   * интерпретируемой.
+   */
+  const snippet = BENCH_SNIPPETS.find((s) => s.label === 'прогрев');
+  if (!snippet) throw new Error('пресета «прогрев» в BENCH_SNIPPETS нет');
+
+  const out = run(
+    ['--allow-natives-syntax', '--trace-osr'],
+    `${snippet.code}
+     function probeT(o) { return o.x + 1; }
+     %PrepareFunctionForOptimization(probeT); probeT({ x: 1 }); probeT({ x: 2 });
+     %OptimizeFunctionOnNextCall(probeT); probeT({ x: 3 });
+     function probeM(o) { return o.x + 1; }
+     %PrepareFunctionForOptimization(probeM); probeM({ x: 1 });
+     %OptimizeMaglevOnNextCall(probeM); probeM({ x: 3 });
+     function probeI(o) { return o.x + 1; } probeI({ x: 1 });
+     const optimized = %GetOptimizationStatus(probeT) & %GetOptimizationStatus(probeM) & ~%GetOptimizationStatus(probeI);
+     console.log('OPTBIT', optimized, 'WORK', %GetOptimizationStatus(work));`,
+  );
+
+  it('каждый из 22 вызовов `work` входит в готовый код OSR', () => {
+    const entries = out.split('\n').filter((l) => /OSR - entry\. function: work/.test(l));
+    expect(entries.length).toBeGreaterThanOrEqual(21);
+  });
+
+  it('а целиком `work` так и не оптимизирована', () => {
+    const [, bit, work] = out.match(/^OPTBIT (\d+) WORK (\d+)$/m) ?? [];
+    expect(Number(bit), 'бит «оптимизирована» нашёлся').toBeGreaterThan(0);
+    expect(Number(work) & Number(bit), 'у `work` этого бита нет').toBe(0);
+    expect(snippet.note).toContain('OSR');
+    expect(snippet.note).toContain('Целиком функция при этом так и не оптимизирована');
   });
 });

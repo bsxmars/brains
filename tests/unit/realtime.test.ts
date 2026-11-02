@@ -354,15 +354,27 @@ describe('SERVER_CODE и клиент Node 26', () => {
 });
 
 /**
- * Сколько мегабайтных сообщений `sendAll` с порогом 4 МиБ отдаёт немому серверу. Четыре
- * пропускает порог, остальное зависит от того, сколько заберут буферы ОС, — поэтому здесь
+ * Сколько мегабайтных сообщений `sendAll` с порогом 4 МиБ отдаёт немому серверу. Пять
+ * пропускает порог (ждёт только «больше порога», а перед пятой очередь ровно 4 МиБ — было
+ * «четыре»), остальное зависит от того, сколько заберут буферы ОС, — поэтому здесь
  * закреплено отношение «порог плюс немного», а точное число (шесть, macOS) подписано в теме.
  */
 function expectFewSent(sent: number) {
-  expect(sent).toBeGreaterThanOrEqual(4);
+  expect(sent).toBeGreaterThanOrEqual(5);
   expect(sent).toBeLessThanOrEqual(8);
   expect(SEND_ALL_NOTE).toContain('**шесть**');
+  expect(SEND_ALL_NOTE).toContain('пять пропустил порог');
 }
+
+it('SEND_ALL_CODE: один порог, без буферов ОС, пропускает ровно пять мегабайтных сообщений', async () => {
+  const ws = { bufferedAmount: 0, sent: 0, send(c: string) { this.bufferedAmount += c.length; this.sent++; } };
+  function* chunks() {
+    for (let i = 0; i < 64; i++) yield 'x'.repeat(2 ** 20);
+  }
+  void sendAllModule.sendAll(ws, chunks());
+  await sleep(100);
+  expect(ws.sent).toBe(5);
+});
 
 /* ─────────────────────────── переподключение ─────────────────────────── */
 

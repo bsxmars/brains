@@ -213,3 +213,23 @@ describe('примеры кода исполняются', () => {
     expect(added[0].textContent).toBe('Товар в корзине');
   });
 });
+
+describe('номера шагов — по accname 1.2, на которую ссылается тема', () => {
+  /**
+   * accname 1.2 (https://www.w3.org/TR/accname-1.2/): 2C — Embedded Control, 2D — AriaLabel,
+   * 2E — Host Language Label. Тема стояла на нумерации 1.1 (2C aria-label, 2D родной HTML,
+   * 2E поле в подписи) — вычитка 2026-10-30.
+   */
+  it('NAME_STEPS и колонка «шаг» в таблице имён', () => {
+    const step = (k: string) => t.NAME_STEPS.find((s) => s.step === k)!.what;
+    expect(step('2C')).toContain('Поле внутри подписи');
+    expect(step('2D')).toContain('`aria-label`');
+    expect(step('2E')).toContain('Родной способ HTML');
+    expect(t.NAME_STEPS.map((s) => s.step)).toEqual(['2A', '2B', '2C', '2D', '2E', '2F–2H', '2I']);
+    const row = (id: string) => t.NAME_ROWS[t.NAME_PICKS.findIndex((p) => p.id === id)].from;
+    expect(row('btn-aria-label')).toBe('2D · `aria-label`');
+    expect(row('input-label-wrap')).toBe('2E · `<label>`');
+    expect(t.NAME_CODE).toContain('// 2D. aria-label');
+    expect(t.NAME_CODE).toContain('// 2E. Родной способ HTML');
+  });
+});

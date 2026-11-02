@@ -16,11 +16,13 @@ import {
   INTERVIEW_CODE,
   INTERVIEW_FACTS,
   MICRO_ROWS,
+  NODE_FACTS,
   NEXTTICK_CODE,
   NEXTTICK_NOTE,
   PITFALLS,
   QM_ROWS,
   SEQ_FACTS,
+  TIMER_FACTS,
 } from '@/content/lessons/event-loop/data';
 
 /**
@@ -818,5 +820,50 @@ describe('демо и таблица спрашивают движок один�
     // заказанного периода — интервал не досчитывает, а не копит долг.
     const numbers = run.values.map((v) => Number(String(v.value).replace(/[^\d.]/g, '')));
     expect(numbers.some((n) => Number.isFinite(n)), 'в замере нет ни одного числа').toBe(true);
+  });
+});
+
+/**
+ * Вычитка 2026-10-30 (Node 24.11).
+ *
+ * `NODE_FACTS`, «Куда выносить тяжёлые вычисления»: было «сотни миллисекунд на старт» процесса.
+ * `fork()` до первого сообщения от ребёнка — 36–78 мс на машине автора; берём лучший из трёх,
+ * чтобы нагрузка соседних тестов не меряла сама себя.
+ *
+ * `TIMER_FACTS`, фон: сильное замедление Chrome касается только цепочек таймеров
+ * (так и в «Планировании работы»), а не всех таймеров вкладки.
+ */
+describe('вычитка: числа про процесс и фоновые таймеры', () => {
+  it('отдельный процесс стартует за десятки миллисекунд, а не за сотни', () => {
+    const fact = NODE_FACTS.find((f) => f.t === 'Куда выносить тяжёлые вычисления')!;
+    expect(fact.d).toContain('десятки миллисекунд на старт');
+    expect(fact.d).not.toContain('сотни миллисекунд');
+
+    const dir = mkdtempSync(join(tmpdir(), 'el-fork-'));
+    const child = join(dir, 'child.js');
+    writeFileSync(child, 'process.send(1);');
+    const parent = join(dir, 'parent.js');
+    writeFileSync(
+      parent,
+      `const { fork } = require('node:child_process');
+const times = [];
+const run = () => {
+  const t = performance.now();
+  const c = fork(${JSON.stringify(child)});
+  c.on('message', () => {
+    times.push(performance.now() - t);
+    c.kill();
+    if (times.length < 3) run(); else console.log(Math.min(...times));
+  });
+};
+run();`,
+    );
+    const out = spawnSync(process.execPath, [parent], { encoding: 'utf8' });
+    expect(Number(out.stdout.trim())).toBeLessThan(100);
+  });
+
+  it('сильное фоновое замедление — только у цепочек таймеров', () => {
+    const fact = TIMER_FACTS.find((f) => f.t.startsWith('В фоновой вкладке'))!;
+    expect(fact.d).toMatch(/замедляет ещё сильнее цепочки таймеров/);
   });
 });

@@ -15,6 +15,7 @@ import {
   MOUNT_LOG,
   MOVES_ROWS,
   PATCH_SCENARIOS,
+  REAL_ROWS,
   STATIC_NOTE,
   TEMPLATE_SAMPLE,
   UNKEYED_CODE,
@@ -616,6 +617,33 @@ describe('намеренные отличия мини-версии от Vue —
     expect(m.log).not.toEqual(v.log);
     expect(v.log.some((l) => l.startsWith('createElement'))).toBe(false);
     expect(m.log.filter((l) => l.startsWith('createElement'))).toEqual(['createElement p', 'createElement b']);
+  });
+});
+
+describe('REAL_ROWS «Блоки»: разные длины dynamicChildren — полный обход', () => {
+  it.each(BUILDS)('статичный span сверяется, только когда длины списков разошлись · Vue %s', (build) => {
+    const impl = vueOn(build);
+    const run = (second: boolean) => {
+      const host = impl.createLogHost();
+      const { render } = impl.createRenderer(host.nodeOps);
+      const view = (cls: string, text: string, extra: boolean) => (
+        impl.openBlock(),
+        impl.createBlock('div', null, [
+          impl.createVNode('span', { class: cls }, 's'),
+          impl.createVNode('p', null, text, 1),
+          ...(extra ? [impl.createVNode('i', null, 'c', 1)] : []),
+        ])
+      );
+      render(view('x', 'a', false), host.root);
+      host.log.length = 0;
+      render(view('y', 'b', second), host.root);
+      return host.log.map((e) => e.text);
+    };
+    // длины равны — обход пара к паре, span не тронут
+    expect(run(false)).toEqual(['setElementText p(a) ← "b"']);
+    // длины разошлись — полный обход: класс span обновлён, хотя флага у него нет
+    expect(run(true)).toContain('patchProp span(s) class: "x" → "y"');
+    expect(REAL_ROWS[3][2]).toContain('полный обход — как при флаге `BAIL`');
   });
 });
 

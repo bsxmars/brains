@@ -41,7 +41,7 @@ import type { ConfigKey, Scenario, ScenarioId, StandRun } from '@/widgets/zone-l
  *   — `@angular/build` **21.2.24** (в проекте не установлен; tarball скачан в каталог стенда
  *     и прочитан): `getFeatureSupport(target, nativeAsyncAwait)` ставит esbuild
  *     `'async-await': nativeAsyncAwait`, а `isZonelessApp(polyfills)` считает приложение
- *     работающим без зоны, если в `polyfills` нет `zone.js`. Это — `CLI_CODE`, цитата, а не запуск.
+ *     работающим без зоны, если в `polyfills` нет ни `zone.js`, ни файла `.[mc]?[jt]s`. Это — `CLI_CODE`, цитата, а не запуск.
  *
  * Всё перечисленное, кроме CLI, пересобирается и перезапускается
  * `tests/unit/angular-zoneless.test.ts`. Там же мини-версия (`ZONE_CODE`, `SCHEDULER_CODE`,
@@ -421,7 +421,7 @@ function isZonelessApp(polyfills) {
 }`;
 
 export const CLI_NOTE =
-  'Angular CLI решает по `polyfills` в `angular.json`. Есть там `zone.js` — esbuild получает `\'async-await\': false` и переписывает все `async`, `for await` и асинхронные генераторы, даже если целевые браузеры их давно умеют. Нет — `async` остаётся родным. Отсюда неочевидное следствие: убрать zone.js из `polyfills` — значит поменять и сам вывод сборки.';
+  'Angular CLI решает по `polyfills` в `angular.json`. Есть там `zone.js` или любой свой файл `.js`/`.ts` (внутрь CLI не заглядывает) — esbuild получает `\'async-await\': false` и переписывает все `async`, `for await` и асинхронные генераторы, даже если целевые браузеры их давно умеют. Нет ни того ни другого — `async` остаётся родным. Отсюда неочевидное следствие: убрать zone.js из `polyfills` — значит поменять и сам вывод сборки.';
 
 // ─── Раздел 5. Без зоны ────────────────────────────────────────────────────────────────────
 

@@ -11,8 +11,9 @@ import { withBase } from '@/shared/lib/url';
  */
 import { render } from 'astro:content';
 import { DIRECTIONS, lessonHref, type Direction } from '@/entities/direction';
-import { getDirectionLessons, neighbours, type Lesson } from '@/entities/lesson';
+import { getAnswerKey, getDirectionLessons, neighbours, type Lesson } from '@/entities/lesson';
 import BaseLayout from '@/shared/ui/BaseLayout.astro';
+import LessonAnswerKey from '@/widgets/lesson-answer-key/ui/LessonAnswerKey.astro';
 import LessonBack from '@/widgets/lesson-back/ui/LessonBack.astro';
 import LessonHero from '@/widgets/lesson-hero/ui/LessonHero.astro';
 import LessonNav from '@/widgets/lesson-nav/ui/LessonNav.astro';
@@ -46,6 +47,7 @@ interface Props {
 const { lesson, direction, prev, next } = Astro.props as Props;
 const { Content } = await render(lesson);
 const data = lesson.data;
+const answerKey = getAnswerKey(lesson.collection, lesson.id);
 
 const link = (item?: Lesson) =>
   item ? { href: lessonHref(direction, item.id), title: item.data.title } : undefined;
@@ -73,6 +75,8 @@ const link = (item?: Lesson) =>
   />
 
   <Content />
+
+  {answerKey && <LessonAnswerKey answerKey={answerKey} />}
 
   <LessonPager prev={link(prev)} next={link(next)} />
 </BaseLayout>

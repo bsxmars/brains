@@ -142,3 +142,14 @@ describe('утверждения текста, которые проверяют
     expect(t.CROWD_ROWS.map((r) => r.origin)).toEqual([10, 1]);
   });
 });
+
+describe('proxy_pass в location с регуляркой', () => {
+  // nginx 1.30.0 (`nginx -t` в nginx:1.30.0-alpine-slim, 2026-10-30): путь с переменной
+  // `proxy_pass http://127.0.0.1:9/v2/$1;` в `location ~ ^/api/(.*)$` проходит проверку,
+  // без переменной — `[emerg] "proxy_pass" cannot have URI part` (REGEX_PASS_ERROR).
+  it('карточка «без URI» не запрещает путь с переменной, который советует REGEX_PASS_NOTE', () => {
+    expect(t.REGEX_PASS_NOTE).toContain('proxy_pass http://backend/v2/$1;');
+    expect(t.PROXY_RULES[0].what).not.toMatch(/Только так можно писать/);
+    expect(t.PROXY_RULES[0].what).toContain('переменная');
+  });
+});

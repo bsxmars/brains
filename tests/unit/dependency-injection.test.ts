@@ -503,6 +503,35 @@ describe('provide/inject: учебная версия отвечает как Vu
     expect(warns.some((w) => w.includes('inject() can only be used inside setup()'))).toBe(true);
   });
 
+  it('верхний await в <script setup>: withAsyncContext возвращает компонент, inject работает (PITFALLS 09)', async () => {
+    const sfc = require('@vue/compiler-sfc') as typeof import('@vue/compiler-sfc');
+    const { descriptor } = sfc.parse(`<script setup>
+import { inject } from 'vue';
+await new Promise((r) => setTimeout(r, 1));
+globalThis.__lateInject(inject('k'));
+</script>`);
+    const out = sfc.compileScript(descriptor, { id: 'late' }).content;
+    expect(out).toContain('_withAsyncContext(');
+    const body = out
+      .replace(/import \{([^}]*)\} from 'vue'/g, (_, names: string) => `const {${names.replace(/ as /g, ': ')}} = vue`)
+      .replace('export default', 'return');
+    let late: unknown = 'не дошло';
+    let resolveDone!: () => void;
+    const done = new Promise<void>((r) => (resolveDone = r));
+    (globalThis as Record<string, unknown>).__lateInject = (v: unknown) => ((late = v), resolveDone());
+    const Child = new Function('vue', body)(vue);
+    const warn = console.warn;
+    console.warn = () => {};
+    vue.createApp({ setup: () => (vue.provide('k', 1), () => vue.h(vue.Suspense, null, { default: () => vue.h(Child) })) })
+      .mount(document.createElement('div'));
+    await done;
+    console.warn = warn;
+    delete (globalThis as Record<string, unknown>).__lateInject;
+    expect(late).toBe(1);
+    const p09 = t.PITFALLS.find((p) => p.n === '09')!;
+    expect(p09.d).toContain('Исключение — верхний `await` в `<script setup>`');
+  });
+
   it('исходник runtime-core: Object.create(parentProvides) и key in provides', () => {
     const src = readFileSync(`${root}node_modules/@vue/runtime-core/dist/runtime-core.cjs.js`, 'utf8');
     const flat = (s: string) => s.replace(/\s+/g, ' ');

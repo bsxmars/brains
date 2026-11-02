@@ -1,6 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { RUNS, SCENARIOS } from '@/content/delivery/compose/data';
+import { parse } from 'yaml';
+import {
+  ENV_MISSING,
+  HEALTH_SCENE,
+  HEALTH_TIMELINE,
+  PITFALLS,
+  VOLUME_FACTS,
+  RUNS,
+  SCENARIOS,
+  STACK_CODE,
+} from '@/content/delivery/compose/data';
 import {
   conditionMet,
   firstAt,
@@ -153,6 +163,19 @@ describe('с condition: service_healthy тот же стек проходит', 
     expect(healthy - ready).toBeLessThan(1000);
   });
 
+  it('окно «Docker ещё не знает» на шкале — от готовности до healthy, и подпись равна его длине', () => {
+    // Было: окно шло 1207 → 1388 (до пробы, 181 мс), а подписано 223 мс — зазор до healthy.
+    const ready = firstAt(HEALTHY.events, 'db', 'ready') as number;
+    const healthy = firstAt(HEALTHY.events, 'db', 'healthy') as number;
+    const row = HEALTH_TIMELINE.rows.find((r) => r.k.includes('Docker ещё не знает')) as {
+      k: string;
+      from: number;
+      to: number;
+    };
+    expect([row.from, row.to]).toEqual([ready, healthy]);
+    expect(row.k.startsWith(`${row.to - row.from} мс`)).toBe(true);
+  });
+
   it('отметка готовности взята из лога базы, а не придумана', () => {
     // В логе: «2026-09-15 10:41:46.970 UTC [1] LOG: database system is ready to accept
     // connections». Считаем от той же точки отсчёта, что и события демона.
@@ -232,5 +255,50 @@ describe('условия depends_on', () => {
     const start = firstAt(HEALTHY.events, 'db', 'start') as number;
     expect(conditionMet(HEALTHY.events, 'db', 'service_started', start - 1)).toBe(false);
     expect(conditionMet(HEALTHY.events, 'db', 'service_started', start)).toBe(true);
+  });
+});
+
+describe('листинги темы совпадают с тем, что принимает Compose v2', () => {
+  // Docker Compose v2.31: `service_healthy` у сервиса без healthcheck — отказ
+  // «dependency failed to start: container … has no healthcheck configured»; /app.sh в образе
+  // postgres нет, его нужно смонтировать. Стек из STACK_CODE, поднятый как есть, — APP_OK, код 0.
+  it('STACK_CODE: у db есть healthcheck, у app смонтирован /app.sh', () => {
+    const doc = parse(STACK_CODE);
+    expect(doc.services.app.depends_on.db.condition).toBe('service_healthy');
+    expect(doc.services.db.healthcheck.test).toEqual(['CMD-SHELL', 'pg_isready -U app -d appdb']);
+    expect(doc.services.app.volumes).toContain('./app.sh:/app.sh:ro');
+  });
+
+  // v2 пишет предупреждение через logrus: «WARN[0000] …» в терминале; «WARNING: …» — формат v1.
+  it('предупреждение о пустой переменной — в формате v2', () => {
+    expect(ENV_MISSING).toContain('WARN[0000] The "NOT_DEFINED_ANYWHERE" variable is not set.');
+    expect(ENV_MISSING).not.toContain('WARNING:');
+    const p12 = PITFALLS.find((p) => p.n === '12');
+    expect(p12?.d).toContain('WARN[0000]');
+  });
+});
+
+describe('вычитка 2026-10-30: утверждения темы против документации и записи', () => {
+  // docs.docker.com, «Start containers automatically»: unless-stopped — как always, только
+  // не поднимает остановленный вручную; падающий контейнер перезапускается так же вечно.
+  it('PITFALLS 10: unless-stopped не предлагается как выход из вечного цикла', () => {
+    const p10 = PITFALLS.find((p) => p.n === '10');
+    expect(p10?.d).not.toMatch(/или `unless-stopped` обычно ближе/);
+    expect(p10?.d).toContain('`unless-stopped` цикл не прерывает');
+  });
+
+  // «Volumes»: содержимое образа копируется в любой новый пустой том, и в анонимный тоже.
+  it('VOLUME_FACTS: копирование из образа не приписано только именованному тому', () => {
+    expect(VOLUME_FACTS[0].d).not.toContain('только с пустым именованным томом');
+  });
+
+  // Запись lesson-compose-b: healthy на 1430 мс, app start на 2028 мс — не в тот же миг.
+  it('HEALTH_SCENE и HEALTH_TIMELINE не ставят старт приложения на отметку healthy', () => {
+    const appStart = firstAt(HEALTHY.events, 'app', 'start') as number;
+    const dbHealthy = firstAt(HEALTHY.events, 'db', 'healthy') as number;
+    expect(appStart).toBeGreaterThan(dbHealthy);
+    expect(HEALTH_SCENE[0]).toContain(`на ${appStart} мс`);
+    const row = HEALTH_TIMELINE.rows.find((r) => 'at' in r && r.at === dbHealthy && r.tone === 'ok');
+    expect(row?.k).not.toContain('стартует приложение');
   });
 });

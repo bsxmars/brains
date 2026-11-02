@@ -308,3 +308,21 @@ describe('чанки и хеши', () => {
     project(t.CHUNK_FILES, dir);
   });
 });
+
+describe('PURITY_NOTE: учебный parseStatement описан так, как он считает', () => {
+  it('вызов без пометки — эффект; литерал в начале и правая часть без скобок — чистые', () => {
+    const parse = new Function(t.GRAPH_CODE + '; return parseStatement;')() as (
+      code: string,
+      path: string,
+    ) => { effect: boolean };
+    const effect = (code: string) => parse(code, 'src/a.js').effect;
+    expect(effect('const x = makeTheme("dark");')).toBe(true);
+    expect(effect('const x = /* @__PURE__ */ sideTheme("dark");')).toBe(false);
+    for (const code of ['const x = [1, 2, 3].map((n) => n * 2);', 'const x = config.theme;', 'const x = "" + config;']) {
+      expect(effect(code), code).toBe(false);
+      expect(t.PURITY_NOTE).toContain(code.slice('const x = '.length).replace('((n) => n * 2);', '(…)').replace(/;$/, ''));
+    }
+    expect(t.PURITY_NOTE).not.toContain('любой вызов без пометки');
+  });
+});
+

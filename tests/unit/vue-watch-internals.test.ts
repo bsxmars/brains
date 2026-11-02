@@ -27,6 +27,7 @@ import {
   SCOPE_OUT,
   SOURCES_CODE,
   SOURCES_OUT,
+  SSR_NOTE,
 } from '@/content/frameworks/vue-watch-internals/data';
 import { API_NAMES, apiArgs, ChainLab, loadMiniWatch, patchCode, runRace, ScopeLab } from '@/widgets/mini-watch';
 import type { MiniRef, MiniWatch, WatchApi } from '@/widgets/mini-watch';
@@ -559,5 +560,30 @@ describe('намеренные отличия мини-версии от Vue', (
     mini.effect(() => Object.keys(s));
     s.x = 1;
     expect(mini.getBatchDepth()).toBe(0);
+  });
+});
+
+describe('SSR_NOTE: какие watcher’ы doWatch создаёт на сервере', () => {
+  it('sync без immediate создан и срабатывает, pre без immediate и watchPostEffect — нет', async () => {
+    const vue = require('vue') as typeof import('vue');
+    const { renderToString } = require('@vue/server-renderer') as typeof import('@vue/server-renderer');
+    const log: string[] = [];
+    const C = {
+      setup() {
+        const n = vue.ref(0);
+        vue.watch(n, () => void log.push('sync'), { flush: 'sync' });
+        vue.watch(n, () => void log.push('pre'));
+        vue.watch(n, () => void log.push('pre immediate'), { immediate: true });
+        vue.watchEffect(() => void log.push('watchEffect ' + n.value));
+        vue.watchPostEffect(() => void log.push('watchPostEffect ' + n.value));
+        n.value++;
+        return () => vue.h('p', n.value);
+      },
+    };
+    expect(await renderToString(vue.createSSRApp(C))).toBe('<p>1</p>');
+    // immediate и watchEffect — один прогон и остановлены; sync — жив и сработал на записи
+    expect(log).toEqual(['pre immediate', 'watchEffect 0', 'sync']);
+    expect(SSR_NOTE).toContain('`sync`-watcher’ы — даже без `immediate`');
+    expect(SSR_NOTE).toContain('`watchPostEffect`');
   });
 });

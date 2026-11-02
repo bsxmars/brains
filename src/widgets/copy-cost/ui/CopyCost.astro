@@ -62,7 +62,7 @@ const ticks = niceTicks([0, max], 4).filter((value) => value <= max);
             <div class="fill" data-ok={way.copies ? 'yes' : 'no'} style={`width:${width(way.mb)}%`} />
           </div>
           <span class="row__mb">{way.mb.toFixed(1)} МБ</span>
-          <span class="row__verdict">{way.copies ? '✓ копия' : '✗ тот же объект'}</span>
+          <span class="row__verdict">{way.copies ? '✓ копия' : '✗ держит родителя'}</span>
         </div>
       ))
     }

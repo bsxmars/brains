@@ -44,7 +44,9 @@ import type { IcuPreset, IcuValues } from '@/widgets/i18n-lab/model/types';
  *     предложению TC39 `Intl.MessageFormat`: ни один установленный пакет MF2 не разбирает
  *     (`@messageformat/core` 3 и `intl-messageformat` 12 — это MessageFormat 1), движков с
  *     `Intl.MessageFormat` на стенде нет. Тест проверяет только, как MF2-строку принимают
- *     библиотеки MF1;
+ *     библиотеки MF1. Вне проекта `MF2_CODE` сверен с пакетом `messageformat` 4.0.0 (Node 24.11):
+ *     0 → «Новых сообщений нет», 1 → «1 новое сообщение», 3 → «3 новых сообщения», 21 → «21 новое
+ *     сообщение» — «исполнять нечем» в тексте было неверно (исправлено 2026-10-30);
  *   — сборка словарей vue-i18n заранее (`@intlify/unplugin-vue-i18n`) и флаг
  *     `__INTLIFY_DROP_MESSAGE_COMPILER__` — по документации vue-i18n; плагин не установлен,
  *     байты «без компилятора» сняты тем же флагом в esbuild;
@@ -496,7 +498,7 @@ export const MF2_FACTS = [
   },
   {
     t: 'Где это есть',
-    d: 'Синтаксис закреплён в стандарте Unicode (LDML 47, 2025). `Intl.MessageFormat` — предложение TC39, в движках его нет: на стенде `typeof Intl.MessageFormat` — `\'undefined\'` и в Node 24, и в Chromium 153. Установленные пакеты — `intl-messageformat` 12 и `@messageformat/core` 3 — понимают только первую версию.',
+    d: 'Синтаксис закреплён в стандарте Unicode (LDML 47, 2025). `Intl.MessageFormat` — предложение TC39, в движках его нет: на стенде `typeof Intl.MessageFormat` — `\'undefined\'` и в Node 24, и в Chromium 153. Из библиотек MF2 исполняет `messageformat` 4 (стабильный с ноября 2025, от авторов `@messageformat/core`): пример выше он печатает как задумано, «21 новое сообщение». Установленные в проекте пакеты — `intl-messageformat` 12 и `@messageformat/core` 3 — понимают только первую версию.',
     tone: 'warn' as const,
   },
   {

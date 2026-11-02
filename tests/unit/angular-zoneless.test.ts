@@ -474,6 +474,19 @@ describe('места исходников, на которые опираетс�
   });
 });
 
+describe('CLI_CODE: когда CLI считает приложение работающим без зоны', () => {
+  it('свой файл в polyfills — тоже «с зоной»: async понижается (@angular/build 21.2.24)', () => {
+    const src = t.CLI_CODE.slice(t.CLI_CODE.indexOf('function isZonelessApp'));
+    const isZonelessApp = new Function(`${src}; return isZonelessApp;`)() as (p?: string[]) => boolean;
+    expect(isZonelessApp(['zone.js'])).toBe(false);
+    expect(isZonelessApp(['src/polyfills.ts'])).toBe(false);
+    expect(isZonelessApp(['@angular/localize/init'])).toBe(true);
+    expect(isZonelessApp(undefined)).toBe(true);
+    expect(t.CLI_NOTE).toContain('или любой свой файл `.js`/`.ts`');
+    expect(t.CLI_NOTE).toContain('Нет ни того ни другого — `async` остаётся родным');
+  });
+});
+
 describe('числа в прозе взяты из STAND', () => {
   const S = t.STAND;
 

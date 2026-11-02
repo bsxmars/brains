@@ -202,3 +202,13 @@ describe('CACHE_CODE: два прогона, три режима', () => {
     expect(t.CACHE_MODES[2].note).toContain('Остальные четыре пакета');
   });
 });
+
+describe('протокол workspace: — строки таблицы согласованы', () => {
+  it('диапазон на соседа под pnpm: запрос в реестр за тем же пакетом, что в ключе строки (и в тонком месте 02)', () => {
+    const row = t.PROTOCOL_ROWS.find((r) => r.pnpm.includes('ERR_PNPM_FETCH_404'))!;
+    const name = row.k.match(/"(@shop\/\w+)"/)![1];
+    expect(row.pnpm).toContain('GET /' + name.replace('/', '%2F'));
+    expect(t.PITFALLS.find((p) => p.n === '02')!.d).toContain(`"${name}": "^1.0.0"`);
+  });
+});
+

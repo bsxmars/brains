@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as t from '@/content/lessons/regex/data';
 import { growth, loadEngine } from '@/widgets/regex-lab/model/run';
@@ -126,6 +127,13 @@ describe('учебный движок против RegExp V8', () => {
       }
     }
     expect(compared).toBeGreaterThan(29_000);
+    // Число пар в тексте темы — то, что сверено здесь: 2000 × 15, не больше.
+    expect(compared).toBeLessThanOrEqual(30_000);
+    for (const f of ['src/content/lessons/regex/data.ts', 'src/content/lessons/regex/index.mdx']) {
+      const src = readFileSync(f, 'utf8');
+      expect(src, f).toContain('почти на 30 000');
+      expect(src, f).not.toContain('45 000');
+    }
   });
 
   it('то, чего движок не знает, — SyntaxError, а не тихий другой ответ', () => {
@@ -306,6 +314,10 @@ describe('настоящий V8: порог в отдельном процесс
     // без флага движка буква l — просто неизвестный флаг
     const plain = spawnSync(process.execPath, ['-e', "try { new RegExp('a', 'l') } catch (e) { console.log(e.message) }"], { encoding: 'utf8' });
     expect(plain.stdout).toContain('Invalid flags');
+    // литерал /…/l без флага движка — та ошибка, что названа в карточке
+    const literal = spawnSync(process.execPath, ['-e', "try { eval('/a/l') } catch (e) { console.log(e.name + ': ' + e.message) }"], { encoding: 'utf8' });
+    expect(literal.stdout.trim()).toBe('SyntaxError: Invalid regular expression flags');
+    expect(t.LINEAR_FACTS[0].d).toContain('«Invalid regular expression flags»');
     // просмотр назад линейный движок находит так же, как обычный
     const lb = spawnSync(process.execPath, ['--enable-experimental-regexp-engine', '-e', "console.log(/(?<=\\$)\\d+/l.exec('цена $42')[0])"], { encoding: 'utf8' });
     expect(lb.stdout.trim()).toBe('42');
@@ -325,13 +337,39 @@ describe('настоящий V8: порог в отдельном процесс
       spawnSync(process.execPath, ['--trace-regexp-tier-up', '-e', `const r = /^(a+)+$/; for (let i = 0; i < ${k}; i++) r.test('aaa!')`], {
         encoding: 'utf8',
       }).stdout;
+    // Ярусы на любой версии: [есть байткод, есть машинный код] до вызова и после каждого из двух.
+    // До ярусного подъёма в слоте кода стоит трамплин интерпретатора, поэтому второе true сразу.
+    const tiers = spawnSync(
+      process.execPath,
+      [
+        '--allow-natives-syntax',
+        '-e',
+        `const r = /^(a+)+$/; const st = () => [%RegexpHasBytecode(r, true), %RegexpHasNativeCode(r, true)];
+         const out = [st()]; for (let i = 0; i < 2; i++) { r.test('aaa!'); out.push(st()); } console.log(JSON.stringify(out));`,
+      ],
+      { encoding: 'utf8' },
+    ).stdout;
+    expect(JSON.parse(tiers)).toEqual([
+      [false, false],
+      [true, true],
+      [false, true],
+    ]);
+    expect(t.IRREGEXP_FACTS[1].d).toContain('после второго вызова байткода у шаблона уже нет');
+
     const one = trace(1);
     const two = trace(2);
-    expect(one).toContain('bytecode size: 312');
-    expect(one).not.toContain('needs tier-up compilation');
-    expect(two).toContain('needs tier-up compilation');
-    expect(two).toContain('native code size');
-    expect(t.IRREGEXP_FACTS[1].d).toContain('312 байт');
+    if (process.versions.node.startsWith('24.')) {
+      expect(one).toContain('bytecode size: 312');
+      expect(one).not.toContain('needs tier-up compilation');
+      expect(two).toContain('needs tier-up compilation');
+      expect(two).toContain('native code size');
+      expect(t.IRREGEXP_FACTS[1].d).toContain('В Node 24 это видно с флагом `--trace-regexp-tier-up`');
+      expect(t.IRREGEXP_FACTS[1].d).toContain('312 байт');
+    } else {
+      // Node 26: флаг принят, но без диагностической сборки V8 молчит — как и сказано в теме
+      expect(one + two).toBe('');
+      expect(t.IRREGEXP_FACTS[1].d).toContain('В Node 26 флаг в обычной сборке молчит');
+    }
   });
 
   it(

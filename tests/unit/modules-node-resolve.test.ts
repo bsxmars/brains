@@ -2,7 +2,9 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
+import * as mod from '@/content/tooling/modules/data';
 import {
   COND_NOTE,
   COND_ROWS,
@@ -225,3 +227,59 @@ describe('CommonJS: какие имена Node видит без выполне�
     expect(LEXER_NOTE).toContain('**`import pkg from` и `pkg.a` работают всегда**');
   });
 });
+
+describe('вычитка 2026-10-30: числа и формулировки, которые расходились с Node и с самой темой', () => {
+  it('тонкое место 03: на Node 24 несогласованный `type` даёт `module is not defined in ES module scope`, а не ERR_REQUIRE_ESM', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mods-type-'));
+    mkdirSync(join(dir, 'node_modules', 'lib'), { recursive: true });
+    writeFileSync(join(dir, 'node_modules', 'lib', 'package.json'), '{"name":"lib","type":"module","main":"index.js"}');
+    writeFileSync(join(dir, 'node_modules', 'lib', 'index.js'), 'module.exports = { x: 1 }\n');
+    writeFileSync(
+      join(dir, 'probe.cjs'),
+      'try { require("lib"); console.log("ok") } catch (e) { console.log(e.code ?? "-", e.message.split("\\n")[0]) }\n',
+    );
+    const out = node(['probe.cjs'], dir).trim();
+    expect(out).toContain('module is not defined in ES module scope');
+    expect(out).not.toContain('ERR_REQUIRE_ESM');
+    const p03 = mod.PITFALLS.find((p) => p.n === '03')!.d;
+    expect(p03).toContain('module is not defined in ES module scope');
+    expect(p03).toContain('на Node до 22.12');
+  });
+
+  it('namespace-объект запечатан, но не заморожен: свойства writable, расширять нельзя', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mods-ns-'));
+    writeFileSync(join(dir, 'a.mjs'), 'export let a = 1\n');
+    writeFileSync(
+      join(dir, 'b.mjs'),
+      'import * as ns from "./a.mjs"; console.log(Object.isFrozen(ns), Object.isSealed(ns), Object.isExtensible(ns))\n',
+    );
+    expect(node(['b.mjs'], dir).trim()).toBe('false true false');
+    const d = mod.GLOSSARY.find((g) => g.k === 'namespace-объект')!.d;
+    expect(d).toContain('запечатан');
+    expect(d).not.toContain('заморожен');
+  });
+
+  it('модуль WebAssembly — 60 байт, и страница говорит то же', () => {
+    expect(mod.WASM_BYTES).toHaveLength(60);
+    const mdx = readFileSync('src/content/tooling/modules/index.mdx', 'utf8');
+    expect(mdx).toContain('модуль из 60 байт');
+    expect(mdx).not.toContain('модуль из 70 байт');
+  });
+
+  it('схема раскраски: модулей пять, цветов и файлов по четыре', () => {
+    const d = mod.CHUNK_DIAGRAM;
+    const modules = [d.entry.module, ...d.chunks.flatMap((c) => c.modules)];
+    const colors = new Set([d.entry.color, ...d.chunks.map((c) => c.color)]);
+    expect(modules).toHaveLength(5);
+    expect(colors.size).toBe(4);
+    expect(1 + d.chunks.length).toBe(4);
+    expect(d.title).toBe('Пять модулей, четыре цвета — четыре файла сборки');
+  });
+
+  it('источник о предбандле не говорит «esbuild»: в Vite 8 предбандл собирает Rolldown', () => {
+    expect(mod.PREBUNDLE_NOTE).toContain('в Vite 8.3.0 — Rolldown');
+    const src = mod.SOURCES.find((x) => x.title === 'Vite — Dependency Pre-Bundling')!;
+    expect(src.what).not.toContain('esbuild');
+  });
+});
+

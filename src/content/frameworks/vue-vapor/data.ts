@@ -948,10 +948,16 @@ const count = ref(0)
 
 export const BUNDLE_HEAD = ['точка входа', 'байт после минификации', 'gzip -9'];
 
+/**
+ * Колонка gzip — `zlib.gzipSync(…, { level: 9 })` в Node. Сжатые байты зависят от сборки zlib:
+ * официальные Node 24.11.0 (zlib 1.3.1) и 26.8.2 (1.3.2.1) дают эти числа, Node 26.8.2
+ * из Homebrew с системной zlib 1.2.12 — на 32–55 байт меньше (21 483 / 15 377 / 41 198;
+ * так было записано до 2026-11-02). Байты после минификации от zlib не зависят.
+ */
 export const BUNDLE_ROWS: string[][] = [
-  ['`createApp(App)` — VDOM', '55 792', '21 483'],
-  ['`createVaporApp(App)` — только Vapor', '41 603', '15 377'],
-  ['`createApp(App).use(vaporInteropPlugin)` — Vapor внутри VDOM', '115 082', '41 198'],
+  ['`createApp(App)` — VDOM', '55 792', '21 538'],
+  ['`createVaporApp(App)` — только Vapor', '41 603', '15 409'],
+  ['`createApp(App).use(vaporInteropPlugin)` — Vapor внутри VDOM', '115 082', '41 232'],
 ];
 
 export const BUNDLE_NOTE =

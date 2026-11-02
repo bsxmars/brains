@@ -4,11 +4,16 @@ import { describe, expect, it } from 'vitest';
 import {
   BYTES_ROWS,
   CHAIN_ROWS,
+  COPY_SETUP_CODE,
   COPY_WAYS,
   EQ_BARS,
+  FLATTEN_LEAVES,
+  FLATTEN_ORDER,
+  FLATTEN_STEPS,
   INTERN_NO,
   INTERN_YES,
   PITFALLS,
+  REPEAT_MEMORY_CODE,
   REPS,
   TWO_BYTE_FALSE_ALARMS,
   TWO_BYTE_TRAPS,
@@ -79,7 +84,8 @@ import {
  * Внешние строки (`EXTERNAL_ONE_BYTE_STRING_TYPE`) раньше не проверялись — «в Node получить
  * не удалось». Получить удалось (2026-10-01): `%FunctionGetScriptSource` у функции встроенного
  * модуля возвращает исходник модуля, и он внешний. Браузерная половина (Chromium 153: исходник
- * и файла, и встроенного `<script>` — внешняя строка) снята вручную и записана в `verified`.
+ * и файла, и встроенного `<script>` — внешняя строка) снята вручную и записана в докстринг `REPS`.
+ * Поля `verified` у состояний больше нет (2026-10-29): оно печатало читателю версии движка.
  */
 
 // ---------------------------------------------------------------------------
@@ -133,18 +139,15 @@ function debugAddresses(source: string): string[] {
 /**
  * Сколько мегабайт остаётся живыми, если удержать `keptExpr` и отпустить родителя.
  *
- * Схема повторяет замер из `data.ts` дословно: родитель на 50 МБ, принудительное расплющивание
- * (иначе `repeat` вернёт дерево и мерить будет нечего), шесть сборок, `heapUsed`. Переменная
- * называется и `big`, и `s` — ровно так операции записаны в `COPY_WAYS` и `CHAIN_ROWS`, и это
- * позволяет подставлять код прямо из данных урока.
+ * Родитель — `COPY_SETUP_CODE`, та самая строка, что напечатана в теме: 50 МБ текста строками,
+ * принудительно расплющенные (иначе `repeat` вернёт дерево и мерить будет нечего). Дальше —
+ * выражение из `COPY_WAYS` или `CHAIN_ROWS` над `big`, шесть сборок, `heapUsed`.
  */
 function heldMb(keptExpr: string): number {
   const source = `
     let kept = null;
     (() => {
-      const big = 'x'.repeat(50 * 1024 * 1024);
-      big.charCodeAt(0);
-      const s = big;
+      ${COPY_SETUP_CODE}
       kept = (${keptExpr});
     })();
     for (let i = 0; i < 6; i++) global.gc();
@@ -249,8 +252,7 @@ describe('представления строк — тип из %DebugPrint, а 
     expect(own, 'исходник своего кода — в куче, не внешний').toMatch(/^SEQ_/);
     // Текст называет обе среды: браузерную половину тест повторить не может, и пропажа
     // её подписи — это возврат к «пересказу документации».
-    expect(external.verified).toContain('Chromium 153');
-    expect(external.verified).toContain('fs');
+    expect(external.why).toContain('браузер');
   }, 30_000);
 });
 
@@ -295,8 +297,8 @@ describe('порог 13 — и у среза, и у конкатенации', (
 
     expect(twelve, 'длина 12 — ниже порога').toBe('SEQ_ONE_BYTE_STRING_TYPE');
     expect(thirteen, 'длина 13 — уже узел').toBe('CONS_ONE_BYTE_STRING_TYPE');
-    // Данные обещают ровно это в поле `verified` у короткой конкатенации.
-    expect(rep('a + b короткое').verified).toContain('CONS_ONE_BYTE_STRING_TYPE');
+    // Данные обещают ровно это в подписи короткой конкатенации.
+    expect(rep('a + b короткое').cost).toContain('CONS_ONE_BYTE_STRING_TYPE');
   }, 30_000);
 
   it('и у repeat порог тот же — дерево начинается с тринадцатого символа', () => {
@@ -333,7 +335,7 @@ describe('тонкое место «Расплющенная строка ост
     // «расплющена ли строка» через тип бессмысленно — это и есть суть тонкого места.
     expect(addresses[1], 'объект остался на месте').toBe(addresses[0]);
 
-    expect(pitfall('Расплющенная строка').d).toContain('не создаёт новый объект и не меняет тип');
+    expect(pitfall('Расплющенная строка').d).toContain('не меняет тип');
   }, 30_000);
 });
 
@@ -365,7 +367,7 @@ describe('по типу нельзя судить, копия перед вам�
     expect(normalized).toBe('SLICED_ONE_BYTE_STRING_TYPE');
     // Тонкого места об этом больше нет (дублировало карточку раздела про копию) — держится
     // сама таблица замера: приём с тем же SLICED-типом числится копией.
-    const classic = COPY_WAYS.find((w) => w.code === "(' ' + s.slice(0, 100)).slice(1)");
+    const classic = COPY_WAYS.find((w) => w.code === "(' ' + big.slice(0, 100)).slice(1)");
     expect(classic, 'классического приёма в COPY_WAYS нет').toBeDefined();
     expect(classic!.copies).toBe(true);
   }, 30_000);
@@ -434,13 +436,17 @@ describe('интернирование — что превращает стро�
     expect(INTERN_NO.some((line) => line.includes('массив'))).toBe(true);
   }, 30_000);
 
-  it('ключ коллекции интернирует: Map.set и Set.add дают THIN', () => {
+  it('ключ коллекции интернирует в Node 26 (Map.set и Set.add дают THIN), в Node 24 — нет', () => {
     const t = debugTypes(probe);
+    // INTERN_YES называет обе версии: «в Node 26; в Node 24 … не заносят».
+    const node26 = Number(process.versions.node.split('.')[0]) >= 26;
+    const after = node26 ? THIN : SEQ;
 
     expect(t[6], 'до').toBe(SEQ);
-    expect(t[7], 'после Map.set').toBe(THIN);
+    expect(t[7], 'после Map.set').toBe(after);
     expect(t[8], 'до').toBe(SEQ);
-    expect(t[9], 'после Set.add').toBe(THIN);
+    expect(t[9], 'после Set.add').toBe(after);
+    expect(INTERN_YES.some((line) => line.includes('**в Node 26**; в Node 24 эти операции строку в таблицу не заносят'))).toBe(true);
   }, 30_000);
 
   /**
@@ -452,8 +458,9 @@ describe('интернирование — что превращает стро�
    * на V8 14.6 — отдельный род устаревания: не «записали неправильно», а «было правдой».
    *
    * Теперь тест держит текст с другой стороны: операции переехали в `INTERN_YES`, и проверка
-   * не даёт им вернуться обратно, а `verified` обязан называть **обе** версии — иначе читатель
-   * не поймёт, почему у него на старом Node выходит иначе.
+   * не даёт им вернуться обратно, а сам пункт обязан называть **обе** версии Node — иначе
+   * читатель на Node 24 не поймёт, почему у него выходит иначе. (Что на Node 24 `Map.set`
+   * оставляет `SEQ_*`, проверяет тест выше, когда сам запущен на Node 24.)
    */
   it('текст темы говорит то же, что движок, и помнит обе версии', () => {
     expect(
@@ -465,10 +472,17 @@ describe('интернирование — что превращает стро�
       'в списке «интернирует» нет ключа коллекции',
     ).toBe(true);
 
-    const verified = rep('obj[s] = 1').verified;
-    expect(verified, 'пропала старая версия — читатель не поймёт расхождение').toContain('13.6');
-    expect(verified, 'пропала новая версия — непонятно, на чём снято').toContain('14.6');
-    expect(verified).toContain('THIN_ONE_BYTE_STRING_TYPE');
+    const collections = INTERN_YES.find((line) => line.includes('Map.set'))!;
+    expect(collections, 'пропала старая версия — читатель не поймёт расхождение').toContain('Node 24');
+    expect(collections, 'пропала новая версия').toContain('Node 26');
+  }, 30_000);
+
+  it('ключ, похожий на индекс массива, в таблицу не попадает', () => {
+    const [index] = debugTypes(`
+      const k = ['1', '2', '3'].join(''); const o = {}; o[k] = 1; %DebugPrint(k);
+    `);
+    expect(index, "o['123'] = 1 — это элемент, а не имя свойства").toBe(SEQ);
+    expect(INTERN_YES.some((line) => line.includes("'123'")), 'исключение названо в тексте').toBe(true);
   }, 30_000);
 });
 
@@ -526,7 +540,26 @@ describe('копия или окно — по удержанной памяти,
     expect(untouched, 'дерево ничего не весит').toBeLessThan(base + near);
     expect(touched, 'первое обращение к символам оплачивает всё разом').toBeGreaterThan(base + far);
     // Тонкое место об этом снято как дубль карточки; держится подпись состояния в демо.
-    expect(rep('repeat — тоже дерево').holds.text).toContain('не материализован');
+    expect(rep('repeat — тоже дерево').holds.text).toContain('буфера ещё нет');
+  }, 60_000);
+
+  it('пример REPEAT_MEMORY_CODE из темы печатает то, что показывает движок', () => {
+    // Строки `// heapUsed: N МБ` заменяются настоящим замером; сверяется сторона от контроля,
+    // а не сами мегабайты, — и то же для чисел, напечатанных в комментариях.
+    const promised = [...REPEAT_MEMORY_CODE.matchAll(/^\/\/ heapUsed: ([\d.]+) МБ/gm)].map((m) => Number(m[1]));
+    expect(promised, 'в примере два замера').toHaveLength(2);
+    const probe = REPEAT_MEMORY_CODE.replace(
+      /^\/\/ heapUsed:.*$/gm,
+      'for (let i = 0; i < 6; i++) global.gc(); out.push(process.memoryUsage().heapUsed / 1048576);',
+    );
+    const raw = execFileSync(process.execPath, ['--expose-gc', '-e', `const out = []; ${probe}; process.stdout.write(JSON.stringify(out));`], {
+      encoding: 'utf8',
+    });
+    const [before, after] = JSON.parse(raw) as number[];
+    const base = controlMb();
+    expect(before, 'до чтения — как без строки').toBeLessThan(base + near);
+    expect(after, 'после чтения — плюс пятьдесят мегабайт').toBeGreaterThan(base + far);
+    expect(promised[0], 'в тексте: до чтения рядом с контролем').toBeLessThan(promised[1] - far);
   }, 60_000);
 });
 
@@ -816,9 +849,10 @@ describe('цена `===` — отношением, а не наносекунд�
    * в `tests/unit/cost-invariants.test.ts` и здесь не дублируется. Взята другая сторона того же
    * замера: сравнение, которое **не доходит до содержимого**, от длины не зависит вовсе.
    *
-   * Ловушки этого замера (обе описаны в `AGENTS.md` и в докстринге `EQ_BARS`):
-   *   1) пара, сравнённая дважды, дальше сравнивается по указателю — V8 склеивает равные строки
-   *      в `ThinString`. Поэтому **каждая пара живёт ровно одно сравнение**;
+   * Ловушки этого замера (обе описаны в докстринге `EQ_BARS`):
+   *   1) пару нельзя сравнивать дважды: замер в цикле показывает невозможные 2 нс на сто тысяч
+   *      символов. Склейка равных строк в `ThinString` эту цифру НЕ объясняет — опровергнуто
+   *      `%DebugPrint`. Поэтому **каждая пара живёт ровно одно сравнение**;
    *   2) `repeat` возвращает дерево, и первое же сравнение оплатило бы ещё и расплющивание.
    *      Поэтому обе строки расплющиваются до таймера — иначе мерился бы flatten, а не `===`.
    */
@@ -886,4 +920,28 @@ describe('цена `===` — отношением, а не наносекунд�
     expect(long / short, 'вчетверо длиннее').toBeGreaterThan(2);
     expect(long / short).toBeLessThan(8);
   }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
+// Раздел «Расплющивание» · шаги демо не противоречат сами себе
+// ---------------------------------------------------------------------------
+
+describe('шаги расплющивания', () => {
+  it('порядок копирования — перестановка листьев, правый лист корня первым', () => {
+    expect([...FLATTEN_ORDER].sort()).toEqual(FLATTEN_LEAVES.map((_, i) => i));
+    // Левая часть корня длиннее правой — по `String::WriteToFlat` сначала пишется правая.
+    expect(FLATTEN_ORDER[0]).toBe(FLATTEN_LEAVES.length - 1);
+  });
+
+  it('буфер выделен раньше первого листа, листья только прибывают', () => {
+    let prev = 0;
+    for (const step of FLATTEN_STEPS) {
+      if (step.copied > 0) expect(step.allocated, `«${step.title}»: копируют в невыделенный буфер`).toBe(true);
+      expect(step.copied).toBeGreaterThanOrEqual(prev);
+      prev = step.copied;
+    }
+    const asked = FLATTEN_STEPS.find((step) => step.title === 'понадобился символ')!;
+    expect(asked.allocated && asked.copied === 0, 'шаг «выделяет буфер» показывает выделенный пустой буфер').toBe(true);
+    expect(asked.message).toContain('выделяет буфер');
+  });
 });

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { legacy_createStore } from 'redux';
@@ -121,6 +121,17 @@ describe('раздел 2 · стратегия', () => {
       // @ts-expect-error — именно булев компаратор и проверяем
       expect([...a].sort((x: number, y: number) => x > y)).toEqual(a);
     }
+  });
+
+  it('SORT_NOTES: устойчивость sort — с ES2019, toSorted появился только в ES2023', () => {
+    // toSorted нет в lib es2022 и есть в es2023 — значит, «с ES2019 sort и toSorted» быть не могло.
+    const lib = (v: string) => readFileSync(`node_modules/typescript/lib/lib.${v}.array.d.ts`, 'utf8');
+    expect(lib('es2023')).toContain('toSorted(');
+    expect(() => lib('es2019')).not.toThrow();
+    expect(lib('es2019')).not.toContain('toSorted(');
+    const note = t.SORT_NOTES.find((n) => n.includes('устойчивая'))!;
+    expect(note).toContain('С ES2019 `sort` обязан сохранять');
+    expect(note).toContain('`toSorted` (ES2023)');
   });
 
   it('без компаратора sort сравнивает строками: [10, 9, 1] → [1, 10, 9]', () => {

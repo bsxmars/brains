@@ -490,8 +490,13 @@ describe('Fuse.js 7.5.0', () => {
     // «ивент» не находит Event Loop; «мгу» — ни одной строки про Vue.
     expect(fuse.search('ивент').some((f) => f.item.text === 'Event Loop')).toBe(false);
     expect(fuse.search('мгу').some((f) => /vue/i.test(f.item.text))).toBe(false);
-    // «кэш»: счёт 0.46 у «Кеш …» сразу.
+    // «кэш»: счёт решает число слов в «Кеш …» — из двух слов 0.46, из трёх 0.53.
     expect(fuse.search('кэш')[0].score?.toFixed(2)).toBe('0.46');
+    const kesh = fuse.search('кэш').filter((f) => /^Кеш /.test(f.item.text));
+    const byWords = (n: number) => new Set(kesh.filter((f) => f.item.text.split(' ').length === n).map((f) => f.score?.toFixed(2)));
+    expect([...byWords(2)]).toEqual(['0.46']);
+    expect([...byWords(3)]).toEqual(['0.53']);
+    expect(t.FUSE_ROWS.find((r) => r.q === 'кэш')!.d).toContain('из двух слов счёт 0.46, из трёх — 0.53');
     // «каждая одиннадцатая строка».
     expect(Math.round(entries.length / 76)).toBe(11);
   });

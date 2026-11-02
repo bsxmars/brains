@@ -10,6 +10,10 @@
  * Разбор байтов дешёв и детерминирован, поэтому идёт сразу (и на сборке тоже). Исполнение —
  * только по кнопке: до нажатия демо честно говорит, что ещё ничего не запускалось.
  * Общей памяти здесь нет: сайт не изолирован, и отправить её в воркер нельзя.
+ *
+ * Строки про `memory.grow` здесь больше нет (вычитка 2026-10-29): рост и отсоединение
+ * буфера разбирает раздел «Линейная память», ниже по теме, а демо стоит в разделе 1 —
+ * читатель получал вывод раньше объяснения.
  */
 import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
@@ -120,9 +124,6 @@ const memoryRows = computed(() => {
   }
   return out;
 });
-
-const GROW_LINE =
-  'после `memory.grow(1)`: прежний `memory.buffer` — `byteLength` {old}, `detached` {det}; у памяти новый буфер на {now} байт';
 </script>
 
 <template>
@@ -183,7 +184,7 @@ const GROW_LINE =
       </div>
 
       <p v-if="failed" class="wasm-failed">{{ failed }}</p>
-      <p v-else-if="!run" class="wasm-idle">Модуль ещё не создавался: разбор выше сделан декодером, исполнения не было.</p>
+      <p v-else-if="!run" class="wasm-idle">Экземпляр ещё не создан: выше только байты модуля.</p>
 
       <div v-if="run" class="wasm-out">
         <div class="wasm-facts">
@@ -218,14 +219,6 @@ const GROW_LINE =
         </p>
 
         <p class="wasm-result">обратно из памяти: <b>{{ run.result }}</b></p>
-        <Md
-          class="wasm-grow"
-          :text="
-            GROW_LINE.replace('{old}', String(run.grow.oldByteLength))
-              .replace('{det}', String(run.grow.oldDetached))
-              .replace('{now}', String(run.grow.newByteLength))
-          "
-        />
       </div>
     </div>
 
@@ -555,11 +548,6 @@ const GROW_LINE =
   font-family: var(--mono);
   font-size: var(--fs-4);
   color: var(--text);
-}
-.wasm-grow {
-  font-size: var(--fs-5);
-  line-height: 1.55;
-  color: var(--tone-warn-text);
 }
 .wasm-foot {
   font-size: var(--fs-5);

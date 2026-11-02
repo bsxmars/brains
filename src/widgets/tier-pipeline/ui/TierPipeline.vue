@@ -48,7 +48,7 @@ const step = computed(() => props.steps[index.value]);
 
     <div class="split">
       <div class="tiers">
-        <div class="t-label">ярусы</div>
+        <div class="t-label">разбор и четыре яруса</div>
 
         <div
           v-for="(tier, i) in tiers"

@@ -185,6 +185,16 @@ describe('раздел «0.1 + 0.2»', () => {
     expect(hexOf(0.1 + 0.2)).toBe('3fd3333333333334');
     expect(hexOf(0.3)).toBe('3fd3333333333333');
     expect(t.SUM_STEPS[2].d).toContain('0x3fd3333333333334');
+    // «Сумма легла ровно посередине… при ничьей — чётная мантисса»: точная сумма двух double
+    // 0.1 + 0.2 = 3m · 2⁻⁵⁶; у результата шаг 2⁻⁵⁴, поэтому мантисса — 3m / 4 с остатком ровно ½.
+    const mant = (x: number) => (BigInt('0x' + hexOf(x)) & ((1n << 52n) - 1n)) | (1n << 52n);
+    const m01 = mant(0.1);
+    expect(mant(0.2)).toBe(m01);
+    expect((3n * m01) % 4n).toBe(2n);
+    expect((3n * m01) / 4n).toBe(mant(0.3));
+    expect(mant(0.1 + 0.2)).toBe(mant(0.3) + 1n);
+    expect(mant(0.1 + 0.2) % 2n).toBe(0n);
+    expect(t.SUM_STEPS[2].d).toContain('ровно посередине');
     // «0.1 округлилась вверх на 5,55 · 10⁻¹⁸, 0.2 — на 1,11 · 10⁻¹⁷»
     expect(api.exactDecimal(0.1).slice(0, 22)).toBe('0.10000000000000000555');
     expect(api.exactDecimal(0.2).slice(0, 21)).toBe('0.2000000000000000111');
@@ -244,6 +254,18 @@ describe('раздел «Где теряются целые»', () => {
     expect(t.JSON_BIG_CODE).toContain('// 9007199254740993n');
     expect(t.JSON_BIG_CODE).toContain(`// '${out[1]}'`);
   });
+
+  it('тонкое место про id: граница — 2⁵³, а не число цифр (пример той же длины, что MAX_SAFE_INTEGER)', () => {
+    const p = t.PITFALLS.find((x) => x.t.includes('Идентификатор'))!;
+    expect(p.t).not.toMatch(/\d+ цифр/);
+    expect(p.t).toContain('2⁵³');
+    const id = '9007199254740993';
+    expect(p.d).toContain(id);
+    expect(id.length).toBe(String(Number.MAX_SAFE_INTEGER).length);
+    expect(BigInt(id) > BigInt(Number.MAX_SAFE_INTEGER)).toBe(true);
+    expect(String(JSON.parse(id))).toBe('9007199254740992');
+    expect(Number.isSafeInteger(9_000_000_000_000_000)).toBe(true); // 16 цифр — и точное
+  });
 });
 
 describe('BigInt и побитовые', () => {
@@ -266,6 +288,11 @@ describe('BigInt и побитовые', () => {
       const x = f64[0];
       expect(Object.is(toInt32(x), x | 0)).toBe(true);
     }
+    // «три миллиарда не влезли в 32 бита со знаком»: 2³⁰ < 3e9 < 2³², а не «31 бит» — так тема
+    // называет границу Smi в Chrome (`SMI_ROWS`).
+    const big = 3e9;
+    expect(big > 2 ** 31 - 1 && big < 2 ** 32).toBe(true);
+    expect(t.BIT_ROWS.find((r) => r.code === '3e9 | 0')!.why).toContain('32 бита со знаком');
     // «`~~x` и `x >> 0` — тот же ToInt32»
     expect(~~3e9).toBe(3e9 | 0);
     expect(3e9 >> 0).toBe(3e9 | 0);

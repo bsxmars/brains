@@ -9,16 +9,20 @@ import {
   GROW_BYTES,
   GROW_CODE,
   IMPORT_FACTS,
+  INSTANTIATE_CODE,
   JS_STRING_BYTES,
   MODULE_BYTES,
   MODULE_SECTIONS,
   MODULE_WAT,
   PAGE_FACTS,
+  PITFALLS,
   RACY_OBSERVED,
   RESIZABLE_CODE,
+  RESIZABLE_NOTE,
   RESIZABLE_EXPECT,
   SHARED_BYTES,
   SHARED_RULES,
+  SHARED_WAT,
   SIMD_BYTES,
   SIMD_EXPORT_BYTES,
   STRING_CODE,
@@ -60,6 +64,8 @@ type Buf = ArrayBuffer & { detached: boolean; resize: (n: number) => void };
 type Mem = WebAssembly.Memory & { toResizableBuffer: () => Buf; toFixedLengthBuffer: () => Buf };
 const mem = (m: WebAssembly.Memory) => m as Mem;
 const buf = (b: ArrayBufferLike) => b as Buf;
+/** `toResizableBuffer` — Node 26; в Node 24 метода нет (RESIZABLE_NOTE). */
+const HAS_RESIZABLE = 'toResizableBuffer' in WebAssembly.Memory.prototype;
 
 interface Teaching {
   add: (a: number, b: number) => number;
@@ -141,6 +147,18 @@ describe('учебный модуль: байты, декодер и текст 
     ]);
   });
 
+  it('текст модуля для потоков (SHARED_WAT) совпадает с байтами SHARED_BYTES', () => {
+    const shared = decodeModule(SHARED_BYTES);
+    expect(shared.functions.map((f) => f.index)).toEqual([0, 1, 2, 3]);
+    ['$bump', '$racy', '$wait', '$wake'].forEach((fn, i) => {
+      expect(watInstructions(SHARED_WAT, fn), fn).toEqual(shared.functions[i].code);
+    });
+    expect(shared.functions.every((f) => f.locals.length === 0)).toBe(true);
+    expect(SHARED_WAT).toContain('(import "env" "mem" (memory 1 1 shared))');
+    const exportsInWat = [...SHARED_WAT.matchAll(/\(export "(\w+)"/g)].map((m) => m[1]);
+    expect(exportsInWat).toEqual(WebAssembly.Module.exports(new WebAssembly.Module(u8(SHARED_BYTES))).map((e) => e.name));
+  });
+
   it('декодер общего модуля читает флаг 0x03 как «общая» и атомарные инструкции по именам', () => {
     const shared = decodeModule(SHARED_BYTES);
     expect(shared.sections.flatMap((s) => s.items)).toContain('env.mem: память, мин 1, макс 1, общая');
@@ -159,6 +177,16 @@ describe('модуль и экземпляр: импорты проверяют�
     expect(errorName(() => new WebAssembly.Instance(mod, {}))).toBe('TypeError');
     expect(errorName(() => new WebAssembly.Instance(mod, { env: {} }))).toBe('LinkError');
     expect(errorName(() => new WebAssembly.Instance(mod, { env: { report: 1 } }))).toBe('LinkError');
+  });
+
+  it('INSTANTIATE_CODE, исполненный как есть: add(2, 3) — 5, таблица держит add, последняя строка — LinkError', async () => {
+    const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => (...a: unknown[]) => Promise<unknown>;
+    const lines = INSTANTIATE_CODE.split('\n');
+    const head = lines.slice(0, -1).join('\n');
+    const got = await new AsyncFunction('bytes', `${head}\nreturn { sum: add(2, 3), same: table.get(0) === add };`)(u8(MODULE_BYTES));
+    expect(got).toEqual({ sum: 5, same: true });
+    expect(lines.at(-1)).toContain('LinkError');
+    await expect(new AsyncFunction('bytes', INSTANTIATE_CODE)(u8(MODULE_BYTES))).rejects.toBeInstanceOf(WebAssembly.LinkError);
   });
 
   it('экспорт — обёртка: length — число параметров, name — номер функции строкой', () => {
@@ -190,9 +218,29 @@ describe('модуль и экземпляр: импорты проверяют�
     const stack = execFileSync(process.execPath, ['-e', code], { encoding: 'utf8' });
     expect(stack).toContain('wasm-function[2]');
   });
+
+  /**
+   * Пункт 10 «Тонких мест»: секция имён добавляет имя в стек, но `name` экспорта не трогает
+   * (по JS API это всегда номер функции строкой). Секция дописывается к байтам учебного модуля.
+   */
+  it('секция имён: в стеке появляется upper, а add.name остаётся «1»', () => {
+    const nm = (s: string) => [s.length, ...[...s].map((c) => c.charCodeAt(0))];
+    const sub = [3, 0, ...nm('report'), 1, ...nm('add'), 2, ...nm('upper')];
+    const content = [...nm('name'), 1, sub.length, ...sub];
+    const named = [...MODULE_BYTES, 0, content.length, ...content];
+    const code = `
+      const bytes = new Uint8Array(${JSON.stringify(named)});
+      const { exports: e } = new WebAssembly.Instance(new WebAssembly.Module(bytes), { env: { report() {} } });
+      console.log('name=' + e.add.name);
+      try { e.upper(65530, 100); } catch (x) { console.log(x.stack); }`;
+    const out = execFileSync(process.execPath, ['-e', code], { encoding: 'utf8' });
+    expect(out).toContain('name=1');
+    expect(out).toMatch(/at upper \(/);
+    expect(PITFALLS.find((p) => p.n === '10')!.d).toContain("у `add` он `'1'` в любом случае");
+  });
 });
 
-describe('исполнитель демо: строка через память, рост, сложение', () => {
+describe('исполнитель демо и листинги: строка через память, сложение, рост', () => {
   it('runModule даёт то, что обещает тема', async () => {
     const run = await runModule(MODULE_BYTES, STRING_EXPECT.text, 2, 3);
     expect(run.add.result).toBe(5);
@@ -201,13 +249,6 @@ describe('исполнитель демо: строка через память,
     expect(run.bytes).toBe(STRING_EXPECT.bytes);
     expect(run.reported).toEqual([STRING_EXPECT.reported]);
     expect(run.tableHoldsAdd).toBe(true);
-    expect(run.grow).toEqual({
-      previousPages: 1,
-      oldByteLength: 0,
-      oldDetached: true,
-      newByteLength: 131072,
-      sameObject: false,
-    });
   });
 
   it('значения по умолчанию в демо: 2147483647 + 1 даёт -2147483648', async () => {
@@ -236,14 +277,25 @@ describe('исполнитель демо: строка через память,
   });
 
   it('RESIZABLE_CODE: растягиваемый буфер не отсоединяется и растёт вместе с памятью', () => {
-    const e = teaching();
-    const got = new Function('memory', `${RESIZABLE_CODE}\nreturn { length: view.length, same: memory.buffer === buffer };`)(
-      e.memory,
-    );
+    // Метод есть в Node 26, в Node 24 его нет — так и сказано в RESIZABLE_NOTE и в таблице выходов.
+    expect(RESIZABLE_NOTE).toContain('есть в Node 26 и Chromium, в Node 24 его нет');
+    if (!HAS_RESIZABLE) {
+      expect(process.versions.node.split('.')[0]).toBe('24');
+      expect(() => new Function(RESIZABLE_CODE)()).toThrow('memory.toResizableBuffer is not a function');
+      return;
+    }
+    // Листинг заводит свою память сам — читатель не продолжает с памяти, которая уже выросла в GROW_CODE.
+    const got = new Function(`${RESIZABLE_CODE}\nreturn { length: view.length, same: memory.buffer === buffer };`)();
     expect(got).toEqual(RESIZABLE_EXPECT);
   });
 
   it('toResizableBuffer требует maximum; toFixedLengthBuffer отсоединяет растягиваемый; resize — только вверх и страницами', () => {
+    if (!HAS_RESIZABLE) {
+      // Node 24: нет ни toResizableBuffer, ни парного toFixedLengthBuffer.
+      const m = new WebAssembly.Memory({ initial: 1, maximum: 4 }) as unknown as Record<string, unknown>;
+      expect([typeof m.toResizableBuffer, typeof m.toFixedLengthBuffer]).toEqual(['undefined', 'undefined']);
+      return;
+    }
     expect(errorName(() => mem(new WebAssembly.Memory({ initial: 1 })).toResizableBuffer())).toBe('TypeError');
 
     const m = mem(new WebAssembly.Memory({ initial: 1, maximum: 4 }));
@@ -258,8 +310,9 @@ describe('исполнитель демо: строка через память,
 });
 
 describe('линейная память: страницы, потолок, рост изнутри', () => {
-  it('потолок V8 — 65 536 страниц: initial 65537 даёт RangeError (так и сказано в PAGE_FACTS)', () => {
+  it('предел 32-битной памяти — 65 536 страниц: initial и maximum 65537 дают RangeError (так и сказано в PAGE_FACTS)', () => {
     expect(errorName(() => new WebAssembly.Memory({ initial: 65537 }))).toBe('RangeError');
+    expect(errorName(() => new WebAssembly.Memory({ initial: 1, maximum: 65537 }))).toBe('RangeError');
     expect(PAGE_FACTS.join(' ')).toContain('65 536 страниц');
   });
 
@@ -325,6 +378,17 @@ describe('общая память', () => {
     expect(m.buffer.byteLength).toBe(131072);
     expect(m.buffer).not.toBe(old);
     expect(SHARED_RULES.join(' ')).toContain('65 536 после роста до 131 072');
+  });
+
+  it('проверка из «Тонких мест» heap.buffer !== memory.buffer ловит рост и у обычной, и у общей памяти', () => {
+    for (const shared of [false, true]) {
+      const m = new WebAssembly.Memory({ initial: 1, maximum: 2, shared });
+      const heap = new Uint8Array(m.buffer);
+      expect(heap.buffer !== m.buffer, `shared: ${shared}, до роста`).toBe(false);
+      m.grow(1);
+      expect(heap.buffer !== m.buffer, `shared: ${shared}, после роста`).toBe(true);
+    }
+    expect(PITFALLS.find((p) => p.n === '01')!.d).toContain('heap.buffer !== memory.buffer');
   });
 
   it('проверка демо в Node: память создаётся и клонируется — изоляции здесь не требуют', () => {

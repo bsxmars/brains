@@ -102,6 +102,17 @@ import type { RetainerChain } from '@/widgets/retainer-chain/model/types';
  *                           в тексте «около 48 МБ»;
  *   два пути                пересняты `heapUsed` на 24.11 и 26.8.2: удаление первого пути — 0.00 МБ,
  *                           обоих — 19.07 МБ.
+ *
+ * Вычитка 2026-10-30 (Node 24.11, обход `v8.writeHeapSnapshot()`; фронтенд DevTools из
+ * `resources.pak` Chromium 153.0.8010.12):
+ *
+ *   `rows`                  массив из `Array.from` в снимке — узел `object` с именем `Array`,
+ *                           а не `(array)`: подпись `(array) rows` спорила с SYNTHETIC. Теперь `Array rows`;
+ *   `this` в контексте      стрелка в методе захватывает `this`, и ребро от `system / Context`
+ *                           к экземпляру называется `this`, а не именем класса: `this in system / Context`;
+ *   один путь               панель Retainers перечисляет всех держателей (`createRetainingEdgesProvider`),
+ *                           а раскрывает автоматически одну ветку — первую по Distance
+ *                           (`expandRetainersChain(20)`). «Показывает один путь» → «раскрывает».
  */
 
 /** Три вещи, которые надо вычитать из графа снимка. */
@@ -247,7 +258,7 @@ export const HEAP_NODES: HeapNode[] = [
   { id: 'window', label: 'Window', shallow: 'GC root' },
   { id: 'closure', label: '(closure) held', shallow: 'shallow 64 B' },
   { id: 'context', label: 'system / Context', shallow: 'shallow 40 B' },
-  { id: 'array', label: '(array) rows', shallow: 'shallow 32 B' },
+  { id: 'array', label: 'Array rows', shallow: 'shallow 32 B' },
   { id: 'elements', label: '(object elements)', shallow: 'shallow 4 000 016 B' },
   { id: 'objects', label: 'Object × 500 000', shallow: 'shallow 32 B каждый' },
 ];
@@ -283,7 +294,7 @@ export const HEAP_VARIANTS: HeapVariant[] = [
     rows: [
       { c: '(closure) held', depth: 0, dist: '2', shallow: '64', retained: '20 000 152', hot: true },
       { c: 'system / Context', depth: 1, dist: '3', shallow: '40', retained: '20 000 088' },
-      { c: '(array) rows', depth: 2, dist: '4', shallow: '32', retained: '20 000 048' },
+      { c: 'Array rows', depth: 2, dist: '4', shallow: '32', retained: '20 000 048' },
       { c: '(object elements)', depth: 3, dist: '5', shallow: '4 000 016', retained: '20 000 016' },
       { c: 'Object', depth: 4, dist: '6', shallow: '32', retained: '32' },
     ],
@@ -299,7 +310,7 @@ export const HEAP_VARIANTS: HeapVariant[] = [
     rows: [
       { c: '(closure) held', depth: 0, dist: '2', shallow: '64', retained: '104', hot: true },
       { c: 'system / Context', depth: 1, dist: '3', shallow: '40', retained: '40' },
-      { c: '(array) rows', depth: 0, dist: '2', shallow: '32', retained: '20 000 048' },
+      { c: 'Array rows', depth: 0, dist: '2', shallow: '32', retained: '20 000 048' },
       { c: '(object elements)', depth: 1, dist: '3', shallow: '4 000 016', retained: '20 000 016' },
       { c: 'Object', depth: 2, dist: '4', shallow: '32', retained: '32' },
     ],
@@ -362,7 +373,7 @@ export const CHAINS: RetainerChain[] = [
         tone: 'warn',
       },
       {
-        t: '    └─ Chart in system / Context',
+        t: '    └─ this in system / Context',
         kind: 'захваченная переменная',
         what: 'Экземпляр попал в замыкание как this. Context — объект V8, в котором хранятся переменные, захваченные замыканием.',
         fix: 'Не здесь. Context не существует сам по себе — его держит функция.',
@@ -376,7 +387,7 @@ export const CHAINS: RetainerChain[] = [
       {
         t: '            └─ 3 in (array)',
         kind: 'элемент массива',
-        what: 'Функция лежит третьим элементом массива. Число — это индекс.',
+        what: 'Функция лежит в массиве под индексом 3, то есть четвёртой: счёт индексов идёт с нуля.',
         fix: 'Не здесь. Это внутреннее устройство списка обработчиков.',
       },
       {
@@ -593,7 +604,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '04',
     t: 'Критерий починки — ноль, а не «стало лучше»',
-    d: 'DevTools показывает один путь до корня — кратчайший. Но удерживающих путей может быть несколько, и разрыв одного из них ничего не даёт. Как понять, что это ваш случай: после правки #Delta по вашему конструктору уменьшилась, но не до нуля, а, скажем, вдвое. Значит, из двух путей вы разорвали один. Проверка всегда одна: снова три снимка при том же числе прогонов.',
+    d: 'DevTools раскрывает один путь до корня — кратчайший; остальные держатели стоят в списке Retainers свёрнутыми. Но удерживающих путей может быть несколько, и разрыв одного из них ничего не даёт. Как понять, что это ваш случай: после правки #Delta по вашему конструктору уменьшилась, но не до нуля, а, скажем, вдвое. Значит, из двух путей вы разорвали один. Проверка всегда одна: снова три снимка при том же числе прогонов.',
     tone: 'err',
   },
 ];
@@ -959,7 +970,7 @@ export const HEAP_GRAPH_DEMO_NOTE =
   'Сравните два состояния графа. Shallow не меняется ни у одной строки — меняется только то, на кого записаны байты. Со вторым путём к массиву у замыкания остаётся 104 байта: 64 своих и 40 контекста.';
 
 export const RETAIN_GRAPH_DEMO_NOTE =
-  'Тот же пример на настоящем графе: retained size, путь удержания и освобождённые байты здесь считает обход объектов этой вкладки. Главное, что в нём видно: до оторванного `canvas` ведут два пути — через `Map` и через список обработчиков, — а панель Retainers показала бы один, кратчайший, через `Map`. Разорвите его — освободится ровно 0 байт; узел исчезнет только после второго разрыва.';
+  'Тот же пример на настоящем графе: retained size, путь удержания и освобождённые байты здесь считает обход объектов этой вкладки. Главное, что в нём видно: до оторванного `canvas` ведут два пути — через `Map` и через список обработчиков, — а панель Retainers раскрыла бы один, кратчайший, через `Map`. Разорвите его — освободится ровно 0 байт; узел исчезнет только после второго разрыва.';
 
 /* ──────────────────── «На пальцах» ──────────────────── */
 

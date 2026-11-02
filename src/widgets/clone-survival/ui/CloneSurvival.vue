@@ -38,7 +38,8 @@ onMounted(() => {
 const LABEL: Record<string, string> = {
   ok: 'прошло',
   lossy: 'прошло, но не целиком',
-  throw: 'DataCloneError',
+  // Метка та же, что в легенде; имя ошибки (`DataCloneError`) печатается строкой под кодом.
+  throw: 'упало',
 };
 </script>
 
@@ -49,7 +50,6 @@ const LABEL: Record<string, string> = {
         <span class="chip" data-verdict="ok">прошло</span>
         <span class="chip" data-verdict="lossy">прошло, но не целиком</span>
         <span class="chip" data-verdict="throw">упало</span>
-        <span class="legend__note">проверяет ваш браузер прямо сейчас</span>
       </div>
     </template>
 
@@ -85,11 +85,6 @@ const LABEL: Record<string, string> = {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-}
-.legend__note {
-  font-family: var(--mono);
-  font-size: var(--fs-2);
-  color: var(--text-faint);
 }
 
 .body {

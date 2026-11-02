@@ -25,10 +25,10 @@ export const RULER_PRESETS: RulerPreset[] = [
     },
   },
   {
-    label: 'await nativePromise',
+    label: 'await p (настоящий промис)',
     n: 1,
     code: "const p = Promise.resolve('v');\n(async () => { await p; console.log('<-- здесь'); })();",
-    why: 'Настоящий промис `await` берёт как есть, без обёртки (0). Промис уже выполнен, поэтому продолжение сразу встаёт в очередь — 1.',
+    why: 'Настоящий промис `await` берёт как есть, без обёртки, и это бесплатно. Промис уже выполнен, поэтому продолжение функции сразу встаёт в очередь — тик 1.',
     program: (rt) => {
       const p = rt.settled();
       // Нативный промис проходит вход без обёртки — это и есть нулевая цена PromiseResolve.
@@ -41,7 +41,7 @@ export const RULER_PRESETS: RulerPreset[] = [
     label: 'await объекта с then',
     n: 2,
     code: "(async () => { await { then: r => r() }; console.log('<-- здесь'); })();",
-    why: 'Объект с методом `then` — не настоящий промис, поэтому `await` заворачивает его в новый промис и разворачивает: микрозадача вызывает его `then` (1), тот сразу вызывает `r()`, затем продолжение функции (2). Настоящий промис здесь стоил бы на тик больше: его `then` отвечает через очередь.',
+    why: 'Объект с методом `then` — не настоящий промис, и `await` создаёт для него новый промис. Чтобы узнать результат, микрозадача вызывает `then` объекта (тик 1), тот сразу вызывает `r()`, и только потом продолжается функция (тик 2). Настоящий промис `await` берёт как есть, поэтому `await` промиса дешевле — 1 тик.',
     program: (rt) => {
       const wrapper = rt.pending();
       rt.resolvePromise(wrapper, rt.syncThenable('{ then: r => r() }'));
@@ -65,7 +65,7 @@ export const RULER_PRESETS: RulerPreset[] = [
     label: 'return await p',
     n: 2,
     code: "const p = Promise.resolve('X');\nasync function g() { return await p; }\ng().then(() => console.log('<-- здесь'));",
-    why: '`await p` стоит один тик, после него функция возвращает уже значение, а не промис, — и разворачивать нечего: ещё один тик. Итого на тик меньше, чем `return p`.',
+    why: '`await p` стоит один тик (1). После него функция возвращает уже значение, а не промис, и её промис завершается сразу, без тиков. Остаётся `.then` снаружи (2). Итого на тик меньше, чем `return p`.',
     program: (rt) => {
       const p = rt.settled();
       const fnPromise = rt.pending();

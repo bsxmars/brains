@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   BASES,
+  GLOSSARY,
   PATH_ROWS,
   PATH_TOTALS,
+  PITFALLS,
+  PUBLISH_ROWS,
 } from '@/content/delivery/github-pages/data';
 import {
   emittedPath,
@@ -202,5 +205,25 @@ describe('подписи вариантов базы', () => {
 
   it('первый вариант — это та база, на которой сайт собран сейчас', () => {
     expect(normalizeBase(BASES[0].value)).toBe('/');
+  });
+});
+
+describe('вычитка 2026-10-30: утверждения темы против замера и документации', () => {
+  // Сравнение двух сборок в HASH_CODE: из 148 имён сменились 4 — имя с хешем меняется
+  // вместе с содержимым, а не «при каждой сборке».
+  it('имена с хешем не названы меняющимися при каждой сборке', () => {
+    const fromBranch = PUBLISH_ROWS.find((r) => r.k === 'из ветки');
+    expect(fromBranch?.why).not.toContain('при каждой сборке');
+    expect(fromBranch?.why).toContain('с каждой правкой содержимого');
+    const p06 = PITFALLS.find((p) => p.n === '06');
+    expect(p06?.d).not.toContain('при каждой сборке');
+  });
+
+  // docs.astro.build, Configuration reference: раскладку about/index.html против about.html
+  // задаёт build.format; trailingSlash — сопоставление адресов со слешем и без.
+  it('раскладку страниц задаёт build.format, а не trailingSlash', () => {
+    const term = GLOSSARY.find((g) => g.k.includes('trailingSlash'));
+    expect(term?.k).toContain('`build.format`');
+    expect(term?.d).toMatch(/`build\.format` решает, как раскладывать страницы/);
   });
 });

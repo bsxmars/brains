@@ -30,16 +30,26 @@ function runModule(code: string, flags: string[] = []) {
 }
 
 const NODE = process.version; // стенд: v24.11.0
+const MAJOR = NODE.slice(1).split('.')[0];
 
 describe('сценарии демо: учебные классы против настоящих', () => {
+  // Расхождение Node со стандартом — из data.ts, по мажорной версии прогона
+  const nodeLog = (id: string) => t.SCENARIO_LOGS_NODE[MAJOR]?.[id];
+
   it.each(t.SCENARIOS)('$label: настоящий AbortController Node печатает SCENARIO_LOGS', async (sc) => {
-    expect(await runScenario(sc, nativeImpl(), t.TRACK_CODE)).toEqual(t.SCENARIO_LOGS[sc.id]);
+    expect(await runScenario(sc, nativeImpl(), t.TRACK_CODE)).toEqual(nodeLog(sc.id) ?? t.SCENARIO_LOGS[sc.id]);
   });
 
   it.each(t.SCENARIOS)('$label: учебная реализация совпадает с настоящей', async (sc) => {
     const r = await compareScenario(sc, t.MINI_CODE, t.TRACK_CODE);
-    expect(r.mini).toEqual(r.native);
-    expect(r.same).toBe(true);
+    expect(r.mini).toEqual(t.SCENARIO_LOGS[sc.id]);
+    expect(r.native).toEqual(nodeLog(sc.id) ?? t.SCENARIO_LOGS[sc.id]);
+    expect(r.same).toBe(nodeLog(sc.id) === undefined);
+  });
+
+  it('SCENARIO_LOGS_NODE: расхождение Node 26 описано в заметке сценария', () => {
+    expect(Object.keys(t.SCENARIO_LOGS_NODE[MAJOR] ?? {}).every((id) => id in t.SCENARIO_LOGS)).toBe(true);
+    expect(t.SCENARIO_BY_ID.chain.note).toContain('Node 26.8 рассылает их в порядке подписки');
   });
 
   it('у каждого сценария есть литерал вывода, и наоборот', () => {
@@ -223,10 +233,18 @@ describe('раздел «timeout и any»', () => {
     expect(await (await load()(base + '/fast', { ms: 1000 })).text()).toBe('быстро');
   });
 
-  it('COMBINE_FACTS: таймер timeout() в Node не держит процесс — выход с кодом 13', () => {
+  it('COMBINE_FACTS: таймер timeout() в Node не держит процесс — ES-модуль выходит с кодом 13', () => {
     const r = runModule(`const s = AbortSignal.timeout(50); await new Promise((r) => s.addEventListener('abort', r)); console.log('дождались');`);
     expect(r.stdout).toBe('');
     expect(r.status).toBe(13);
+  });
+
+  it('COMBINE_FACTS: в CommonJS тот же скрипт выходит молча, с кодом 0', () => {
+    const code = `(async () => { const s = AbortSignal.timeout(50); await new Promise((r) => s.addEventListener('abort', r)); console.log('дождались'); })();`;
+    const r = spawnSync(process.execPath, ['--input-type=commonjs', '-e', code], { encoding: 'utf8', timeout: 30_000 });
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
   });
 });
 

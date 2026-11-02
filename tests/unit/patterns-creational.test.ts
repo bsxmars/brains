@@ -238,6 +238,13 @@ describe('тонкие места', () => {
     expect(t.PITFALLS.every((p) => p.t && p.d)).toBe(true);
   });
 
+  it('словарь: «нет значения при выполнении» — про C++, а не про Smalltalk (там класс — объект)', () => {
+    // GoF, Prototype: паттерн важнее в C++, «где классы — не объекты»; в Smalltalk класс — объект.
+    const d = t.GLOSSARY.find((g) => g.k === 'паттерн проектирования')!.d;
+    expect(d).toContain('В C++ у класса нет значения при выполнении, а в Smalltalk класс — объект');
+    expect(d).not.toMatch(/C\+\+ и Smalltalk — языков, где у класса нет значения/);
+  });
+
   it('abstract и private constructor стираются: в .js нет ни слова', () => {
     const js = ts.transpileModule(t.SINGLETON_CLASS_CODE + '\n' + t.FACTORY_CLASSIC_CODE, {
       compilerOptions: { target: ts.ScriptTarget.ES2022 },

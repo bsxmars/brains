@@ -3,8 +3,9 @@
  * Как схлопывается дерево конкатенаций.
  *
  * Демо держится на одном факте, который в статьях обычно опускают: `String::Flatten`
- * **не создаёт новый объект и не меняет тип**. Он выделяет плоский буфер, сливает туда листья
- * по порядку, а потом переписывает `first` на этот буфер и `second` на пустую строку. Поэтому
+ * **не создаёт новый объект и не меняет тип**. Он выделяет плоский буфер, пишет туда каждый лист
+ * на его место (порядок задаёт `order`: V8 идёт не обязательно слева направо), а потом переписывает
+ * `first` на этот буфер и `second` на пустую строку. Поэтому
  * тип показан на каждом шаге отдельной плашкой — и на всех шагах он один и тот же.
  *
  * Отсюда же практический вывод, ради которого всё это: «расплющена ли строка» по типу
@@ -21,6 +22,8 @@ const props = defineProps<{
   /** Листья дерева слева направо — куски, из которых собиралась строка. */
   leaves: string[];
   steps: FlattenStep[];
+  /** В каком порядке листья копируются в буфер; по умолчанию слева направо. */
+  order?: number[];
 }>();
 
 const stepper = useStepper(props.steps.length);
@@ -28,8 +31,13 @@ const { index, counter, atStart, atEnd, next, prev, reset, go } = stepper;
 const { playing, speed, speeds, available, toggle, setSpeed } = usePlayer(stepper);
 const step = computed(() => props.steps[index.value]);
 
-/** Что уже перенесено в плоский буфер. */
-const buffer = computed(() => props.leaves.slice(0, step.value.copied).join(''));
+const order = computed(() => props.order ?? props.leaves.map((_, i) => i));
+/** Какие листья уже перенесены в буфер. */
+const copiedSet = computed(() => new Set(order.value.slice(0, step.value.copied)));
+/** Буфер целиком: перенесённые листья на своих местах, остальное — пустые ячейки. */
+const buffer = computed(() =>
+  props.leaves.map((leaf, i) => (copiedSet.value.has(i) ? leaf : '·'.repeat(leaf.length))).join(''),
+);
 const done = computed(() => step.value.copied >= props.leaves.length);
 </script>
 
@@ -87,7 +95,7 @@ const done = computed(() => step.value.copied >= props.leaves.length);
                 v-for="(leaf, i) in leaves"
                 :key="i"
                 class="leaf"
-                :data-state="i < step.copied ? 'copied' : 'pending'"
+                :data-state="copiedSet.has(i) ? 'copied' : 'pending'"
               >{{ leaf }}</span>
             </div>
             <div class="leaves__label">листья: исходные плоские куски</div>
@@ -98,8 +106,8 @@ const done = computed(() => step.value.copied >= props.leaves.length);
       <div class="pane pane--right">
         <div class="field">
           <div class="t-label">плоский буфер</div>
-          <div class="buffer" :data-state="step.copied === 0 ? 'none' : done ? 'full' : 'filling'">
-            <span v-if="step.copied === 0" class="buffer__empty">ещё не выделен</span>
+          <div class="buffer" :data-state="!step.allocated ? 'none' : done ? 'full' : 'filling'">
+            <span v-if="!step.allocated" class="buffer__empty">ещё не выделен</span>
             <span v-else class="buffer__text">{{ buffer }}</span>
           </div>
           <div class="buffer__meter">

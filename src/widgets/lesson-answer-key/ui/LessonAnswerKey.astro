@@ -1,0 +1,140 @@
+---
+/**
+ * «Саммари» в конце темы — свёрнутые блоки выжимки.
+ *
+ * Свёрнуты намеренно: читатель сначала рассказывает тему сам, не глядя, и только потом
+ * открывает и сверяется. Развёрнутая выжимка подменила бы вспоминание чтением — ощущение,
+ * что понял, без понимания. Поэтому `<details>` без `open` и без памяти о раскрытии.
+ */
+import type { AnswerKey } from '@/entities/lesson';
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  answerKey: AnswerKey;
+}
+
+const { answerKey } = Astro.props;
+---
+
+<section class="key" aria-labelledby="summary">
+  <h2 id="summary" class="heading">Саммари</h2>
+  <p class="intro">Сначала расскажи тему сам за 2 минуты, не глядя. Потом открывай и сверяйся.</p>
+
+  {
+    answerKey.blocks.map((block) => (
+      <details class="block">
+        <summary class="summary">
+          <span class="title">{block.title}</span>
+          <span class="hint">{block.hint}</span>
+        </summary>
+        <ul class="list">
+          {block.items.map((item) => (
+            <li>
+              <span set:html={inlineMd(item.text)} />
+              {item.steps.length > 0 && (
+                <ol class="steps">
+                  {item.steps.map((step) => (
+                    <li set:html={inlineMd(step)} />
+                  ))}
+                </ol>
+              )}
+            </li>
+          ))}
+        </ul>
+      </details>
+    ))
+  }
+
+  {
+    answerKey.project && (
+      <p class="project">
+        <span class="label">Где у нас в проекте:</span>
+        <span set:html={inlineMd(answerKey.project)} />
+      </p>
+    )
+  }
+</section>
+
+<style>
+  .key {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 72px;
+    padding-top: 28px;
+    border-top: 1px solid var(--ink);
+  }
+
+  .heading {
+    margin: 0;
+    font-size: var(--fs-h3);
+    line-height: 1.2;
+  }
+
+  .intro {
+    margin: 0 0 8px;
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  .block {
+    border-radius: var(--r2);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+  }
+
+  .summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    padding: 16px 20px;
+    cursor: pointer;
+  }
+  .block[open] .summary {
+    padding-bottom: 8px;
+  }
+
+  .title {
+    font-size: var(--fs-7);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .hint {
+    font-size: var(--fs-4);
+    color: var(--text-faint);
+  }
+
+  .list {
+    margin: 0;
+    padding: 0 20px 18px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  .steps {
+    margin: 6px 0 0;
+    padding-left: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .project {
+    margin: 8px 0 0;
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+  }
+  .label {
+    font-weight: 600;
+    margin-right: 6px;
+  }
+</style>

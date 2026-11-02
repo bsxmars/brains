@@ -156,7 +156,9 @@ export const BACKPRESSURE_WAVE: string[] = [
  * Схема к `BACKPRESSURE_WAVE` для `widgets/streams-wave-diagram`: цепочка из `CHAIN_CODE`,
  * поставленная сверху вниз (данные идут вниз), и те же семь шагов волны, поднимающейся вверх.
  * Каждой строке приписан шаг `BACKPRESSURE_WAVE`, который случается на этом звене; новых
- * утверждений нет. Шаг 7 и в тексте помечен «требует проверки» — на схеме он штриховой (`unsure`).
+ * утверждений нет. Шаг 7 для HTTP/2 снят стендом «HTTP/2 и HTTP/3» (сервер встаёт на окне
+ * потока, 65 535 байт; `tests/unit/http2-http3.test.ts`), для TCP под HTTP/1.1 — по спецификации,
+ * как и в тексте. Штриховой строки (`unsure`) на схеме поэтому нет.
  */
 export const WAVE_DIAGRAM: {
   title: string;
@@ -168,7 +170,7 @@ export const WAVE_DIAGRAM: {
   down: 'данные',
   up: 'обратное давление',
   rows: [
-    { node: 'сервер', where: 'net', tone: 'neutral', n: '7', step: 'запись на сервере начинает блокироваться — шаг в сети, требует проверки', unsure: true },
+    { node: 'сервер', where: 'net', tone: 'neutral', n: '7', step: 'запись на сервере начинает блокироваться: по HTTP/2 сервер встаёт на окне потока, 65 535 байт' },
     { node: 'сокет · TCP / HTTP/2', where: 'net', tone: 'neutral', n: '6', step: 'браузер не забирает данные из сокета: окно приёма сжимается, в HTTP/2 кончается разрешённый объём' },
     { node: 'res.body', where: 'js', tone: 'neutral', n: '5', step: 'волна дошла до самого начала цепочки' },
     { node: 'DecompressionStream', where: 'js', tone: 'info', n: '5', step: 'то же звено за звеном: `pipeTo` ждёт `ready` и не забирает чанк' },

@@ -595,6 +595,10 @@ describe('раздел 6: цепочка поставок', () => {
         'node_modules/fork': { resolved: 'git+ssh://git@example.com/fork.git#abc', integrity: 'sha512-y' },
         'node_modules/bare': { resolved: 'https://registry.npmjs.org/bare/-/bare-1.0.0.tgz' },
         'node_modules/local': { resolved: 'packages/local', link: true },
+        // Вложенная зависимость (bundleDependencies) приезжает внутри архива родителя и проверена
+        // его integrity: своих resolved и integrity у неё нет по документации npm. Раньше
+        // lockProblems ругался на шесть таких записей @tailwindcss/oxide-wasm32-wasi в lock-файле курса.
+        'node_modules/parent/node_modules/inner': { version: '1.0.0', inBundle: true },
       },
     };
     expect(lockProblems(lock)).toEqual([

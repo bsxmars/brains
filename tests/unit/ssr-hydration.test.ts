@@ -17,6 +17,8 @@ import {
   SERVER_HTML,
   SILENCE,
   SILENCE_CODE,
+  SILENCE_NOTE,
+  SOURCES,
   STREAM_REACT_CODE,
   STREAM_REACT_REST_END,
   STREAM_REACT_REST_START,
@@ -729,6 +731,9 @@ describe('браузер: порядок вызовов, флаги, выбор�
     expect(result.react).toBe('<span>чужой</span><p>x</p>');
     expect(result.reactKept).toBe(true);
     expect(result.errors).toEqual([]);
+    // Узел перед корнем React пропускает без перерисовки — «в обоих случаях перерисовывает корень» неверно.
+    expect(pitfall.d).not.toContain('в обоих случаях перерисовывает');
+    expect(pitfall.d).toContain('молча пропускает');
     expect(result.parsed).toBe('<p></p><div>x</div><p></p>');
     expect(result.nestVue).toBe('<p><div>x</div></p><div>x</div><p></p>');
     expect(result.nestReact).toBe('<p><div>x</div></p>');
@@ -798,5 +803,17 @@ describe('исходники: острова Astro и сообщение Vue', (
   it('Vue: одно сообщение на страницу — флаг в модуле', () => {
     const src = read('@vue/runtime-core/dist/runtime-core.cjs.prod.js');
     expect(src).toMatch(/if \(hasLoggedMismatchError\) \{\s*return;/);
+  });
+
+  it('Vue: data-allow-mismatch для text и children ищется у предков, для class/style/attribute — нет', () => {
+    const src = read('@vue/runtime-core/dist/runtime-core.cjs.prod.js');
+    const fn = src.slice(src.indexOf('function isMismatchAllowed('), src.indexOf('function isMismatchAllowedByAttr('));
+    expect(fn).toMatch(/allowedType === 0 \/\* TEXT \*\/ \|\| allowedType === 1 \/\* CHILDREN \*\//);
+    expect(fn).toContain('el = el.parentElement;');
+    // «Несовпадения» и «Источники» говорят одно: поддерево, а не один уровень.
+    expect(SILENCE_NOTE).toContain('во всём поддереве');
+    const doc = SOURCES.find((x) => x.title === 'Vue · data-allow-mismatch')!;
+    expect(doc.what).not.toMatch(/один уровень/);
+    expect(doc.what).toContain('ищутся у предков');
   });
 });

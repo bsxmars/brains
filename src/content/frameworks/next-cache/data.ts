@@ -973,7 +973,7 @@ export const USE_CACHE_FACTS = [
   },
   {
     t: 'Короткий срок выпадает из сборки',
-    d: 'По документации запись с `expire` меньше 5 минут или `stale` меньше 30 секунд в пререндер не попадает и становится динамической дырой. На стенде `cacheLife({ revalidate: 3, expire: 60 })` без `<Suspense>` вокруг уронил `next build`: «encountered uncached or runtime data during prerendering». С `expire: 600` сборка прошла.',
+    d: 'По документации запись с `expire` меньше 5 минут или `stale` меньше 30 секунд в пререндер не попадает и становится динамической дырой. На стенде `cacheLife({ stale: 30, revalidate: 3, expire: 60 })` без `<Suspense>` вокруг уронил `next build`: «encountered uncached or runtime data during prerendering». С `expire: 600` сборка прошла.',
     tone: 'err' as const,
   },
 ];

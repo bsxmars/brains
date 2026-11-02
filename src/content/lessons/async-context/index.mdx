@@ -6,7 +6,7 @@ order: 28
 lead: "Каждая строка лога должна знать id своего запроса. Передавать его аргументом через все слои — утомительно, положить в глобальную переменную — нельзя: два запроса перекрываются по времени, и после `await` там окажется чужой id. Node решает это `AsyncLocalStorage`: значение, которое едет вместе с цепочкой `await`, таймеров и колбэков. Как оно устроено, в какой момент запоминается и почему в браузере его до сих пор нет."
 leadWidth: 66
 summary: "Гонка на глобальной переменной на сервере `node:http`; `run`, `getStore`, `exit` и опасный `enterWith`; момент снимка — регистрация, а не вызов: `then`, `await`, таймеры, `nextTick`, `EventEmitter` и `AsyncResource.bind`; `AsyncContextFrame` в Node 24 против `async_hooks` по числу вызовов хука; учебная переменная контекста на подмене `then` и `setTimeout` и её предел на `await`; предложение `AsyncContext`, zone.js, React, Vue и OpenTelemetry."
-verifiedOn: "Node 24.11.0 (V8 13.6) в обоих режимах AsyncLocalStorage, Node 26.8.2 для флагов, @opentelemetry/api 1.9.1, @vue/compiler-sfc 3.5.42, Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: сервер, снимки, enterWith и счётчики хука повторяет tests/unit/async-context.test.ts; учебная обёртка сверена с настоящим AsyncLocalStorage на шести сценариях"
+verifiedOn: "Node 24.11.0 (V8 13.6) в обоих режимах AsyncLocalStorage и 26.8.2 (V8 14.6), @opentelemetry/api 1.9.1, @vue/compiler-sfc 3.5.42, Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: сервер, снимки, enterWith и счётчики хука повторяет tests/unit/async-context.test.ts; учебная обёртка сверена с настоящим AsyncLocalStorage на шести сценариях"
 nav:
   - { id: s0, label: Перед началом }
   - { id: s1, label: Гонка }
@@ -194,7 +194,7 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Хранилище контекста в Node"
-  lead="У `AsyncLocalStorage` четыре метода. Три из них задают значение только на время функции и возвращают прежнее, когда функция закончилась. Четвёртый, `enterWith`, так не делает — и поэтому опасен."
+  lead="У `AsyncLocalStorage` четыре главных метода. `getStore` читает значение, `run` и `exit` задают его только на время функции и возвращают прежнее, когда функция закончилась. Четвёртый, `enterWith`, так не делает — и поэтому опасен."
   leadWidth={72}
 >
   <CardGrid min={260} gap={14} align="start">

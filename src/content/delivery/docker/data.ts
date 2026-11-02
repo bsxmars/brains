@@ -470,10 +470,11 @@ export const STOP_STEPS: string[] = [
   'Код выхода после `SIGKILL` — **137**: 128 плюс номер сигнала (9). Тот же код получит процесс, убитый за нехватку памяти, поэтому по одному коду причину не узнать — нужно поле `OOMKilled` в `docker inspect`.',
 ];
 
-export const PID1_CODE = `# shell-форма: первым процессом становится оболочка
+export const PID1_CODE = `# shell-форма: первым процессом становится оболочка (node:22, node:22-slim — dash)
 CMD node dist/server.js
 #   PID 1  /bin/sh -c "node dist/server.js"
 #   PID 7  node dist/server.js       ← SIGTERM до него не доходит
+#   (в node:22-alpine sh из busybox заменяет себя последней командой: PID 1 — node)
 
 # exec-форма (JSON-массив): первым процессом становится сам Node
 CMD ["node", "dist/server.js"]
@@ -487,7 +488,7 @@ CMD ["node", "dist/server.js"]
 export const PID1_FACTS: { t: string; d: string; tone?: 'info' | 'warn' | 'err' | 'ok' }[] = [
   {
     t: 'Shell-форма глотает сигнал',
-    d: 'Запись строкой (`CMD node server.js`) запускает оболочку `/bin/sh -c`, и первым процессом становится она. Сигнал `SIGTERM` приходит оболочке, а она его дальше не передаёт. Node его не видит, через 10 секунд приходит `SIGKILL`. Правило: `CMD` и `ENTRYPOINT` — **всегда JSON-массивом**, с двойными кавычками.',
+    d: 'Запись строкой (`CMD node server.js`) запускает оболочку `/bin/sh -c`, и первым процессом становится она. Сигнал `SIGTERM` приходит оболочке, а она его дальше не передаёт. Node его не видит, через 10 секунд приходит `SIGKILL`. Так ведёт себя `dash` в образах на Debian (`node:22`, `node:22-slim`). `sh` из busybox в `node:22-alpine` последнюю команду запускает на своём месте, и первым процессом становится сам Node, — но это свойство конкретной оболочки, а не Docker. Правило: `CMD` и `ENTRYPOINT` — **всегда JSON-массивом**, с двойными кавычками.',
     tone: 'err',
   },
   {
@@ -982,7 +983,7 @@ export const STOP_SCENE: string[] = [
 
 export const STOP_VARIANTS: { k: string; pid1: string; what: string; cost: string }[] = [
   {
-    k: 'Shell-форма: `CMD node dist/server.js`',
+    k: 'Shell-форма: `CMD node dist/server.js` (база на Debian)',
     pid1: 'оболочка `/bin/sh -c`, Node — её ребёнок',
     what: '`SIGTERM` приходит оболочке, и дальше она его не передаёт. Node о сигнале не узнаёт и спокойно работает дальше. Через 10 секунд Docker шлёт `SIGKILL`.',
     cost: 'Запрос успел бы закончиться, но процесс всё равно убит — код 137, а `docker stop` каждый раз висит 10 секунд. Если запрос длиннее десяти секунд — он оборван.',

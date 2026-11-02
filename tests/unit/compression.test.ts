@@ -30,6 +30,8 @@ const Z = zlib.constants;
 const sha16 = (b: Buffer) => createHash('sha256').update(b).digest('hex').slice(0, 16);
 
 /** Файл стенда, если он на месте и тот же (по sha-256), иначе `null`. */
+const NODE_MAJOR = Number(process.versions.node.split('.')[0]);
+
 function fixture(rel: string, sha: string): Buffer | null {
   // Копии файлов `dist/` со дня стенда лежат в фикстурах: пересборка сайта меняет хеши в именах
   // и содержимое, а размеры в теме сняты именно с этих байтов.
@@ -246,10 +248,15 @@ const dcz = (target: Buffer, dict: Buffer, level: number) =>
   Buffer.concat([DCZ_MAGIC, createHash('sha256').update(dict).digest(), zlib.zstdCompressSync(target, { dictionary: dict, params: { [Z.ZSTD_c_compressionLevel]: level } })]);
 
 describe('словарь: dcz', () => {
-  it('Node 24: zstd со словарём работает, brotli молча игнорирует словарь', () => {
+  it('zstd со словарём работает; brotli: Node 24 словарь молча игнорирует, Node 26 — применяет', () => {
     const v1 = Buffer.from(t.NEGOTIATE_CODE + t.BREACH_CODE);
     const v2 = Buffer.from(t.NEGOTIATE_CODE.replace('при равенстве', 'при ничьей') + t.BREACH_CODE);
-    expect(zlib.brotliCompressSync(v2, { dictionary: v1 } as zlib.BrotliOptions).length).toBe(zlib.brotliCompressSync(v2).length);
+    const brDict = zlib.brotliCompressSync(v2, { dictionary: v1 } as zlib.BrotliOptions);
+    if (NODE_MAJOR < 26) expect(brDict.length).toBe(zlib.brotliCompressSync(v2).length);
+    else {
+      expect(brDict.length * 5).toBeLessThan(zlib.brotliCompressSync(v2).length);
+      expect(zlib.brotliDecompressSync(brDict, { dictionary: v1 } as zlib.BrotliOptions).equals(v2)).toBe(true);
+    }
     const withDict = zlib.zstdCompressSync(v2, { dictionary: v1 });
     expect(withDict.length * 5).toBeLessThan(zlib.zstdCompressSync(v2).length);
     expect(zlib.zstdDecompressSync(withDict, { dictionary: v1 }).equals(v2)).toBe(true);
@@ -276,7 +283,14 @@ describe('словарь: dcz', () => {
     expect(createHash('sha256').update(one).digest('base64')).toBe(t.DICT_V1_HASH);
     expect(t.DICT_CODE).toContain(`Available-Dictionary: :${t.DICT_V1_HASH}:`);
 
+    // Обе версии Node — в тексте; сверяется та, на которой идёт тест.
+    expect(t.BROTLI_DICT_BYTES[NODE_MAJOR], `нет замера brotli со словарём для Node ${NODE_MAJOR}`).toBeTypeOf('number');
+    expect(zlib.brotliCompressSync(v2, { dictionary: one } as zlib.BrotliOptions).length).toBe(t.BROTLI_DICT_BYTES[NODE_MAJOR]);
+    const brCard = t.DICT_FACTS.find((f) => f.d.includes('brotliCompressSync'))!.d;
+    for (const bytes of Object.values(t.BROTLI_DICT_BYTES)) expect(brCard).toContain(`${bytes.toLocaleString('ru-RU')} байт`);
+
     const [r] = t.DICT_ROWS;
+    expect(t.BROTLI_DICT_BYTES[24]).toBe(r.br11);
     expect({ raw: v2.length, br11: br(v2, 11), zstd19: zs(v2, 19), dcz: dcz(v2, one, 19).length }).toEqual({ raw: r.raw, br11: r.br11, zstd19: r.zstd19, dcz: r.dcz });
     expect(dcz(v2, one, 3).length).toBe(t.DICT_DCZ3);
     expect(t.DICT_CODE).toContain(`Content-Length: ${r.dcz}`);

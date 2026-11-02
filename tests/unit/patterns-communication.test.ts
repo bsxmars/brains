@@ -5,6 +5,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import * as t from '@/content/patterns/communication/data';
+import * as obs from '@/content/render/observers/data';
 
 /**
  * Утверждения темы «Связь объектов» — компилятором и исполнением.
@@ -148,6 +149,22 @@ describe('раздел 2 · наблюдатель', () => {
       'utf8',
     );
     expect(dom).toMatch(/addEventListener<K extends keyof HTMLElementEventMap>\(type: K, listener: \(this: HTMLElement, ev: HTMLElementEventMap\[K\]\)/);
+    // TYPED_NOTES: в lib.dom TypeScript 6 слушатель 'click' получает PointerEvent, а не MouseEvent.
+    const handlers = /interface GlobalEventHandlersEventMap \{([\s\S]*?)\n\}/.exec(dom)![1];
+    expect(handlers).toMatch(/"click": PointerEvent;/);
+    expect(t.TYPED_NOTES[0]).toContain("для `'click'` слушатель получает `PointerEvent`");
+  });
+
+  it('OBSERVER_PLATFORM_NOTE: когда наблюдатели отдают пачку — как в замере темы «Наблюдатели»', () => {
+    // MutationObserver — до setTimeout и до кадра (микрозадача), ResizeObserver — в кадре после rAF,
+    // IntersectionObserver — последним, позже setTimeout из ResizeObserver: задачей после кадра.
+    const at = (s: string) => obs.ORDER_LOG.findIndex((l) => l.endsWith(s));
+    expect(at('MutationObserver, записей: 1')).toBeLessThan(at('setTimeout 0'));
+    expect(obs.ORDER_LOG[at('ResizeObserver')]).toMatch(/^кадр \+1/);
+    expect(at('rAF')).toBeLessThan(at('ResizeObserver'));
+    expect(at('IntersectionObserver')).toBeGreaterThan(at('setTimeout из ResizeObserver'));
+    expect(t.OBSERVER_PLATFORM_NOTE).toContain('`MutationObserver` — микрозадачей, `ResizeObserver` — в кадре, `IntersectionObserver` — задачей после кадра');
+    expect(t.OBSERVER_PLATFORM_NOTE).not.toContain('в своё время кадра');
   });
 
   it('dispatchEvent не ждёт async-слушателя', async () => {

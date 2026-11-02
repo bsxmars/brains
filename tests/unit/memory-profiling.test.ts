@@ -66,7 +66,7 @@ const num = (value: string) => Number(value.replace(/\s/gu, ''));
 const ID: Record<string, string> = {
   '(closure) held': 'held',
   'system / Context': 'held-context',
-  '(array) rows': 'rows',
+  'Array rows': 'rows',
   '(object elements)': 'rows-elements',
 };
 
@@ -268,7 +268,7 @@ describe('доминатор и путь удержания', () => {
       'context in held',
       'rows in system / Context',
     ]);
-    expect(allPaths(twoWay, 'rows'), 'путей два, а панель показывает один').toHaveLength(2);
+    expect(allPaths(twoWay, 'rows'), 'путей два, а панель раскрывает один').toHaveLength(2);
   });
 
   it('имена звеньев цепочки CHAINS собраны обходом, а не взяты из данных', () => {
@@ -278,12 +278,20 @@ describe('доминатор и путь удержания', () => {
     expect(labels).toContain('el in Chart');
     expect(labels).toContain('3 in (array)');
     expect(labels).toContain('chart in Map');
-    expect(labels).toContain('Chart in system / Context');
+    expect(labels).toContain('this in system / Context');
 
     const chain = CHAINS[0].nodes.map((node) => node.t.trim().replace(/^└─\s*/u, ''));
-    for (const link of ['el in Chart', 'Chart in system / Context', '3 in (array)']) {
+    for (const link of ['el in Chart', 'this in system / Context', '3 in (array)']) {
       expect(chain, `«${link}» есть и в теме, и в обходе`).toContain(link);
     }
+
+    // Число в `3 in (array)` — индекс: функция в сцене четвёртая, и текст звена говорит так же.
+    const arrayEdge = oneWay.edges.find((edge) => edge.label === '3 in (array)')!;
+    const order = oneWay.edges.filter((edge) => edge.from === arrayEdge.from);
+    expect(order.findIndex((edge) => edge.to === arrayEdge.to)).toBe(3);
+    const node = CHAINS[0].nodes.find((n) => n.t.trim() === '└─ 3 in (array)')!;
+    expect(node.what).toContain('четвёрт');
+    expect(node.what).not.toMatch(/трет/);
   });
 
   it('полный путь темы существует в графе — но кратчайшим DevTools покажет не его', () => {
@@ -297,7 +305,7 @@ describe('доминатор и путь удержания', () => {
       'elements',
       '3 in (array)',
       'context in onResize',
-      'Chart in system / Context',
+      'this in system / Context',
       'el in Chart',
     ]);
 
@@ -602,5 +610,65 @@ describe('профили выделений в Node', () => {
     expect(out.edges, 'граф с рёбрами — значит, retainers есть').toBeGreaterThan(0);
     expect(out.traced, 'у узлов есть ссылка на стек выделения').toBe(true);
     expect(out.work, 'и функция, выделившая объекты, в стеках записана').toBe(true);
+  });
+});
+
+/**
+ * Вычитка 2026-10-30: имена в цепочках и таблице темы сверены с настоящим снимком.
+ * Массив `rows` из примера — узел `Array`, а не `(array)`; стрелка в методе держит экземпляр
+ * ребром `this` из `system / Context`, а не ребром с именем класса.
+ */
+describe('имена узлов и рёбер — как в настоящем снимке', () => {
+  const code = `
+    import v8 from 'node:v8';
+    import { readFileSync, unlinkSync } from 'node:fs';
+    class Chart { constructor() { this.el = {}; globalThis.onResize = () => this.el; } }
+    new Chart();
+    function makeHandler() {
+      const rows = Array.from({ length: 1000 }, (_, i) => ({ id: i }));
+      return function held() { return rows.length; };
+    }
+    globalThis.h = makeHandler();
+    const file = v8.writeHeapSnapshot();
+    const s = JSON.parse(readFileSync(file, 'utf8'));
+    unlinkSync(file);
+    const NF = s.snapshot.meta.node_fields.length, EF = s.snapshot.meta.edge_fields.length;
+    const T = s.snapshot.meta.node_types[0], ET = s.snapshot.meta.edge_types[0];
+    const N = s.nodes.length / NF, first = [];
+    for (let i = 0, e = 0; i <= N; i++) { first[i] = e; if (i < N) e += s.nodes[i * NF + 4] * EF; }
+    const nm = (i) => s.strings[s.nodes[i * NF + 1]], ty = (i) => T[s.nodes[i * NF]];
+    const out = { rows: null, chartEdge: null };
+    for (let i = 0; i < N; i++) for (let e = first[i]; e < first[i + 1]; e += EF) {
+      const to = s.edges[e + 2] / NF, t = ET[s.edges[e]];
+      const name = t === 'element' || t === 'hidden' ? String(s.edges[e + 1]) : s.strings[s.edges[e + 1]];
+      if (nm(i) === 'system / Context' && name === 'rows') out.rows = ty(to) + ' ' + nm(to);
+      if (nm(to) === 'Chart' && ty(to) === 'object' && nm(i) === 'system / Context') out.chartEdge = name;
+    }
+    console.log(JSON.stringify(out));
+  `;
+  const dir = mkdtempSync(join(tmpdir(), 'mp-names-'));
+  let got: { rows: string; chartEdge: string };
+  try {
+    const out = execFileSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', cwd: dir });
+    got = JSON.parse(out.trim().split('\n').at(-1)!);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+
+  it('массив из Array.from — узел Array, и в таблице темы он подписан так же', () => {
+    expect(got.rows).toBe('object Array');
+    expect(HEAP_NODES.find((n) => n.id === 'array')!.label).toBe('Array rows');
+    for (const v of HEAP_VARIANTS) expect(v.rows.map((r) => r.c)).toContain('Array rows');
+  });
+
+  it('экземпляр в контексте стрелки держит ребро this', () => {
+    expect(got.chartEdge).toBe('this');
+    const chain = CHAINS[0].nodes.map((n) => n.t.trim().replace(/^└─\s*/u, ''));
+    expect(chain).toContain('this in system / Context');
+  });
+
+  it('панель Retainers не «показывает один путь», а раскрывает один', () => {
+    expect(PITFALLS.find((p) => p.n === '04')!.d).toMatch(/раскрывает один путь/u);
+    expect(PITFALLS.find((p) => p.n === '04')!.d).not.toMatch(/показывает один путь/u);
   });
 });

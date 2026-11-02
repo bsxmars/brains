@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { DICTIONARY_LIMITS, DICTIONARY_MEASURED } from '@/content/platform/network/data';
+import { DICTIONARY_LIMITS, DICTIONARY_MEASURED, PITFALLS } from '@/content/platform/network/data';
+import { STAND as SW_STAND } from '@/content/render/service-worker/data';
 
 /**
  * «Сеть и кеширование», сжатие со словарём. Браузерная половина (Chromium шлёт
@@ -49,5 +50,19 @@ describe('network: сжатие со словарём', () => {
     // Подстроки смысловые: без них карточка перестаёт объяснять, откуда 101 байт и почему no-store не работает.
     expect(DICTIONARY_LIMITS).toContain('40');
     expect(DICTIONARY_LIMITS).toContain('`no-store`');
+  });
+});
+
+describe('network: аварийный Service Worker', () => {
+  it('перехват /sw.js обновлению не мешает — раздел и тонкое место говорят одно', () => {
+    // Стенд «Service Worker изнутри» (Chromium): v1 отдавал /sw.js из своего кеша странице,
+    // а update() всё равно поставил v2. Раздел раньше требовал «никогда не перехватывать /sw.js».
+    expect(SW_STAND.selfIntercept.pageFetch).toBe("const VERSION = 'v1';");
+    expect(SW_STAND.selfIntercept.afterUpdate.v.startsWith('v2')).toBe(true);
+    const mdx = readFileSync(new URL('../../src/content/platform/network/index.mdx', import.meta.url), 'utf8');
+    expect(mdx).not.toContain('никогда не должен перехватывать `/sw.js`');
+    expect(mdx).toContain('**мимо обработчика `fetch`**');
+    const pit = PITFALLS.find((p) => p.t.startsWith('Service Worker, который держит'))!;
+    expect(pit.d).toContain('аварийную кнопку **не** ломает');
   });
 });

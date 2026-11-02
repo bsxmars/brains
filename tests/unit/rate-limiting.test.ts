@@ -105,6 +105,21 @@ describe('раздел 1 · демо debounce и throttle', () => {
     ]);
   });
 
+  it('DEBOUNCE_DEMO_NOTE описывает ленту «0 · 40 · 80 · 300», а не «плотную очередь»', () => {
+    // Было «На плотной очереди событий (0, 40, 80 мс…)»: в DEMO_SEQUENCES «плотная очередь» —
+    // другая лента (0…180 через 30 мс), на ней debounce зовёт в 0 и 280, throttle — в 0, 100, 200.
+    expect(t.DEBOUNCE_DEMO_NOTE).not.toContain('плотн');
+    const seq = t.DEMO_SEQUENCES.find((s) => s.label.startsWith('0 · 40 · 80'))!;
+    const series = seq.times.filter((x) => x <= 80);
+    expect(series).toEqual([0, 40, 80]);
+    expect(t.DEBOUNCE_DEMO_NOTE).toContain(`${series.join(', ')} мс`);
+    const at = (fires: { t: number }[]) => fires.map((f) => f.t);
+    expect(at(simulateDebounce(series, t.DEMO_WAIT, true, true))).toEqual([0, 180]);
+    expect(at(simulateThrottle(series, t.DEMO_WAIT, true, true))).toEqual([0, 100]);
+    expect(t.DEBOUNCE_DEMO_NOTE).toContain('в 0 мс, и ещё раз через 100 мс после последнего события — в 180 мс');
+    expect(t.DEBOUNCE_DEMO_NOTE).toContain('в 0 и 100 мс');
+  });
+
   it('обёртки · выключенные leading и trailing не дают ни одного вызова', () => {
     // Вырожденная пара флагов: модель сверена с настоящим lodash — ни одного срабатывания.
     expect(simulateThrottle([0, 120, 260], 100, false, false)).toEqual([]);

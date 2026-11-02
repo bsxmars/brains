@@ -916,6 +916,10 @@ describe('устройство React 19.3 по его сборке', () => {
     expect(only).toContain('readContext: readContext,');
     expect(only).toContain('useState: throwInvalidHookError');
     expect(only).toContain('useContext: throwInvalidHookError');
+    // Оба раздела называют одни и те же исключения: и «Диспетчер», и таблица «Против React».
+    expect(DISPATCHER_REACT_NOTE).toContain('`use` и `readContext`');
+    const row = DIFF.rows.find(([what]) => what === 'Хук вне рендера')!;
+    expect(row[2]).toContain('кроме `use` и `readContext`');
   });
 
   it('setState в теле: повтор не больше 25 раз', () => {

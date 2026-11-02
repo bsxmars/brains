@@ -16,13 +16,13 @@ import Callout from '@/shared/ui/Callout.astro';
 <div class="frame">
   <div class="head">
     <span class="head__index">операция 2</span>
-    <span class="head__name">ResolvePromise(v)</span>
-    <span class="head__note">— что происходит при <code>resolve(v)</code></span>
+    <span class="head__name">resolve(v)</span>
+    <span class="head__note">— что происходит, когда промис завершают значением <code>v</code></span>
   </div>
 
   <div class="flow">
     <div class="branch">
-      <div class="question">v — это сам промис?</div>
+      <div class="question">v — тот самый промис, который завершаем?</div>
       <div class="glyph glyph--err">▶</div>
       <div class="outcome outcome--err">
         <span class="outcome__text">отказ с TypeError: промис не может ждать сам себя</span>

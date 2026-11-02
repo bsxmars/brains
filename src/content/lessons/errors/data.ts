@@ -513,6 +513,25 @@ checkout().catch((e) => console.log(e.stack));`,
   },
 ];
 
+/**
+ * Где `error.stack` Node 26.8.2 отличается от литерала `node` в `ASYNC_CASES` (Node 24.11), по
+ * мажорной версии. Отличаются только кадры загрузчика модулей: в Node 26 кадр
+ * `onImport.tracePromise.__proto__` стал безымянным `async node:internal/modules/esm/loader`.
+ * Пользовательские кадры те же. Страница печатает колонку Node 24.11 — так и сказано в `ASYNC_CAPTION`.
+ */
+export const ASYNC_NODE_BY_MAJOR: Record<string, Record<string, string>> = {
+  '26': {
+    sync: `Error: нет id заказа
+    at query (file:///app/sync.mjs:4:18)
+    at saveOrder (file:///app/sync.mjs:8:9)
+    at checkout (file:///app/sync.mjs:11:9)
+    at file:///app/sync.mjs:13:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)
+    at async node:internal/modules/esm/loader:650:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)`,
+  },
+};
+
 export const ASYNC_CAPTION =
   'Стеки напечатали Node 24.11 и Chromium 153, исполнив эти же файлы. Кадры разбирает `parseStack` из раздела «Отчёт об ошибке», строки кода, на которые они указывают, подсвечены. Функции из кода, которых в стеке нет, перечислены отдельно.';
 

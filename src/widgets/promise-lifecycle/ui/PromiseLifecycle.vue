@@ -43,7 +43,7 @@ function subscribe() {
 
   hint.value = wasPending
     ? `.then(${label}) на pending — запись в список. Потрачено тиков: 0`
-    : `.then(${label}) на settled — job сразу в очередь, это будет +1 тик`;
+    : `.then(${label}) на settled — колбэк сразу в очередь, это будет +1 тик`;
   sync();
 }
 

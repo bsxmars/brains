@@ -1102,31 +1102,31 @@ export const ORDER_BYTES = [
     d: "поле 2, varint: 1890"
   },
   {
-    k: "items[5]",
+    k: "items[1]",
     head: "22 15",
     body: "",
     d: "поле 4, сообщение Item на 21 байт"
   },
   {
-    k: "items[5].qty",
+    k: "items[1].qty",
     head: "08",
     body: "01",
     d: "поле 1, varint: 1"
   },
   {
-    k: "items[5].product",
+    k: "items[1].product",
     head: "12 11",
     body: "",
     d: "поле 2, сообщение Product на 17 байт"
   },
   {
-    k: "items[5].product.title",
+    k: "items[1].product.title",
     head: "0a 0c",
     body: "d0 9a d1 80 … (12)",
     d: "поле 1, строка 12 байт: «Кружка»"
   },
   {
-    k: "items[5].product.price",
+    k: "items[1].product.price",
     head: "10",
     body: "8a 05",
     d: "поле 2, varint: 650"

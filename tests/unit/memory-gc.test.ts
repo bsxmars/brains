@@ -1,4 +1,7 @@
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import v8 from 'node:v8';
 import { describe, expect, it } from 'vitest';
 import {
@@ -10,6 +13,9 @@ import {
   EXPOSE_GC_CODE,
   GC_KEPT_PROBE,
   GC_KEPT_PROBE_OUT,
+  GC_KEPT_VARIANTS,
+  GC_KEPT_VARIANTS_OUT,
+  GC_STEPS_CODE,
   GC_YIELD_PROBE,
   GC_YIELD_PROBE_OUT,
   OBSERVABLE_NODE,
@@ -142,7 +148,7 @@ describe('0 · что о куче можно спросить у Node', () => {
    * читатель, поэтому расхождение листинга с движком станет красным тестом.
    */
   it('`--expose-gc` кладёт `globalThis.gc` — обе строки листинга исполнены', () => {
-    const lines = [...EXPOSE_GC_CODE.matchAll(/^node\s*(.*?)\s*-e\s*"([^"]+)"\s*#\s*'(\w+)'/gm)];
+    const lines = [...EXPOSE_GC_CODE.matchAll(/^node\s*(.*?)\s*-p\s*"([^"]+)"\s*#\s*(\w+)/gm)];
     expect(lines.length, `разобрать листинг не удалось: ${EXPOSE_GC_CODE}`).toBe(2);
 
     for (const [, rawFlags, expr, expected] of lines) {
@@ -165,54 +171,26 @@ describe('0 · что о куче можно спросить у Node', () => {
 
 describe('0 · рецепт сборки · gc() без уступки потоку не собирает', () => {
   /**
-   * ⚠️ Исполняется **тот самый листинг**, что напечатан на странице, а не его пересказ.
-   * Приём такой: строка режется по той единственной строчке, ради которой она написана, —
-   * `await new Promise((r) => setTimeout(r, 0))`. Всё, что выше неё, это программа «три
-   * вызова `gc()` подряд»; вся строка целиком — программа «уступили и позвали». Обе
-   * дописывают одну строчку печати и больше ничего: править листинг ради теста нельзя,
-   * иначе проверялся бы не он.
+   * ⚠️ Исполняется **тот самый листинг**, что напечатан на странице, и его вывод сверяется
+   * с `GC_YIELD_PROBE_OUT` строка в строку. Обе половины рецепта листинг печатает сам
+   * (2026-10-29: прежде печати в нём не было, и вывод на странице был обещанием, а не выводом).
    */
-  const lines = GC_YIELD_PROBE.split('\n');
-  const yieldAt = lines.findIndex((line) => line.includes('await new Promise'));
-
-  const ASK = '\nconsole.log(JSON.stringify(ref.deref() === undefined));';
-  const withoutYield = lines.slice(0, yieldAt).join('\n') + ASK;
-  const withYield = GC_YIELD_PROBE + ASK;
-
   it('листинг темы содержит обе половины рецепта — иначе резать нечего', () => {
-    expect(yieldAt, `строки с уступкой потоку в листинге нет:\n${GC_YIELD_PROBE}`).toBeGreaterThan(0);
-
     const calls = GC_YIELD_PROBE.match(/gc\(/g) ?? [];
     expect(calls.length, 'до уступки листинг обязан звать сборку несколько раз').toBeGreaterThanOrEqual(3);
     expect(GC_YIELD_PROBE, 'вторая половина рецепта: ссылка рождается внутри функции').toContain(
       'function makeRef()',
     );
     expect(GC_YIELD_PROBE, 'и самый упрямый вызов тоже назван').toContain("type: 'major'");
+    expect(GC_YIELD_PROBE, 'уступка потоку').toContain('await new Promise((r) => setTimeout(r, 0))');
   });
 
-  it('три вызова `gc()` подряд без уступки потоку не собирают ничего', () => {
-    expect(
-      probe<boolean>(['--expose-gc'], withoutYield),
-      `${WHERE}: объект собрался без уступки потоку — рецепт темы устарел`,
-    ).toBe(false);
-  });
-
-  it('после уступки потоку тот же объект собирается', () => {
-    expect(
-      probe<boolean>(['--expose-gc'], withYield),
-      `${WHERE}: не собрался даже по рецепту — проверять сборку стало нечем`,
-    ).toBe(true);
-  });
-
-  it('вывод на странице говорит ровно это', () => {
-    // Короткая смысловая подстрока: правка формулировки покраснеет, правка вёрстки — нет.
-    expect(GC_YIELD_PROBE_OUT, 'без уступки объект обязан остаться').toMatch(
-      /без уступки потоку:\s*ref\.deref\(\) → \{/,
-    );
-    expect(GC_YIELD_PROBE_OUT, 'после уступки — undefined').toMatch(
-      /после setTimeout\(0\):\s*ref\.deref\(\) → undefined/,
-    );
-  });
+  it('исполненный листинг печатает ровно то, что стоит под ним', () => {
+    const out = execFileSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', GC_YIELD_PROBE], {
+      encoding: 'utf8',
+    });
+    expect(out.trim(), WHERE).toBe(GC_YIELD_PROBE_OUT);
+  }, 30_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -693,41 +671,58 @@ function runScript(flags: string[], code: string): string {
   return execFileSync(process.execPath, [...flags, '-e', code], { encoding: 'utf8', maxBuffer: 64 * MB });
 }
 
-describe('0 · KeptObjects · листинг `GC_KEPT_PROBE` и соседние прогоны', () => {
+describe('0 · KeptObjects · листинги `GC_KEPT_PROBE` и `GC_KEPT_VARIANTS`', () => {
+  /** Вывод на странице без пояснений «← …»: их листинг не печатает. */
+  const bare = (text: string): string =>
+    text
+      .split('\n')
+      .map((l) => l.replace(/\s*←.*$/, '').trimEnd())
+      .join('\n');
+
   it('тот же `gc()` собирает объект без `WeakRef` и не собирает цель `WeakRef`', () => {
-    const fired = probe<string[]>(['--expose-gc'], `${GC_KEPT_PROBE}\nconsole.log(JSON.stringify(fired));`);
-    expect(fired, WHERE).toEqual(['без WeakRef']);
-    expect(GC_KEPT_PROBE_OUT).toMatch(/«без WeakRef»: да/);
-    expect(GC_KEPT_PROBE_OUT).toMatch(/«с WeakRef»:\s+нет/);
+    const out = execFileSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', GC_KEPT_PROBE], {
+      encoding: 'utf8',
+    });
+    expect(out.trim(), WHERE).toBe(bare(GC_KEPT_PROBE_OUT));
   }, 30_000);
 
   /**
-   * Четыре строки вывода — соседние прогоны, их исходника на странице нет. Каждый собран здесь
-   * из одного шаблона, и ответ сверяется со строкой вывода по её началу.
+   * Варианты — правки одной строки листинга, описанные в первой колонке вывода. Здесь они
+   * делаются над той же строкой `GC_KEPT_VARIANTS`, а ответ сверяется со второй колонкой.
    */
-  const VARIANTS: { line: string; pause: string; derefFirst: boolean }[] = [
-    { line: 'WeakRef из прошлой задачи', pause: 'await new Promise((r) => setTimeout(r, 0));', derefFirst: false },
-    { line: 'то же, но перед gc() вызван deref()', pause: 'await new Promise((r) => setTimeout(r, 0));', derefFirst: true },
-    { line: 'две микрозадачи вместо setTimeout', pause: 'await Promise.resolve(); await Promise.resolve();', derefFirst: false },
-    { line: 'setImmediate вместо setTimeout', pause: 'await new Promise((r) => setImmediate(r));', derefFirst: false },
+  const PAUSE = 'await new Promise((r) => setTimeout(r, 0));';
+  const GC = 'globalThis.gc();';
+  const VARIANTS: { line: string; edit: (code: string) => string }[] = [
+    { line: 'как написано', edit: (c) => c },
+    { line: 'перед gc() добавить ref.deref();', edit: (c) => c.replace(GC, 'ref.deref();\n' + GC) },
+    {
+      line: 'паузу заменить на две await Promise.resolve();',
+      edit: (c) => c.replace(PAUSE, 'await Promise.resolve(); await Promise.resolve();'),
+    },
+    {
+      line: 'паузу заменить на await new Promise(setImmediate);',
+      edit: (c) => c.replace(PAUSE, 'await new Promise(setImmediate);'),
+    },
   ];
+
+  it('в листинге есть обе строки, которые правят варианты', () => {
+    expect(GC_KEPT_VARIANTS).toContain(PAUSE);
+    expect(GC_KEPT_VARIANTS).toContain(GC);
+    expect(GC_KEPT_VARIANTS_OUT.split('\n')).toHaveLength(VARIANTS.length);
+  });
 
   for (const v of VARIANTS) {
     it(`«${v.line}» — ответ движка совпадает со строкой вывода`, () => {
-      const row = GC_KEPT_PROBE_OUT.split('\n').find((l) => l.startsWith(v.line));
-      if (!row) throw new Error(`строки «${v.line}» в GC_KEPT_PROBE_OUT нет`);
-      const stated = /→ собран\s*$/.test(row);
+      const row = GC_KEPT_VARIANTS_OUT.split('\n').find((l) => l.startsWith(v.line));
+      if (!row) throw new Error(`строки «${v.line}» в GC_KEPT_VARIANTS_OUT нет`);
+      const stated = row.split('→')[1].trim();
 
-      const collected = probe<boolean>(
-        ['--expose-gc'],
-        `function makeRef() { return new WeakRef({ big: new Array(1e5).fill(0) }); }
-        const ref = makeRef();
-        ${v.pause}
-        ${v.derefFirst ? 'ref.deref();' : ''}
-        globalThis.gc();
-        console.log(JSON.stringify(ref.deref() === undefined));`,
-      );
-      expect(collected, `${v.line} · ${WHERE}`).toBe(stated);
+      const code = v.edit(GC_KEPT_VARIANTS);
+      expect(code === GC_KEPT_VARIANTS, 'правка не применилась').toBe(v.line === 'как написано');
+      const out = execFileSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', code], {
+        encoding: 'utf8',
+      });
+      expect(out.trim(), `${v.line} · ${WHERE}`).toBe(stated);
     }, 30_000);
   }
 });
@@ -901,7 +896,7 @@ describe('4 · эфемерон · листинг `EPHEMERON_PROBE`', () => {
     expect(stated['value-held']).toBe('false');
   }, 30_000);
 
-  /** Непрямой путь `value.parent.children[0] === key` — на него ссылается проза раздела. */
+  /** Непрямой путь `value.parent.children[0] === key` — проза раздела: «длинный путь ведёт себя так же, как прямая ссылка». */
   it('непрямой путь к ключу ведёт себя так же, как прямой', () => {
     const r = probe<{ alone: boolean; parentHeld: boolean }>(
       ['--expose-gc'],
@@ -954,6 +949,34 @@ describe('5 · тонкое место 04 · словарный объект т�
     const ratio = dict / fast;
     expect(ratio, `${WHERE}: ${fast.toFixed(0)} → ${dict.toFixed(0)} байт`).toBeGreaterThan(statedRatio * 0.67);
     expect(ratio, `${WHERE}: ${fast.toFixed(0)} → ${dict.toFixed(0)} байт`).toBeLessThan(statedRatio * 1.5);
+  }, 30_000);
+});
+
+describe('1 · путь объекта · листинг демо `GC_STEPS_CODE`', () => {
+  /** Объекты демо — `parsed`, `cache`, `samples` — обязаны появляться в исполняемом листинге. */
+  it('листинг создаёт ровно те объекты, которые водит демо, и исполняется', () => {
+    const r = new Function(`"use strict";${GC_STEPS_CODE}\n; return { cache, handleRequest, samples };`)() as {
+      cache: Map<string, unknown>;
+      handleRequest(text: string): string;
+      samples: number[];
+    };
+    expect(r.handleRequest('{"title":"  Отчёт  "}')).toBe('отчёт');
+    expect(r.cache.get('отчёт')).toEqual({ title: '  Отчёт  ' });
+    expect(r.samples).toHaveLength(200_000);
+    expect(GC_STEPS_CODE).toContain('const parsed');
+  });
+
+  it('`samples` — в пространстве больших объектов, как подписан блок демо', () => {
+    const grew = probe<boolean>(
+      [],
+      `import v8 from 'node:v8';
+      const lo = () => v8.getHeapSpaceStatistics().find((s) => s.space_name === 'new_large_object_space').space_used_size;
+      const before = lo();
+      ${GC_STEPS_CODE.replace('const cache = new Map();', 'globalThis.cache = new Map();')}
+      globalThis.keep = samples;
+      console.log(JSON.stringify(lo() - before > 1e6));`,
+    );
+    expect(grew, WHERE).toBe(true);
   }, 30_000);
 });
 
@@ -1043,6 +1066,16 @@ describe('5 · using · листинги раздела и утверждени�
     expect(node(['-e', '{ using x = null } console.log("блок")'])).toBe('блок');
     expect(node(['-e', 'for (using x of [null]) {} console.log("for")'])).toBe('for');
     expect(node(['--input-type=module', '-e', 'using x = null; console.log("модуль")'])).toBe('модуль');
+
+    // Файл CommonJS обёрнут в функцию — там верхний уровень разрешён (карточка «Где можно писать»).
+    const dir = mkdtempSync(join(tmpdir(), 'using-cjs-'));
+    const file = join(dir, 'top.cjs');
+    writeFileSync(file, "const log = [];\nusing x = { [Symbol.dispose]() { log.push('закрыт') } };\nprocess.on('exit', () => console.log(log.join()));\n");
+    try {
+      expect(node([file])).toBe('закрыт');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -1051,21 +1084,22 @@ describe('5 · using · DisposableStack, браузерные обёртки и 
   type Log = { log: string[] };
 
   it('`USING_STACK_CODE`: move() отдаёт ресурсы наружу, а при падении открытое закрывается', () => {
-    const ok = исполнить<Log & { openBoth(): Disposable }>(USING_CODE + '\n' + USING_STACK_CODE, ['log', 'openBoth']);
+    type OpenAll = Log & { openAll(names: string[]): Disposable };
+    const ok = исполнить<OpenAll>(USING_CODE + '\n' + USING_STACK_CODE, ['log', 'openAll']);
     ok.log.length = 0;
-    const both = ok.openBoth();
-    expect(ok.log, 'блок вышел, но ничего не закрыл').toEqual(['открыт a', 'открыт b']);
-    both[Symbol.dispose]();
-    expect(ok.log.slice(2), 'закрывает владелец, в обратном порядке').toEqual(['закрыт b', 'закрыт a']);
+    const all = ok.openAll(['a', 'b', 'c']);
+    expect(ok.log, 'блок вышел, но ничего не закрыл').toEqual(['открыт a', 'открыт b', 'открыт c']);
+    all[Symbol.dispose]();
+    expect(ok.log.slice(3), 'закрывает владелец, в обратном порядке').toEqual(['закрыт c', 'закрыт b', 'закрыт a']);
 
-    const bad = исполнить<Log & { openBoth(): Disposable }>(
+    const bad = исполнить<OpenAll>(
       USING_CODE + '\n' + USING_STACK_CODE +
-        `\nconst real = open; open = (name) => { if (name === 'b') throw new Error('нет b'); return real(name); };`,
-      ['log', 'openBoth'],
+        `\nconst real = open; open = (name) => { if (name === 'c') throw new Error('нет c'); return real(name); };`,
+      ['log', 'openAll'],
     );
     bad.log.length = 0;
-    expect(() => bad.openBoth()).toThrow('нет b');
-    expect(bad.log, 'a закрыт стопкой').toEqual(['открыт a', 'закрыт a']);
+    expect(() => bad.openAll(['a', 'b', 'c'])).toThrow('нет c');
+    expect(bad.log, 'открытые закрыты стопкой').toEqual(['открыт a', 'открыт b', 'закрыт b', 'закрыт a']);
   });
 
   it('`USING_BROWSER_CODE`: слушатель и таймер сняты и после ответа, и после отказа', async () => {

@@ -35,6 +35,7 @@ import {
   KEY_ORDER_CODE,
   KEY_ORDER_NOTE,
   KEY_ORDER_RULES,
+  LAB_DEMO_NOTE,
   LAB_SNIPPETS,
   LOCK_HEAD,
   LOCK_ROWS,
@@ -68,6 +69,9 @@ import {
   LOCK_OPENER,
   WEAKMAP_PRIVATE_CODE,
   WEAKMAP_VS_SLOT,
+  SET_NOTE,
+  PROTO_VS_PROTOTYPE,
+  CLASS_DIFFS,
 } from '@/content/lessons/object-model/data';
 // Те же модули, что выполняются у читателя в демо. Импорт именно их — и есть весь смысл
 // блока «демо и таблица спрашивают движок одинаково» ниже.
@@ -694,6 +698,12 @@ describe('песочница: пять листингов делают то, ч�
     if (!found) throw new Error(`листинга «${label}» в песочнице больше нет`);
     return found.code;
   };
+
+  it('подпись песочницы называет столько примеров, сколько их в переключателе', () => {
+    const числа: Record<string, number> = { Два: 2, Три: 3, Четыре: 4, Пять: 5, Шесть: 6 };
+    const слово = LAB_DEMO_NOTE.split(' ')[0];
+    expect(числа[слово], LAB_DEMO_NOTE).toBe(LAB_SNIPPETS.length);
+  });
 
   it('«freeze поверхностен»: аксессор жив, вложенное меняется', () => {
     const вывод = прогнать(листинг('freeze поверхностен')).join('\n');
@@ -2151,5 +2161,48 @@ describe('статический блок', () => {
     const run = () => new Function('class P { static #x = 1; static read() { return this.#x; } } class Q extends P {} return Q.read();')();
     expect(run).toThrow(TypeError);
     expect(STATIC_BLOCK_FACTS[2].d).toContain('`TypeError`');
+  });
+});
+
+/** Вычитка на правду 2026-10-30: пять формулировок, которые расходились с движком или с самой темой. */
+describe('вычитка 2026-10-30: утверждения текста — ответы движка', () => {
+  it('SET_NOTE: поле класса минует проверки цепочки, но не запрет на новые ключи у самого объекта', () => {
+    const run = () =>
+      new Function('class B { constructor() { Object.preventExtensions(this); } } class C extends B { x = 1; } return new C();')();
+    expect(run).toThrow(TypeError);
+    expect(SET_NOTE).toContain('мимо обеих проверок цепочки');
+    expect(SET_NOTE).not.toContain('всех трёх');
+  });
+
+  it('свойство prototype есть и у генератора, хотя через new его не вызвать', () => {
+    const g = new Function('return function* g() {}')();
+    expect(Object.hasOwn(g, 'prototype')).toBe(true);
+    expect(() => new g()).toThrow(TypeError);
+    expect(PROTO_VS_PROTOTYPE[1].note).toContain('у генераторов');
+  });
+
+  it('функция без new в нестрогом коде получает глобальный объект, в строгом — undefined', () => {
+    const sloppy = new Function('return (function () { return this; })();')();
+    const strict = new Function('"use strict"; return (function () { return this; })();')();
+    expect(sloppy).toBe(globalThis);
+    expect(strict).toBeUndefined();
+    expect(CLASS_DIFFS[0].d).toContain('глобальный объект');
+  });
+
+  it('INIT_BUG_NOTE не называет поле присваиванием: поле идёт мимо сеттера родителя', () => {
+    const log: string[] = [];
+    const C = new Function('log', 'class A { set x(v) { log.push("сеттер"); } } class B extends A { x = 1; } return B;')(log);
+    const b = new C();
+    expect(log).toEqual([]);
+    expect(Object.getOwnPropertyDescriptor(b, 'x')?.value).toBe(1);
+    expect(INIT_BUG_NOTE).not.toContain('присваивание');
+  });
+
+  it('WeakMap принимает символ не из реестра, но не число и не Symbol.for', () => {
+    const wm = new WeakMap<object | symbol, number>();
+    expect(() => wm.set(Symbol('s'), 1)).not.toThrow();
+    expect(() => wm.set(Symbol.for('s'), 1)).toThrow(TypeError);
+    expect(() => wm.set(1 as unknown as object, 1)).toThrow(TypeError);
+    expect(WEAKMAP_VS_SLOT[3].d).toContain('символ не из реестра');
   });
 });

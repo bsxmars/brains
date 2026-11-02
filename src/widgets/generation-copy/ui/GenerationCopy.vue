@@ -38,7 +38,7 @@ const halves = computed(() => {
     return {
       key,
       name: `полупространство ${key.toUpperCase()}`,
-      role: s.active === key ? 'to-space · сюда идут аллокации' : 'from-space · пусто до сборки',
+      role: s.active === key ? 'рабочая (to-space) · сюда кладут новые объекты' : 'запасная (from-space) · пусто до сборки',
       active: s.active === key,
       blocks,
       busy,
@@ -79,7 +79,7 @@ const ratio = computed(() =>
 
     <div class="split">
       <div class="pane">
-        <div class="t-label">young generation · {{ capacity }} КБ на полупространство</div>
+        <div class="t-label">молодое поколение (young generation) · {{ capacity }} КБ на полупространство</div>
 
         <div class="scroll">
           <div class="halves">
@@ -118,15 +118,15 @@ const ratio = computed(() =>
         </div>
 
         <div v-if="step.remembered" class="remembered">
-          <span class="remembered__arrow">old → young</span>
+          <span class="remembered__arrow">старое → молодое</span>
           <span class="remembered__text">remembered set: {{ step.remembered }}</span>
         </div>
 
         <div class="spaces">
           <div class="space">
             <div class="space__head">
-              <span class="space__name">OLD · Old Space</span>
-              <span class="space__tag">Mark-Compact · {{ oldUsed }} КБ</span>
+              <span class="space__name">старое поколение (old space)</span>
+              <span class="space__tag">большая сборка (Mark-Compact) · {{ oldUsed }} КБ</span>
             </div>
             <div class="legend">
               <span v-for="block in step.old" :key="block.id" class="chip" data-live="yes">
@@ -138,7 +138,7 @@ const ratio = computed(() =>
 
           <div class="space" :data-on="step.los.length ? 'yes' : 'no'">
             <div class="space__head">
-              <span class="space__name">LARGE OBJECT SPACE</span>
+              <span class="space__name">пространство больших объектов (large object space)</span>
               <span class="space__tag">страницами, без копирования</span>
             </div>
             <div class="legend">

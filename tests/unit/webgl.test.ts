@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { countingContext, emptyCounters } from '@/widgets/draw-calls/lib/counter';
 import { aliveCount, glErrorName, resourceReport } from '@/widgets/context-loss/lib/resources';
 import { badLines, firstError, parseShaderLog } from '@/widgets/shader-lab/lib/parse-log';
-import { DEPTH_STEP, FRAMEBUFFER_FACTS, TEXTURE_FACTS } from '@/content/render/webgl/data';
+import { DEPTH_STEP, DRAW_MODES, FRAMEBUFFER_FACTS, LOSS_CAUSES, TEXTURE_FACTS } from '@/content/render/webgl/data';
 
 /**
  * Структурные утверждения темы «WebGL: где кончается браузер».
@@ -300,5 +301,35 @@ describe('память текстур', () => {
     expect(Math.round((1920 * 1080 * 3) / 1e6)).toBe(6);
     const d = FRAMEBUFFER_FACTS.find((f) => f.t.includes('полный экран'))?.d ?? '';
     expect(d).toContain('шесть миллионов');
+  });
+});
+
+describe('режим «один батч»: числа в коде и подписи', () => {
+  // Та же арифметика, что BYTES в DrawCalls.vue: квадрат — 6 вершин по 2 float32.
+  const COUNT = 1000;
+  const batch = DRAW_MODES.find((m) => m.key === 'batch')!;
+
+  it('комментарий называет столько вершин, сколько рисует drawArrays', () => {
+    const drawn = Number(/drawArrays\(gl\.TRIANGLES, 0, (\d+)\)/.exec(batch.code)![1]);
+    expect(drawn).toBe(COUNT * 6);
+    expect(batch.code).toContain(`${drawn} вершин`);
+    expect(batch.code).not.toContain('12 000 вершин');
+  });
+
+  it('«во сколько раз больше геометрии» сходится со счётчиком демо', () => {
+    const instanced = 12 * 4 + COUNT * 2 * 4;
+    const baked = COUNT * 6 * 2 * 4;
+    expect(Math.round(baked / instanced)).toBe(6);
+    expect(batch.note).toContain('в шесть раз больше, чем у инстансинга');
+  });
+});
+
+describe('причины потери контекста', () => {
+  it('подпись не обещает «ни один не зависит от кода», когда в списке есть ваша страница и число контекстов', () => {
+    const mdx = readFileSync('src/content/render/webgl/index.mdx', 'utf8');
+    expect(LOSS_CAUSES.some((c) => c.includes('из-за вашей страницы'))).toBe(true);
+    expect(LOSS_CAUSES.some((c) => c.includes('слишком много контекстов'))).toBe(true);
+    expect(mdx).toContain('Почти ни один из этих случаев не зависит от вашего кода');
+    expect(mdx).not.toMatch(/\n\s*Ни один из этих случаев/);
   });
 });

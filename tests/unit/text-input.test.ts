@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { type Browser, type CDPSession, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -652,5 +653,13 @@ describe('полный Chromium: автозаполнение — AUTOFILL', () 
     expect(await values('b')).toEqual(t.AUTOFILL.formOff);
     await fill('#fn3');
     expect(await values('c')).toEqual(t.AUTOFILL.bogusToken);
+  });
+});
+
+describe('выжимка не спорит с темой', () => {
+  it('«любая правка отменяемая» — с оговоркой про IME: шаг набора неотменяемый', () => {
+    const summary = readFileSync('src/content/render/text-input/summary.md', 'utf8');
+    expect(t.STAND_RUNS.ime.log.filter((e) => e.type === 'beforeinput').every((e) => !e.cancelable)).toBe(true);
+    expect(summary).toContain('`beforeinput`, отменяемая, кроме шага IME');
   });
 });

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { LRUCache } from 'lru-cache';
 import { lruMemoize, weakMapMemoize } from 'reselect';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -157,6 +158,13 @@ describe('lru-cache изнутри', () => {
         order: [...c.rkeys()],
       }).toEqual({ keyList: row.keyList, next: row.next, prev: row.prev, head: row.head, tail: row.tail, free: row.free, order: row.order });
     }
+    // LAYOUT_STEPS_NOTE: get(B) — четыре числа в next и prev плюс tail.
+    const [before, after] = [t.LAYOUT_ROWS[3], t.LAYOUT_ROWS[4]];
+    const changed = (x: number[], y: number[]) => x.filter((v, k) => v !== y[k]).length;
+    expect(after.op).toBe('get(B)');
+    expect(changed(before.next, after.next) + changed(before.prev, after.prev)).toBe(4);
+    expect([before.head === after.head, before.tail === after.tail, before.keyList.join() === after.keyList.join()]).toEqual([true, false, true]);
+    expect(t.LAYOUT_STEPS_NOTE).toContain('переписал четыре числа в `next` и `prev`, передвинул `tail`');
   });
 
   it('PREALLOC: пустой кеш на миллион держит 12 МБ типизированных массивов', () => {
@@ -447,15 +455,28 @@ describe('трассы и закреплённые числа', () => {
     expect(at('loop', 100).lfu).toBe(0);
     expect(t.LOOP_TINY_NOTE).toContain(pct(at('loop', 100).tinylfu));
     expect(t.LOOP_NOTE).toContain(pct(at('loop', 200).lru));
-    // «от 8 до 12 пунктов» между LRU и лучшим из остальных на «Ципфе»
-    const gaps = t.CHART_CAPACITIES.map((cap) => {
+    // «от 6,5 до 12 пунктов» между LRU и каждым из трёх соперников на «Ципфе»,
+    // «чем меньше кеш, тем больше разница». Было «от 8 до 12» — неверно для LFU и SIEVE
+    // на кеше 200 (6,46 и 6,65): так выходило только у лучшего из трёх.
+    expect(t.CHART_TRACES.find((c) => c.id === 'zipf')!.note).toContain('от 6,5 до 12 пунктов');
+    const gapsAt = (cap: number) => {
       const r = at('zipf', cap);
-      return (Math.max(r.lfu, r.tinylfu, r.sieve) - r.lru) * 100;
-    });
-    expect(Math.min(...gaps)).toBeGreaterThan(7.5);
+      return [r.lfu, r.tinylfu, r.sieve].map((v) => (v - r.lru) * 100);
+    };
+    const gaps = t.CHART_CAPACITIES.flatMap(gapsAt);
+    expect(Math.round(Math.min(...gaps) * 10) / 10).toBe(6.5);
     expect(Math.max(...gaps)).toBeLessThan(12.5);
+    const caps = [...t.CHART_CAPACITIES].sort((a, b) => a - b);
+    for (let i = 1; i < caps.length; i++) {
+      expect(Math.max(...gapsAt(caps[i]))).toBeLessThan(Math.min(...gapsAt(caps[i - 1])));
+    }
     // «LRU ни на одной трассе не обгоняет остальных»
     for (const r of t.HIT_TABLE) expect(r.lru).toBeLessThanOrEqual(Math.max(r.lfu, r.tinylfu, r.sieve));
+    // …но «не обгоняет никого» неверно: на «Смене» LRU выше LFU на всех трёх размерах.
+    for (const r of t.HIT_TABLE.filter((x) => x.trace === 'shift')) expect(r.lru).toBeGreaterThan(r.lfu);
+    const summary = readFileSync('src/content/algorithms/eviction/summary.md', 'utf8');
+    expect(summary).toContain('LRU не лидирует ни на одной трассе');
+    expect(summary).not.toContain('не обгоняет никого');
   });
 
   it('SCAN_HOT: после скана LRU не держит ни одного горячего ключа, остальные держат', () => {

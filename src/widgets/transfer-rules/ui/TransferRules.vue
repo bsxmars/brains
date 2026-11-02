@@ -131,10 +131,7 @@ const head = computed(() => {
     <template #footer>
       <div class="tr-foot">
         <Md :text="active.lead" />
-        <Md
-          class="tr-foot__rule"
-          text="Отсоединённый буфер обратно не присоединяется ничем — поэтому каждый прогон идёт на **новом** канале и **новом** буфере."
-        />
+        <Md class="tr-foot__rule" text="Отсоединённый буфер обратно не присоединяется ничем." />
       </div>
     </template>
   </DemoFrame>

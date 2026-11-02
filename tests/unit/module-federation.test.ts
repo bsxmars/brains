@@ -288,3 +288,14 @@ process.stdout.write(JSON.stringify({ thrown, errors, same: require('react') ===
     else expect(out.errors[0]?.startsWith(row.console.replace(/ …$/, '')), out.errors[0]).toBe(true);
   });
 });
+
+describe('ссылка на import maps согласована с «Модулями и сборкой»', () => {
+  it('карту можно дописать и после первого импорта (Chromium 153) — тема не утверждает обратного', async () => {
+    const modules = await import('@/content/tooling/modules/data');
+    const { WAYS_NOTE } = await import('@/content/tooling/module-federation/data');
+    expect(modules.IMPORTMAP_LATE_OUT).toEqual(['vue@3', 'dayjs']);
+    expect(WAYS_NOTE).not.toContain('нельзя дописать');
+    expect(WAYS_NOTE).toContain('второй картой, добавленной после первого импорта');
+  });
+});
+

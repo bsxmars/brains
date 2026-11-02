@@ -127,6 +127,22 @@ describe('факты о JSON из текста', () => {
     expect(seen).toEqual([['0', '1'], ['a', undefined], ['s', '"x"'], ['', undefined]]);
   });
 
+  it('объём учебного stringify — «сто строк», как в подписи', () => {
+    const lines = t.STRINGIFY_CODE.split('\n').filter((l) => l.trim());
+    expect(lines.length).toBeGreaterThanOrEqual(90);
+    expect(lines.length).toBeLessThanOrEqual(110);
+    expect(t.STRINGIFY_CODE_NOTE).toMatch(/^Сто строк/);
+  });
+
+  it('ошибка в JSON: {} или только её перечисляемые поля — у системной их не одно', async () => {
+    const { readFileSync } = await import('node:fs');
+    let sys: unknown;
+    try { readFileSync('/нет-такого-файла'); } catch (e) { sys = e; }
+    expect(JSON.stringify(new Error('boom'))).toBe('{}');
+    expect(Object.keys(JSON.parse(JSON.stringify(sys)))).toEqual(['errno', 'code', 'syscall', 'path']);
+    expect(t.STRINGIFY_ERRORS_LINK).toContain('одни перечисляемые поля вроде `code`');
+  });
+
   it('BigInt: текст ошибки V8 — тот, что в стенде', () => {
     expect(() => JSON.stringify({ a: 1n })).toThrow('Do not know how to serialize a BigInt');
   });

@@ -156,6 +156,10 @@ describe('стенд директив', () => {
     expect(src).toContain('parsed.searchParams.set("astro-retry"');
     expect(src).toContain('closest("astro-island[ssr]")');
     expect(src).toContain('this.removeAttribute("ssr")');
+    // ssr снимает элемент, а не рендерер: рендерер Vue атрибут только читает.
+    const vue = readFileSync(require.resolve('@astrojs/vue/client.js'), 'utf8');
+    expect(vue).not.toContain('removeAttribute("ssr")');
+    expect(t.ISLAND_ATTRS.find((a) => a.k === 'ssr')!.d).toContain('Сам `<astro-island>` снимет его');
     expect(astroFile('runtime/server/astro-island-styles.js')).toContain('astro-island,astro-slot,astro-static-slot{display:contents}');
   });
 });

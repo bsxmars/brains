@@ -323,7 +323,8 @@ function track(signal) {
 /**
  * Сценарии демо. Код исполняется как тело async-функции с параметрами `AbortController`,
  * `AbortSignal`, `log`, `sleep`, `track`. `SCENARIO_LOGS` — что напечатали настоящие классы
- * Node 24.11 и Chromium 153 (одинаково); тест сверяет с ними и настоящие, и учебные.
+ * Node 24.11 и Chromium 153 (одинаково); тест сверяет с ними и настоящие, и учебные. Где Node 26.8
+ * отходит от стандарта, его вывод лежит в `SCENARIO_LOGS_NODE`.
  */
 export const SCENARIOS: AbortScenario[] = [
   {
@@ -402,7 +403,7 @@ outer.addEventListener('abort', () => log('outer'));
 inner.addEventListener('abort', () => log('inner'));
 root.signal.addEventListener('abort', () => log('root, outer.aborted = ' + outer.aborted));
 root.abort('R');`,
-    note: '`outer` подписан не на `inner`, а прямо на `root`. Порядок событий — порядок создания зависимых, а не подписки на них. И пока идёт слушатель `root`, `outer` уже отменён.',
+    note: '`outer` подписан не на `inner`, а прямо на `root`. По стандарту события идут в порядке создания зависимых, а не подписки на них, — так делают Chromium 153 и Node 24.11. Node 26.8 рассылает их в порядке подписки слушателей: сначала `outer`, потом `inner`. И пока идёт слушатель `root`, `outer` уже отменён.',
   },
   {
     id: 'timeout',
@@ -464,6 +465,16 @@ export const SCENARIO_LOGS: Record<string, string[]> = {
   timeout: ['abort: TimeoutError', 'после user.abort(): TimeoutError'],
   leak: ['после 100 вызовов слушателей: 100'],
   leakFixed: ['после 100 вызовов слушателей: 0'],
+};
+
+/**
+ * Где настоящие классы Node расходятся с `SCENARIO_LOGS` (Chromium 153, Node 24.11 и стандарт),
+ * по мажорной версии. Node 26.8.2 рассылает `abort` зависимым в порядке, в каком они получили
+ * первого слушателя, а не в порядке создания: три зависимых, подписанных как d2, d0, d1, получают
+ * события d2, d0, d1 (Node 24.11 — d0, d1, d2). Учебная реализация следует стандарту.
+ */
+export const SCENARIO_LOGS_NODE: Record<string, Record<string, string[]>> = {
+  '26': { chain: ['root, outer.aborted = true', 'outer', 'inner'] },
 };
 
 /** Сценарии по id — тема печатает код части из них прямо в разделах. */
@@ -681,7 +692,7 @@ export const COMBINE_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = 
   },
   {
     t: 'Таймер `timeout()` в Node не держит процесс',
-    d: 'Он снят с учёта цикла (`unref`): если больше ждать нечего, Node завершится, не дожидаясь отмены. Скрипт, который ждёт только события такого сигнала, выходит с кодом 13 и предупреждением о незавершённом `await` верхнего уровня.',
+    d: 'Он снят с учёта цикла (`unref`): если больше ждать нечего, Node завершится, не дожидаясь отмены. Если скрипт ждёт только события такого сигнала, отмены он не дождётся. ES-модуль с `await` верхнего уровня выходит с кодом 13 и предупреждением о незавершённом `await`; CommonJS, где ждут внутри `async`-функции, — молча, с кодом 0.',
     tone: 'warn',
   },
 ];

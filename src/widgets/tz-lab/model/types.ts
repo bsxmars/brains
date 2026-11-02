@@ -13,8 +13,8 @@ export interface Transition {
 export interface ZoneTable {
   /** Имя зоны IANA. */
   zone: string;
-  /** Версия tzdata, по которой снята таблица. */
-  tzdata: string;
+  /** Версии tzdata, по которым таблица снята и совпала. */
+  tzdata: string[];
   transitions: Transition[];
 }
 

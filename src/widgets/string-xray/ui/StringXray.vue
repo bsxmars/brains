@@ -57,7 +57,6 @@ const inWindow = (i: number) => {
 
         <div class="why" :data-tone="rep.tone">{{ rep.why }}</div>
         <div class="cost">{{ rep.cost }}</div>
-        <div class="verified">{{ rep.verified }}</div>
       </div>
 
       <div class="pane pane--right">
@@ -199,12 +198,6 @@ const inWindow = (i: number) => {
   font-size: var(--fs-6);
   line-height: 1.6;
   color: var(--prose);
-}
-.verified {
-  font-family: var(--mono);
-  font-size: var(--fs-2);
-  line-height: 1.5;
-  color: var(--text-faint);
 }
 
 /* `min-width: 0` — схема шире колонки прокручивается внутри себя, а не тащит страницу вбок. */

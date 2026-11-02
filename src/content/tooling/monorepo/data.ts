@@ -278,7 +278,7 @@ export const PROTOCOL_ROWS: { k: string; npm: string; pnpm: string; tone: 'ok' |
     tone: 'ok',
   },
   {
-    k: '`"@shop/utils": "^1.0.0"`, локальная версия `1.0.0`',
+    k: '`"@shop/ui": "^1.0.0"`, локальная версия `1.0.0`',
     npm: 'ссылка на папку: версия подошла',
     pnpm: '**запрос в реестр** `GET /@shop%2Fui` и `ERR_PNPM_FETCH_404` — по умолчанию pnpm соседа по диапазону не связывает',
     tone: 'err',

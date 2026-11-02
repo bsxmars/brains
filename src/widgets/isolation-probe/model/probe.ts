@@ -61,7 +61,7 @@ self.onmessage = (event) => {
 `;
 
 /** Дошёл ли `SharedArrayBuffer` до настоящего выделенного воркера — и чем именно кончилось. */
-async function sendSharedToWorker(shared: object): Promise<{ value: string; tone: ProbeTone }> {
+async function sendSharedToWorker(shared: ArrayBufferLike): Promise<{ value: string; tone: ProbeTone }> {
   if (typeof Worker === 'undefined') {
     return { value: 'воркеры недоступны', tone: 'dim' };
   }
@@ -102,6 +102,24 @@ async function sendSharedToWorker(shared: object): Promise<{ value: string; tone
   }
 }
 
+/**
+ * Достать общий буфер. Без изоляции имя `SharedArrayBuffer` в Chromium спрятано, но
+ * `new WebAssembly.Memory({ shared: true })` его всё равно отдаёт (снято 2026-10-29: `wait` —
+ * `TypeError`, `notify` — 0, `postMessage` — `DataCloneError` у отправителя). До этой даты
+ * демо без имени печатало «создать общий буфер не из чего», что спорило с подписью урока.
+ */
+function sharedBuffer(): { buffer: ArrayBufferLike; via: string } | null {
+  if (typeof SharedArrayBuffer === 'function') {
+    return { buffer: new SharedArrayBuffer(8), via: 'new SharedArrayBuffer' };
+  }
+  try {
+    const memory = new WebAssembly.Memory({ initial: 1, maximum: 1, shared: true });
+    return { buffer: memory.buffer, via: 'WebAssembly.Memory' };
+  } catch {
+    return null;
+  }
+}
+
 export async function probeIsolation(): Promise<ProbeReport> {
   const rows: ProbeRow[] = [];
   const isolated = self.crossOriginIsolated === true;
@@ -113,7 +131,7 @@ export async function probeIsolation(): Promise<ProbeReport> {
     tone: isolated ? 'ok' : 'err',
     note: isolated
       ? 'документ изолирован: общая память и точные часы доступны'
-      : 'единственная верная проверка — и она отрицательна: общей памяти на этой странице нет',
+      : 'единственная верная проверка — и она отрицательна: поделиться памятью с воркером на этой странице нельзя',
   });
 
   const step = timerStep();
@@ -133,26 +151,26 @@ export async function probeIsolation(): Promise<ProbeReport> {
     key: 'ctor',
     label: 'typeof SharedArrayBuffer',
     value: `'${constructor}'`,
-    tone: constructor === 'function' ? 'ok' : 'err',
+    tone: constructor === 'function' ? 'ok' : 'warn',
     note:
       constructor === 'function'
-        ? 'конструктор есть — но сам по себе он ничего не доказывает: браузеры оставляли его и без изоляции'
-        : 'в этой сборке конструктора нет вовсе; в других он бывает доступен и без изоляции, и тогда падение уезжает на postMessage',
+        ? 'имя конструктора есть — но изоляцию доказывает только crossOriginIsolated'
+        : 'имя спрятано, но это ещё не значит, что общего буфера нет: его отдаёт общая память WebAssembly',
   });
 
-  if (constructor !== 'function') {
-    rows.push({
-      key: 'share',
-      label: 'отправка в воркер',
-      value: 'проверять нечего',
-      tone: 'dim',
-      note: 'создать общий буфер не из чего, поэтому и отправлять нечего',
-    });
-    return { isolated, rows };
-  }
+  const shared = sharedBuffer();
+  rows.push({
+    key: 'buffer',
+    label: 'общий буфер',
+    value: shared ? `${shared.via}: ${Object.prototype.toString.call(shared.buffer)}` : 'создать не удалось',
+    tone: shared ? 'ok' : 'dim',
+    note: shared
+      ? 'буфер создан — дальше видно, что с ним можно делать в этой вкладке'
+      : 'в этом браузере нет ни имени SharedArrayBuffer, ни общей памяти WebAssembly — проверять дальше нечего',
+  });
+  if (!shared) return { isolated, rows };
 
-  const shared = new SharedArrayBuffer(8);
-  const view = new Int32Array(shared);
+  const view = new Int32Array(shared.buffer, 0, 2);
 
   // Ожидаемое значение намеренно не совпадает с содержимым: даже там, где `wait` разрешён,
   // он вернётся немедленно с 'not-equal'. Демо не имеет права заблокировать вкладку.
@@ -164,7 +182,7 @@ export async function probeIsolation(): Promise<ProbeReport> {
       label: 'Atomics.wait на главном потоке',
       value: `вернул '${result}'`,
       tone: 'warn',
-      note: 'в браузере этого быть не должно: у агента документа [[CanBlock]] равен false',
+      note: 'в браузере этого быть не должно: главному потоку засыпать нельзя',
     };
   } catch (failure) {
     const error = failure as { name?: string; message?: string };
@@ -186,13 +204,15 @@ export async function probeIsolation(): Promise<ProbeReport> {
     note: 'блокируется только wait: будить воркеры главному потоку никто не запрещает',
   });
 
-  const sent = await sendSharedToWorker(shared);
+  const sent = await sendSharedToWorker(shared.buffer);
   rows.push({
     key: 'share',
-    label: 'SharedArrayBuffer в выделенный воркер',
+    label: 'общий буфер в выделенный воркер',
     value: sent.value,
-    tone: sent.tone,
-    note: 'копии не будет: обе стороны получают вид на один и тот же физический блок',
+    tone: isolated ? sent.tone : sent.tone === 'err' ? 'ok' : 'warn',
+    note: isolated
+      ? 'копии не будет: обе стороны получают вид на один и тот же физический блок'
+      : 'без изоляции отправка обязана упасть у отправителя: буфер есть, а поделиться им нельзя',
   });
 
   return { isolated, rows };

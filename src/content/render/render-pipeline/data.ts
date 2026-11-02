@@ -196,7 +196,9 @@ export const FRAME_STEPS: FrameStep[] = [
     where: 'main thread · рендер-фаза',
     title: 'ResizeObserver, потом IntersectionObserver',
     message:
-      'Оба — шаги кадра, а не микрозадачи. `ResizeObserver` может сработать несколько раз подряд, ' +
+      'Оба — шаги кадра, а не микрозадачи. Колбэк `ResizeObserver` вызывается прямо здесь, а у ' +
+      '`IntersectionObserver` здесь только расчёт пересечений: колбэк браузер ставит задачей, и он придёт после кадра. ' +
+      '`ResizeObserver` может сработать несколько раз подряд, ' +
       'каждый раз для всё более глубоких элементов. Если коллбэк поменял размеры, это вызовет **второй layout в том же кадре**. Превысили лимит — ' +
       'в консоли `ResizeObserver loop completed with undelivered notifications`, а обновление ' +
       'доедет только следующим кадром.',
@@ -848,6 +850,12 @@ export const TILES_FACTS: { t: string; d: string; tone?: 'warn' | 'err' | 'ok' }
 /**
  * Пять точек кадра, в которые попадает работа фреймворка.
  *
+ * ⚠️ Колбэк `IntersectionObserver` — не «внутри кадра»: в кадре только расчёт пересечений,
+ * колбэк ставится задачей («queue an intersection observer task», Intersection Observer) —
+ * так же записано в `OBSERVER_ROWS` и снято стендом «Наблюдателей» (`/render/observers/`,
+ * колбэк пришёл позже `setTimeout` из `ResizeObserver`). До 2026-10-29 карточка и чип темы
+ * относили колбэк в кадр. Сторож — `tests/unit/render-pipeline.test.ts`.
+ *
  * Урок стоит перед разборами React и Vue, поэтому важен не список API, а карта времени:
  * у каждой точки своё «что уже посчитано» и своё «что случится после».
  */
@@ -872,8 +880,8 @@ export const FRAME_HOOKS: { k: string; when: string; what: string; tone: 'info' 
   },
   {
     k: 'ResizeObserver / IntersectionObserver',
-    when: 'после layout, внутри кадра',
-    what: 'Размеры уже новые. Место для «подогнать по факту»: наблюдатели вместо опроса размеров и вместо `getBoundingClientRect()` в обработчике скролла.',
+    when: 'после layout: ResizeObserver — внутри кадра, колбэк IntersectionObserver — задачей после него',
+    what: 'Размеры уже новые. Место для «подогнать по факту»: наблюдатели вместо опроса размеров и вместо `getBoundingClientRect()` в обработчике скролла. Пересечения считаются в кадре, но колбэк `IntersectionObserver` придёт отдельной задачей — то, что он запишет в DOM, попадёт только в следующий кадр.',
     tone: 'warn',
   },
   {
@@ -951,7 +959,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '08',
     t: 'Один слушатель без passive возвращает прокрутку на главный поток',
-    d: 'Композитор прокрутил бы страницу сам, но обработчик wheel или touchmove может вызвать preventDefault() — приходится ждать JS. С Chrome 56 на window, document, documentElement (`html`) и document.body passive — умолчание (`html` сверен стендом темы [«События DOM»](/render/dom-events/#s6)), а на любом другом контейнере нет. Если preventDefault действительно нужен, чаще правильный ответ — touch-action в CSS: он сообщает решение компоновщику заранее.',
+    d: 'Композитор прокрутил бы страницу сам, но обработчик wheel или touchmove может вызвать preventDefault() — приходится ждать JS. С Chrome 56 для touchmove и с Chrome 73 для wheel на window, document, documentElement (`html`) и document.body passive — умолчание (`html` сверен стендом темы [«События DOM»](/render/dom-events/#s6)), а на любом другом контейнере нет. Если preventDefault действительно нужен, чаще правильный ответ — touch-action в CSS: он сообщает решение компоновщику заранее.',
     tone: 'warn',
   },
   {
@@ -1080,8 +1088,9 @@ requestAnimationFrame(() => {
       'Три наблюдателя — `MutationObserver`, `ResizeObserver`, `IntersectionObserver`. Который выполнится до рендер-фазы, а которые внутри неё?',
     answer:
       '`MutationObserver` — **микрозадача**: сработает в ближайшем checkpoint, то есть ещё до `rAF`. ' +
-      '`ResizeObserver` и `IntersectionObserver` — шаги внутри «update the rendering», после лейаута ' +
-      'и строго в этом порядке. `ResizeObserver` при этом крутится циклом и может вызвать повторный ' +
+      '`ResizeObserver` — шаг внутри «update the rendering», после лейаута; следом там же считаются ' +
+      'пересечения `IntersectionObserver`, но его колбэк спецификация ставит задачей — он выполнится ' +
+      '**после** кадра. `ResizeObserver` при этом крутится циклом и может вызвать повторный ' +
       'лейаут в том же кадре.',
   },
   {
@@ -1094,7 +1103,8 @@ requestAnimationFrame(() => {
 }`,
     answer:
       'Не «только transform»: в `transition` два свойства, и `box-shadow` компоновщик применять ' +
-      'не умеет. Значит, весь трек, включая `transform`, тикает на главном потоке, а тень с радиусом ' +
+      'не умеет. Переход на два свойства — это две анимации: `transform` уезжает на композитор, а тень ' +
+      'тикает на главном потоке, и тень с радиусом ' +
       '60px на весь экран требует paint каждый кадр — это растеризация большой области с размытием. ' +
       'Лечение: анимировать только `transform`, а тень вынести в `::before` и гасить её `opacity` — ' +
       'оба трека станут композитными.',

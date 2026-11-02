@@ -25,6 +25,9 @@ export interface PortLines {
   startAgain: PortLine;
   startClosed: PortLine;
   transferOk: PortLine;
+  /** Порт уже отдан: всё, что делается с вашим объектом port1, на канал не влияет. */
+  postTransferred: PortLine;
+  movedAway: PortLine;
   transferAgain: PortLine;
   transferClosed: PortLine;
   detachedOk: PortLine;

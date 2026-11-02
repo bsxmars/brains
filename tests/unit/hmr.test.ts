@@ -169,3 +169,12 @@ describe('учебная функция на графах, которых на �
     expect(findBoundary(graph, '/b.js').reload).toBe(true);
   });
 });
+
+describe('прод: подпись к бандлу считает строки исходника', () => {
+  it('«этих семи строк» — столько строк кода в PROD_SOURCE_CODE без строки-комментария', () => {
+    const code = t.PROD_SOURCE_CODE.split('\n').filter((l) => !l.trim().startsWith('//'));
+    expect(code).toHaveLength(7);
+    expect(t.PROD_BUNDLE_CODE).toContain('этих семи строк');
+  });
+});
+

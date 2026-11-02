@@ -329,3 +329,16 @@ describe('стриминг: STREAM_CODE за node:http', () => {
     expect(out).toEqual(t.STREAM_LOG);
   }, 20_000);
 });
+
+describe('параллелизм Cloud Run: словарь, таблица и выжимка не расходятся', () => {
+  // Документация Cloud Run (about-concurrency, октябрь 2026): из gcloud и Terraform — 80 × число vCPU,
+  // из консоли — ровно 80; максимум 1000.
+  it('везде «80 на vCPU», а не голое «до 80»', () => {
+    const term = t.GLOSSARY.find((g) => g.k === 'параллелизм на экземпляр')!;
+    expect(term.d).toContain('у Cloud Run по умолчанию до 80 на vCPU');
+    const run = t.PLATFORM_ROWS.find((r) => r.k === 'Google Cloud Run')!;
+    expect(run.conc).toContain('**80** на vCPU');
+    expect(run.conc).toContain('из консоли — 80');
+    expect(run.conc).toContain('максимум 1000');
+  });
+});

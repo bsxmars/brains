@@ -113,7 +113,7 @@ export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; 
     t: 'Сообщение порта — задача без задержки',
     d: '`port.postMessage` ставит новую задачу сразу, без минимальной паузы в 4 мс, как у вложенного `setTimeout`. Поэтому на нём и построен планировщик React.',
     href: '/js/message-channel/#s2',
-    hrefLabel: '«MessageChannel», раздел «Почему планировщик React построен не на `setTimeout`»',
+    hrefLabel: '«MessageChannel», раздел «Чем отдать поток: `setTimeout` против сообщения порта»',
     tone: 'info',
   },
   {

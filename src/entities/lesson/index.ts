@@ -8,3 +8,5 @@ export { lessonSchema } from './model/schema';
 export type { LessonFrontmatter } from './model/schema';
 export { getLessons, getDirectionLessons, neighbours } from './model/lessons';
 export type { Lesson, LessonCollection } from './model/lessons';
+export { getAnswerKey, parseAnswerKey } from './model/summary';
+export type { AnswerKey, AnswerKeyBlock, AnswerKeyItem } from './model/summary';

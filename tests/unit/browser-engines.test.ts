@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DETECT_CODE, ENGINE_SNAPSHOT, PITFALLS } from '@/content/render/browser-engines/data';
+import { DETECT_CODE, ENGINE_SNAPSHOT, PITFALLS, TIMER_NOTE, TIMER_ROWS } from '@/content/render/browser-engines/data';
 import { PROBES } from '@/widgets/engine-probe/model/probes';
 
 /**
@@ -48,5 +48,14 @@ describe('снимок и демо задают одни и те же вопро
     expect(ENGINE_SNAPSHOT['date-dots']).toEqual({ chromium: '2026-01-10', firefox: '2026-01-10', webkit: 'NaN' });
     expect(date.code).toContain('10 января');
     expect(date.code).toContain('NaN');
+  });
+});
+
+describe('шаг таймера: текст и таблица', () => {
+  /** 0.1 мс против 1 мс — это десять раз, а не двадцать (вычитка 2026-10-30). */
+  it('разброс на обычной странице в TIMER_NOTE совпадает с TIMER_ROWS', () => {
+    const steps = TIMER_ROWS.rows[0].slice(1).map((cell) => parseFloat(cell));
+    expect(Math.max(...steps) / Math.min(...steps)).toBeCloseTo(10);
+    expect(TIMER_NOTE).toContain('в десять раз на обычной странице');
   });
 });

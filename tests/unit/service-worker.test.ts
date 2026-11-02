@@ -389,6 +389,10 @@ describe('литералы стенда и текст', () => {
     expect(idle.find((x) => x.pauseS === 40)?.seq.at(-1)).toBe('1');
     expect(t.SLEEP_NOTE).toContain('между 25 и 40 секундами');
     expect(t.STAND.sleep.playwright75s.at(-1)).toBe('3');
+    // Перезамер 2026-10-29 (шапка data.ts): уснул без порта и с портом без сессии к воркеру,
+    // не уснул только при Target.setAutoAttach — причина в сессии к воркеру.
+    expect(t.SLEEP_TRAP).toContain('пока к воркеру подключён отладчик');
+    expect(t.SLEEP_TRAP).toContain('Просто открытый порт отладки сон не отменяет');
   });
 
   it('отладка и bfcache', () => {

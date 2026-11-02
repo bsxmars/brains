@@ -484,7 +484,7 @@ export const SNIPPETS: FormatSnippet[] = [
     label: 'Длинная строка',
     code: `const message = "Это очень длинная строка, которую Prettier не станет резать на части";`,
     start: 60,
-    note: 'Строковый литерал — один кусок текста. Prettier может перенести его на следующую строку после `=`, но не разрезать: на ширине меньше 87 строка всё равно длиннее `printWidth`.',
+    note: 'Строковый литерал — один кусок текста. Prettier может перенести его на следующую строку после `=`, но не разрезать: на ширине меньше 73 строка всё равно длиннее `printWidth`.',
     doc: [[[{"type":"group","contents":["","const",[" ",{"type":"group","contents":[{"type":"group","contents":["message","","",""],"break":false}," =",{"type":"group","contents":{"type":"indent","contents":[{"type":"line"},["\"Это очень длинная строка, которую Prettier не станет резать на части\""]]},"break":false}],"break":false}],{"type":"indent","contents":[]},";"],"break":false}]],[{"type":"line","hard":true},{"type":"break-parent"}]],
   },
 ];

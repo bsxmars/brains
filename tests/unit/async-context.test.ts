@@ -1,6 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { AsyncLocalStorage, AsyncResource } from 'node:async_hooks';
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { context, createContextKey, ROOT_CONTEXT } from '@opentelemetry/api';
 import { compileScript, parse } from '@vue/compiler-sfc';
@@ -274,8 +275,8 @@ describe('устройство в Node — COST_RESULT, флаги, кадр', (
     expect(out.chain).toContain('SafeMap');
   });
 
-  it('флаги Node 24: --no-async-context-frame есть, экспериментального уже нет', () => {
-    expect(process.versions.node.split('.')[0]).toBe('24');
+  it('флаги Node 24 и 26: --no-async-context-frame есть, экспериментального уже нет', () => {
+    expect(['24', '26']).toContain(process.versions.node.split('.')[0]);
     expect(execFileSync(process.execPath, ['--no-async-context-frame', '-e', 'console.log(1)'], { encoding: 'utf8' }).trim()).toBe('1');
     let err = '';
     try {
@@ -286,13 +287,17 @@ describe('устройство в Node — COST_RESULT, флаги, кадр', (
     expect(err).toContain('bad option');
   });
 
-  it('defaultValue и name — опции конструктора Node 24', () => {
+  it('defaultValue и name — опции конструктора Node 24; withScope — с 24.20', () => {
     // @types/node проекта ещё не знает опций Node 24 — конструктор берём без типов.
     const Als = AsyncLocalStorage as unknown as new (o: { defaultValue: string; name: string }) => AsyncLocalStorage<string>;
     const als = new Als({ defaultValue: '—', name: 'requestId' });
     expect(als.getStore()).toBe('—');
     expect((als as unknown as { name: string }).name).toBe('requestId');
-    expect(typeof (AsyncLocalStorage.prototype as unknown as { withScope?: unknown }).withScope).toBe('undefined');
+    // Тема: «В Node 24.20 появился withScope… В 24.11 его ещё нет»
+    const [major, minor] = process.versions.node.split('.').map(Number);
+    const hasWithScope = major > 24 || (major === 24 && minor >= 20);
+    expect(typeof (AsyncLocalStorage.prototype as unknown as { withScope?: unknown }).withScope).toBe(hasWithScope ? 'function' : 'undefined');
+    expect(t.ENTER_WITH_NOTE).toContain('В Node 24.20 появился `withScope(value)`');
   });
 });
 
@@ -325,5 +330,33 @@ describe('утверждения текста', () => {
     expect(t.SERVER_ALS_LOG.split('\n').at(-1)).toBe('[r-1] /cart база ответила');
     expect(t.AWAIT_NOTE).toContain(`**${t.THEN_CALLS.await}**`);
     expect(t.AWAIT_NOTE).toContain(`**${t.THEN_CALLS.all2}**`);
+  });
+});
+
+/**
+ * Вычитка 2026-10-30.
+ *
+ * `RACE_STEPS`: корзина ждёт «базу» 60 мс с момента прихода (0 мс), значит отвечает на 60-й,
+ * а не на 80-й миллисекунде — 80 получалось, если прибавить 20 мс задержки профиля.
+ * Числа берутся из того же листинга сервера и клиента, что напечатаны в теме.
+ *
+ * Лид раздела «Хранилище контекста в Node» говорил «три из четырёх задают значение на время
+ * функции», а среди четырёх `ALS_API` такое делают только `run` и `exit`; `getStore` читает.
+ */
+describe('вычитка: числа гонки и методы хранилища', () => {
+  it('корзина отвечает на 60-й мс, профиль приходит на 20-й', () => {
+    const cartMs = Number(/req\.url === '\/cart' \? (\d+) : (\d+)/.exec(t.SERVER_GLOBAL_CODE)![1]);
+    const profileAt = Number(/setTimeout\(r, (\d+)\)/.exec(t.CLIENT_CODE)![1]);
+    expect(cartMs).toBe(60);
+    expect(t.RACE_STEPS[1].k.startsWith(`${profileAt} мс`)).toBe(true);
+    expect(t.RACE_STEPS[2].k.startsWith(`${cartMs} мс`)).toBe(true);
+  });
+
+  it('лид про четыре метода: getStore читает, run и exit задают на время функции', () => {
+    expect(t.ALS_API.map((a) => /`als\.(\w+)/.exec(a.k)![1])).toEqual(['run', 'getStore', 'exit', 'enterWith']);
+    const mdx = readFileSync('src/content/lessons/async-context/index.mdx', 'utf8');
+    const lead = /title="Хранилище контекста в Node"\s+lead="([^"]+)"/.exec(mdx)![1];
+    expect(lead).toContain('`getStore` читает значение, `run` и `exit` задают его только на время функции');
+    expect(lead).not.toContain('Три из них');
   });
 });

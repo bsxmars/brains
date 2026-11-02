@@ -1,11 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   DEMO_LAYERS,
   DEMO_RULES,
   GRAPH_JOBS,
   GRAPH_STAGES,
+  PITFALLS,
   RULE_CHECK,
   RULE_CONTEXTS,
+  RULES_FACTS,
+  VAR_STEPS,
 } from '@/content/delivery/gitlab-ci/data';
 import { decide, evalExpr, matchesGlob, ruleMatches, valueOf } from '@/widgets/rules-builder/model/rules';
 import { resolveVar, shadowed, strength, VAR_ORDER } from '@/widgets/rules-builder/model/vars';
@@ -223,6 +227,15 @@ describe('приоритет переменных', () => {
     expect(VAR_ORDER).toEqual(['predefined', 'global', 'job', 'rules', 'dotenv', 'project', 'manual']);
   });
 
+  it('лид раздела «Переменные» называет столько слоёв, сколько в списке приоритетов', () => {
+    // Было «в шести местах», а в списке «Порядок целиком» и в VAR_ORDER — семь слоёв.
+    expect(VAR_STEPS).toHaveLength(VAR_ORDER.length);
+    expect(VAR_ORDER).toHaveLength(7);
+    const mdx = readFileSync(new URL('../../src/content/delivery/gitlab-ci/index.mdx', import.meta.url), 'utf8');
+    const lead = mdx.match(/title="Переменные и их приоритеты"\s+lead="([^"]*)"/)![1];
+    expect(lead).toContain('в семи местах — слоях');
+  });
+
   /** Снято прогоном: `variables:` джоба перебивает корневые, а правило — джоба. */
   it('джоб сильнее корня файла, правило сильнее джоба', () => {
     expect(resolveVar([{ source: 'global', value: 'globals' }, { source: 'job', value: 'job' }])?.value).toBe('job');
@@ -339,5 +352,20 @@ describe('расстановка джобов во времени', () => {
         ['test'],
       ),
     ).toThrow(/цикл/);
+  });
+});
+
+describe('rules:changes: база сравнения у настоящего GitLab зависит от конвейера', () => {
+  // gitlab-ci-local сравнивает с origin/main. GitLab (docs.gitlab.com/ci/yaml, rules:changes):
+  // конвейер MR — с целевой веткой, конвейер ветки — с прошлым push, без push-события и на
+  // новой ветке — всегда true; явная база — rules:changes:compare_to.
+  const texts = [
+    RULES_FACTS.find((f) => f.t.includes('`changes`'))!,
+    PITFALLS.find((p) => p.t.includes('`changes`'))!,
+  ].map((x) => x.t + ' ' + x.d);
+  it.each(texts.map((t, i) => [i, t] as const))('текст %i не выдаёт базу замера за правило GitLab', (_, t) => {
+    expect(t).not.toMatch(/смотрит на всю ветку/);
+    expect(t).toMatch(/прошл\S* push/);
+    expect(t).toContain('compare_to');
   });
 });

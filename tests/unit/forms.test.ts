@@ -285,6 +285,30 @@ describe('мини-v-model ведёт себя как директивы Vue 3.5
     expect(t.MODEL_DEMO_IME).toEqual({ steps: ['n', 'に', 'にほ', 'にほん'], commit: '日本' });
   });
 
+  it('MODEL_NOTE: .number сравнивает как числа — «1.» не стирается и без фокуса, а .trim без фокуса обрезает', async () => {
+    const run = async (mods: string, typed: string, focus: boolean) => {
+      const host = container();
+      const m = Vue.ref<unknown>(1);
+      const other = Vue.ref(0);
+      Vue.createApp({ setup: () => ({ m, other }), template: `<div><input v-model${mods}="m">{{ other }}</div>` }).mount(host);
+      const el = host.querySelector('input') as HTMLInputElement;
+      if (focus) el.focus();
+      typeInto(el, typed);
+      await Vue.nextTick();
+      other.value++;                       // рендер по чужой причине: директива сверяет поле с моделью
+      await Vue.nextTick();
+      const out = [m.value, el.value];
+      host.remove();
+      return out;
+    };
+    expect(await run('.number', '1.', false)).toEqual([1, '1.']);
+    expect(await run('.number', '1.', true)).toEqual([1, '1.']);
+    expect(await run('.trim', 'x ', true)).toEqual(['x', 'x ']);
+    expect(await run('.trim', 'x ', false)).toEqual(['x', 'x']);
+    expect(t.MODEL_NOTE).toContain('пока поле в фокусе, с `.trim`');
+    expect(t.MODEL_NOTE).toContain('с `.number` поле и модель сравниваются как числа');
+  });
+
   it('сценарии различают модели: без защиты от IME мини-версия расходится с Vue', async () => {
     const broken = loadModel(t.MODEL_CODE.replace("if (!composing) model.set(cast(el.value));", 'model.set(cast(el.value));'));
     const c = MODEL_CASES.find((x) => x.id === 'ime-upper')!;
@@ -948,5 +972,13 @@ describe('Chromium: действие формы React 19 — ACTION_STEPS', () =
 
   it('в консоли нет ошибок, кроме тех, что тема ждёт', () => {
     expect(consoleErrors.filter((e) => !e.includes('Download the React DevTools'))).toEqual([]);
+  });
+});
+
+describe('«Перед началом»: вступление и карточки', () => {
+  it('вступление обещает столько вещей, сколько карточек под ним, и называет каждую', () => {
+    expect(t.PREREQ_NOTE).toMatch(/три вещи/);
+    expect(t.PREREQ).toHaveLength(3);
+    for (const word of ['React', 'Vue', 'браузер']) expect(t.PREREQ_NOTE).toContain(word);
   });
 });

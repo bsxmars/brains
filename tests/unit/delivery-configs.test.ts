@@ -112,6 +112,13 @@ describe('Kubernetes: манифесты темы разбираются и на
     // «до 150 с на старт» в комментарии — это periodSeconds × failureThreshold.
     expect(p.startupProbe.periodSeconds * p.startupProbe.failureThreshold).toBe(150);
   });
+
+  it('DNS: из соседнего пространства сервис зовут по имени с пространством, где он живёт', () => {
+    // Сервис `web` живёт в `default` (полное имя в той же фразе) — снаружи это `web.default`.
+    const full = /`(\w+)\.(\w+)\.svc\.cluster\.local`/.exec(k8s.DNS_NOTE)!;
+    expect(k8s.DNS_NOTE).toContain('`' + full[1] + '.' + full[2] + '`');
+    expect(k8s.DNS_NOTE).not.toContain('`web.other`');
+  });
 });
 
 describe('Compose: листинги, дописанные по документации', () => {

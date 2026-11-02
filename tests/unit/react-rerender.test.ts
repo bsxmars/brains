@@ -222,3 +222,78 @@ describe('«Ре-рендеринг в React»: серверный проход 
     expect(element?.d).not.toMatch(/заморож|нельзя (из)?мен/);
   });
 });
+
+describe('«Модель»: граница кадра в EFFECTS_ORDER не спорит с EFFECTS_TIMING', () => {
+  it('кадр между layout и useEffect — возможность, а не правило', () => {
+    // Замер (Chromium 153): у нового корня useEffect — отдельная задача, до rAF 14 раз из 15.
+    expect(data.EFFECTS_TIMING).toContain('может нарисоваться, а может и нет');
+    const boundary = data.EFFECTS_ORDER.split('\n').find((l) => l.includes('кадр'))!;
+    expect(boundary).toContain('может нарисовать кадр, а может и нет');
+    expect(data.EFFECTS_ORDER).not.toMatch(/браузер рисует кадр/);
+  });
+});
+
+/**
+ * Вычитка 2026-10-30. `SELF_CHECK`, задача H, утверждала: «хуков стало меньше — исключения нет,
+ * рантайм ловит только случай, когда их больше». На React 19.3 есть и «Rendered fewer hooks», а в
+ * самой задаче рендер падает раньше — `useEffect` читает ячейку `useRef`. Сценарий задачи
+ * исполняется в отдельном процессе (сборку выбирает `NODE_ENV`) на happy-dom.
+ * Там же «Батчинг»: функции `flushSyncCallbacks` в React 19.3 нет, микрозадачу ставит
+ * `processRootScheduleInMicrotask`.
+ */
+const HOOKS_RUNNER = String.raw`
+const { Window } = require('happy-dom');
+const w = new Window(); Object.assign(globalThis, { window: w, document: w.document });
+const React = require('react'); const { flushSync } = require('react-dom'); const { createRoot } = require('react-dom/client');
+const out = { warn: [], uncaught: [] }; console.error = (m) => out.warn.push(String(m).slice(0, 60));
+let ref;
+function Widget({ withTooltip }) {
+  const [open] = React.useState(false);
+  if (withTooltip) { const [text] = React.useState(''); }
+  const boxRef = React.useRef(null);
+  ref = boxRef;
+  React.useEffect(() => { boxRef.current?.focus?.(); }, []);
+  return React.createElement('div', { ref: boxRef });
+}
+const root = createRoot(document.createElement('div'), { onUncaughtError: (e) => out.uncaught.push(e.message) });
+flushSync(() => root.render(React.createElement(Widget, { withTooltip: true })));
+flushSync(() => root.render(React.createElement(Widget, { withTooltip: false })));
+out.ref = ref;
+process.stdout.write(JSON.stringify(out));
+`;
+
+describe('«Проверь себя», задача H: хуков стало меньше', () => {
+  const run = (nodeEnv: string) =>
+    JSON.parse(
+      execFileSync(process.execPath, ['-e', HOOKS_RUNNER], {
+        cwd: process.cwd(),
+        env: { ...process.env, NODE_ENV: nodeEnv },
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }),
+    ) as { warn: string[]; uncaught: string[]; ref: unknown };
+
+  it('boxRef — пустая строка, рендер падает на useEffect в обеих сборках', () => {
+    for (const env of ['development', 'production']) {
+      const out = run(env);
+      expect(out.ref).toBe('');
+      expect(out.uncaught).toEqual(["Cannot read properties of undefined (reading 'length')"]);
+    }
+    expect(run('development').warn.some((m) => m.startsWith('React has detected a change in the order of Hooks'))).toBe(true);
+    const h = SELF_CHECK.find((q) => q.question.startsWith('**H.'))!;
+    expect(h.answer).toContain("TypeError: Cannot read properties of undefined (reading 'length')");
+    expect(h.answer).toContain('Rendered fewer hooks than expected');
+    expect(h.answer).not.toMatch(/исключения нет|ловит только случай/);
+  });
+
+  it('«Батчинг»: микрозадачу ставит processRootScheduleInMicrotask, flushSyncCallbacks в 19.3 нет', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { createRequire } = await import('node:module');
+    const bundle = readFileSync(createRequire(import.meta.url).resolve('react-dom/package.json').replace(/package\.json$/, 'cjs/react-dom-client.development.js'), 'utf8');
+    expect(bundle).toContain('function processRootScheduleInMicrotask');
+    expect(bundle).not.toContain('flushSyncCallbacks');
+    const mdx = readFileSync('src/content/frameworks/react-rerender/index.mdx', 'utf8');
+    expect(mdx).not.toContain('flushSyncCallbacks');
+    expect(mdx).toContain('`processRootScheduleInMicrotask`');
+  });
+});

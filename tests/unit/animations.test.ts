@@ -98,6 +98,9 @@ describe('занятый главный поток: композитор ⇔ э�
     expect(Object.keys(BLOCK).sort()).toEqual(Object.keys(t.STAND.block.moved).sort());
     expect(t.BLOCK_ROWS.map((r) => r.id).sort()).toEqual(Object.keys(t.STAND.block.moved).sort());
     expect(t.BLOCK_NOTE).toContain(`за секунду пришло ${t.STAND.block.framesDuring}`);
+    // Контроль после цикла: двигались все, кроме `clip-path` (точка замера ушла в отрезанную зону).
+    expect(t.BLOCK_NOTE).toContain('После цикла пошли и те, что стояли.');
+    expect(t.BLOCK_NOTE).not.toContain('пошли все');
   });
 
   it.each(Object.entries(BLOCK))('%s', (id, specs) => {

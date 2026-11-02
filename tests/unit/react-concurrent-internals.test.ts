@@ -2,6 +2,8 @@ import { createRequire } from 'node:module';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   DEFERRED_LOG,
+  LANES_NOTE,
+  LANES_TABLE,
   DEMO_SCENARIOS,
   INTERRUPT_LOG,
   MINI_LANES_CODE,
@@ -377,6 +379,28 @@ describe('стенд: React работает на подменённом пла�
       TransitionLane: 256,
       RetryLane: 4194304,
     });
+  });
+});
+
+describe('полосы useDeferredValue — свои, не полосы startTransition (вычитка 2026-10-30)', () => {
+  it('отложенный рендер useDeferredValue встаёт в 1 << 18 … 1 << 21, переход — в 1 << 8 … 1 << 17', async () => {
+    // react-dom 19.3: requestDeferredLane крутит nextTransitionDeferredLane по маске 3932160
+    // (биты 18–21), requestTransitionLane — по 261888 (биты 8–17); обе внутри TransitionLanes.
+    const react = await runReact(SCENARIO_DEFERRED);
+    const internal = (react.root as unknown as { _internalRoot: { pendingLanes: number } })._internalRoot;
+    react.fire('bump', 'discrete');
+    await microtasks();
+    expect(react.html()).toBe('<div><p>1</p><b>0</b></div>');
+    const lane = internal.pendingLanes;
+    expect(lane & (lane - 1)).toBe(0);
+    expect(lane).toBeGreaterThanOrEqual(1 << 18);
+    expect(lane).toBeLessThanOrEqual(1 << 21);
+    await settle();
+
+    const row = LANES_TABLE.rows.find((r) => r[0] === 'полосы переходов')!;
+    expect(row[1]).toBe('`1 << 8` … `1 << 21`');
+    expect(row[2]).toContain('`useDeferredValue` — свои четыре, `1 << 18` … `1 << 21`');
+    expect(LANES_NOTE).toContain('64 — полоса жестов');
   });
 });
 

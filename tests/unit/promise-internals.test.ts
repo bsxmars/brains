@@ -190,7 +190,7 @@ describe(`${pitfall('03').n} · ${pitfall('03').t}`, () => {
     await drain();
 
     expect(out, 'подписка была a → b, резолв b → a — вывод идёт за резолвом').toEqual(['b', 'a']);
-    expect(pitfall('03').d).toContain('Очередь микрозадач наполняют резолвы');
+    expect(pitfall('03').d).toContain('Очередь микрозадач пополняется в тот момент, когда промис получает результат');
   });
 });
 
@@ -596,6 +596,24 @@ describe('стек через `await` и протокол `for await`', () => {
     const [withAwait, withReturn] = JSON.parse(run.stdout) as [string, string];
     expect(withAwait).toContain('at async viaAwait');
     expect(withReturn).not.toContain('viaReturn');
+  });
+
+  it('`throw` (умолчание) роняет процесс, только если никто не слушает unhandledRejection', () => {
+    const code = "process.on('unhandledRejection', () => {}); Promise.reject(new Error('x')); setTimeout(() => console.log('жив'), 10);";
+    const withListener = spawnSync(process.execPath, ['-e', code], { encoding: 'utf8' });
+    expect(withListener.status, 'слушатель отключает падение').toBe(0);
+    expect(withListener.stdout.trim()).toBe('жив');
+    const strict = spawnSync(process.execPath, ['--unhandled-rejections=strict', '-e', code], { encoding: 'utf8' });
+    expect(strict.status, 'strict роняет и со слушателем').not.toBe(0);
+  });
+
+  it('внутри `try` отказ ловит только `return await p`', async () => {
+    const p = () => Promise.reject(new Error('упало'));
+    async function viaAwait() { try { return await p(); } catch { return 'поймали'; } }
+    async function viaReturn() { try { return p(); } catch { return 'поймали'; } }
+
+    await expect(viaAwait()).resolves.toBe('поймали');
+    await expect(viaReturn(), 'функция вышла из try раньше, чем пришёл отказ').rejects.toThrow('упало');
   });
 
   it('`for await` ждёт тело до следующего `next()`, а `break` зовёт `return()`', async () => {

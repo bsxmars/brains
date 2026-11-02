@@ -7,6 +7,10 @@ import type { NsModeInfo, NsParams } from '@/widgets/ns-tick-lab/model/types';
  * ── Что чем проверено ────────────────────────────────────────────────────────────────
  *
  * Всё — запуском на Node 26.8.2, детерминированно: ни таймеров, ни замеров времени.
+ * На Node 24.11 модель расходится с `node:stream` в одном месте — `pause()` у разрушенного
+ * стрима (в Node 24 нет ранней проверки `destroyed`, конец `pipe` даёт лишнее `'pause'`).
+ * Это сказано комментарием в самой модели; тест на Node 24 снимает эту строку из модели
+ * и требует совпадения кадров на всех 216 сочетаниях (снято 2026-11-02, официальная сборка).
  * «Следующий тик» в примерах — `setImmediate`, то есть «доиграла очередь `nextTick`
  * и микрозадачи», а не миллисекунды.
  *
@@ -693,6 +697,8 @@ class Readable extends Emitter {
 
   pause() {
     const s = this._readableState
+    // Так в Node 26. В Node 24 этой проверки нет, и в конце pipe приходит ещё 'pause':
+    // unpipe зовёт pause() у уже разрушенного источника, readableFlowing становится false.
     if (s.destroyed) return this
     if (s.flowing !== false) { s.flowing = false; this.emit('pause') }
     return this

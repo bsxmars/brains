@@ -218,6 +218,29 @@ describe('раздел «Ранний выход»', () => {
 });
 
 describe('числа и ссылки текста', () => {
+  it('PREREQ «Промис и then»: у выполненного промиса then ставит реакцию сразу', async () => {
+    const log: string[] = [];
+    Promise.resolve(1).then(() => log.push('реакция выполненного'));
+    Promise.resolve().then(() => log.push('следующая'));
+    await null;
+    await null;
+    expect(log).toEqual(['реакция выполненного', 'следующая']);
+    const card = t.PREREQ.find((p) => p.t === 'Промис и `then`')!;
+    expect(card.d).not.toContain('не ставит ничего в очередь сразу');
+    expect(card.d).toContain('у уже выполненного — сразу');
+  });
+
+  it('PROTOCOL_ROWS «кто обходит»: асинхронный итератор обходит не только for await — есть Array.fromAsync', async () => {
+    async function* ag() {
+      yield 1;
+      yield 2;
+    }
+    expect(await Array.fromAsync(ag())).toEqual([1, 2]);
+    const row = t.PROTOCOL_ROWS.find((r) => r.k === 'кто обходит')!;
+    expect(row.async).not.toContain('только');
+    expect(row.async).toContain('Array.fromAsync');
+  });
+
   it('в сценариях столько же строк линейки, сколько в DRIVER_CODE', () => {
     for (const log of Object.values(t.SCENARIO_LOGS)) {
       expect(log.filter((l) => l.startsWith('тик '))).toEqual(['тик 1', 'тик 2', 'тик 3']);

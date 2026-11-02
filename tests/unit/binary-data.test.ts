@@ -344,6 +344,28 @@ describe('утверждения текста закрыты проверкам�
     expect(t.IHDR_ROWS.map((r) => Number(r.v.match(/`(\d+)`/)![1]))).toEqual(vals);
   });
 
+  it('TRANSFER_NOTE: буфер памяти Wasm при росте отсоединяется, он не растущий', () => {
+    const memory = new WebAssembly.Memory({ initial: 1, maximum: 2 });
+    const before = memory.buffer;
+    expect(before.resizable).toBe(false);
+    memory.grow(1);
+    expect(before.detached).toBe(true);
+    expect(t.TRANSFER_NOTE).toContain('при росте отсоединяется');
+    expect(t.TRANSFER_NOTE).not.toContain('Свой растущий буфер есть и у памяти WebAssembly');
+  });
+
+  it('CRC_TABLE: 256 элементов по 4 байта, а не 256 байт', () => {
+    expect(new Uint32Array(256).byteLength).toBe(1024);
+    expect(t.PNG_CODE).toContain('Таблица на все 256 значений байта');
+    expect(t.PNG_CODE).toContain('new Uint32Array(256)');
+  });
+
+  it('summary: Uint32Array ошибается одинаково на x86 и ARM, а не на любой машине', () => {
+    const summary = readFileSync(new URL('../../src/content/lessons/binary-data/summary.md', import.meta.url), 'utf8');
+    expect(summary).toContain('на любой x86- и ARM-машине');
+    expect(t.PITFALLS.find((p) => p.n === '02')!.d).toContain('На любом x86 и ARM');
+  });
+
   it('CHUNK_FACTS: 36 байт сжатых пикселей — 30 и 6', () => {
     const idat = png.parsePng(PNG).chunks.filter((c) => c.type === 'IDAT');
     expect(idat.reduce((s, c) => s + c.length, 0)).toBe(36);

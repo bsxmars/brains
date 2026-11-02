@@ -565,8 +565,9 @@ lead="**React отвечает на вопрос «что теперь долж�
 
       Батчинг **автоматический везде**: в промисах, в `setTimeout`, в нативных слушателях,
       где угодно. `setState` не рендерит сам. Он помечает корень дерева и вызывает
-      `ensureRootIsScheduled`. Для срочной полосы (`SyncLane`) та планирует **микрозадачу**
-      `flushSyncCallbacks`, для остальных — обычную задачу через Scheduler, планировщик React.
+      `ensureRootIsScheduled`. Та ставит одну **микрозадачу** `processRootScheduleInMicrotask`:
+      срочную полосу (`SyncLane`) она рендерит прямо в ней, для остальных заказывает обычную
+      задачу через Scheduler, планировщик React.
 
       <CardNote tone="ok">
 

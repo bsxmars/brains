@@ -327,6 +327,20 @@ describe('MessageFormat 2 и библиотеки первой версии', ()
     expect(() => new IntlMessageFormat(short, 'ru')).toThrow(/MALFORMED_ARGUMENT/);
     expect(String(new MessageFormat('ru').compile(short)({ n: 1 }))).toBe('.input {$n :number} .match $n one {undefined} * {undefined}');
   });
+
+  it('MF2 не «нечем исполнять»: есть пакет `messageformat` 4 (вычитка 2026-10-30)', () => {
+    // MF2_CODE сверен вне проекта с messageformat 4.0.0 (Node 24.11): 21 → «21 новое сообщение».
+    // Пакет в проект не ставится — тест сторожит формулировку в разделе «MessageFormat 2».
+    const mdx = readFileSync('src/content/frameworks/i18n/index.mdx', 'utf8');
+    const summary = readFileSync('src/content/frameworks/i18n/summary.md', 'utf8');
+    for (const text of [mdx, summary, t.MF2_FACTS.map((f) => f.d).join('\n')]) {
+      expect(text).not.toMatch(/ни популярные библиотеки|пока нечем исполнять|Исполнять её пока нечем/);
+    }
+    expect(mdx).toContain('из библиотек её понимает `messageformat` 4');
+    expect(t.MF2_FACTS[1].d).toContain('`messageformat` 4');
+    expect(t.MF2_FACTS[1].d).toContain('«21 новое сообщение»');
+    expect(new IntlMessageFormat('{n, plural, one {# новое} other {# новых}}', 'ru').format({ n: 21 })).toBe('21 новое');
+  });
 });
 
 describe('vue-i18n 11', () => {

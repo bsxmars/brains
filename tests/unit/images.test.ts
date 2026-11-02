@@ -280,3 +280,32 @@ describe('lazy, LCP, место под картинку — согласован
     for (const x of t.RATIO_ROWS) if (x.before.split(' ')[0] === x.after.split(' ')[0]) expect(x.cls, x.k).toBe('0');
   });
 });
+
+describe('PICTURE_CODE: первый подошедший <source>', () => {
+  // Прогон в Chromium 153 (шапка data.ts): 375 → sq-600.jpg, 800 → p-800.avif.
+  const pick = (viewport: number, types: string[]) => {
+    for (const m of t.PICTURE_CODE.matchAll(/<source([^>]*)>/g)) {
+      const a = m[1];
+      const type = /type="([^"]+)"/.exec(a)?.[1];
+      const max = /media="\(max-width: (\d+)px\)"/.exec(a)?.[1];
+      if (type && !types.includes(type)) continue;
+      if (max && viewport > Number(max)) continue;
+      return /srcset="([^"]+)"/.exec(a)![1];
+    }
+    return /<img[^>]*src="([^"]+)"/.exec(t.PICTURE_CODE)![1];
+  };
+  const chromium = ['image/avif', 'image/webp'];
+
+  it('узкий экран получает кадр из source media', () => {
+    expect(pick(375, chromium)).toBe('sq-600.jpg');
+  });
+  it('широкий — формат', () => {
+    expect(pick(800, chromium)).toBe('p-800.avif');
+    expect(pick(800, ['image/webp'])).toBe('p-800.webp');
+    expect(pick(800, [])).toBe('p-800.jpg');
+  });
+  it('каждый source с media стоит выше source без media', () => {
+    const attrs = [...t.PICTURE_CODE.matchAll(/<source([^>]*)>/g)].map((m) => m[1].includes('media='));
+    expect(attrs.lastIndexOf(true)).toBeLessThan(attrs.indexOf(false));
+  });
+});

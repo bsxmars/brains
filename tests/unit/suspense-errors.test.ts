@@ -374,6 +374,34 @@ describe('TRANSITION_CODE: обычное обновление против пе
     const { shown } = await run('Переходом');
     expect(shown).toEqual([['Ада'], ['Обновляем…', 'Ада'], ['Грейс']]);
   });
+
+  it('PITFALLS 07: спрятанное живёт, useEffect не перезапускается, useLayoutEffect — снят и вызван заново', async () => {
+    withAct(true);
+    const log: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    function Child() {
+      React.useEffect(() => (log.push('effect'), () => void log.push('effect cleanup')), []);
+      React.useLayoutEffect(() => (log.push('layout'), () => void log.push('layout cleanup')), []);
+      return h('p', null, 'child');
+    }
+    function Slow({ id }: { id: number }) {
+      if (id === 2) React.use(gate);
+      return h('p', null, `id ${id}`);
+    }
+    const App = ({ id }: { id: number }) => h(React.Suspense, { fallback: h('i', null, 'fb') }, h(Child), h(Slow, { id }));
+    const root = createRoot(container());
+    await act(async () => root.render(h(App, { id: 1 })));
+    log.push('|');
+    await act(async () => root.render(h(App, { id: 2 })));
+    log.push('|');
+    await act(async () => { release(); await gate; });
+    root.unmount();
+    expect(log.slice(0, log.lastIndexOf('|') + 2)).toEqual(['layout', 'effect', '|', 'layout cleanup', '|', 'layout']);
+    const pitfall = t.PITFALLS.find((p) => p.n === '07')!;
+    expect(pitfall.d).not.toContain('эффекты не перезапускаются');
+    expect(pitfall.d).toContain('`useLayoutEffect` — перезапускается');
+  });
 });
 
 // ─── Раздел 5. Граница ошибок ──────────────────────────────────────────────────────────────

@@ -33,6 +33,8 @@ import type { ImageFile, Scenario, StandPick } from '@/widgets/srcset-lab/model/
  *     парсер качает свой выбор, а элемент берёт файл из кеша» повторён 3 раза из 3, и для
  *     сравнения — та же картинка, вставленная скриптом, без запроса (3/3);
  *   — `<picture>` (`PICTURE_ROWS`) — запрошенный файл, `currentSrc` и заголовок `Accept`;
+ *     сам `PICTURE_CODE` прогнан там же (2026-10-29): viewport 375 — `sq-600.jpg`, 800 — `p-800.avif`;
+ *     в прежнем порядке (avif и webp выше `source media`) на обоих — `p-800.avif`, кадр не выбирался;
  *   — `loading="lazy"` (`LAZY_ROWS`): двоичный поиск расстояния, с которого запрос перестаёт
  *     уходить за 0.7 с после `load`. Тип сети — `navigator.connection.effectiveType`:
  *     по умолчанию в headless `4g`; `3g`, `2g`, `slow-2g` получены троттлингом DevTools
@@ -296,11 +298,12 @@ export const CACHE_NOTE =
 // ─── Раздел 3. picture ────────────────────────────────────────────────────────────────────
 
 export const PICTURE_CODE = `<picture>
+  <!-- Кадр: на узком экране — другая картинка и другие пропорции.
+       Стоит первым: ниже source без media подходит на любом экране -->
+  <source media="(max-width: 599px)" srcset="sq-600.jpg" width="600" height="600">
   <!-- Формат: первый source, чей type браузер понимает -->
   <source type="image/avif" srcset="p-800.avif">
   <source type="image/webp" srcset="p-800.webp">
-  <!-- Кадр: на узком экране — другая картинка и другие пропорции -->
-  <source media="(max-width: 599px)" srcset="sq-600.jpg" width="600" height="600">
   <img src="p-800.jpg" width="1200" height="800" alt="Холмы">
 </picture>`;
 

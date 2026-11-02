@@ -29,6 +29,7 @@ Claude Design **без смены вида**), «Браузер и рендер�
 | Поддержка планировщика в трёх движках совпадает с текстом темы | `tests/e2e/task-scheduling-engines.spec.ts` (нужны бинари Firefox и WebKit) |
 | Демо и снимок трёх движков в «Трёх движках» отвечают одинаково | `tests/e2e/browser-engines.spec.ts` (три движка; `userAgent` — в отдельном процессе, см. `docs/agents/content-fixes.md`) |
 | Слепые зоны фронта с куками не «починились» молча | `tests/e2e/security-cookies.spec.ts` |
+| Граница необработанного отказа в браузере совпадает с «Промисом изнутри» | `tests/e2e/promise-rejection-browser.spec.ts` |
 | React не утёк на страницы, где он не нужен | `tests/e2e/weight.spec.ts` |
 | Пейджер не ведёт не туда на краях курса | `tests/unit/neighbours.test.ts` |
 | Оси графиков считают верно | `tests/unit/chart.test.ts` |

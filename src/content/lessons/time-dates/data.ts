@@ -8,24 +8,32 @@ import type { TzScenario, ZoneTable } from '@/widgets/tz-lab/model/types';
  *
  * ── Стенд ─────────────────────────────────────────────────────────────────────────────────
  * Node **24.11.0** (V8 13.6, ICU 77.1, tzdata **2025b**) — основной; Node **26.8.2** (V8 14.6,
- * ICU 78.3, tzdata **2026a**) — для сравнения баз поясов; `temporal-polyfill` **1.0.5** из
- * `node_modules` проекта; Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63),
+ * ICU 78.3, tzdata **2026c**, официальная сборка nodejs.org) — для сравнения баз поясов
+ * и встроенного Temporal; `temporal-polyfill` **1.0.5** из `node_modules` проекта; Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63),
  * macOS, октябрь 2026.
  *
  * Как снято:
  *   — `Date` в разных поясах — **отдельными процессами** Node с переменной окружения `TZ=…`
  *     (поясом процесса JS управлять не может: он читается при старте). В браузерах — контекст
  *     Playwright с `timezoneId`. Одни и те же выражения, один и тот же зонд;
- *   — Temporal — полифил в Node 24 и встроенный `Temporal` в Chromium 153: все четыре значения
+ *   — Temporal — полифил в Node 24 и встроенный `Temporal` в Chromium 153 и Node 26: все четыре значения
  *     `disambiguation` на одиннадцати случаях (Берлин, Нью-Йорк, Лорд-Хау, Москва 2011 и 2014,
  *     Кишинёв, Калькутта), `add`, `until`, `hoursInDay`, опция `offset`. Ответы полифила
- *     и Chromium совпали строка в строку;
+ *     и Chromium совпали строка в строку. В Node 26 `import { Temporal } from 'temporal-polyfill'`
+ *     отдаёт встроенный объект (полифил уступает место родному), поэтому тот же тест на Node 26
+ *     проверяет уже встроенный Temporal — и он отвечает так же;
  *   — таблицы переходов зон (`ZONE_TABLES`) — `getTimeZoneTransition('next')` полифила;
  *     полифил берёт правила зон из `Intl` той среды, где запущен, то есть из её ICU;
- *   — базы поясов Node 24 и 26 сравнены целиком: смещение всех 418 зон каждые 6 часов
- *     с 2010 по 2027 год. Расхождение в правилах одно — `Europe/Chisinau` (время перехода
- *     с 2022 года); остальные различия — только текст: ICU 77 печатает нулевое смещение
- *     как `GMT`, ICU 78 и Chromium 153 — как `GMT+00:00`;
+ *   — базы поясов Node 24 (2025b) и 26 (2026c) сравнены целиком: смещение всех 418 зон каждые
+ *     6 часов с 2010 по 2027 год. Прошлое переписано в одной зоне — `Europe/Chisinau` (время
+ *     перехода с 2022 года, исправлено в 2026a). Ещё четыре зоны расходятся только в будущем
+ *     от даты релизов: `America/Vancouver` и `America/Edmonton` с 1 ноября 2026 остаются
+ *     на летнем времени, `Africa/Casablanca` и `Africa/El_Aaiun` с 20 сентября 2026 — на `+00:00`
+ *     (в 2026c, в 2026a этого ещё нет). Остальные различия — только текст: ICU 77 печатает
+ *     нулевое смещение как `GMT`, ICU 78 и Chromium 153 — как `GMT+00:00`;
+ *   — tzdata 2026a — Node 26.8.2 из Homebrew (собран с ICU из Homebrew, база 2026a, и без
+ *     Temporal). Это не эталон курса; по нему пересобраны только таблицы `ZONE_TABLES`,
+ *     и строки помечены версией базы, а не версией Node;
  *   — разбор строк `'2026-02-30'`, `'2026-3-29'`, `'2026-03-29 00:00'` и поведение `Date`
  *     в разрыве и повторе — в трёх движках с `timezoneId: 'Europe/Berlin'`: переходы
  *     у всех трёх одинаковы, `'2026-02-30'` Chromium и Firefox превращают во 2 марта,
@@ -40,8 +48,8 @@ import type { TzScenario, ZoneTable } from '@/widgets/tz-lab/model/types';
  * Пересобирается `tests/unit/time-dates.test.ts`: таблицы выражений исполняются в процессах
  * с нужным `TZ`, примеры кода — те же строки, что напечатаны; Temporal-таблицы — полифилом;
  * `LOCAL_TO_UTC_CODE` сверяется с полифилом и с `Date` на моментах вокруг каждого перехода
- * из `ZONE_TABLES`. Колонки Chromium/Firefox/WebKit и Node 26 — снимок стенда, тест их
- * не повторяет (кроме строк, совпадающих с Node 24).
+ * из `ZONE_TABLES`. Колонки Chromium/Firefox/WebKit — снимок стенда; строки Node 26 тест
+ * сверяет, когда сам запущен на Node 26.8.2.
  */
 
 /** Строка выражения для таблиц: что набрать, что выйдет, почему. `tz` — пояс процесса. */
@@ -323,13 +331,13 @@ export const ZONE_ROWS: { zone: string; offsets: string; what: string; tone?: 'w
   { zone: 'Asia/Kolkata', offsets: '`+05:30`', what: 'Получасовое смещение, летнего времени нет с 1945 года. `resolvedOptions().timeZone` в Node 24 и Chromium 153 называет её старым именем — `Asia/Calcutta`.' },
   { zone: 'Asia/Kathmandu', offsets: '`+05:45`', what: 'До 1986 года было `+05:30`. В новогоднюю ночь 1986 года часы сдвинули на 15 минут — полуночи 1 января не было.', tone: 'warn' },
   { zone: 'Australia/Lord_Howe', offsets: '`+10:30` / `+11:00`', what: 'Летнее время на полчаса: переводят на 30 минут.' },
-  { zone: 'Europe/Chisinau', offsets: '`+02:00` / `+03:00`', what: 'Время перехода в базе исправили: в tzdata 2025b Молдова переводит часы в 00:00 по UTC, в 2026a — с 2022 года в 01:00 по UTC, как ЕС.', tone: 'err' },
+  { zone: 'Europe/Chisinau', offsets: '`+02:00` / `+03:00`', what: 'Время перехода в базе исправили: в tzdata 2025b Молдова переводит часы в 00:00 по UTC, начиная с 2026a — с 2022 года в 01:00 по UTC, как ЕС.', tone: 'err' },
 ];
 
 /** Что знает среда о своей базе. Снимок стенда; тест сверяет строку той версии Node, где запущен. */
 export const RUNTIME_ROWS: { env: string; icu: string; tz: string; temporal: string }[] = [
   { env: 'Node 24.11.0', icu: '77.1', tz: '2025b', temporal: 'нет; под флагом `--harmony-temporal` — старый черновик с классами `TimeZone` и `Calendar`, которых в стандарте уже нет' },
-  { env: 'Node 26.8.2', icu: '78.3', tz: '2026a', temporal: 'нет, и с флагом тоже' },
+  { env: 'Node 26.8.2', icu: '78.3', tz: '2026c', temporal: 'есть, встроенный, без флага' },
   { env: 'Chromium 153', icu: 'из JS не видно', tz: 'из JS не видно; Кишинёв — по правилам 2025b', temporal: 'есть, встроенный' },
   { env: 'Firefox 155, WebKit 26.6', icu: '—', tz: '—', temporal: 'есть, встроенный' },
 ];
@@ -341,17 +349,17 @@ export const VERSIONS_CODE = `// Node: версии ICU и базы поясов
 // Браузер такого не сообщает; зато в любой среде видно, какие зоны она знает
 Intl.supportedValuesOf('timeZone').length;   // 418 — в Node 24, 26 и Chromium 153`;
 
-/** Один вызов — два ответа. Строки снимка: Node 24.11 и Node 26.8 с `TZ=Europe/Chisinau`. */
+/** Один вызов — два ответа. Строки снимка: Node 24.11 и Node 26.8 с `TZ=Europe/Chisinau`; тест сверяет строку своей tzdata. */
 export const CHISINAU_CODE = `// TZ=Europe/Chisinau
 new Date(2026, 2, 29, 3, 30).toISOString();   // 29 марта 2026, 03:30 на часах`;
 
 export const CHISINAU_OUT: { env: string; tz: string; out: string; why: string }[] = [
   { env: 'Node 24.11.0', tz: '2025b', out: "'2026-03-29T00:30:00.000Z'", why: 'переход в 02:00 местного, 03:30 уже летнее, `+03:00`' },
-  { env: 'Node 26.8.2', tz: '2026a', out: "'2026-03-29T01:30:00.000Z'", why: 'переход в 03:00 местного: 03:30 попало в разрыв, на часах 04:30' },
+  { env: 'Node 26.8.2', tz: '2026c', out: "'2026-03-29T01:30:00.000Z'", why: 'переход в 03:00 местного: 03:30 попало в разрыв, на часах 04:30' },
 ];
 
 export const CHISINAU_NOTE =
-  'Один и тот же код, одна и та же зона — ответы расходятся на час. Ни одна из версий не сломана: базу исправили между релизами 2025b и 2026a, и исправление задело не только будущее, но и прошедшие с 2022 года переходы. Отсюда два следствия. Сервер и браузер могут жить с разными базами и разойтись во времени, которое оба «правильно» посчитали. А момент, сохранённый как время на часах, при смене базы может сменить смысл; момент в UTC — нет.';
+  'Один и тот же код, одна и та же зона — ответы расходятся на час. Ни одна из версий не сломана: базу исправили в релизе 2026a, и исправление задело не только будущее, но и прошедшие с 2022 года переходы. Кишинёв не один: по базе 2026c Ванкувер и Эдмонтон с 1 ноября 2026 остались на летнем времени, а Касабланка с 20 сентября 2026 живёт на `+00:00` — Node 24 с базой 2025b показывает там время на час не то. Отсюда два следствия. Сервер и браузер могут жить с разными базами и разойтись во времени, которое оба «правильно» посчитали. А момент, сохранённый как время на часах, при смене базы может сменить смысл; момент в UTC — нет.';
 
 export const TZ_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = [
   {
@@ -430,7 +438,7 @@ export const OFFSET_ROWS: { mode: string; out: string; what: string }[] = [
 ];
 
 export const OFFSET_NOTE =
-  'Смещение в строке `ZonedDateTime` — не украшение, а проверка. Строку `2026-03-29T02:30:00+02:00[Europe/Chisinau]` записал Node 26 по базе 2026a. Node 24 с полифилом и Chromium 153 по своей базе считают 02:30 того дня несуществующим — и `from` бросает `RangeError`, вместо того чтобы молча переехать на час. С `{ offset: \'use\' }` сохраняется записанный момент.';
+  'Смещение в строке `ZonedDateTime` — не украшение, а проверка. Строку `2026-03-29T02:30:00+02:00[Europe/Chisinau]` записал Node 26 по базе 2026c. Node 24 с полифилом и Chromium 153 по своей базе считают 02:30 того дня несуществующим — и `from` бросает `RangeError`, вместо того чтобы молча переехать на час. С `{ offset: \'use\' }` сохраняется записанный момент.';
 
 export const TEMPORAL_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = [
   {
@@ -453,7 +461,7 @@ export const TEMPORAL_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] =
   },
   {
     t: 'Мост к `Date`',
-    d: '`Temporal.Instant.fromEpochMilliseconds(date.getTime())` в одну сторону, `new Date(instant.epochMilliseconds)` — в другую. В Chromium 153 у `Date` уже есть метод `toTemporalInstant()`; полифил добавляет его только при импорте `temporal-polyfill/global`.',
+    d: '`Temporal.Instant.fromEpochMilliseconds(date.getTime())` в одну сторону, `new Date(instant.epochMilliseconds)` — в другую. В Chromium 153 и Node 26 у `Date` уже есть встроенный метод `toTemporalInstant()`. Полифил добавляет его только при импорте `temporal-polyfill/global` и только там, где встроенного Temporal нет.',
   },
   {
     t: 'JSON',
@@ -462,7 +470,7 @@ export const TEMPORAL_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] =
 ];
 
 export const SUPPORT_NOTE =
-  'Где Temporal есть: на стенде встроенный объект нашёлся в Chromium 153, Firefox 155 и WebKit 26.6, а в Node его нет ни в 24.11, ни в 26.8. В средах старше этих — по таблицам совместимости MDN и caniuse. Там, где его нет, работает `temporal-polyfill`: 57 КБ после минификации, 20 КБ в gzip. Правила зон полифил не везёт с собой — берёт из `Intl` той среды, где запущен, поэтому и базу поясов, и её версию он наследует от неё.';
+  'Где Temporal есть: на стенде встроенный объект нашёлся в Chromium 153, Firefox 155, WebKit 26.6 и Node 26.8 — без флага. В Node 24.11 его нет. В средах старше этих — по таблицам совместимости MDN и caniuse. Там, где его нет, работает `temporal-polyfill`: 57 КБ после минификации, 20 КБ в gzip. Где встроенный есть, `import { Temporal } from \'temporal-polyfill\'` отдаёт его, а не свою реализацию. Правила зон полифил не везёт с собой — берёт из `Intl` той среды, где запущен, поэтому и базу поясов, и её версию он наследует от неё.';
 
 // ─── Раздел 7. Местное время → UTC своими руками ───────────────────────────────────────────
 
@@ -539,13 +547,16 @@ export const CALL_OUT = ['2026-03-29T01:30:00.000Z', '2026-03-29T00:30:00.000Z']
 const at = (iso: string) => Date.parse(iso);
 
 /**
- * Таблицы переходов, сняты полифилом (`getTimeZoneTransition`). Тест пересобирает каждую
- * на её отрезке и сверяет; таблицу с другой версией tzdata, чем у процесса, пропускает.
+ * Таблицы переходов, сняты полифилом (`getTimeZoneTransition`). `tzdata` — версии базы, по
+ * которым таблица пересобрана и совпала: 2025b (Node 24.11), 2026c (Node 26.8.2 с nodejs.org,
+ * встроенный Temporal) и 2026a (Node 26.8.2 из Homebrew — только как носитель этой базы). Тест
+ * пересобирает каждую на её отрезке и сверяет; таблицу без версии процесса пропускает.
+ * Разошёлся только Кишинёв: начиная с 2026a он переводит часы в 01:00 UTC, а не в 00:00.
  */
 export const ZONE_TABLES: Record<string, ZoneTable> = {
   berlin: {
     zone: 'Europe/Berlin',
-    tzdata: '2025b',
+    tzdata: ['2025b', '2026a', '2026c'],
     transitions: [
       { at: at('2026-03-29T01:00Z'), before: 60, after: 120 },
       { at: at('2026-10-25T01:00Z'), before: 120, after: 60 },
@@ -553,7 +564,7 @@ export const ZONE_TABLES: Record<string, ZoneTable> = {
   },
   newYork: {
     zone: 'America/New_York',
-    tzdata: '2025b',
+    tzdata: ['2025b', '2026a', '2026c'],
     transitions: [
       { at: at('2026-03-08T07:00Z'), before: -300, after: -240 },
       { at: at('2026-11-01T06:00Z'), before: -240, after: -300 },
@@ -561,7 +572,7 @@ export const ZONE_TABLES: Record<string, ZoneTable> = {
   },
   lordHowe: {
     zone: 'Australia/Lord_Howe',
-    tzdata: '2025b',
+    tzdata: ['2025b', '2026a', '2026c'],
     transitions: [
       { at: at('2026-04-04T15:00Z'), before: 660, after: 630 },
       { at: at('2026-10-03T15:30Z'), before: 630, after: 660 },
@@ -569,12 +580,12 @@ export const ZONE_TABLES: Record<string, ZoneTable> = {
   },
   kathmandu: {
     zone: 'Asia/Kathmandu',
-    tzdata: '2025b',
+    tzdata: ['2025b', '2026a', '2026c'],
     transitions: [{ at: at('1985-12-31T18:30Z'), before: 330, after: 345 }],
   },
   moscow: {
     zone: 'Europe/Moscow',
-    tzdata: '2025b',
+    tzdata: ['2025b', '2026a', '2026c'],
     transitions: [
       { at: at('2010-10-30T23:00Z'), before: 240, after: 180 },
       { at: at('2011-03-26T23:00Z'), before: 180, after: 240 },
@@ -583,7 +594,7 @@ export const ZONE_TABLES: Record<string, ZoneTable> = {
   },
   chisinauOld: {
     zone: 'Europe/Chisinau',
-    tzdata: '2025b',
+    tzdata: ['2025b'],
     transitions: [
       { at: at('2026-03-29T00:00Z'), before: 120, after: 180 },
       { at: at('2026-10-25T00:00Z'), before: 180, after: 120 },
@@ -591,7 +602,7 @@ export const ZONE_TABLES: Record<string, ZoneTable> = {
   },
   chisinauNew: {
     zone: 'Europe/Chisinau',
-    tzdata: '2026a',
+    tzdata: ['2026a', '2026c'],
     transitions: [
       { at: at('2026-03-29T01:00Z'), before: 120, after: 180 },
       { at: at('2026-10-25T01:00Z'), before: 180, after: 120 },
@@ -665,12 +676,12 @@ export const DEMO_SCENARIOS: TzScenario[] = [
   },
   {
     id: 'chisinau-2026a',
-    label: 'Кишинёв, tzdata 2026a',
+    label: 'Кишинёв, tzdata 2026c',
     table: ZONE_TABLES.chisinauNew,
     focus: 0,
     step: 15,
     around: 60,
-    note: 'Тот же день по базе 2026a (Node 26.8): разрыв с 03:00 до 03:59. Теперь 02:30 существует, а 03:30 — нет.',
+    note: 'Тот же день по базе 2026c (Node 26.8; правило исправлено в 2026a): разрыв с 03:00 до 03:59. Теперь 02:30 существует, а 03:30 — нет.',
   },
 ];
 
@@ -725,7 +736,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '08',
     t: 'У каждой среды своя база поясов',
-    d: 'Node 24.11 (tzdata 2025b) и Node 26.8 (2026a) переводят 03:30 29 марта 2026 в Кишинёве в моменты, отличающиеся на час. Версию базы в Node показывает `process.versions.tz`; браузер её не сообщает.',
+    d: 'Node 24.11 (tzdata 2025b) и Node 26.8 (2026c) переводят 03:30 29 марта 2026 в Кишинёве в моменты, отличающиеся на час. Версию базы в Node показывает `process.versions.tz`; браузер её не сообщает.',
     tone: 'err',
   },
   {

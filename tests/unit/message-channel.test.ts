@@ -11,8 +11,14 @@ import {
 } from 'node:worker_threads';
 import { describe, expect, it } from 'vitest';
 import {
+  BASICS_CHANNEL_CODE,
+  BASICS_CHANNEL_OUT,
+  BASICS_PAGE_CODE,
+  BASICS_WORKER_CODE,
+  BASICS_WORKER_OUT,
   NODE_ROWS,
   PITFALLS,
+  SCHEDULER_CODE,
   PORT_LINES,
   SHARED_FACTS,
   SHARED_PAGE_CODE,
@@ -205,7 +211,7 @@ describe('очередь порта: буфер до включения ниче
    */
   it('в Node `addEventListener` сам стартует порт — ни одного вызова `start()`', async () => {
     const row = nodeRow('addEventListener без start()');
-    expect(row.node, 'таблица обещает авто-start').toContain('авто-start');
+    expect(row.node, 'таблица обещает авто-start').toContain('сама запускает порт');
 
     const got = await withChannel(async ({ port1, port2 }) => {
       port2.postMessage('до подписки');
@@ -227,7 +233,7 @@ describe('очередь порта: буфер до включения ниче
   });
 
   it("`port.on('message')` — тоже авто-start, как и обещает таблица", async () => {
-    expect(nodeRow("port.on('message')").node).toContain('авто-start');
+    expect(nodeRow("port.on('message')").node).toContain('сама запускает порт');
 
     const got = await withChannel(({ port1, port2 }) => {
       port2.postMessage('эмиттером');
@@ -298,7 +304,7 @@ describe('отсутствие ошибки ничего не доказывае
    * в detached, отправка по ней не делает ничего — и не жалуется.
    */
   it('`postMessage` в отсоединённый порт — тоже тишина', async () => {
-    expect(PORT_LINES.detachedOk.text).toContain('Проверено в Node 24.11: исключения нет');
+    expect(PORT_LINES.detachedOk.text).toContain('молча ничего не происходит');
 
     await withChannel(async (carrier) => {
       const inner = new MessageChannel();
@@ -903,9 +909,7 @@ describe('Node против браузера — правая колонка т�
    */
   it("`close()` одной стороны поднимает событие 'close' на напарнике", async () => {
     expect(nodeRow('событие close').node).toBe('есть');
-    expect(nodeRow('событие close').browser, 'про браузер тема говорит осторожно').toContain(
-      'неполная',
-    );
+    expect(nodeRow('событие close').browser, 'в Chromium и Firefox события нет').toContain('нет');
     expect(pitfall('01').d, 'и тонкое место повторяет это').toContain('в Node есть');
 
     const channel = new MessageChannel();
@@ -934,7 +938,7 @@ describe('Node против браузера — правая колонка т�
    * ⚠️ Это и есть та самая утечка из раздела 5, только в её наблюдаемой форме.
    */
   it('слушающий порт не даёт процессу выйти, а `unref()` даёт', () => {
-    expect(nodeRow('держит ли порт рантайм').node).toContain('unref');
+    expect(nodeRow('не даёт ли процессу завершиться').node).toContain('unref');
 
     const script = (unref: boolean) =>
       [
@@ -1036,7 +1040,7 @@ describe('браузерная половина: чего в Node нет и по
     // В браузере этот же вызов очередь НЕ включает. В Node такого состояния не получить:
     // порт стартует сам, и «тишины без start()» здесь не воспроизвести ни одним способом.
     expect(nodeRow('addEventListener без start()').browser).toBe('НЕ доставляет');
-    expect(nodeRow('addEventListener без start()').node).toContain('авто-start');
+    expect(nodeRow('addEventListener без start()').node).toContain('сама запускает порт');
     expect(PORT_LINES.listen.text, 'песочница честно разводит две среды').toContain('в БРАУЗЕРЕ');
   });
 
@@ -1158,5 +1162,74 @@ describe('`SharedWorker`: листинги раздела «Применение
     const leave = SHARED_FACTS.find((f) => f.t.includes('уходе вкладки'));
     expect(leave?.d).toContain('pagehide');
     expect(SHARED_PAGE_CODE).toContain("'pagehide'");
+  });
+});
+
+describe('планировщик на сообщениях порта (SCHEDULER_CODE)', () => {
+  it('выполняет всю очередь, а повторные schedule() склеиваются в одно сообщение', async () => {
+    const make = new Function(`${SCHEDULER_CODE}\nreturn { queue, schedule, channel };`) as () => {
+      queue: (() => void)[];
+      schedule: () => void;
+      channel: MessageChannel;
+    };
+    const { queue, schedule, channel } = make();
+    const done: number[] = [];
+    let posts = 0;
+    const post = channel.port2.postMessage.bind(channel.port2);
+    channel.port2.postMessage = (m: unknown) => {
+      posts += 1;
+      post(m);
+    };
+    try {
+      for (let i = 0; i < 10; i++) {
+        queue.push(() => done.push(i));
+        schedule();
+      }
+      await new Promise((r) => setTimeout(r, 50));
+      expect(done).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      expect(posts, 'десять schedule() подряд — одно сообщение').toBe(1);
+    } finally {
+      channel.port1.close();
+    }
+  });
+});
+
+describe('«Основа»: листинги до теории выполняются как написано', () => {
+  it('канал внутри страницы печатает ровно `BASICS_CHANNEL_OUT`, а `close()` отпускает процесс', () => {
+    const run = runInNode(BASICS_CHANNEL_CODE);
+    expect(run.stdout).toBe(BASICS_CHANNEL_OUT);
+    // Слушают оба порта: если бы `port1.close()` закрывал только свою сторону, `port2` держал бы
+    // рантайм, и процесс не вышел бы сам.
+    expect(run.exitedOnItsOwn, 'close() на одном конце закрывает канал целиком').toBe(true);
+  });
+
+  it('порт, отданный воркеру, отвечает `BASICS_WORKER_OUT`', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lesson-message-channel-basics-'));
+    const workerFile = join(dir, 'worker.cjs');
+    // Прослойка: в браузерном воркере сообщения приходят в `self.onmessage`, в Node — в `parentPort`.
+    writeFileSync(
+      workerFile,
+      [
+        "const { parentPort } = require('node:worker_threads');",
+        'globalThis.self = {};',
+        'parentPort.on(\'message\', (data) => self.onmessage({ data }));',
+        BASICS_WORKER_CODE,
+      ].join('\n'),
+    );
+    const pageFile = join(dir, 'page.cjs');
+    // Страница не завершится сама: воркер и слушающий порт держат процесс. Поэтому первый же
+    // вывод — конец прогона.
+    writeFileSync(
+      pageFile,
+      [
+        "const NodeWorker = require('node:worker_threads').Worker;",
+        `class Worker extends NodeWorker { constructor() { super(${JSON.stringify(workerFile)}); } }`,
+        'const log = console.log;',
+        'console.log = (...args) => { log(...args); process.exit(0); };',
+        BASICS_PAGE_CODE,
+      ].join('\n'),
+    );
+    const run = spawnSync(process.execPath, [pageFile], { encoding: 'utf8', timeout: 5000 });
+    expect(run.stdout.trim()).toBe(BASICS_WORKER_OUT);
   });
 });

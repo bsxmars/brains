@@ -95,6 +95,9 @@ const SMALL_SIZE = 16_384;
 /** Куда уходит мусор, чтобы давление нельзя было выбросить целиком. */
 let junk = 0;
 
+let aging: object[] = [];
+const AGING_LIMIT = Number((globalThis as { __AGING?: number }).__AGING ?? 32);
+
 /** Сколько объектов выделено стендом за всё время. Сток, делающий давление наблюдаемым. */
 export function junkSink(): number {
   return junk;
@@ -145,16 +148,14 @@ const yieldToTask = (): Promise<void> => new Promise<void>((resolve) => setTimeo
  * как и задумано, — стенд давит на аллокатор, а не занимает память.
  */
 function pressure(blocks: number): void {
-  let recent: object[] = [];
-
   for (let b = 0; b < blocks; b++) {
     const big: object = new Array(BIG_SIZE).fill(b);
 
     const small: object[] = new Array(SMALL_SIZE);
     for (let i = 0; i < SMALL_SIZE; i++) small[i] = { i, pad: i * 2 };
 
-    recent.push(big, small);
-    if (recent.length > 4) recent = [big, small];
+    aging.push(big, small);
+    if (aging.length > AGING_LIMIT) aging = aging.slice(-AGING_LIMIT / 2);
     junk += BIG_SIZE + SMALL_SIZE;
   }
 }

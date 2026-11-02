@@ -459,3 +459,10 @@ describe('модальное окно: MODAL_ROWS и MODAL_FACTS', () => {
     await page.evaluate(() => document.exitFullscreen());
   });
 });
+
+describe('подпись к STACKING_CODE', () => {
+  it('«Сто строк» — столько и напечатано', () => {
+    expect(t.STACKING_NOTE.startsWith('Сто строк')).toBe(true);
+    expect(t.STACKING_CODE.split('\n')).toHaveLength(100);
+  });
+});

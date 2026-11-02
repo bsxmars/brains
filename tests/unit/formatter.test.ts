@@ -254,9 +254,17 @@ describe('ширина', () => {
     expect(`// printWidth: 40\n${out}`).toBe(t.LONG_CODE);
     expect(Math.max(...out.split('\n').map((l) => l.length))).toBe(73);
     expect(t.PITFALLS[0].d).toContain('73 символами');
-    // Подпись примера: «на ширине меньше 87».
+    // С 87 пример встаёт в одну строку, ниже — переносится после `=`.
     expect((await fmt(t.SNIPPETS.find((s) => s.id === 'long')!.code, { printWidth: 87 })).split('\n')).toHaveLength(2);
     expect((await fmt(t.SNIPPETS.find((s) => s.id === 'long')!.code, { printWidth: 86 })).split('\n')).toHaveLength(3);
+    // Подпись примера: «на ширине меньше 73 строка всё равно длиннее printWidth» — перенесённая
+    // строка в 73 символа влезает в 73…86 и не влезает только ниже 73 (вычитка 2026-10-30: было «87»).
+    const widest = async (w: number) =>
+      Math.max(...(await fmtTrim(t.SNIPPETS.find((s) => s.id === 'long')!.code, { printWidth: w })).split('\n').map((l) => l.length));
+    expect(await widest(73)).toBeLessThanOrEqual(73);
+    expect(await widest(86)).toBeLessThanOrEqual(86);
+    expect(await widest(72)).toBeGreaterThan(72);
+    expect(t.SNIPPETS.find((s) => s.id === 'long')!.note).toContain('меньше 73');
   });
 
   it('WIDTH_ROWS: length, кодовые точки и getStringWidth', () => {

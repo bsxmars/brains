@@ -94,7 +94,7 @@ const slice = computed(() => sliceUnits(sample.value.value, cut.value));
           <div class="ui-level" :data-tone="twoByte ? 'err' : 'ok'">
             <span class="ui-level__name">хранение в V8</span>
             <span class="ui-level__how">
-              {{ twoByte ? 'SeqTwoByteString · 2 байта/единицу' : 'SeqOneByteString · 1 байт/единицу' }}
+              {{ twoByte ? 'двухбайтная · 2 байта на единицу' : 'однобайтная · 1 байт на единицу' }}
             </span>
             <span class="ui-level__n">{{ storage }}</span>
           </div>
@@ -144,7 +144,7 @@ const slice = computed(() => sliceUnits(sample.value.value, cut.value));
           <div class="ui-result__verdict">
             {{
               slice.broken
-                ? 'Разрез прошёл внутри суррогатной пары: остался одинокий верхний суррогат. Строка валидна для JS и невалидна как текст — при рендере квадратик, в UTF-8 replacement character.'
+                ? 'Разрез прошёл внутри суррогатной пары: остался одинокий верхний суррогат. Строка валидна для JS и невалидна как текст — на экране квадратик, в UTF-8 знак замены U+FFFD.'
                 : 'Границы кодовых точек целы. Но графему это ещё не защищает: составной эмодзи и флаг разваливаются на части, оставаясь валидным текстом.'
             }}
           </div>
@@ -156,8 +156,7 @@ const slice = computed(() => sliceUnits(sample.value.value, cut.value));
       <div class="ui-footer">
         Числа считает ваш движок прямо сейчас, а не берёт из таблицы: <code>.length</code>, спред,
         <code>Intl.Segmenter</code> и <code>TextEncoder</code>. Строка «хранение в V8» — вывод
-        из кодовых единиц: граница проходит по <code>U+00FF</code>, а не по <code>U+007F</code>,
-        и заголовок объекта в неё не входит.
+        из кодов символов, а не ответ движка, и заголовок объекта в неё не входит.
       </div>
     </template>
   </DemoFrame>

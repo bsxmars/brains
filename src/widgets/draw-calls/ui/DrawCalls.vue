@@ -332,7 +332,7 @@ onMounted(() => {
   raw.bindBuffer(raw.ARRAY_BUFFER, offsets);
   raw.bufferData(raw.ARRAY_BUFFER, data, raw.STATIC_DRAW);
 
-  // Батч: та же тысяча квадратов, но геометрия развёрнута заранее — 12 000 вершин одним куском.
+  // Батч: та же тысяча квадратов, но геометрия развёрнута заранее — 6000 вершин (12 000 чисел) одним куском.
   const flat = new Float32Array(props.count * 6 * 2);
   for (let i = 0; i < props.count; i++) {
     for (let v = 0; v < 6; v++) {

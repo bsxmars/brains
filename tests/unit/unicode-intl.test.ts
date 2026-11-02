@@ -14,9 +14,15 @@ import { intlPlural, loadGraphemes, loadPlural } from '@/widgets/unicode-lab/mod
  * Примеры кода с комментариями `// → литерал` исполняются построчно (приём из
  * `v8-strings-unicode.test.ts`), таблицы темы — пересчитываются.
  *
- * Стенд снят на Node 24.11.0 (ICU 77.1, Unicode 16.0). Литералы про ICU (`ICU_ROWS`) привязаны
- * к этой версии: при смене Node тест скажет об этом первым, а не текст темы молча.
+ * Стенд снят на Node 24.11.0 (ICU 77.1, Unicode 16.0) и 26.8.2 (ICU 78.3, Unicode 17.0). Литералы
+ * про ICU (`ICU_ROWS`) лежат колонкой на каждую версию: `node` — Node 24, `node26` — Node 26. Прогон
+ * пересчитывает колонку своей мажорной версии; на версии без колонки тест падает, а не молчит.
  */
+
+const MAJOR = process.versions.node.split('.')[0];
+const COL = ({ '24': 'node', '26': 'node26' } as const)[MAJOR as '24' | '26'];
+/** Ячейка ICU_ROWS для версии прогона. */
+const nodeCell = (row: (typeof t.ICU_ROWS)[number]) => row[COL];
 
 const g = loadGraphemes(t.GRAPHEME_CODE);
 const p = loadPlural(t.PLURAL_CODE);
@@ -42,11 +48,12 @@ function runAnnotated(code: string) {
 }
 
 describe('стенд: версии Node, на которых снята тема', () => {
-  it('ICU 77.1, Unicode 16.0, CLDR 47.0', () => {
-    expect(process.versions.icu).toBe('77.1');
-    expect(process.versions.unicode).toBe('16.0');
-    expect(process.versions.cldr).toBe('47.0');
-    expect(t.ICU_ROWS[0].node).toContain('ICU 77.1');
+  it('ICU, Unicode и CLDR — как в колонке своей версии Node', () => {
+    expect(COL, `в ICU_ROWS нет колонки для Node ${MAJOR} — снимите её`).toBeDefined();
+    const { icu: icuV, unicode, cldr } = process.versions;
+    expect(nodeCell(t.ICU_ROWS[0])).toBe(`\`process.versions\`: ICU ${icuV}, Unicode ${unicode}, CLDR ${cldr}`);
+    expect(t.ICU_ROWS[0].node).toContain('ICU 77.1, Unicode 16.0, CLDR 47.0');
+    expect(t.ICU_ROWS[0].node26).toContain('ICU 78.3, Unicode 17.0, CLDR 48.0');
   });
 });
 
@@ -136,6 +143,15 @@ describe('таблицы темы пересчитываются', () => {
     expect(['а', 'А', 'б', 'Б'].sort(new Intl.Collator('ru', { caseFirst: 'upper' }).compare)).toEqual(['А', 'а', 'Б', 'б']);
     expect(new Intl.Collator('ru', { ignorePunctuation: true }).compare('по-русски', 'по русски')).toBe(0);
     expect(new Intl.Collator('ru').compare('по-русски', 'по русски')).not.toBe(0);
+  });
+
+  it('словарь: занята примерно четверть номеров — как \\p{Assigned} в ICU_ROWS', () => {
+    let assigned = 0;
+    for (let c = 0; c <= 0x10ffff; c++) if (/\p{Assigned}/u.test(String.fromCodePoint(c))) assigned++;
+    const share = assigned / 0x110000;
+    expect(share).toBeGreaterThan(0.24);
+    expect(share).toBeLessThan(0.28);
+    expect(t.GLOSSARY[0].d).toContain('занята примерно четверть');
   });
 
   it('BYTES_ROWS — байты UTF-8 и единицы UTF-16 у примеров каждого диапазона', () => {
@@ -294,10 +310,11 @@ describe('GRAPHEME_CODE против Intl.Segmenter', () => {
     expect(icu(cut)).toEqual(['\u{1F1F8}\u{1F1EA}', '\u{1F1F8}']);
   });
 
-  it('образец Юникода 17: в Node 24 — две графемы (в Chromium 153 снята одна)', () => {
+  it('образец Юникода 17: в Node 24 — две графемы, в Node 26 — одна (в Chromium 153 снята одна)', () => {
     const u17 = t.STRING_SAMPLES.find((s) => s.id === 'u17')!.value;
-    expect(icu(u17)).toHaveLength(2);
-    expect(t.ICU_ROWS.find((r) => r.k.includes('1AD0'))?.node).toBe('2');
+    const row = t.ICU_ROWS.find((r) => r.k.includes('1AD0'))!;
+    expect(icu(u17)).toHaveLength(Number(nodeCell(row)));
+    expect([row.node, row.node26]).toEqual(['2', '1']);
   });
 
   it('в каждом правиле RULE_NOTES есть подпись, и функция пользуется только ими', () => {
@@ -321,12 +338,14 @@ describe('ICU_ROWS — сторона Node пересчитывается', () =
       if (c.toUpperCase() !== c) upper++;
     }
     const num = (s: string) => Number(s.replace(/\D/g, '').slice(0, 6));
-    expect(assigned).toBe(294_579);
-    expect(num(t.ICU_ROWS[1].node)).toBe(294_579);
-    expect(upper).toBe(1552);
-    expect(t.ICU_ROWS.find((r) => r.k.includes('toUpperCase'))?.node).toBe('1 552');
-    expect(/^\p{RGI_Emoji}$/v.test('\u{1FAEA}')).toBe(false);
-    expect(['b', '\u{1FAEA}', 'a'].sort(new Intl.Collator('en').compare).at(-1)).toBe('\u{1FAEA}');
+    const cell = (k: string) => nodeCell(t.ICU_ROWS.find((r) => r.k.includes(k))!);
+    expect(assigned).toBe(num(nodeCell(t.ICU_ROWS[1])));
+    expect(upper).toBe(num(cell('toUpperCase')));
+    expect(`\`${/^\p{RGI_Emoji}$/v.test('\u{1FAEA}')}\``).toBe(cell('RGI_Emoji'));
+    const sorted = ['b', '\u{1FAEA}', 'a'].sort(new Intl.Collator('en').compare);
+    expect(sorted.indexOf('\u{1FAEA}')).toBe(cell('коллатором') === 'эмодзи первым' ? 0 : 2);
+    // Колонки Node 24 и Node 26 зафиксированы обе — смена значения в любой видна в диффе теста
+    expect([num(t.ICU_ROWS[1].node), num(t.ICU_ROWS[1].node26), num(t.ICU_ROWS[1].chr)]).toEqual([294_579, 299_382, 299_382]);
   }, 120_000);
 });
 

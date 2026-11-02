@@ -307,7 +307,7 @@ function unbox(v) {
 }`;
 
 export const STRINGIFY_CODE_NOTE =
-  'Восемьдесят строк повторяют шаги спецификации `SerializeJSONProperty`, `SerializeJSONObject`, `SerializeJSONArray` и `QuoteJSONString`. Цикл ловится стеком объектов, которые сейчас на пути: объект, который уже **в стеке**, — цикл, а объект, который просто встречался раньше в другой ветке, — нет. Поэтому общая ссылка записывается дважды, а цикл бросает исключение.';
+  'Сто строк повторяют шаги спецификации `SerializeJSONProperty`, `SerializeJSONObject`, `SerializeJSONArray` и `QuoteJSONString`. Цикл ловится стеком объектов, которые сейчас на пути: объект, который уже **в стеке**, — цикл, а объект, который просто встречался раньше в другой ветке, — нет. Поэтому общая ссылка записывается дважды, а цикл бросает исключение.';
 
 /** Каждая строка: выражение, ответ `JSON.stringify` (строкой, как напечатал бы `console.log`), причина. */
 export const STRINGIFY_ROWS = [
@@ -329,7 +329,7 @@ export const STRINGIFY_ROWS = [
 ];
 
 export const STRINGIFY_ERRORS_LINK =
-  'Отдельная история — ошибки: `JSON.stringify(err)` даёт `{}` или одно поле `code`, а сериализовать их приходится своим обходом. Это разобрано в [«Ошибках и стеках», раздел «Отчёт»](/js/errors/#s6).';
+  'Отдельная история — ошибки: `JSON.stringify(err)` даёт `{}` или одни перечисляемые поля вроде `code`, а сериализовать их приходится своим обходом. Это разобрано в [«Ошибках и стеках», раздел «Отчёт»](/js/errors/#s6).';
 
 export const REPLACER_CODE = `const seen = [];
 JSON.stringify(order, function (key, value) {

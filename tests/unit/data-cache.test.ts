@@ -657,6 +657,26 @@ describe('утверждения раздела «Мутации» и SWR', () =
     expect(await run('mini')).toEqual(tq);
   });
 
+  it('RACE_NOTE: cancelQueries обрывает сигнал запроса — сеть рвётся, только если queryFn взял signal', async () => {
+    expect(t.RACE_NOTE).toContain('если `queryFn` не передал `signal`');
+    const client = new QueryClient();
+    let signal: AbortSignal | undefined;
+    const o = new QueryObserver(client, {
+      queryKey: ['todos'],
+      queryFn: (ctx) => {
+        signal = ctx.signal;
+        return new Promise<string[]>((res) => setTimeout(() => res(['молоко']), LAT));
+      },
+    });
+    const off = o.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(100);
+    expect(signal?.aborted).toBe(false);
+    await client.cancelQueries({ queryKey: ['todos'] });
+    expect(signal?.aborted).toBe(true);
+    off();
+    client.clear();
+  });
+
   it('TQ_MUTATION_NOTE: мутация по умолчанию не повторяется', async () => {
     expect(t.TQ_MUTATION_NOTE).toContain('`retry: 0`');
     const client = new QueryClient();

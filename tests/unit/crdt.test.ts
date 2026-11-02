@@ -356,6 +356,14 @@ describe('векторные часы', () => {
     for (const c of t.VV_CASES) expect(vv.compare(c.a, c.b)).toBe(c.r);
     expect(vv.compare({ 1: 2 }, { 1: 2 })).toBe('равны');
   });
+  it('VV_FACTS: часы Лампорта дают дыру — после чужого clock 40 свои номера 5…40 пропущены', () => {
+    const d = seq.createDoc(1);
+    const own = [...'abcd'].map((ch, i) => seq.insert(d, i, ch));
+    seq.receive(d, { type: 'ins', id: [2, 40], origin: own[3].id, char: 'e' });
+    own.push(seq.insert(d, 5, 'f'));
+    expect(own.map((op) => op.id[1])).toEqual([1, 2, 3, 4, 41]);
+    expect(t.VV_FACTS.find((f) => f.t === 'Почему у Yjs счётчик на клиента')!.d).toContain('5…40');
+  });
   it('missing отдаёт ровно то, чего нет, — как encodeStateAsUpdate(doc, sv)', () => {
     const log = [
       { client: 1, clock: 0 },

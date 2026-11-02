@@ -351,9 +351,9 @@ export const PLAIN_NAME =
 export const NAME_STEPS: { step: string; what: string; tone?: 'warn' }[] = [
   { step: '2A', what: 'Скрытый узел имени не даёт — если до него не дошли по `aria-labelledby`.' },
   { step: '2B', what: '`aria-labelledby`: тексты узлов по списку `id`, через пробел. Ссылки внутри них уже не раскрываются.' },
-  { step: '2C', what: '`aria-label`, если в нём есть что-то кроме пробелов.' },
-  { step: '2D', what: 'Родной способ HTML: `<label>` у поля, `alt` у картинки, `<legend>` у группы, `<caption>` у таблицы, `value` у кнопки-`input`.' },
-  { step: '2E', what: 'Поле внутри подписи даёт своё значение. В учебную функцию не входит.', tone: 'warn' },
+  { step: '2C', what: 'Поле внутри подписи даёт своё значение. В учебную функцию не входит.', tone: 'warn' },
+  { step: '2D', what: '`aria-label`, если в нём есть что-то кроме пробелов.' },
+  { step: '2E', what: 'Родной способ HTML: `<label>` у поля, `alt` у картинки, `<legend>` у группы, `<caption>` у таблицы, `value` у кнопки-`input`.' },
   { step: '2F–2H', what: 'Содержимое: текст и имена детей подряд, если роль берёт имя из содержимого (`button`, `link`, `heading`…), а внутри обхода — всегда. Блочные дети отделяются пробелом.' },
   { step: '2I', what: '`title`. У полей после него — `placeholder` (это уже правило HTML-AAM).' },
 ];
@@ -379,11 +379,11 @@ function nameStep(el, mode = 'top', showHidden = false) {
     }
   }
 
-  // 2C. aria-label — если в нём есть что-то кроме пробелов.
+  // 2D. aria-label — если в нём есть что-то кроме пробелов.
   const label = (el.getAttribute('aria-label') || '').trim();
   if (label) return [label, 'aria-label'];
 
-  // 2D. Родной способ HTML: label у поля, alt у картинки, legend, caption, value.
+  // 2E. Родной способ HTML: label у поля, alt у картинки, legend, caption, value.
   const own = nativeName(el);
   if (own[0].trim()) return own;
 
@@ -431,7 +431,7 @@ function contentOf(el, showHidden) {
   for (const n of el.childNodes) {
     if (n.nodeType === 3) out += n.data;
     if (n.nodeType !== 1) continue;
-    if (['input', 'select', 'textarea'].includes(n.localName)) continue; // 2E — вне подмножества
+    if (['input', 'select', 'textarea'].includes(n.localName)) continue; // 2C — вне подмножества
     const part = nameStep(n, 'child', showHidden)[0];
     const display = style(n).display;
     out += display && !display.startsWith('inline') ? ' ' + part + ' ' : part;
@@ -447,7 +447,7 @@ function accName(el) {
 }`;
 
 export const NAME_NOTE =
-  'Учебная функция покрывает подмножество: роли и элементы из раздела про роли, без шага 2E, без текста из CSS (`::before`, `::after`) и без `aria-describedby`. На 88 фикстурах стенда она совпала с Chromium 153 по роли, имени и шагу, на котором имя нашлось, во всех случаях, кроме одного — `::before`.';
+  'Учебная функция покрывает подмножество: роли и элементы из раздела про роли, без шага 2C, без текста из CSS (`::before`, `::after`) и без `aria-describedby`. На 88 фикстурах стенда она совпала с Chromium 153 по роли, имени и шагу, на котором имя нашлось, во всех случаях, кроме одного — `::before`.';
 
 /** Фикстуры для таблицы имён: id из `CASES`. Имя и шаг — из литерала Chromium. */
 export const NAME_PICKS: { id: string; note: string }[] = [
@@ -902,12 +902,12 @@ export const ROLE_ROWS = ROLE_PICKS.map((p) => {
 
 const FROM_LABEL: Record<string, string> = {
   'aria-labelledby': '2B · `aria-labelledby`',
-  'aria-label': '2C · `aria-label`',
-  label: '2D · `<label>`',
-  alt: '2D · `alt`',
-  legend: '2D · `<legend>`',
-  caption: '2D · `<caption>`',
-  value: '2D · `value`',
+  'aria-label': '2D · `aria-label`',
+  label: '2E · `<label>`',
+  alt: '2E · `alt`',
+  legend: '2E · `<legend>`',
+  caption: '2E · `<caption>`',
+  value: '2E · `value`',
   content: '2F · содержимое',
   title: '2I · `title`',
   placeholder: '`placeholder`',

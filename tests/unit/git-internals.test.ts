@@ -266,12 +266,42 @@ describe.skipIf(!HAS_GIT)('литералы стенда: транскрипты
     expect(ok(r, 'git branch --contains 948baef')).toBe('');
   });
 
+  /**
+   * Сдвинуть время всех записей reflog. Дата записи — GIT_COMMITTER_DATE стенда (T0, октябрь 2026),
+   * а сроки `gc` (30 дней для недостижимых) git отсчитывает от настоящих часов машины. Без сдвига
+   * через месяц после T0 `gc` сам вычищает запись о потерянном коммите, и GC_SHELL краснеет от
+   * календаря. Хеши коммитов от этого не меняются: reflog в объекты не входит.
+   */
+  const ageReflog = (repo: string, secondsAgo: number) => {
+    const at = Math.floor(Date.now() / 1000) - secondsAgo;
+    const walk = (d: string): string[] =>
+      readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
+    for (const f of walk(join(repo, '.git/logs'))) {
+      writeFileSync(f, readFileSync(f, 'utf8').replace(/ (\d{9,}) ([+-]\d{4})\t/g, ` ${at} $2\t`));
+    }
+  };
+  const DAY = 86_400;
+
   it('потерянный коммит: reflog его держит, gc удаляет только после expire', () => {
     const l = copy('merge', 'lost');
     replay(l, t.LOST_SHELL.split('\n$ git branch rescue')[0], T0 + 240);
+    ageReflog(l, 0); // reset сделан только что — как у читателя
     replay(l, t.GC_SHELL, T0 + 240);
     expect(readdirSync(join(l, '.git/refs/heads'))).toEqual([]);
     expect(readFileSync(join(l, '.git/packed-refs'), 'utf8')).toContain('refs/heads/main');
+  });
+
+  it('GC_NOTE: запись reflog о недостижимом коммите gc держит 30 дней', () => {
+    expect(t.GC_NOTE).toContain('записи reflog о недостижимых коммитах живут 30 дней');
+    const lost = (name: string, age: number) => {
+      const l = copy('merge', name);
+      replay(l, t.LOST_SHELL.split('\n$ git branch rescue')[0], T0 + 240);
+      ageReflog(l, age);
+      ok(l, 'git gc --prune=now', T0 + 240);
+      return sh(l, 'git cat-file -t 6634a92', T0 + 240).out.trim();
+    };
+    expect(lost('lost-29d', 29 * DAY)).toBe('commit');
+    expect(lost('lost-31d', 31 * DAY)).toBe('fatal: Not a valid object name 6634a92');
   });
 
   it('pack: последняя версия целиком, две старые — дельтами; 5138 байт россыпью и 2146 в pack', () => {
@@ -436,4 +466,14 @@ describe('модель демо', () => {
     mirror('mixed', ['commit', 'switch', 'commit', 'commit', 'merge', 'switch', 'commit', 'rebase', 'reset', 'commit', 'switch', 'rebase', 'switch', 'merge', 'reset', 'reset', 'commit']);
     mirror('merge-back', ['switch', 'merge', 'commit', 'switch', 'commit', 'switch', 'rebase']);
   }, 60_000);
+});
+
+describe('словарь', () => {
+  it('tag — аннотированная, а не обязательно подписанная метка: у v1 стенда подписи нет', () => {
+    const obj = t.GLOSSARY.find((g) => g.k === 'объект')!.d;
+    expect(obj).toContain('tag — аннотированная метка');
+    expect(obj).not.toMatch(/подписанн/);
+    expect(t.TAG_SHELL).not.toContain('BEGIN PGP');
+    expect(t.TAG_NOTE).toContain('если она есть');
+  });
 });

@@ -428,7 +428,7 @@ export const PROXY_RULES: { k: string; when: string; what: string; tone: 'ok' | 
   {
     k: '`proxy_pass http://backend;`',
     when: 'после адреса бэкенда ничего нет',
-    what: 'Путь уходит **как прислал клиент**, не тронутый: `/static/x/../logo` — с `..`, `/static/a%20b` — с `%20`. Только так можно писать `proxy_pass` в location с регуляркой.',
+    what: 'Путь уходит **как прислал клиент**, не тронутый: `/static/x/../logo` — с `..`, `/static/a%20b` — с `%20`. В location с регуляркой путь после адреса можно писать, только если в нём есть переменная, — иначе только так.',
     tone: 'info',
   },
   {

@@ -50,6 +50,15 @@ import type { NsFrame, NsMode, NsParams } from '@/widgets/ns-tick-lab/model/type
  * времени нет, поэтому проверка не мигает под нагрузкой.
  */
 
+/**
+ * Модель написана по Node 26. В Node 24 у `pause()` нет ранней проверки `destroyed` — модель
+ * говорит об этом комментарием над строкой. На Node 24 модель сверяется без этой строки:
+ * совпасть обязаны все кадры, иначе расхождение не одно, а комментарий врёт.
+ */
+const NODE_MAJOR = Number(process.versions.node.split('.')[0]);
+const PAUSE_GUARD = '    if (s.destroyed) return this\n    if (s.flowing !== false)';
+const MODEL_FOR_THIS_NODE = NODE_MAJOR >= 26 ? NS_MODEL_CODE : NS_MODEL_CODE.replace(PAUSE_GUARD, '    if (s.flowing !== false)');
+
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 const host = { macrotask: settle };
 const realStreams = { Readable: stream.Readable, Writable: stream.Writable, settle };
@@ -79,12 +88,32 @@ describe('модель демо ведёт себя как node:stream — ка�
     '%s',
     async (_name, params) => {
       const real = await runScenario(realStreams, params);
-      const model = await simulate(NS_MODEL_CODE, NS_SCENARIO_CODE, params, host);
+      const model = await simulate(MODEL_FOR_THIS_NODE, NS_SCENARIO_CODE, params, host);
       expect(model).toEqual(real);
       // Сценарий успевает доиграть до конца: иначе демо обрезало бы историю на середине.
       expect(trimFrames(real).length, 'тиков не хватило, чтобы стрим дошёл до конца').toBeLessThan(real.length);
     },
   );
+});
+
+describe('pause() у разрушенного стрима: Node 24 против Node 26', () => {
+  it('комментарий модели верен: конец pipe даёт лишнее \'pause\' только в Node 24', async () => {
+    expect(NS_MODEL_CODE).toContain(PAUSE_GUARD);
+    expect(NS_MODEL_CODE).toContain("// Так в Node 26. В Node 24 этой проверки нет, и в конце pipe приходит ещё 'pause'");
+    const rs = stream.Readable.from([1, 2]);
+    const ws = new stream.Writable({ objectMode: true, write: (_c, _e, cb) => cb() });
+    const events: string[] = [];
+    rs.on('pause', () => events.push('pause'));
+    rs.pipe(ws);
+    await streamPromises.finished(ws);
+    await settle();
+    expect(rs.destroyed).toBe(true);
+    if (NODE_MAJOR >= 26) {
+      expect([events, rs.readableFlowing]).toEqual([[], true]);
+    } else {
+      expect([events, rs.readableFlowing]).toEqual([['pause'], false]);
+    }
+  });
 });
 
 /** Подписи режимов говорят не только о значениях по умолчанию — здесь то, что верно на любых. */

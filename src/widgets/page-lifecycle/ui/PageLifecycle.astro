@@ -61,12 +61,11 @@ const nodeOf = (id: string) => byId.get(id);
   </div>
 
   <div class="note">
-    <b>Возвратов здесь больше, чем уходов, — и именно они ломают код.</b> Из bfcache страница
-    продолжается с того же места: те же переменные, те же промисы, те же отложенные таймеры.
-    Из <code>frozen</code> — тоже. А из <code>discarded</code> возврата нет вовсе: вкладка
+    <b>Код ломают чаще возвраты, чем уходы.</b> Из bfcache и из <code>frozen</code> страница
+    продолжается с того же места, со всеми отложенными таймерами. А из <code>discarded</code> возврата нет вовсе: вкладка
     выглядит прежней, но это новая загрузка. Отсюда правило: инициализация вешается на{' '}
     <code>pageshow</code> с <code>persisted</code>, а не на <code>load</code>, а сохранение
-    состояния — на <code>freeze</code> и <code>pagehide</code>, а не на <code>unload</code>.
+    состояния — на <code>visibilitychange</code> в <code>hidden</code>, а не на <code>unload</code>.
   </div>
 </div>
 

@@ -2022,7 +2022,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
   {
     title: 'Release notes 4.5',
     href: 'https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-5.html',
-    what: 'хвостовая рекурсия без роста стека — откуда разница 47 против 1000',
+    what: 'хвостовая рекурсия без роста стека — откуда разница 47 против 999',
   },
   {
     title: 'Release notes 4.7',

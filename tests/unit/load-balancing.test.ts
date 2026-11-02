@@ -56,6 +56,18 @@ describe('PICK_CODE против последовательностей nginx', 
     expect(t.RR_NOTE).toContain('`AABACAA`');
   });
 
+  it('веса 5:1:1: дежурство отнимает у A сумму весов, но в минус он уходит не каждый раз', () => {
+    const steps = simulate(pick, { algo: 'swrr', weights: [5, 1, 1], events: shorts(7) });
+    const aAfter = steps.filter((s) => s.chosen === 'A').map((s) => s.after[0].current);
+    expect(aAfter).toEqual([-2, -4, -1, 2, 0]);
+    // A дежурит дважды подряд (ходы 1–2 и 6–7) — «после каждого дежурства пропускает ход» неверно
+    expect(steps.map((s) => s.chosen).join('')).toContain('AA');
+    const wrr = t.LB_SCENARIOS.find((s) => s.id === 'wrr')!;
+    expect(wrr.note).not.toMatch(/в минус на 7/);
+    expect(wrr.note).toContain('отнимает у него 7 очков');
+    expect(t.PLAIN_SWRR).not.toMatch(/после каждого дежурства уходит в минус/);
+  });
+
   it('таблица least_conn против круга — литералы стенда', () => {
     expect(t.BUSY_ROWS[0].quick).toBe(t.STAND_SEQ.busyRr.quick);
     expect(t.BUSY_ROWS[1].quick).toBe(t.STAND_SEQ.busyLc.quick);
@@ -67,6 +79,12 @@ describe('RING_CODE против nginx и аналитики', () => {
     for (const s of ['', 'a', 'user-17', 'app\u000052801', 'Привет']) {
       expect(ring.crc32(ring.utf8(s))).toBe(zlibCrc32(Buffer.from(s)) >>> 0);
     }
+  });
+
+  it('hash $key берёт биты 16–30 crc32 — старшую половину, а не середину', () => {
+    expect(t.RING_CODE).toContain('(crc32(utf8(key)) >>> 16) & 0x7fff');
+    expect(t.HASH_WHY).toContain('15 бит из старшей половины crc32');
+    expect(t.HASH_WHY).not.toContain('из середины');
   });
 
   it('hash $arg_key: все 1000 ключей там же, где у nginx', () => {

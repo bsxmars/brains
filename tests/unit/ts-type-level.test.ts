@@ -1373,3 +1373,22 @@ function Broken<B extends Ctor2>(Base: B) { return class extends Base {}; }   //
     });
   });
 });
+
+describe('вычитка 2026-10-30: отсылки и числа в тексте согласованы с темой', () => {
+  it('источник 4.5 сравнивает прошедшие глубины: 47 против 999, как в RECURSION_LIMITS', async () => {
+    const t = await import('@/content/tooling/typescript/data');
+    const src = t.SOURCES.find((s) => s.title === 'Release notes 4.5')!;
+    expect(src.what).toContain(`${t.RECURSION_LIMITS.nonTail.ok} против ${t.RECURSION_LIMITS.tail.ok}`);
+  });
+
+  it('стирание разобрано не в конце раздела «Тип как вычисление»: после него идут ещё подразделы', () => {
+    const mdx = readFileSync('src/content/tooling/typescript/index.mdx', 'utf8');
+    const s1 = mdx.slice(mdx.indexOf('### Вывод из значений'), mdx.indexOf('### Пакет без типов') + 20);
+    const erasure = s1.indexOf('### Стирание — и то, что его переживает');
+    expect(erasure).toBeGreaterThan(0);
+    expect(s1.slice(erasure + 1)).toContain('### `type` или `interface`');
+    expect(mdx).not.toContain('в конце раздела «Тип как вычисление»');
+    expect(mdx).toContain('в подразделе о стирании');
+  });
+});
+

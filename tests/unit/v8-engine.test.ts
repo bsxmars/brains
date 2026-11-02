@@ -1,10 +1,12 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   BENCH_LIES,
   BENCH_SNIPPETS,
   IC_STATES,
   MYTHS,
+  SHAPE_TREE_CODE,
   STILL_TRUE,
 } from '@/content/lessons/v8-engine/data';
 
@@ -207,7 +209,51 @@ describe('inline caches · потеря мономорфности стоит д
 
 describe('миф «мегаморфизм = деоптимизация»', () => {
   /**
-   * Тема утверждает: мегаморфное состояние площадки **не вызывает bailout**, функция остаётся
+   * ⚠️ До 2026-10-29 тема говорила «мегаморфное состояние не вызывает bailout — никогда».
+   * Вычитка нашла: функция, уже оптимизированная под четыре формы, на пятой откатывается
+   * (`wrong map`) — страж формы есть страж формы. Откат один: после переоптимизации под
+   * мегаморфный профиль новые формы откатов не вызывают. Этот тест держит обе половины.
+   */
+  it('переход к пятой форме у оптимизированной функции стоит ровно одного отката', () => {
+    const trace = execFileSync(
+      process.execPath,
+      [
+        '--allow-natives-syntax',
+        '--trace-deopt',
+        '-e',
+        `
+        const four = [{ x: 1 }, { x: 1, a: 1 }, { x: 1, b: 1, c: 2 }, { x: 1, d: 1, e: 2, f: 3 }];
+        const six = [...four, { x: 1, g: 1, h: 2, j: 3, k: 4 }, { x: 1, l: 1, m: 2, n: 3, o: 4, p: 5 }];
+        function read(a) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i].x; return s; }
+        %PrepareFunctionForOptimization(read);
+        for (let i = 0; i < 10; i++) read(four);
+        %OptimizeFunctionOnNextCall(read);
+        read(four);
+        read([six[4]]);                       // пятая форма
+        console.log('MARK');
+        %PrepareFunctionForOptimization(read);
+        for (let i = 0; i < 10; i++) read(six);
+        %OptimizeFunctionOnNextCall(read);
+        read(six);
+        for (let i = 0; i < 1000; i++) read(six);
+      `,
+      ],
+      { encoding: 'utf8' },
+    );
+    const [before, after] = trace.split('MARK');
+    const bailouts = (text: string) =>
+      text.split('\n').filter((l) => l.includes('bailout') && l.includes('<JSFunction read'));
+    expect(bailouts(before), 'пятая форма у функции под четыре формы — один откат').toHaveLength(1);
+    expect(bailouts(before)[0]).toContain('reason: wrong map');
+    expect(bailouts(after), 'после переоптимизации под мегаморфный профиль — ни одного').toHaveLength(0);
+
+    const myth = MYTHS.find((m) => m.myth.includes('мегаморфизм'));
+    expect(myth?.was, 'страница признаёт откат на переходе').toContain('пятая форма вызывает откат');
+    expect(myth?.now, 'и говорит, что он один').toContain('откат один');
+  });
+
+  /**
+   * Вторая половина: функция, оптимизированная уже под мегаморфную площадку, остаётся
    * оптимизированной — теряется не оптимизация, а информация о типе. Наблюдать это можно
    * только нативным синтаксисом: `%GetOptimizationStatus` возвращает битовую маску состояния.
    *
@@ -242,13 +288,64 @@ describe('миф «мегаморфизм = деоптимизация»', () =>
     expect(megaAfter, 'и тысяча вызовов по шести формам её не деоптимизировала').toBe(megaBefore);
 
     const myth = MYTHS.find((m) => m.myth.includes('мегаморфизм'));
-    expect(myth?.now, 'страница говорит ровно это').toContain('не вызывает bailout');
+    expect(myth?.now, 'страница говорит ровно это').toContain('дальше новые формы откатов не вызывают');
   });
 });
 
 // ---------------------------------------------------------------------------
 // Раздел 2 · формы объектов: порядок полей и словарный режим
 // ---------------------------------------------------------------------------
+
+describe('«Перед началом»: форму в Node видно без флагов запуска', () => {
+  /**
+   * ⚠️ До 2026-10-29 тема говорила «из JS этого не видно — ни в браузере, ни в Node» и «библиотека,
+   * которая обещает показать скрытый класс, обещает невозможное». В Node это видно из обычного
+   * кода, без флагов запуска, двумя способами — оба здесь, отдельным процессом без флагов.
+   */
+  const plain = (code: string) =>
+    execFileSync(process.execPath, ['-e', code], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }).trim();
+
+  it('`v8.setFlagsFromString` включает `%`-синтаксис для кода, разобранного позже', () => {
+    const out = plain(`
+      require('v8').setFlagsFromString('--allow-natives-syntax');
+      const same = new Function('a', 'b', 'return %HaveSameMap(a, b)');
+      console.log(same({ x: 1 }, { x: 2 }), same({ x: 1 }, { y: 1 }));
+    `);
+    expect(out).toBe('true false');
+  });
+
+  it('в снимке кучи ребро `map` у двух объектов одной формы ведёт в один узел', { timeout: 30_000 }, () => {
+    const out = plain(`
+      class Probe { constructor(x) { this.x = x; } }
+      globalThis.keep = [new Probe(1), new Probe(2)];
+      let raw = '';
+      const s = require('v8').getHeapSnapshot();
+      s.on('data', (c) => (raw += c));
+      s.on('end', () => {
+        const j = JSON.parse(raw), m = j.snapshot.meta;
+        const nf = m.node_fields.length, ef = m.edge_fields.length, ecIdx = m.node_fields.indexOf('edge_count');
+        const types = m.edge_types[0];
+        const maps = [];
+        for (let i = 0, e = 0; i < j.nodes.length; i += nf) {
+          const ec = j.nodes[i + ecIdx];
+          if (j.strings[j.nodes[i + 1]] === 'Probe' && m.node_types[0][j.nodes[i]] === 'object') {
+            for (let k = 0; k < ec; k++) {
+              const b = (e + k) * ef, t = types[j.edges[b]];
+              if (t !== 'element' && t !== 'hidden' && j.strings[j.edges[b + 1]] === 'map') maps.push(j.edges[b + 2]);
+            }
+          }
+          e += ec;
+        }
+        console.log(maps.length, new Set(maps).size);
+      });
+    `);
+    expect(out, 'два объекта Probe, у обоих ребро map — и в один узел').toBe('2 1');
+    const mdx = readFileSync('src/content/lessons/v8-engine/index.mdx', 'utf8');
+    expect(mdx).toContain("v8.setFlagsFromString('--allow-natives-syntax')");
+    expect(mdx).toContain('`v8.getHeapSnapshot()`');
+    expect(mdx).not.toContain('ни в браузере, ни в Node');
+  });
+});
 
 describe('форма объекта — это дерево переходов, и порядок полей в нём значим', () => {
   /**
@@ -286,6 +383,20 @@ describe('форма объекта — это дерево переходов, 
       console.log(%HaveSameMap(late, { w: 1, h: 2 }));
     `;
     expect(natives(code)).toBe('false');
+  });
+
+  /**
+   * Код под схемой дерева форм — строка из данных темы. ⚠️ Там стояли литералы, а литерал
+   * путь от пустого `{}` не проходит: схема и код говорили о разном. Теперь объекты растут
+   * из `{}` по полю, и тест сверяет ровно то, что обещают комментарии листинга.
+   */
+  it('проверка под схемой дерева: `a`/`b` — разные формы, `a`/`c` — одна', () => {
+    expect(SHAPE_TREE_CODE).toContain('// false');
+    expect(SHAPE_TREE_CODE).toContain('// true');
+    const code = `${SHAPE_TREE_CODE}\nconsole.log(%HaveSameMap(a, b), %HaveSameMap(a, c));`;
+    expect(natives(code)).toBe('false true');
+    // И то, ради чего листинг переписан: литерал этого пути не проходит.
+    expect(natives(`${SHAPE_TREE_CODE}\nconsole.log(%HaveSameMap(a, { x: 1, y: 2 }));`)).toBe('false');
   });
 
   it('тема называет порядок полей среди того, что осталось правдой', () => {
@@ -348,6 +459,19 @@ describe('словарный режим · `delete` и его цена', () => {
   /** А вот вторая строка листинга темы подтверждается полностью: присваивание форму бережёт. */
   it('`obj.prop = undefined` форму сохраняет — объект остаётся быстрым', () => {
     expect(fastProps('const probe = { a: 1, b: 2, c: 3 }; probe.b = undefined;')).toBe('true');
+  });
+
+  /**
+   * ⚠️ Тема говорила «объект без формы» и «формы больше нет». Форма у словарного объекта есть —
+   * общая, не описывающая полей: два словарных объекта с разными ключами делят её.
+   */
+  it('у словарного объекта форма есть — общая для словарных объектов с разными ключами', () => {
+    const code = `
+      const d1 = { a: 1, b: 2 }; delete d1.a;
+      const d2 = { q: 1, r: 2, s: 3 }; delete d2.s;
+      console.log(%HasFastProperties(d1), %HaveSameMap(d1, d2));
+    `;
+    expect(natives(code)).toBe('false true');
   });
 
   /**
@@ -520,7 +644,7 @@ describe('миф «`arguments` убивает оптимизацию»', () => {
 
 describe('мёртвый код · «вправе удалить» и «удаляет» — разное', () => {
   /**
-   * Пресет песочницы исполняется **прямо из данных темы**, а не переписывается в тест:
+   * Пресет стенда примеров исполняется **прямо из данных темы**, а не переписывается в тест:
    * разъехаться код на странице и вывод под ним теперь не могут. Числа из вывода берутся
    * только для отношения — сами они у каждого свои, и раздел ровно про это.
    */
@@ -561,6 +685,8 @@ describe('мёртвый код · «вправе удалить» и «удал
       .toBeGreaterThan(0.7);
     expect(dead / alive).toBeLessThan(1.4);
     expect(alive / empty, 'работа в теле цикла видна на фоне самого цикла').toBeGreaterThan(1.3);
+    // Тема с 2026-10-29 говорит и это: пустой цикл тоже не выброшен (≈10 мс на 2·10⁷ витков).
+    expect(empty, 'пустой цикл на двадцать миллионов витков — не ноль').toBeGreaterThan(2);
   });
 
   it('тонкое место 02 говорит именно это: «вправе» ещё не значит «делает»', () => {
@@ -568,5 +694,74 @@ describe('мёртвый код · «вправе удалить» и «удал
       'удалён **не был**',
     );
     expect(lie('02').d).toContain('вправе');
+    expect(lie('02').d, 'подсказка «выброс вероятнее в пустом цикле» опровергнута замером').not.toContain(
+      'Выброс вероятнее',
+    );
+  });
+});
+
+describe('встроенные функции: «своё быстрее» проверяют замером', () => {
+  /**
+   * ⚠️ Тема до 2026-10-29 записывала «своя глубокая копия быстрее» и «свой `groupBy` быстрее»
+   * в устаревшие советы: «ручной реализации ещё предстоит пройти ярусы». Замер опроверг это
+   * для копии (ручная ≈ в 10 раз быстрее `structuredClone` на небольшом объекте) и не
+   * подтвердил для группировки (ручная не медленнее). Пороги — с большим запасом: ловится
+   * исчезновение эффекта, а не колебание машины.
+   */
+  it('ручная копия простого объекта быстрее `structuredClone`, ручная группировка не медленнее', { timeout: 30_000 }, () => {
+    const src = { id: 1, name: 'a', tags: ['x', 'y'], pos: { x: 1, y: 2 } };
+    const copy = (v: unknown): unknown => {
+      if (v === null || typeof v !== 'object') return v;
+      if (Array.isArray(v)) return v.map(copy);
+      const o: Record<string, unknown> = {};
+      for (const k in v) o[k] = copy((v as Record<string, unknown>)[k]);
+      return o;
+    };
+    const clones = (f: (v: typeof src) => unknown) => (n: number) => {
+      let s = 0;
+      for (let i = 0; i < n; i++) s += (f(src) as typeof src).id;
+      return s;
+    };
+    const cloneRatio = bench(clones(structuredClone), 50_000) / bench(clones(copy as (v: typeof src) => unknown), 50_000);
+    expect(cloneRatio, '`structuredClone` дороже ручной копии в разы').toBeGreaterThan(2);
+
+    const items = Array.from({ length: 50_000 }, (_, i) => ({ k: `k${i % 10}`, i }));
+    const manual = (n: number) => {
+      let s = 0;
+      for (let r = 0; r < n; r++) {
+        const out: Record<string, typeof items> = {};
+        for (const it of items) (out[it.k] ??= []).push(it);
+        s += Object.keys(out).length;
+      }
+      return s;
+    };
+    const builtin = (n: number) => {
+      let s = 0;
+      for (let r = 0; r < n; r++) s += Object.keys(Object.groupBy(items, (it) => it.k)).length;
+      return s;
+    };
+    expect(bench(manual, 20) / bench(builtin, 20), 'ручная группировка не медленнее встроенной в разы').toBeLessThan(1.5);
+  });
+
+  it('`structuredClone` на функции бросает `DataCloneError`, как пишет тема', () => {
+    expect(() => structuredClone({ f() {} })).toThrow(expect.objectContaining({ name: 'DataCloneError' }));
+    const mdx = readFileSync('src/content/lessons/v8-engine/index.mdx', 'utf8');
+    expect(mdx).toContain('`DataCloneError`');
+    expect(mdx).not.toContain('писать своё больше не нужно');
+  });
+});
+
+describe('ярусы · оптимизирующие компиляторы работают в фоновом потоке', () => {
+  it('Maglev и TurboFan ставятся в очередь фоновой компиляции, а текст не говорит «тот же поток»', () => {
+    const trace = execFileSync(
+      process.execPath,
+      ['--trace-concurrent-recompilation', '-e', 'function f(o){return o.x+1}; let s=0; for(let i=0;i<3e6;i++) s+=f({x:i});'],
+      { encoding: 'utf8' },
+    );
+    expect(trace).toMatch(/JSFunction f .*for concurrent MAGLEV recompilation/);
+    expect(trace).toMatch(/JSFunction f .*for concurrent TURBOFAN(_JS)? recompilation/);
+    const mdx = readFileSync('src/content/lessons/v8-engine/index.mdx', 'utf8');
+    expect(mdx).not.toContain('платит за неё тот же поток');
+    expect(mdx).toContain('Maglev и TurboFan делают её в фоновом потоке');
   });
 });

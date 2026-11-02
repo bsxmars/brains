@@ -440,3 +440,25 @@ describe('ссылки и тонкие места', () => {
     expect(t.PITFALLS.map((p) => p.n)).toEqual(t.PITFALLS.map((_, i) => String(i + 1).padStart(2, '0')));
   });
 });
+
+describe('вычитка: негативный кеш DNS и защита заявки', () => {
+  // CoreDNS: плагин kubernetes отвечает с TTL 5 с (defaultTTL = 5, SOA minttl = ttl),
+  // `cache 30` в стандартном Corefile — только потолок. Документация StatefulSet пишет «30 seconds».
+  it('отказ по имени из cluster.local живёт 5 с, а 30 с названы потолком cache', () => {
+    expect(t.DNS_NOTE).toContain('TTL 5 секунд');
+    expect(t.DNS_NOTE).toContain('потолок плагина `cache`');
+    expect(t.DNS_NOTE).not.toContain('CoreDNS кеширует ответы 30 секунд');
+    const dns = t.PITFALLS.find((p) => p.t === 'Имя пода есть, а DNS молчит')!;
+    expect(dns.d).toContain('5 секунд');
+    expect(dns.d).not.toContain('до 30 секунд');
+    const summary = readFileSync(new URL('../../src/content/delivery/statefulset/summary.md', import.meta.url), 'utf8');
+    expect(summary).toContain('«нет такого» 5 с');
+  });
+
+  // kubectl delete по умолчанию --wait=true: ждёт, пока финализатор kubernetes.io/pvc-protection снимут.
+  it('kubectl delete pvc на используемой заявке не возвращается сразу', () => {
+    const step = t.PROVISION_STEPS.find((s) => s.startsWith('**Защита.**'))!;
+    expect(step).not.toContain('вернётся сразу');
+    expect(step).toContain('не вернётся');
+  });
+});

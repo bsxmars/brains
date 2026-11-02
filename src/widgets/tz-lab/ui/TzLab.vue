@@ -82,7 +82,7 @@ const KIND_TEXT = {
 const zone = computed(() => scenario.value.table.zone);
 
 const heading = computed(
-  () => `\`${zone.value}\`, база ${scenario.value.table.tzdata}. На часах \`${formatWall(selected.value)}\` — ${KIND_TEXT[kind(api.candidates(table.value, selected.value).filter((c) => c.fits).length)]}.`,
+  () => `\`${zone.value}\`, база ${scenario.value.table.tzdata.join(' и ')}. На часах \`${formatWall(selected.value)}\` — ${KIND_TEXT[kind(api.candidates(table.value, selected.value).filter((c) => c.fits).length)]}.`,
 );
 
 /** Проверка каждого кандидата словами: какое смещение пробуем, что вышло и что было на деле. */

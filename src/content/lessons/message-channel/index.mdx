@@ -1,12 +1,14 @@
 ---
 title: MessageChannel
 order: 5
-lead: "`MessageChannel` — труба с двумя концами-портами, и любой конец можно отдать в воркер, iframe или другую вкладку. Поэтому порт — не просто канал, а **переносимое право на разговор**: кто держит конец, тот и общается. Очередь порта по умолчанию выключена, в браузере сообщение приходит отдельной задачей, а `postMessage` в мёртвый конец не выдаёт ошибки."
+lead: "`MessageChannel` создаёт два связанных порта: что отправили в один, приходит в другой. Любой порт можно отдать в воркер, iframe или другую вкладку, и дальше разговаривает тот, к кому он попал. Поэтому порт — это **право на разговор, которое можно передать**. Чаще всего удивляют три вещи: пока порт не запущен, сообщения копятся и не доставляются; в браузере каждое сообщение приходит отдельной задачей; а сообщение в закрытый или отданный порт пропадает без ошибки."
 leadWidth: 66
-summary: "Порт как переносимое полномочие — буферизация до start(), правила transfer-списка, планировщик без клампа и утечка на незакрытом канале."
+summary: "Порт как переносимое полномочие — буферизация до start(), правила transfer-списка, планировщик без паузы в 4 мс и утечка на незакрытом канале."
 verifiedOn: Node 24.11 и 26.8
 nav:
   - { id: s0, label: Перед началом }
+  - { id: basics, label: Основа }
+  - { id: model, label: Модель }
   - { id: s1, label: Цикл порта }
   - { id: s2, label: Тайминг }
   - { id: s3, label: Transfer }
@@ -15,7 +17,6 @@ nav:
   - { id: s6, label: Источники }
 ---
 
-import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
@@ -31,10 +32,10 @@ import PortLifecycle from '@/widgets/port-lifecycle/ui/PortLifecycle.vue';
 import TransferRules from '@/widgets/transfer-rules/ui/TransferRules.vue';
 import {
   PORT_LINES,
-  TRANSFER,
   NODE_HEAD,
   NODE_ROWS,
   PITFALLS,
+  SCHEDULER_CODE,
   SNAPSHOT_CODE,
   SIZE_NOTE,
   SIZE_ADVICE,
@@ -65,29 +66,109 @@ import {
   SYNC_STEPS,
   SYNC_WRONG_NOTE,
   PLAIN_SYNC_CALL,
+  BASICS_CHANNEL_CODE,
+  BASICS_CHANNEL_OUT,
+  BASICS_PAGE_CODE,
+  BASICS_WORKER_CODE,
 } from './data';
 import Table from '@/shared/ui/Table.astro';
 
-<Section variant="intro" eyebrow="Три факта, из которых выводится всё остальное">
+<Section
+  variant="intro"
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={70}
+>
 
   Главный поток отдаёт расчёт воркеру и ждёт ответа именно на этот запрос, а не на соседний.
   Виджет в iframe должен говорить только с вашей страницей, а не с любым, кто дотянулся
   до окна. Планировщику нужно отпустить поток на кадр и сразу вернуться к работе. Все три
   задачи решает одна маленькая вещь — пара связанных портов.
 
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        <CardNote tone={item.tone}>
+          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+        </CardNote>
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="basics"
+  eyebrow="Основа"
+  title="Как это выглядит в коде"
+  lead="`new MessageChannel()` возвращает два связанных порта, `port1` и `port2`. Что отправили в один, приходит в другой, и в обратную сторону тоже."
+>
+
+  Отправляют методом `postMessage(данные)`, принимают обработчиком `onmessage`: данные лежат
+  в `event.data`. Важно направление: `port1.postMessage(…)` отправляет **из** `port1`,
+  и сообщение приходит на противоположный конец, в `port2`. Поэтому первым в консоли пишет
+  `port2`, а ответ, отправленный из `port2`, приходит в `port1`. Получатель видит копию,
+  а не тот же объект: менять её можно, у отправителя ничего не поменяется. `close()` на любом конце закрывает канал целиком.
+
+  <Card label="один канал внутри страницы" labelSize={12} pad={18} radius={5} gap={11}>
+    <CodeBlock code={BASICS_CHANNEL_CODE} size={11.5} />
+  </Card>
+
+  <Card label="в консоли" labelSize={12} pad={18} radius={5} gap={11}>
+    <CodeBlock code={BASICS_CHANNEL_OUT} size={11.5} />
+  </Card>
+
+  Внутри одной страницы канал не нужен: функцию проще вызвать напрямую. Он нужен, когда один
+  из портов уезжает в воркер или iframe. Порт отдают через `postMessage` того, кто уже на связи,
+  и перечисляют его во втором аргументе — списке переноса. После этого у страницы и воркера
+  своя отдельная линия, и её сообщения не смешиваются с остальными.
+
+  <CardGrid min={300} gap={14}>
+    <Card label="страница" labelSize={12} pad={18} radius={5} gap={11}>
+      <CodeBlock code={BASICS_PAGE_CODE} size={11.5} />
+    </Card>
+    <Card label="worker.js" labelSize={12} pad={18} radius={5} gap={11}>
+      <CodeBlock code={BASICS_WORKER_CODE} size={11.5} />
+    </Card>
+  </CardGrid>
+
+  Подписаться можно и через `addEventListener`, но тогда в браузере порт нужно запустить
+  вызовом `start()`. Присваивание `onmessage` запускает порт само, `addEventListener` — нет:
+  без `start()` сообщения будут копиться и не придут. Как это выглядит и чем отличается
+  Node — в разделе «Жизненный цикл порта».
+
+</Section>
+
+<Section
+  id="model"
+  eyebrow="Модель"
+  title="Три свойства порта"
+>
+
   <CardGrid min={270} gap={14}>
     <Card tone="info" index="1" title="Порт можно передать (Transferable)" titleSize={17} pad={20} gap={11}>
 
       Его можно отправить в другой realm — отдельный мир JS: воркер, iframe, ServiceWorker,
       другую вкладку через SW. После передачи ваша ссылка на порт перестаёт работать, а связь
-      с напарником сохраняется. Порт — это **capability**, полномочие: кто им владеет, тот
-      и может говорить.
+      с напарником сохраняется: говорить может тот, кто порт держит.
 
     </Card>
-    <Card tone="warn" index="2" title="Очередь изначально выключена" titleSize={17} pad={20} gap={11}>
+    <Card tone="warn" index="2" title="Пока порт не запущен, сообщения копятся" titleSize={17} pad={20} gap={11}>
 
-      Пока порт не запущен, сообщения копятся, но не доставляются. Ничего не теряется, и это
-      не баг, а удобный приём.
+      До `start()` или присваивания `onmessage` сообщения складываются в очередь порта, но
+      не доставляются. Ничего не теряется, и это не баг, а удобный приём.
 
     </Card>
     <Card tone="ok" index="3" title="В браузере доставка — отдельная задача (макрозадача)" titleSize={17} pad={20} gap={11}>
@@ -109,34 +190,6 @@ import Table from '@/shared/ui/Table.astro';
 
   <MessagePath />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
-</Section>
-
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={70}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
 </Section>
 
 <Section
@@ -157,20 +210,14 @@ import Table from '@/shared/ui/Table.astro';
   <CardGrid min={280} gap={14}>
     <Card tone="err" pad={16} radius={4} size={15.5}>
 
-      **Включение очереди необратимо** (`disabled → enabled`). Выключить её обратно нечем.
-      Чтобы остановить поток сообщений, остаётся только `close()`.
-
-    </Card>
-    <Card tone="err" pad={16} radius={4} size={15.5}>
-
       **`close()` разрывает связь с обеих сторон.** После этого `postMessage` с другой стороны
       молча ничего не делает — без исключения. Сообщения «канал закрыт» не будет.
 
     </Card>
     <Card tone="err" pad={16} radius={4} size={15.5}>
 
-      **После передачи ваш объект порта становится пустым (detached).** `postMessage` в такой
-      порт тоже не бросает ошибку. Эта тихая потеря сообщений — частая причина жалобы
+      **После передачи ваш объект порта становится пустым (detached).** `postMessage`,
+      `start()` и `close()` на нём ничего не делают и не бросают ошибку. Эта тихая потеря сообщений — частая причина жалобы
       «половина событий не доходит».
 
     </Card>
@@ -215,10 +262,11 @@ import Table from '@/shared/ui/Table.astro';
 
   <Card tone="err" title="Незакрытый порт — это утечка, и немаленькая" titleSize={18} pad={22} radius={5} gap={14}>
 
-    Спецификация прямо запрещает сборщику мусора удалять порт, у которого включена очередь
-    и есть слушатель: иначе сообщение было бы некому доставить. Значит, **живой слушающий
-    порт — это корень для сборщика (GC root)**: он держит в памяти замыкание обработчика и всё,
-    что оно захватило.
+    Спецификация HTML не даёт сборщику мусора удалить порт, пока у него есть что доставить,
+    а связанный порт держится так, будто на него ссылается напарник. Chromium и Node идут
+    дальше и не трогают порт, который просто слушает: вдруг придёт сообщение. Значит, **живой
+    слушающий порт — это корень для сборщика (GC root)**: он держит в памяти замыкание
+    обработчика и всё, что оно захватило.
 
     <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GC_ROOT} />
 
@@ -227,24 +275,25 @@ import Table from '@/shared/ui/Table.astro';
       chips={[
         { label: 'port1 (root)' },
         { label: 'замыкание onmessage' },
-        { label: 'setState / cb' },
-        { label: 'компонент и всё дерево', tone: 'info' },
+        { label: 'что захватило замыкание' },
+        { label: 'например, компонент со всем деревом', tone: 'info' },
       ]}
     />
 
 
     Лечится вызовом `close()`, и он должен стоять на **каждом** пути выхода: успех, ошибка,
     таймаут, `abort`, размонтирование компонента, `pagehide`. `WeakRef` и `FinalizationRegistry`
-    не помогают: порт — корень, а не слабая ссылка. Почему корень держит под собой всё поддерево
+    тут не помогут: они срабатывают, когда объект стал недостижим, а слушающий порт таким
+    не становится. Почему корень держит под собой всё поддерево
     и как такую утечку находят в снимке кучи — в [теме про память и сборщик](/js/memory-gc/).
 
     <Card tone="err" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
 
-      **Отсюда старая жалоба Jest «did not exit» в связке с jsdom.** React Scheduler создаёт
-      `MessageChannel` и никогда его не закрывает. В React 18+ он сначала пробует `setImmediate`,
-      а `jest-environment-jsdom` его даёт, так что канал там обычно не создаётся. Если жалоба
-      у вас всё же есть — проверьте на своей паре версий: `--detectOpenHandles` покажет, что
-      держит процесс.
+      **Отсюда жалоба Jest «did not exit» в связке с jsdom.** Планировщик React сначала
+      пробует `setImmediate` и только без него создаёт `MessageChannel` — и никогда его
+      не закрывает. В чистом Node `setImmediate` есть, и канала нет. А `jest-environment-jsdom`
+      `setImmediate` не даёт, и планировщик открывает канал. Что именно держит процесс, покажет
+      `--detectOpenHandles`.
 
     </Card>
   </Card>
@@ -253,8 +302,8 @@ import Table from '@/shared/ui/Table.astro';
 <Section
   id="s2"
   eyebrow="Раздел 2"
-  title="Почему планировщик React построен не на `setTimeout`"
-  lead="Планировщику нужно «дай браузеру нарисовать кадр и сразу вернись к работе». А `setTimeout`, вызванный из `setTimeout` глубже пяти уровней, превращается в паузу 4 мс. Это правило HTML Standard: если уровень вложенности `nesting level > 5` и запрошенный `timeout < 4`, задержка становится 4 мс."
+  title="Чем отдать поток: `setTimeout` против сообщения порта"
+  lead="Планировщику нужно «дай браузеру нарисовать кадр и сразу вернись к работе». А `setTimeout`, вызванный из `setTimeout` глубже пяти уровней, по стандарту HTML превращается в паузу 4 мс, даже если просили ноль."
 >
 
   Допустим, список из десяти тысяч строк строится одной задачей за 200 мс — и все 200 мс
@@ -263,25 +312,8 @@ import Table from '@/shared/ui/Table.astro';
 
   <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_YIELD} />
 
-  <Card title="Планировщик на 12 строк" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
-    ```js
-    const channel = new MessageChannel();
-    const queue = []; let scheduled = false;
-
-    channel.port1.onmessage = () => {
-      scheduled = false;
-      const deadline = performance.now() + 5;  // frameYieldMs
-      while (queue.length && performance.now() < deadline)
-        queue.shift()();
-      if (queue.length) schedule();
-    };
-
-    function schedule() {
-      if (scheduled) return;
-      scheduled = true;
-      channel.port2.postMessage(null);
-    }
-    ```
+  <Card title="Планировщик на сообщениях порта" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={SCHEDULER_CODE} size={12} />
 
     Это сокращённая версия `scheduler/src/forks/Scheduler.js` из React: 5 мс работы, потом
     уступить браузеру кадр. Каждое сообщение — отдельная задача, поэтому между двумя порциями
@@ -300,8 +332,9 @@ import Table from '@/shared/ui/Table.astro';
   <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
 
     **Канал — не единственный способ уступить, и уже не лучший.** Микрозадача поток
-    не отпускает вовсе, `setTimeout` отпускает, но платит клампом. А `scheduler.yield()`
-    и `scheduler.postTask` дают то, чего у канала нет, — приоритет и отмену. Канал остаётся
+    не отпускает вовсе, `setTimeout` отпускает, но платит паузой в 4 мс. `scheduler.postTask`
+    даёт то, чего у канала нет, — приоритет и отмену, а `scheduler.yield()` ставит продолжение
+    в начало очереди, а не в конец. Канал остаётся
     запасным путём там, где планировщика нет. Сравнение всех способов, их потолки и запасной
     путь через `globalThis` — в теме про планирование задач, раздел
     [«Чем возвращать управление циклу»](/js/task-scheduling/#s1).
@@ -310,9 +343,11 @@ import Table from '@/shared/ui/Table.astro';
 
   ### А вот и замер — и он говорит про Node кое-что неожиданное
 
-  Цена уступки сама по себе ничего не говорит: дешёвая уступка может просто не уступать.
-  Поэтому рядом с замером работает прибор — посторонняя работа, которая сдвигается, только
-  когда оборот цикла действительно отдан.
+  Отдать поток — значит прервать свою работу, дать циклу событий заняться другими делами
+  и продолжить потом. Как проверить, что способ действительно отдаёт поток? По цене не
+  понять: самый дешёвый способ может не отдавать его вовсе. Поэтому рядом запускают
+  счётчик, который растёт, только когда цикл переходит к следующему обороту. Потом тысячу
+  раз отдают поток проверяемым способом и смотрят, насколько счётчик вырос.
 
   <CodeBlock code={PUMP_CODE} size={12} lh={1.7} pad="14px 16px" />
 
@@ -372,9 +407,10 @@ import Table from '@/shared/ui/Table.astro';
     <Card pad={16} radius={4} size={15.5}>
 
       **Клон — тот же алгоритм, что у `structuredClone`.** Проходят `Date`, `RegExp`, `Map`,
-      `Set`, TypedArray, `Error`, `BigInt`, циклы. Не проходят функции, DOM-узлы, символьные
-      ключи, прототипы, `#`-поля, геттеры — и `Proxy`: прокси бросает `DataCloneError`, сколько
-      бы обычных полей ни было у цели. Отсюда «обычный объект уходит, а состояние падает»:
+      `Set`, TypedArray, `Error`, `BigInt`, циклы. Функции, DOM-узлы и `Proxy` бросают
+      `DataCloneError` — прокси, сколько бы обычных полей ни было у цели. А символьные ключи,
+      прототип, `#`-поля и геттеры класса пропадают молча; собственный геттер объекта
+      срабатывает, и уезжает его значение. Отсюда «обычный объект уходит, а состояние падает»:
       `reactive()` во Vue — это прокси, и перед отправкой ему нужен `toRaw()`. Без канала тот же
       клон делает `structuredClone(value)`, а с `{ transfer: [buf] }` — и перенос. Что именно
       теряется на клонировании — [«Воркеры и параллелизм», раздел «Что можно
@@ -465,18 +501,21 @@ import Table from '@/shared/ui/Table.astro';
     </CardGrid>
 
     ```js
-    // parent
-    const { port1, port2 } = new MessageChannel();
-    port1.onmessage = ({ data }) => handle(data);      // origin проверять уже не нужно
-    iframe.contentWindow.postMessage({ type: 'init' }, 'https://widget.example', [port2]);
+    // parent: ждём загрузки фрейма — до неё origin не совпадёт, и порт пропадёт
+    iframe.addEventListener('load', () => {
+      const { port1, port2 } = new MessageChannel();
+      port1.onmessage = ({ data }) => handle(data);    // отправителя проверять уже не нужно
+      iframe.contentWindow.postMessage({ type: 'init' }, 'https://widget.example', [port2]);
+    });
 
     // iframe
-    addEventListener('message', (e) => {
+    addEventListener('message', function onInit(e) {
       if (e.origin !== 'https://app.example') return;   // ← единственная проверка
-      if (e.data?.type !== 'init') return;
+      if (e.data?.type !== 'init') return;              // чужое сообщение — ждём дальше
+      removeEventListener('message', onInit);           // своё — дальше только через порт
       const port = e.ports[0];
       port.onmessage = ({ data }) => port.postMessage(process(data));
-    }, { once: true });
+    });
     ```
 
     <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
@@ -488,23 +527,25 @@ import Table from '@/shared/ui/Table.astro';
   </Card>
 
   <CardGrid min={300} gap={16} align="start">
-    <Card title="RPC: одноразовый порт на вызов" titleSize={16.5} pad={18} radius={5} gap={11}>
+    <Card title="Удалённый вызов: одноразовый порт на вызов" titleSize={16.5} pad={18} radius={5} gap={11}>
 
-      Проще, чем сопоставлять ответы с запросами по id, и не нужно чистить таблицу ожидающих
-      вызовов (`pending`).
+      Удалённый вызов (RPC) — вызвать функцию на той стороне и дождаться ответа. Отдельный
+      порт на каждый вызов проще, чем сопоставлять ответы с запросами по id, и не нужно чистить
+      таблицу ожидающих вызовов.
 
       ```js
       function call(port, method, args) {
         const { port1, port2 } = new MessageChannel();
         const answer = new Promise((resolve, reject) => {
-          port1.onmessage = ({ data }) => {
-            port1.close();
-            data.ok ? resolve(data.value) : reject(data.value);
-          };
-          setTimeout(() => {          // ← обязательно
+          const timer = setTimeout(() => {   // ← обязательно
             port1.close();
             reject(new Error('rpc timeout'));
           }, 5000);
+          port1.onmessage = ({ data }) => {
+            clearTimeout(timer);
+            port1.close();
+            data.ok ? resolve(data.value) : reject(data.value);
+          };
         });
         port.postMessage({ method, args, reply: port2 }, [port2]);
         return answer;
@@ -513,12 +554,16 @@ import Table from '@/shared/ui/Table.astro';
 
       `close()` в обеих ветках — не аккуратность, а обязательное условие: слушающий порт —
       корень для сборщика мусора (см. «`close()` и сборка мусора»), и без закрытия канал
-      останется в памяти вместе со всем, что захватил обработчик.
+      останется в памяти вместе со всем, что захватил обработчик. `clearTimeout` после ответа
+      нужен по той же причине: таймер иначе ещё пять секунд держит замыкание, а в Node — и сам
+      процесс.
 
     </Card>
 
     <Card title="Один воркер — много независимых каналов" titleSize={16.5} pad={18} radius={5} gap={11}>
       ```js
+      const worker = new Worker('/worker.js');
+
       function openChannel(name) {
         const { port1, port2 } = new MessageChannel();
         worker.postMessage({ open: name, port: port2 }, [port2]);
@@ -526,6 +571,11 @@ import Table from '@/shared/ui/Table.astro';
       }
       const search = openChannel('search');
       const parse  = openChannel('parse');
+
+      // worker.js: каждой фиче — свой обработчик на своём порту
+      self.onmessage = ({ data }) => {
+        if (data.open) handlers[data.open](data.port);
+      };
       ```
 
       Вместо одного `switch` по `data.type` на всё приложение. Плюс изоляция: чтобы закрыть
@@ -538,26 +588,34 @@ import Table from '@/shared/ui/Table.astro';
       function ask(msg) {
         const { port1, port2 } = new MessageChannel();
         return new Promise((resolve, reject) => {
-          port1.onmessage = ({ data }) => { port1.close(); resolve(data); };
-          setTimeout(() => { port1.close(); reject(new Error('sw timeout')); }, 3000);
+          const timer = setTimeout(() => { port1.close(); reject(new Error('sw timeout')); }, 3000);
+          port1.onmessage = ({ data }) => { clearTimeout(timer); port1.close(); resolve(data); };
           navigator.serviceWorker.controller?.postMessage(msg, [port2]);
         });
       }
       ```
 
-      Здесь таймаут обязателен: `controller` может быть `null`, а сам ServiceWorker браузер
-      может остановить между вызовами. Тогда ответа не будет никогда, и никакого события об этом
-      тоже.
+      Здесь таймаут обязателен. `controller` может быть `null` — например, при первой загрузке
+      страницы, пока воркер её ещё не контролирует. А браузер может остановить ServiceWorker
+      посреди обработки, если тот ждёт чего-то без `event.waitUntil`. В обоих случаях ответа
+      не будет никогда, и никакого события об этом тоже.
 
     </Card>
 
     <Card tone="info" title="Node: синхронный вызов в воркер" titleSize={16.5} pad={18} radius={5} gap={11}>
 
-      Node умеет то, чего браузер на главном потоке не умеет принципиально, — **синхронно** снять
-      сообщение с порта. На этом построены библиотеки синхронного RPC и синхронные хуки
-      загрузчика ES-модулей (ESM loader hooks).
+      Node умеет **синхронно** снять сообщение с порта, не дожидаясь цикла событий; в браузере
+      такой функции нет вовсе. На этом построены библиотеки синхронного удалённого вызова
+      и хуки загрузчика модулей из `module.register()`: они работают в отдельном потоке, а Node
+      ждёт их ответа синхронно.
 
       ```js
+      import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
+
+      const shared = new Int32Array(new SharedArrayBuffer(4));   // флаг, видный обоим потокам
+      const { port1, port2 } = new MessageChannel();
+      new Worker('./worker.js', { workerData: { shared, port: port2 }, transferList: [port2] });
+
       function syncCall(payload) {
         Atomics.store(shared, 0, 0);
         port1.postMessage(payload);
@@ -567,7 +625,10 @@ import Table from '@/shared/ui/Table.astro';
       ```
 
       ```js
-      // воркер: port — второй конец канала, shared — тот же Int32Array
+      // worker.js: port — второй конец канала, shared — тот же Int32Array
+      import { workerData } from 'node:worker_threads';
+      const { shared, port } = workerData;
+
       port.on('message', (payload) => {
         port.postMessage(handle(payload));   // 1) сначала ответ в порт
         Atomics.store(shared, 0, 1);         // 2) потом флаг
@@ -660,15 +721,16 @@ import Table from '@/shared/ui/Table.astro';
 
       **Transfer-списка нет.** `postMessage` принимает один аргумент, остальное молча
       игнорируется: буфер уедет копией, а у отправителя останется целым. Функция в сообщении
-      бросает `DataCloneError` сразу, у отправителя (Node 26.8.2).
+      бросает `DataCloneError` сразу, у отправителя.
 
     </Card>
     <Card tone="warn" color="tone" pad={16} radius={4} size={15.5}>
 
       **Ни адресата, ни ответа.** Выбрать, кому писать, нельзя, и ответа не дождаться. Поэтому
       запрос-ответ на нём не строят. Его берут там, где нужно «сообщить всем вкладкам». Если
-      нужно, чтобы работу сделала **одна** вкладка, короче взять замок Web Locks, чем выбирать
-      лидера через канал вручную.
+      нужно, чтобы работу сделала **одна** вкладка, проще взять замок Web Locks
+      (`navigator.locks.request(имя, fn)`: держать его может только одна вкладка), чем выбирать
+      главную вкладку через канал вручную.
 
     </Card>
   </CardGrid>
@@ -676,13 +738,6 @@ import Table from '@/shared/ui/Table.astro';
 
 <Section id="s5" eyebrow="Раздел 5" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
-
-  <Callout size={18.5} pad="22px 24px">
-
-    Отсутствие ошибки ничего не доказывает. <b>Молчат все три случая</b>: закрытый канал,
-    переданный (detached) порт и живой порт, у которого на том конце уже никого нет.
-
-  </Callout>
 
   ### Node против браузера
 
@@ -696,16 +751,9 @@ import Table from '@/shared/ui/Table.astro';
   <CardGrid min={290} gap={14}>
     <Card tone="warn" color="tone" pad={16} radius={4} size={15.5}>
 
-      Строка про `unref()` объясняет жалобу «Node не завершается»: один слушающий порт держит
-      процесс. Скрипт с единственным `port.on('message')` сам не выходит, а после
+      Строка «не даёт ли процессу завершиться» объясняет жалобу «Node не завершается»: один
+      слушающий порт держит процесс. Скрипт с единственным `port.on('message')` сам не выходит, а после
       `port.unref()` выходит сразу.
-
-    </Card>
-    <Card pad={16} radius={4} size={15.5}>
-
-      `OffscreenCanvas` и `FileHandle` легко принять за клонируемые, но оба только
-      переносятся. `FileHandle` обычным сообщением уходить отказывается (`DataCloneError`),
-      а в transfer-списке уходит.
 
     </Card>
   </CardGrid>
@@ -718,17 +766,13 @@ import Table from '@/shared/ui/Table.astro';
 >
   <Card title="Источники" titleSize={17} pad={20} gap={12}>
 
-    У спецификации и справочников разный срок годности. Спецификация меняется медленно,
-    и последнее слово за ней. MDN и документация Node устаревают быстрее, зато показывают,
-    как это выглядит в коде, — в спецификации этого нет.
-
     <SourceList items={SOURCES} />
   </Card>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
 
     Смежное на сайте: [воркеры и параллелизм](/js/workers/) — что переживает структурное
-    клонирование, с живым демо. [Цикл событий](/js/event-loop/) — источники задач и порядок
+    клонирование, с живым демо. [Цикл событий](/js/event-loop/#s2) — источники задач и порядок
     между ними. [Планирование работы](/js/task-scheduling/) — во что обходится уступка потока.
     [Память и сборщик](/js/memory-gc/) — почему живой порт держит поддерево.
     [Объектная модель](/js/object-model/) — прототипы, приватные поля и геттеры, которых клон

@@ -6,7 +6,7 @@ order: 24
 lead: "`'👨‍👩‍👧'.length` равно 8, `'straße'.toUpperCase()` длиннее исходной строки, `sort()` ставит «ёлку» после «яблока», а `n === 1 ? 'файл' : 'файлов'` пишет «21 файлов». Каждая из этих ошибок — про то, что «символ», «буква» и «по алфавиту» в JS означают не то, что видит человек. Как устроены три единицы текста и что `Intl` знает о языке."
 leadWidth: 66
 summary: "Кодовые единицы UTF-16, кодовые точки и суррогатные пары; графемы по правилам UAX #29 — учебная функция, сверенная с `Intl.Segmenter`; одинокий суррогат, `isWellFormed` и обрезка по графемам; нормализация для поиска; регистр: «ß», турецкая «i»; `Intl.Collator`: уровни сравнения, `numeric`, `sensitivity`, языки; `Intl.PluralRules` для русского по правилам CLDR; `NumberFormat`, `ListFormat`, `RelativeTimeFormat`; байты UTF-8; разные версии ICU в Node и Chromium."
-verifiedOn: "Node 24.11.0 (ICU 77.1, Unicode 16.0, CLDR 47.0) и Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: один набор проб в двух движках, ~200 значений совпали, расходятся только знаки Юникода 17; учебная разбивка на графемы сверена с Intl.Segmenter полным перебором пар кодовых точек и 100 000 случайных строк, правила CLDR — с Intl.PluralRules на 270 000 чисел. Всё повторяет tests/unit/unicode-intl.test.ts"
+verifiedOn: "Node 24.11.0 (ICU 77.1, Unicode 16.0, CLDR 47.0), Node 26.8.2 (ICU 78.3, Unicode 17.0, CLDR 48.0) и Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: один набор проб в трёх средах, ~200 значений совпали, расходятся только знаки Юникода 17 (Node 24 их не знает); учебная разбивка на графемы сверена с Intl.Segmenter полным перебором пар кодовых точек и 100 000 случайных строк, правила CLDR — с Intl.PluralRules на 270 000 чисел. Всё повторяет tests/unit/unicode-intl.test.ts"
 nav:
   - { id: s0, label: Перед началом }
   - { id: s1, label: Единицы и точки }
@@ -477,11 +477,11 @@ import {
   leadWidth={72}
 >
   <Table
-    head={['что', 'Node 24.11', 'Chromium 153']}
-    rows={ICU_ROWS.map((r) => [r.k, r.node, r.chr])}
-    kinds={['prose', 'mono', 'mono']}
-    cols="minmax(240px,1.4fr) minmax(170px,1fr) minmax(200px,1.1fr)"
-    minWidth={640}
+    head={['что', 'Node 24.11', 'Node 26.8', 'Chromium 153']}
+    rows={ICU_ROWS.map((r) => [r.k, r.node, r.node26, r.chr])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(220px,1.3fr) minmax(160px,1fr) minmax(170px,1fr) minmax(120px,0.8fr)"
+    minWidth={760}
   />
 
   <Md text={ICU_NOTE} />

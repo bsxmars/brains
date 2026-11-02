@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   DEMO_SCENARIOS,
@@ -541,6 +542,20 @@ describe('где мини-версия отличается от React наме�
     expect(ours.props.children).toHaveLength(1);
     expect(ours.props.children[0].type).toBe('TEXT');
     expect(ours.props.children[0].props.nodeValue).toBe('текст');
+  });
+
+  /** Вычитка 2026-10-30: «`&&` ничего не рисует, когда условие ложно» неверно для `0`. */
+  it('элемент: `false && x` выброшен, а `0 && x` рисует 0 — у мини-версии и у React', () => {
+    const mini = runMini(SCENARIO_MOUNT).mini;
+    const count = 0;
+    const off = Boolean(count);
+    const ours = mini.createElement('p', null, off && 'x', count && 'x') as { props: { children: Array<{ props: { nodeValue: string } }> } };
+    expect(ours.props.children.map((c) => c.props.nodeValue)).toEqual(['0']);
+    expect(server.renderToStaticMarkup(React.createElement('p', null, off && 'x'))).toBe('<p></p>');
+    expect(server.renderToStaticMarkup(React.createElement('p', null, count && 'x'))).toBe('<p>0</p>');
+    const mdx = readFileSync('src/content/frameworks/react-internals/index.mdx', 'utf8');
+    expect(mdx).not.toContain('ничего не рисует, когда оно ложно');
+    expect(mdx).toContain('`count && …` при нуле нарисует `0`');
   });
 });
 

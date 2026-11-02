@@ -7,7 +7,7 @@ import type { PlacePreset, Req, ScalePlatform, ScaleProfile, StandRun } from '@/
  * Тема написана здесь, 2026-10-01, для направления «Доставка».
  *
  * ── Стенд ─────────────────────────────────────────────────────────────────────────────────
- * Без облака и без установки пакетов. Node 24.11.0, esbuild 0.28.2, zod 4.6.2, ioredis 5.11.1,
+ * Без облака и без установки пакетов. Node 24.11.0 и 26.8.2, esbuild 0.28.2, zod 4.6.2, ioredis 5.11.1,
  * yaml 2.9.1 (всё из `node_modules` проекта), Postgres 16.6 (`postgres:16.6-alpine`) в Docker
  * 27.4.0 на порту 53432 с `max_connections=30` и паролями SCRAM-SHA-256 (умолчание образа).
  * Таймерных замеров нет: стенд считает работу, соединения и порядок событий, а не миллисекунды.
@@ -21,6 +21,10 @@ import type { PlacePreset, Req, ScalePlatform, ScaleProfile, StandRun } from '@/
  *    `Error: Dynamic require of "events" is not supported` — CJS-зависимость ioredis зовёт
  *    `require` встроенного модуля, а в ESM-файле его нет. Всё это пересобирает и пересчитывает
  *    `tests/unit/serverless-edge.test.ts` (в отдельном процессе Node).
+ *    Счётчик считает каждый адрес один раз: Node 24.11 зовёт `load` дважды для шести CJS-файлов
+ *    ioredis и debug (из `require` и из ESM-загрузчика), Node 26.8 — для повторных `require`
+ *    встроенных модулей. Без `Set` выходило 229 файлов и 15 встроенных на Node 24 и 223 и 26
+ *    на Node 26; с ним — одинаковые числа на обоих.
  *
  * 2. Что переживает вызов (`POOL_*`). Три способа держать соединение — строки, исполняемые
  *    тестом с поддельным `connect`, который считает вызовы: последовательно и параллельно.
@@ -87,7 +91,7 @@ export const GLOSSARY = [
   },
   {
     k: 'параллелизм на экземпляр',
-    d: 'Сколько запросов один экземпляр обрабатывает одновременно. У Lambda — один, у Cloud Run по умолчанию до 80, у изолята Cloudflare — сколько придёт.',
+    d: 'Сколько запросов один экземпляр обрабатывает одновременно. У Lambda — один, у Cloud Run по умолчанию до 80 на vCPU, у изолята Cloudflare — сколько придёт.',
   },
   {
     k: 'пул соединений',
@@ -199,7 +203,7 @@ export const PLATFORM_ROWS = [
   {
     k: 'Google Cloud Run',
     unit: 'контейнер из вашего образа',
-    conc: 'по умолчанию **80** на vCPU, максимум 1000',
+    conc: 'по умолчанию **80** на vCPU (из консоли — 80 при любом числе vCPU), максимум 1000',
     limits: 'можно опустить до 1 — тогда ведёт себя как Lambda',
   },
   {
@@ -275,9 +279,12 @@ export const COUNT_CODE = `// count.mjs — какие модули грузит
 import { registerHooks } from 'node:module';
 
 const seen = { files: 0, bytes: 0, builtins: 0 };
+const loaded = new Set(); // загрузчик может позвать хук для одного модуля дважды
 registerHooks({
   load(url, context, nextLoad) {
     const result = nextLoad(url, context);
+    if (loaded.has(url)) return result;
+    loaded.add(url);
     if (url.startsWith('node:')) seen.builtins += 1;
     else {
       seen.files += 1;
@@ -324,13 +331,13 @@ export const COLD_RUNS: Record<'light' | 'eager' | 'lazy', ColdRun> = {
     exp: { files: 0, bytes: 0, builtins: 0 },
   },
   eager: {
-    init: { files: 229, bytes: 1561760, builtins: 15 },
+    init: { files: 223, bytes: 1499271, builtins: 15 },
     first: { files: 0, bytes: 0, builtins: 0 },
     warm: { files: 0, bytes: 0, builtins: 0 },
     exp: { files: 0, bytes: 0, builtins: 0 },
   },
   lazy: {
-    init: { files: 157, bytes: 1273990, builtins: 14 },
+    init: { files: 151, bytes: 1211501, builtins: 14 },
     first: { files: 0, bytes: 0, builtins: 0 },
     warm: { files: 0, bytes: 0, builtins: 0 },
     exp: { files: 72, bytes: 287807, builtins: 1 },
@@ -385,8 +392,7 @@ export const BUNDLE_ROWS = [
   },
 ];
 
-export const BUNDLE_NOTE =
-  'Сборка меняет форму работы, а не её суть. Вместо 229 файлов, каждый из которых нужно найти, прочитать и разобрать, — один, и минификация с отбором неиспользуемого сократила текст вдвое: 1,5 МБ → 701 КБ. Но эти 701 КБ всё равно разбираются и исполняются при каждом холодном старте. Ленивый `import()` сборщик превратил в отдельный чанк на 112 КБ — он грузится в первый `/export`. Почему одни операторы зависимости выживают в бандле, а другие нет, — в теме [«Бандлер изнутри»](/tooling/bundler-internals/#s2).';
+export const BUNDLE_NOTE = `Сборка меняет форму работы, а не её суть. Вместо ${COLD_RUNS.eager.init.files} файлов, каждый из которых нужно найти, прочитать и разобрать, — один, и минификация с отбором неиспользуемого сократила текст вдвое: ${(COLD_RUNS.eager.init.bytes / 1024 / 1024).toFixed(1).replace('.', ',')} МБ → ${kb(BUNDLED_COLD.eager.init.bytes)}. Но эти ${kb(BUNDLED_COLD.eager.init.bytes)} всё равно разбираются и исполняются при каждом холодном старте. Ленивый \`import()\` сборщик превратил в отдельный чанк на ${kb(BUNDLED_COLD.lazy.exp.bytes)} — он грузится в первый \`/export\`. Почему одни операторы зависимости выживают в бандле, а другие нет, — в теме [«Бандлер изнутри»](/tooling/bundler-internals/#s2).`;
 
 export const BUNDLE_WARN =
   'Без баннера с `createRequire` собранный файл падает при первом же импорте: `Error: Dynamic require of "events" is not supported`. ioredis написан на CommonJS и зовёт `require(\'events\')`; в ESM-файле функции `require` нет, и esbuild оставляет заглушку, которая бросает исключение. Сборка при этом проходит без единого предупреждения — ошибка видна только при запуске, то есть уже на платформе, при холодном старте.';

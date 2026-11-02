@@ -338,6 +338,22 @@ describe('данные раздела не расходятся с тем, чт�
     expect(row!.access, `в таблице должен стоять тот же диапазон ${scheme}`).toContain(scheme);
   });
 
+  it('кука refresh в рабочей схеме проходит правила своего префикса (RFC 6265bis §4.1.3)', () => {
+    // Раньше стояло `__Host-refresh` с `Path=/api/auth/refresh`: `__Host-` требует `Path=/`,
+    // и браузер такую куку молча отвергает — та же тема в «Origin и правило одного источника».
+    const line = must(AUTH_SCHEME_CODE.match(/Set-Cookie:([\s\S]*)$/), 'Set-Cookie в схеме')[1];
+    const [nameValue, ...attrs] = line.split(';').map((s) => s.trim()).filter(Boolean);
+    const name = nameValue.split('=')[0];
+    const attr = new Map(attrs.map((a) => [a.split('=')[0].toLowerCase(), a.split('=')[1] ?? '']));
+    if (name.startsWith('__Host-')) {
+      expect(attr.get('path'), '__Host- требует Path=/').toBe('/');
+      expect(attr.has('domain'), '__Host- запрещает Domain').toBe(false);
+    }
+    if (name.startsWith('__Host-') || name.startsWith('__Secure-')) expect(attr.has('secure')).toBe(true);
+    expect(attr.get('path'), 'схема держится на узком Path').toBe('/api/auth/refresh');
+    expect(name).toBe('__Secure-refresh');
+  });
+
   it('у refresh назван порядок, а не выдуманное число', () => {
     const row = TOKEN_PAIR_ROWS.find((r) => r.k === 'Срок жизни')!;
     expect(row.refresh).toMatch(/[Пп]орядок, а не число/);

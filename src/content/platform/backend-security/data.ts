@@ -935,7 +935,7 @@ export const LOCK_CHECK_CODE = `// Каждый пакет в lock-файле �
 function lockProblems(lock, registry = 'https://registry.npmjs.org/') {
   const problems = [];
   for (const [path, pkg] of Object.entries(lock.packages ?? {})) {
-    if (path === '' || pkg.link) continue;          // корень и ссылки на рабочие пакеты
+    if (path === '' || pkg.link || pkg.inBundle) continue;   // корень, рабочие пакеты, вложенные в чужой архив
     if (!pkg.resolved?.startsWith(registry)) problems.push(\`\${path}: resolved \${pkg.resolved ?? 'нет'}\`);
     if (!pkg.integrity) problems.push(\`\${path}: нет integrity\`);
   }

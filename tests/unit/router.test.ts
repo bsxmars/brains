@@ -1,5 +1,5 @@
 /* eslint-disable vue/one-component-per-file -- тест монтирует в vue-router несколько крошечных компонентов-заглушек; отдельный файл на каждый ничего не прояснит */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { build } from 'esbuild';
 import { Window } from 'happy-dom';
@@ -865,3 +865,29 @@ navigation.addEventListener('navigate', (e) => {
   });
 });
 
+
+describe('NAVIGATE_NOTE и замер кликов', () => {
+  it('клики с модификаторами не начинают переход в этой вкладке, но вкладку открывают не все (Alt — ничего)', () => {
+    const mods = t.CLICK_STAND.filter((r) => ['meta', 'shift', 'alt', 'ctrl'].includes(r.action));
+    expect(mods.length).toBeGreaterThan(0);
+    for (const r of mods) expect(r.navigate, `${r.link} ${r.action}`).toBe(r.link === 'dl' && ['meta', 'shift'].includes(r.action) ? 'download' : null);
+    for (const r of t.CLICK_STAND.filter((x) => x.link === 'blank')) expect(r.navigate, `blank ${r.action}`).toBeNull();
+    // Alt+клик на стенде не открыл ничего — «открывают другую вкладку» было бы неправдой
+    expect(t.CLICK_STAND.filter((r) => r.action === 'alt').every((r) => !r.popup && !r.download)).toBe(true);
+    expect(t.NAVIGATE_NOTE).toContain('переход в этой вкладке они не начинают');
+    expect(t.NAVIGATE_NOTE).toContain('Исключение — ссылка с `download`: ⌘ и Shift на ней дают тот же `navigate` со скачиванием');
+    expect(t.NAVIGATE_NOTE).not.toContain('открывают другую вкладку');
+  });
+});
+
+describe('когда приходит popstate: тонкое место 01 и выжимка', () => {
+  it('и на ход по истории, и на смену якоря — как в HISTORY_STAND', () => {
+    const hash = t.HISTORY_STAND.find((r) => r.action.includes('location.hash'))!;
+    expect(hash.events.some((e) => e.startsWith('popstate:'))).toBe(true);
+    const push = t.HISTORY_STAND.filter((r) => r.action.includes('pushState'));
+    for (const r of push) expect(r.events.some((e) => e.startsWith('popstate:'))).toBe(false);
+    expect(t.PITFALLS.find((p) => p.n === '01')!.d).toContain('только на ход по истории и на смену якоря');
+    const summary = readFileSync(new URL('../../src/content/frameworks/router/summary.md', import.meta.url), 'utf8');
+    expect(summary).toContain('`popstate` — только на ход по истории и смену якоря');
+  });
+});

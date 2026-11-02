@@ -1,7 +1,16 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BOUNDARY_NUMBERS, MEASURED, PITFALLS, SCENARIOS } from '@/content/delivery/github-actions/data';
+import {
+  BOUNDARY_NUMBERS,
+  CACHE_FACTS,
+  CACHE_MISS,
+  GLOSSARY,
+  MEASURED,
+  PERM_FACTS,
+  PITFALLS,
+  SCENARIOS,
+} from '@/content/delivery/github-actions/data';
 import {
   averageCost,
   boundaryBetween,
@@ -352,5 +361,46 @@ describe('состав темы', () => {
   it('каждый замер в сводке указывает, в какой записи он лежит', () => {
     expect(MEASURED.length).toBeGreaterThan(0);
     expect(MEASURED.every((row) => row.where.length > 0)).toBe(true);
+  });
+});
+
+describe('вычитка 2026-10-30: утверждения по документации GitHub', () => {
+  // docs.github.com, «GITHUB_TOKEN»: «At the start of each workflow job, GitHub automatically
+  // creates a unique GITHUB_TOKEN secret… expires when the job finishes».
+  it('GITHUB_TOKEN создаётся на джоб, а не на прогон', () => {
+    const perm = PERM_FACTS.find((f) => f.t.includes('GITHUB_TOKEN'));
+    expect(perm?.t).toContain('живёт один джоб');
+    expect(perm?.d).toContain('создаётся на каждый джоб');
+    const term = GLOSSARY.find((g) => g.k === '`GITHUB_TOKEN`');
+    expect(term?.d).toContain('каждому джобу');
+    expect(term?.d).not.toContain('раннер выдаёт');
+  });
+
+  // «Managing GitHub Actions settings»: новый репозиторий — только чтение contents и packages.
+  it('права токена по умолчанию не названы избыточными у всех', () => {
+    const term = GLOSSARY.find((g) => g.k === '`GITHUB_TOKEN`');
+    expect(term?.d).not.toContain('по умолчанию их больше, чем нужно');
+    expect(term?.d).toContain('в новых репозиториях это только чтение');
+  });
+
+  // «Dependency caching»: «cannot restore caches created for child branches or sibling branches».
+  it('кеш ветки не обещан дочерним веткам', () => {
+    const fact = CACHE_FACTS.find((f) => f.t.startsWith('Ветки видят'));
+    expect(fact?.d).not.toContain('ветки, отходящие от неё');
+    expect(fact?.d).toContain('пул-реквесты, которые в неё вливаются');
+  });
+
+  // В «Шести способах промахнуться» про ключ только второй и третий пункты; пятый (лимит)
+  // и шестой (упавший джоб) — не про ключ, и подпись в index.mdx их ему не приписывает.
+  it('подпись к CACHE_MISS не сводит все промахи к ключу', () => {
+    expect(CACHE_MISS).toHaveLength(6);
+    expect(CACHE_MISS[1]).toContain('Ключ не учитывает');
+    expect(CACHE_MISS[2]).toContain('Ключ не учитывает');
+    const mdx = readFileSync(
+      new URL('../../src/content/delivery/github-actions/index.mdx', import.meta.url),
+      'utf8',
+    );
+    expect(mdx).not.toContain('Остальные пять значат');
+    expect(mdx).toContain('Второй и третий значат, что ключ');
   });
 });

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,9 +7,11 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { compileSemver } from '@/widgets/pm-lab/model/semver';
 import { formatEntry, layoutNpm, layoutPnpm } from '@/widgets/pm-lab/model/layout';
 import {
+  CI_ROWS,
   INTEGRITY_CODE,
   INTEGRITY_NOTE,
   LOCK_CODE,
+  PNPM_LOCK_CODE,
   RANGE_ROWS,
   REGISTRY,
   REQUIRE_RUNS,
@@ -200,33 +202,76 @@ describe('lock-файл и integrity', () => {
   const dir = mkdtempSync(join(tmpdir(), 'pm-integrity-'));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('integrity тарбола, посчитанный кодом темы, совпадает с lock-файлом и с npm pack', () => {
-    // Тот же исходник, из которого собран c@2.1.0 учебного реестра.
-    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'c', version: '2.1.0', main: 'index.js' }, null, 2));
-    writeFileSync(join(dir, 'index.js'), 'module.exports = "c@2.1.0";\n');
-    const out = execFileSync('npm', ['pack', '--json', '--pack-destination', dir], {
-      cwd: dir,
-      encoding: 'utf8',
-      env: { ...process.env, npm_config_update_notifier: 'false', npm_config_fund: 'false' },
-    });
-    const packed = JSON.parse(out)[0] as { filename: string; integrity: string };
+  /**
+   * Исходники учебного реестра: `package.json` (поля в этом порядке) и `index.js` с одной строкой.
+   * Из них восстановлены все тарболы стенда — см. шапку `data.ts`.
+   */
+  const SOURCES: [string, string, Record<string, unknown>][] = [
+    ['a', '1.0.0', { dependencies: { c: '^1.0.0' } }],
+    ['c', '1.5.0', {}],
+    ['c', '2.1.0', {}],
+    ['d', '1.0.0', { dependencies: { c: '^2.0.0' } }],
+    ['e', '1.0.0', { dependencies: { c: '^2.0.0' } }],
+    ['host', '1.5.0', {}],
+    ['plug', '1.0.0', { peerDependencies: { host: '^1.0.0' } }],
+  ];
 
+  it('integrity тарбола, посчитанный кодом темы, совпадает с lock-файлами и с npm pack', () => {
     const integrity = new Function('require', `${INTEGRITY_CODE}\nreturn integrity;`)(
       createRequire(import.meta.url),
     ) as (b: Buffer) => string;
-    const mine = integrity(readFileSync(join(dir, packed.filename)));
+    const got: Record<string, string> = {};
+    for (const [name, version, extra] of SOURCES) {
+      const pkg = join(dir, `${name}-${version}-src`);
+      mkdirSync(pkg);
+      writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name, version, ...extra, main: 'index.js' }, null, 2));
+      writeFileSync(join(pkg, 'index.js'), `module.exports = "${name}@${version}";\n`);
+      const out = execFileSync('npm', ['pack', '--json', '--pack-destination', pkg], {
+        cwd: pkg,
+        encoding: 'utf8',
+        env: { ...process.env, npm_config_update_notifier: 'false', npm_config_fund: 'false' },
+      });
+      const packed = JSON.parse(out)[0] as { filename: string; integrity: string };
+      const mine = integrity(readFileSync(join(pkg, packed.filename)));
+      expect(mine, `${name}@${version}: код темы и npm pack посчитали разный хеш`).toBe(packed.integrity);
+      got[`${name}@${version}`] = mine;
+    }
 
-    expect(mine, 'код темы и npm pack посчитали разный хеш').toBe(packed.integrity);
-    expect(
-      mine,
-      'npm pack собрал другой архив, чем стоит в lock-файле темы. Если сменилась версия npm, ' +
-        'перепроверьте детерминизм упаковки — тема утверждает, что повторная упаковка даёт те же байты.',
-    ).toBe(lock.packages['node_modules/d/node_modules/c'].integrity);
+    const fromLock = Object.fromEntries(
+      Object.entries(lock.packages)
+        .filter(([path]) => path !== '')
+        .map(([path, p]) => [`${path.split('node_modules/').at(-1)}@${p.version}`, p.integrity]),
+    );
+    const fromPnpm = Object.fromEntries(
+      [...PNPM_LOCK_CODE.matchAll(/^ {2}(\S+@[\d.]+):\n {4}resolution: \{integrity: (\S+)\}/gm)].map((m) => [m[1], m[2]]),
+    );
+    expect(Object.keys(fromPnpm).sort()).toEqual(['host@1.5.0', 'plug@1.0.0']);
+    const message =
+      'npm pack собрал другой архив, чем стоит в lock-файле темы. Хеши сняты на официальных сборках Node ' +
+      '(zlib nodejs.org); Node с другой zlib, например из Homebrew, сжимает тот же tar в другие байты.';
+    expect({ ...fromLock, ...fromPnpm }, message).toEqual(Object.fromEntries(Object.keys({ ...fromLock, ...fromPnpm }).map((k) => [k, got[k]])));
   });
 
   it('путь в кеше npm из текста — это sha512 тарбола c@1.5.0 в шестнадцатеричной записи', () => {
     const b64 = lock.packages['node_modules/c'].integrity!.replace(/^sha512-/, '');
     const hex = Buffer.from(b64, 'base64').toString('hex');
     expect(INTEGRITY_NOTE).toContain(`sha512/${hex.slice(0, 2)}/${hex.slice(2, 4)}/${hex.slice(4, 8)}`);
+    // И начало того же integrity — в сообщении EINTEGRITY из таблицы `npm ci`.
+    expect(CI_ROWS.find((r) => r.ci.includes('EINTEGRITY'))?.ci).toContain(`wanted ${lock.packages['node_modules/c'].integrity!.slice(0, 11)}…`);
   });
 });
+
+describe('живой пример: двойники semver в этом проекте', () => {
+  it('число копий semver@7 и версия в корне совпадают с package-lock.json сайта', async () => {
+    const { PROJECT_DUPES } = await import('@/content/tooling/package-managers/data');
+    const lock = JSON.parse(readFileSync('package-lock.json', 'utf8')) as { packages: Record<string, { version?: string }> };
+    const copies = Object.entries(lock.packages).filter(([k]) => k.endsWith('node_modules/semver'));
+    const root = lock.packages['node_modules/semver'].version;
+    const nested = copies.filter(([k, v]) => k !== 'node_modules/semver' && v.version === '7.8.5');
+    expect(root).toBe('6.3.1');
+    expect(PROJECT_DUPES).toContain('`semver@6.3.1` занял корень');
+    const words: Record<number, string> = { 9: 'девять', 10: 'десять', 11: 'одиннадцать', 12: 'двенадцать', 13: 'тринадцать', 14: 'четырнадцать' };
+    expect(PROJECT_DUPES).toContain(`лежит на диске ${words[nested.length]} раз`);
+  });
+});
+

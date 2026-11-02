@@ -173,3 +173,14 @@ describe('SAA_CODE: запрос доступа — первой строкой 
     expect(h.status.textContent).toBe('none=1');
   });
 });
+
+describe('лид раздела «Уйдёт ли кука» называет столько признаков, сколько у модели', () => {
+  it('пять признаков куки и четыре признака запроса (было «трёх»: забыт Storage Access)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const mdx = readFileSync(new URL('../../src/content/platform/third-party-cookies/index.mdx', import.meta.url), 'utf8');
+    const row = VERDICT_MEASURED[0];
+    expect(Object.keys(row.cookie)).toHaveLength(5);
+    expect(Object.keys(row.request)).toHaveLength(4);
+    expect(mdx).toContain('из пяти признаков куки и четырёх признаков запроса');
+  });
+});

@@ -77,7 +77,7 @@ export const PREREQ: { t: string; d: string; href: string; hrefLabel: string; to
   },
   {
     t: 'Промис и `then`',
-    d: 'Промис получает результат один раз. `then` не ставит ничего в очередь сразу: реакция встанет туда, когда промис выполнится или отклонится. `Promise.resolve(p)` возвращает сам `p`, если это настоящий промис.',
+    d: 'Промис получает результат один раз. `then` ставит реакцию в очередь, когда промис выполнится или отклонится, а у уже выполненного — сразу. `Promise.resolve(p)` возвращает сам `p`, если это настоящий промис.',
     href: '/js/promise-internals/#s2',
     hrefLabel: '«Промис изнутри», раздел «Три операции, которые всё объясняют»',
     tone: 'info',
@@ -424,7 +424,7 @@ export const PLAIN_ASYNC_ITER =
 export const PROTOCOL_ROWS = [
   { k: 'как взять итератор', sync: '`obj[Symbol.iterator]()`', async: '`obj[Symbol.asyncIterator]()`' },
   { k: 'что возвращает `next()`', sync: '`{ value, done }`', async: 'промис `{ value, done }`' },
-  { k: 'кто обходит', sync: '`for…of`, спред, деструктуризация', async: 'только `for await…of`' },
+  { k: 'кто обходит', sync: '`for…of`, спред, деструктуризация', async: '`for await…of`, `Array.fromAsync`' },
   { k: 'генератор', sync: '`function*` → `[object Generator]`', async: '`async function*` → `[object AsyncGenerator]`' },
   { k: 'ранний выход', sync: '`return()` — сразу', async: '`return()` — промис, цикл его ждёт' },
 ];

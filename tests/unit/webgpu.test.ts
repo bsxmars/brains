@@ -4,6 +4,7 @@ import {
   ADD_HOST_CODE,
   ADD_REFERENCE,
   ADD_WGSL,
+  GLOSSARY,
   GPU_PRESETS,
   HISTOGRAM_REFERENCE,
   HISTOGRAM_WGSL,
@@ -218,5 +219,23 @@ describe('ссылки темы ведут в существующие разд�
     const file = new URL(`../../src/content/${COLLECTION[direction]}/${slug}/index.mdx`, import.meta.url);
     expect(existsSync(file), `нет темы ${direction}/${slug}`).toBe(true);
     if (anchor) expect(readFileSync(file, 'utf8')).toMatch(new RegExp(`id="${anchor}"`));
+  });
+});
+
+describe('словарь не спорит с WebGL 2', () => {
+  it('storage-буфер: WebGL 2 писал в буфер через transform feedback, но не по произвольному индексу', () => {
+    const storage = GLOSSARY.find((g) => g.k === 'storage-буфер')!;
+    expect(storage.d).not.toContain('писать шейдер мог только в пиксели');
+    expect(storage.d).toContain('transform feedback');
+    expect(storage.d).toContain('не по произвольному индексу');
+  });
+});
+
+describe('гонка без атомиков: подпись не спорит с прогонами', () => {
+  it('«в сотни раз меньше» — только про видеокарту: программный адаптер насчитал 47 283 из 65 536', () => {
+    const mdx = readFileSync('src/content/render/webgpu/index.mdx', 'utf8').replace(/\s+/g, ' ');
+    expect(mdx).toContain('сумма по корзинам у вас будет меньше верной — на видеокарте в сотни раз.');
+    expect(65_536 / 47_283).toBeLessThan(2);
+    expect(65_536 / 364).toBeGreaterThan(100);
   });
 });

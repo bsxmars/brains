@@ -5,6 +5,7 @@ import {
   COLLECTIONS_CODE,
   COLLECTIONS_LOG,
   MINI_SCENARIOS,
+  ITERATE_NOTE,
   MINI_VUE_CODE,
   RECEIVER_CODE,
 } from '@/content/frameworks/vue-internals/data';
@@ -299,6 +300,15 @@ const CASES: Case[] = [
     want: ['a', 'a,b', 'b'],
   },
   {
+    name: 'спред читает каждый ключ: set существующего будит (в отличие от Object.keys)',
+    run: (api, log) => {
+      const s = api.reactive<Record<string, number>>({ a: 1 });
+      api.effect(() => log(JSON.stringify({ ...s })));
+      s.a = 2;
+    },
+    want: ['{"a":1}', '{"a":2}'],
+  },
+  {
     name: '`in` подписывает на ключ',
     run: (api, log) => {
       const s = api.reactive<Record<string, number>>({});
@@ -372,6 +382,11 @@ const CASES: Case[] = [
     want: [0, 1],
   },
 ];
+
+it('ITERATE_NOTE не ставит спред в один ряд с Object.keys', () => {
+  expect(ITERATE_NOTE).not.toContain('и спред не читают');
+  expect(ITERATE_NOTE).toContain('Спред устроен иначе');
+});
 
 describe.each(CASES)('$name', ({ run, want }) => {
   it.each(IMPLS)('%s', (_name, make) => {

@@ -167,7 +167,7 @@ export function createRuntime(): SimRuntime {
             fulfill(target);
           } else {
             // У нативного промиса свой `then`: он ставит ещё одну реакцию, и это второй тик.
-            rt.performPromiseThen(value, 'промис получает результат', {
+            rt.performPromiseThen(value, 'результат доходит до промиса, который его ждал', {
               then: () => fulfill(target),
             });
           }

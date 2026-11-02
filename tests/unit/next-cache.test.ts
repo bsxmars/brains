@@ -164,6 +164,14 @@ describe('числа и утверждения текста — из журна�
     expect(A[1].cc).toBe('private, no-cache, no-store, max-age=0, must-revalidate');
   });
 
+  it('короткий срок: в тексте тот же вызов cacheLife, что уронил сборку стенда (шапка data.ts)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../src/content/frameworks/next-cache/data.ts', import.meta.url), 'utf8');
+    const ran = src.match(/— `(cacheLife\(\{[^`]+\}\))` без `<Suspense>`/)![1];
+    const fact = t.USE_CACHE_FACTS.find((f) => f.t === 'Короткий срок выпадает из сборки')!;
+    expect(fact.d).toContain('`' + ran + '` без `<Suspense>`');
+  });
+
   it('профили cacheLife в таблице — из кода Next 16.3.8', () => {
     const require = createRequire(import.meta.url);
     const { defaultConfig } = require('next/dist/server/config-shared.js') as {

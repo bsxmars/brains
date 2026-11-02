@@ -454,7 +454,7 @@ export const ENV_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = [
   },
   {
     t: '`NODE_ENV` из файла переименовывается',
-    d: 'Строка `NODE_ENV=development` в `.env` не меняет `NODE_ENV` процесса сборки. Vite кладёт её в `VITE_USER_NODE_ENV` — и она уезжает в бандл вместе с остальными `VITE_*`.',
+    d: 'Строка `NODE_ENV=development` в `.env` превращается в `VITE_USER_NODE_ENV` — и уезжает в бандл вместе с остальными `VITE_*`. Если оболочка `NODE_ENV` не задала, Vite по этой строке ещё и переключает сборку в `development`: в бандле `DEV: true` и `PROD: false` при `MODE: production`. Другие значения `NODE_ENV` из файла он не берёт, только предупреждает.',
     tone: 'warn',
   },
   {

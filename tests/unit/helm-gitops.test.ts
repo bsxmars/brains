@@ -484,6 +484,12 @@ describe('текст темы', () => {
     }
   });
 
+  it('число строк values-prod.yaml в разборе values совпадает с самим файлом', () => {
+    const lines = t.FILES['values-prod.yaml'].split('\n').filter((l) => l.trim() !== '');
+    expect(lines).toHaveLength(7);
+    expect(t.VALUES_SCENE[1]).toContain('`values-prod.yaml` семь строк');
+  });
+
   it('тонкие места пронумерованы подряд', () => {
     expect(t.PITFALLS.map((p) => p.n)).toEqual(t.PITFALLS.map((_, i) => String(i + 1).padStart(2, '0')));
   });

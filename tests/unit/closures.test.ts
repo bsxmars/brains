@@ -404,4 +404,15 @@ describe('числа в тексте', () => {
     expect(t.COPY_NOTE).toContain('`1` и `3`');
     expect(t.INTERPRETER_CODES.join('\n')).toContain('Cannot access');
   });
+
+  it('LOOP_LET_NOTE: окружений пять — init и четыре копии, последняя с i = 3', () => {
+    const tr = trace(t.LOOP_LET_PROGRAM.code);
+    expect(tr.steps.filter((s) => s.event === 'for')).toHaveLength(1);
+    expect(tr.steps.filter((s) => s.event === 'copy')).toHaveLength(4);
+    // То же в V8: стрелка в условии запоминает окружение каждой проверки.
+    const fs: (() => string)[] = [];
+    for (let i = 0, init = (fs.push(() => 'init:' + i), 0); fs.push(() => String(i)), i < 3; i++) void init;
+    expect(fs.map((f) => f())).toEqual(['init:0', '0', '1', '2', '3']);
+    expect(t.LOOP_LET_NOTE).toContain('окружений пять');
+  });
 });

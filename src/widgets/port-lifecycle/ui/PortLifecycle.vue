@@ -9,8 +9,9 @@
  *   буферизация до `start()` — сообщения копятся в очереди порта, а не теряются;
  *   доставка отдельной задачей — между «отправлено» и «пришло в onmessage» есть ступень
  *                                «задача в цикле», и она не проскакивается;
- *   мёртвый порт после transfer — объект остался у вас, но он пустой, и `postMessage`
- *                                 на нём молчит.
+ *   мёртвый порт после transfer — объект остался у вас, но он пустой: `postMessage`,
+ *                                 `start()` и `close()` на нём ничего не делают, а канал
+ *                                 живёт у нового владельца (Chromium: проверено запуском).
  *
  * Ступень «задача в цикле» не нарисована, а настоящая: виджет держит собственный
  * `MessageChannel` и гоняет доставку через него. То есть задержка между отправкой и
@@ -80,6 +81,7 @@ function post() {
   if (closed.value) return say('postClosed');
   seq.value += 1;
   const msg = `'msg-${seq.value}'`;
+  if (detached.value) return say('postTransferred', msg);
   if (enabled.value) {
     inFlight.value = [...inFlight.value, msg];
     hop();
@@ -92,11 +94,13 @@ function post() {
 
 function listen() {
   if (closed.value) return say('listenClosed');
+  if (detached.value) return say('movedAway');
   say('listen');
 }
 
 function start() {
   if (closed.value) return say('startClosed');
+  if (detached.value) return say('movedAway');
   if (enabled.value) return say('startAgain');
   enabled.value = true;
   inFlight.value = [...inFlight.value, ...buffer.value];
@@ -109,6 +113,9 @@ function transfer() {
   if (closed.value) return say('transferClosed');
   if (detached.value) return say('transferAgain');
   detached.value = true;
+  // Накопленное уезжает вместе с портом: у главного потока не остаётся ничего.
+  buffer.value = [];
+  inFlight.value = [];
   say('transferOk');
 }
 
@@ -119,6 +126,7 @@ function fromDetached() {
 
 function close() {
   if (closed.value) return say('closeAgain');
+  if (detached.value) return say('movedAway');
   closed.value = true;
   enabled.value = false;
   buffer.value = [];
@@ -144,18 +152,18 @@ const actions = [
   { label: 'addEventListener', kind: 'warn', run: listen },
   { label: 'port1.start()', kind: 'ink', run: start },
   { label: 'transfer port1', kind: 'warn', run: transfer },
-  { label: 'postMessage из detached', kind: 'err', run: fromDetached },
+  { label: 'port1.postMessage() после transfer', kind: 'err', run: fromDetached },
   { label: 'port1.close()', kind: 'err', run: close },
   { label: 'сброс', kind: 'ghost', run: reset },
 ] as const;
 
 const flags = computed(() => [
-  {
-    t: closed.value ? 'closed' : enabled.value ? 'enabled' : 'disabled',
-    state: closed.value ? 'bad' : 'on',
-  },
-  { t: 'detached', state: detached.value ? 'bad' : 'off' },
-  { t: enabled.value ? 'очередь работает' : 'очередь буферизует', state: 'on' },
+  closed.value
+    ? { t: 'закрыт', state: 'bad' }
+    : enabled.value
+      ? { t: 'запущен — доставляет', state: 'on' }
+      : { t: 'не запущен — копит', state: 'wait' },
+  ...(detached.value ? [{ t: 'detached — пустой', state: 'bad' }] : []),
 ]);
 
 const deliveredLines = computed(() => delivered.value.map((msg) => `got ${msg}`));
@@ -183,20 +191,20 @@ const deliveredLines = computed(() => delivered.value.map((msg) => `got ${msg}`)
         <div class="t-label">воркер · держит port2</div>
         <div class="port" data-state="live">port2</div>
         <p class="hint">
-          Отсюда шлют. Сцепка симметрична: «сервера» и «клиента» у канала нет, просто у этой
-          стороны очередь никому не нужна.
+          port2 только отправляет — кнопкой «port2.postMessage()». Слушать он тоже может:
+          концы равноправны, но в этом демо следим за port1.
         </p>
-        <div v-if="detached" class="port port--moved">port1 — теперь здесь</div>
       </div>
 
       <div class="pipe" :data-state="closed ? 'cut' : 'live'">
-        <span class="pipe__label">{{ closed ? 'расцеплено' : 'entangled pair' }}</span>
+        <span class="pipe__label">{{ closed ? 'расцеплено' : 'связанная пара' }}</span>
         <span class="pipe__line"></span>
         <span class="pipe__arrow">→</span>
       </div>
 
       <div class="realm realm--main">
         <div class="t-label">главный поток · держит port1</div>
+        <div v-if="detached" class="port port--moved">port1 отдан в iframe — здесь пустой объект</div>
 
         <div class="flags">
           <span v-for="flag in flags" :key="flag.t" class="flag" :data-state="flag.state">
@@ -206,7 +214,7 @@ const deliveredLines = computed(() => delivered.value.map((msg) => `got ${msg}`)
 
         <QueueView
           :items="buffer"
-          label="port message queue"
+          label="очередь port1"
           tone="warn"
           :min-height="62"
           empty-label="пусто"
@@ -384,6 +392,11 @@ const deliveredLines = computed(() => delivered.value.map((msg) => `got ${msg}`)
 .flag[data-state='bad'] {
   background: var(--tone-err-chip);
   color: var(--tone-err-strong);
+  font-weight: 600;
+}
+.flag[data-state='wait'] {
+  background: var(--tone-warn-chip);
+  color: var(--tone-warn-strong);
   font-weight: 600;
 }
 .flag[data-state='off'] {

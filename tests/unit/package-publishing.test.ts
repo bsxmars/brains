@@ -269,3 +269,20 @@ describe('что ломает версию', () => {
     });
   }, 60_000);
 });
+
+describe('вычитка 2026-10-30: лид раздела «ESM и CJS» не спорит с таблицей форматов', () => {
+  it('без `type` Node смотрит на содержимое: `.js` с синтаксисом ESM грузится как ESM', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pp-notype-'));
+    writeFileSync(join(dir, 'package.json'), '{"name":"x"}');
+    writeFileSync(join(dir, 'm.js'), "export const file = 'm.js';\n");
+    writeFileSync(join(dir, 'probe.mjs'), "const m = await import('./m.js'); console.log(m.file);\n");
+    const out = execFileSync(process.execPath, ['probe.mjs'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    expect(out.trim()).toBe('m.js');
+    rmSync(dir, { recursive: true, force: true });
+    const mdx = readFileSync('src/content/tooling/package-publishing/index.mdx', 'utf8');
+    expect(mdx).not.toContain('не по содержимому, а по расширению');
+    expect(mdx).toContain('на содержимое смотрит, только когда `type` не задан');
+    expect(t.FORMAT_ROWS.find((r) => r.k === '`.js` без `type`')!.v).toContain('распознаёт');
+  });
+});
+

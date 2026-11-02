@@ -1296,7 +1296,7 @@ export const DIFF = {
     [
       'Хук вне рендера',
       '`dispatcher = null` — бросает `resolveDispatcher`',
-      '`ContextOnlyDispatcher`: каждый хук, кроме `use`, — заглушка, бросающая `Invalid hook call`',
+      '`ContextOnlyDispatcher`: каждый хук, кроме `use` и `readContext`, — заглушка, бросающая `Invalid hook call`',
     ],
     [
       '`setState` в теле компонента',
