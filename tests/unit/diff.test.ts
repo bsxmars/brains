@@ -8,6 +8,7 @@ import { Window } from 'happy-dom';
 import { afterAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/algorithms/diff/data';
 import { frontier, loadLis, loadMyers, loadReactMoves, loadVueMoves, scriptPath } from '@/widgets/diff-lab/model/run';
+import { minstd } from '../helpers/rng';
 
 /**
  * Тема «Diff: как git и фреймворки находят разницу».
@@ -98,11 +99,6 @@ const vueMoves = loadVueMoves(t.LIS_CODE, t.VUE_MOVES_CODE);
 const reactMoves = loadReactMoves(t.REACT_MOVES_CODE);
 const lcsTable = new Function(`${t.LCS_CODE}\nreturn lcsTable;`)() as (a: unknown[], b: unknown[]) => number[][];
 
-/** ГПСЧ Лемера — тот же, что на стенде: случайные пары воспроизводимы. */
-function rng(seed: number) {
-  let s = seed;
-  return () => (s = (s * 48271) % 2147483647) / 2147483647;
-}
 function shuffle<T>(arr: T[], r: () => number): T[] {
   const out = arr.slice();
   for (let i = out.length - 1; i > 0; i--) {
@@ -133,7 +129,7 @@ describe('MYERS_CODE: кратчайший скрипт правок', () => {
   });
 
   it('совпадает с jsdiff на случайных парах — и по D, и по самому скрипту', () => {
-    const r = rng(11);
+    const r = minstd(11);
     for (let it = 0; it < 1500; it++) {
       const al = 'ABCD'.slice(0, 2 + Math.floor(r() * 3));
       const a = Array.from({ length: Math.floor(r() * 15) }, () => al[Math.floor(r() * al.length)]);
@@ -290,7 +286,7 @@ describe('LIS_CODE против getSequence из исходника Vue', () => 
   const getSequence = new Function(`${fn}return getSequence;`)() as (arr: number[]) => number[];
 
   it('на перестановках 1…n — те же индексы', () => {
-    const r = rng(5);
+    const r = minstd(5);
     for (let it = 0; it < 1500; it++) {
       const n = 1 + Math.floor(r() * 20);
       const arr = shuffle(Array.from({ length: n }, (_, i) => i + 1), r);
@@ -299,7 +295,7 @@ describe('LIS_CODE против getSequence из исходника Vue', () => 
   });
 
   it('цепочка возрастает и не короче перебора на малых массивах', () => {
-    const r = rng(9);
+    const r = minstd(9);
     for (let it = 0; it < 300; it++) {
       const arr = Array.from({ length: Math.floor(r() * 9) }, () => Math.floor(r() * 6));
       const seq = lis(arr);
@@ -350,7 +346,7 @@ describe('перемещения: vueMoves и reactMoves против Vue 3.5 и
   });
 
   it('случайные пары с удалениями и новыми ключами', async () => {
-    const r = rng(17);
+    const r = minstd(17);
     const pool = [...'ABCDEFGHIJKL'];
     for (let it = 0; it < 150; it++) {
       const from = pool.filter(() => r() < 0.7);
@@ -376,7 +372,7 @@ describe('перемещения: vueMoves и reactMoves против Vue 3.5 и
 
   it('RANDOM_STATS: Vue = n − LIS = D Майерса / 2, React не лучше', () => {
     const s = t.RANDOM_STATS;
-    const r = rng(s.seed);
+    const r = minstd(s.seed);
     const keys = [...'ABCDEFGHIJ'];
     let sv = 0;
     let sr = 0;

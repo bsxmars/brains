@@ -1,4 +1,4 @@
-import Module, { createRequire } from 'node:module';
+import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 import {
   BLOCK_CODE,
@@ -25,6 +25,7 @@ import {
 } from '@/content/frameworks/vue-patch-internals/data';
 import { keyedList, loadMiniPatch, reactRuleMoves, runKeyed, shuffleKeys } from '@/widgets/mini-patch/model/run';
 import type { MiniPatch, RendererApi, TraceEvent } from '@/widgets/mini-patch/model/types';
+import { loadVue } from '../helpers/load-vue';
 
 /**
  * «Vue 3 изнутри: рендерер и patch»: мини-рендерер против настоящего.
@@ -62,42 +63,23 @@ type VueRuntime = RendererApi & {
   Fragment: symbol;
 };
 
-function loadVue(build: Build): { vue: VueRuntime; files: string[] } {
-  const resolver = Module as unknown as { _resolveFilename: (request: string, ...rest: unknown[]) => string };
-  const original = resolver._resolveFilename;
-  const suffix = build === 'production' ? '.prod' : '';
-  for (const key of Object.keys(require.cache)) if (key.includes('/node_modules/@vue/')) delete require.cache[key];
-  resolver._resolveFilename = function (request, ...rest) {
-    const pkg = /^@vue\/(runtime-core|reactivity|shared)$/.exec(request)?.[1];
-    if (pkg) return original.call(this, `@vue/${pkg}/dist/${pkg}.cjs${suffix}.js`, ...rest);
-    return original.call(this, request, ...rest);
-  };
-  try {
-    const vue = require('@vue/runtime-core') as VueRuntime;
-    const files = Object.keys(require.cache).filter((key) => key.includes('/node_modules/@vue/'));
-    return { vue, files };
-  } finally {
-    resolver._resolveFilename = original;
-  }
-}
-
-const VUE: Record<Build, ReturnType<typeof loadVue>> = {
-  production: loadVue('production'),
-  development: loadVue('development'),
+const VUE: Record<Build, { api: VueRuntime; files: string[] }> = {
+  production: loadVue<VueRuntime>('production', 'runtime-core'),
+  development: loadVue<VueRuntime>('development', 'runtime-core'),
 };
 const BUILDS: Build[] = ['production', 'development'];
 
 /** Мини-рендерер на реактивности заказанной сборки. Каждый раз свежий: своя очередь, свои блоки. */
-const mini = (build: Build = 'production'): MiniPatch => loadMiniPatch(MINI_PATCH_CODE, VUE[build].vue);
+const mini = (build: Build = 'production'): MiniPatch => loadMiniPatch(MINI_PATCH_CODE, VUE[build].api);
 
 /** Настоящий Vue на нашем хосте: `createLogHost` берётся из той же строки. */
-const vueOn = (build: Build) => ({ ...VUE[build].vue, createLogHost: mini(build).createLogHost });
+const vueOn = (build: Build) => ({ ...VUE[build].api, createLogHost: mini(build).createLogHost });
 
 type Impl = RendererApi & Pick<MiniPatch, 'createLogHost'> & { reactive: VueRuntime['reactive'] };
 
 /** Реализации под сверку. */
 const IMPLS: [string, () => Impl][] = BUILDS.flatMap((build) => [
-  [`мини-версия · реактивность ${build}`, () => ({ ...mini(build), reactive: VUE[build].vue.reactive })],
+  [`мини-версия · реактивность ${build}`, () => ({ ...mini(build), reactive: VUE[build].api.reactive })],
   [`Vue ${build}`, () => vueOn(build)],
 ] as [string, () => Impl][]);
 
@@ -132,7 +114,7 @@ function broken(...pairs: [find: string, replace: string][]): MiniPatch {
     expect(code.includes(find), `в MINI_PATCH_CODE нет строки «${find}» — текст шага переписан`).toBe(true);
     code = code.replace(find, replace);
   }
-  return loadMiniPatch(code, VUE.production.vue);
+  return loadMiniPatch(code, VUE.production.api);
 }
 
 /** Детерминированный генератор: случайные пары воспроизводятся от прогона к прогону. */
@@ -173,7 +155,7 @@ describe('сборки Vue загружены те, что заказаны', ()
     ]);
   });
   it('это действительно разные экземпляры', () => {
-    expect(VUE.production.vue.createRenderer).not.toBe(VUE.development.vue.createRenderer);
+    expect(VUE.production.api.createRenderer).not.toBe(VUE.development.api.createRenderer);
   });
 });
 

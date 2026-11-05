@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 import * as t from '@/content/algorithms/crdt/data';
 import { allOrders, deliver, loadNaive, loadSeq, makeOrder, permutations, play, prepare } from '@/widgets/crdt-lab/model/run';
 import type { Edit, SeqOp, SeqScenario } from '@/widgets/crdt-lab/model/types';
+import { minstd } from '../helpers/rng';
 
 /**
  * Тема «CRDT: как два редактора сливают правки без сервера».
@@ -16,12 +17,6 @@ import type { Edit, SeqOp, SeqScenario } from '@/widgets/crdt-lab/model/types';
 
 const seq = loadSeq(t.SEQ_CODE);
 const naive = loadNaive(t.NAIVE_CODE);
-
-/** ГПСЧ Лемера — тот же, что на стенде. */
-function rng(seed: number) {
-  let s = seed;
-  return () => (s = (s * 48271) % 2147483647) / 2147483647;
-}
 
 function ydoc(client: number, gc = true): Y.Doc {
   const d = new Y.Doc({ gc });
@@ -103,7 +98,7 @@ describe('SEQ_CODE: сходимость', () => {
   });
 
   it('свойство: случайные правки трёх участников сходятся при любом порядке', () => {
-    const r = rng(11);
+    const r = minstd(11);
     for (let trial = 0; trial < 60; trial++) {
       const peers = [1, 2, 3].map((c, n) => {
         let len = 4;
@@ -192,7 +187,7 @@ describe('SEQ_CODE против Yjs', () => {
   });
 
   it('RANDOM_MATCH: доля совпадений с Yjs на случайных правках (зерно 2026)', () => {
-    const r = rng(2026);
+    const r = minstd(2026);
     const ri = (n: number) => Math.floor(r() * n);
     function trial(peers: number, opsPer: number): boolean {
       const base = 'абвг';
@@ -277,7 +272,7 @@ function laws<S>(name: string, gen: () => S, merge: (a: S, b: S) => S) {
 }
 
 describe('простые CRDT', () => {
-  const r = rng(5);
+  const r = minstd(5);
   const clients = ['А', 'Б', 'В'];
   const genG = () => {
     let c: G = {};
@@ -433,7 +428,7 @@ describe('Yjs', () => {
     const bulk = ydoc(1);
     bulk.getText('t').insert(0, TEXT);
     expect(Y.encodeStateAsUpdate(bulk).length).toBe(s.bulk);
-    const r = rng(2026);
+    const r = minstd(2026);
     const rnd = ydoc(1);
     const rt = rnd.getText('t');
     for (const ch of TEXT) rt.insert(Math.floor(r() * (rt.length + 1)), ch);
@@ -441,7 +436,7 @@ describe('Yjs', () => {
   });
 
   function churnY(gc: boolean) {
-    const r = rng(7);
+    const r = minstd(7);
     const d = ydoc(1, gc);
     const tx = d.getText('t');
     for (let i = 0; i < t.CHURN.edits; i++) {
@@ -461,7 +456,7 @@ describe('Yjs', () => {
     expect(Y.encodeStateAsUpdate(d).length).toBe(c.yBytesGc);
     expect(Y.encodeStateAsUpdate(churnY(false)).length).toBe(c.yBytesNoGc);
 
-    const r = rng(7);
+    const r = minstd(7);
     const m = seq.createDoc(1);
     for (let i = 0; i < c.edits; i++) {
       const len = seq.text(m).length;

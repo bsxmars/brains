@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/algorithms/undo-redo/data';
 import { loadEditor, play, playNative } from '@/widgets/undo-lab/model/run';
 import type { DemoStep, FieldState, NativeAct } from '@/widgets/undo-lab/model/types';
+import { ansiLcg } from '../helpers/rng';
 
 /**
  * Тема «Отмена и повтор: undo/redo изнутри».
@@ -32,15 +33,6 @@ const realNow = Date.now;
 Date.now = () => fakeNow;
 const Y = await import('yjs');
 Date.now = realNow;
-
-/** ЛКГ стенда: s = (s·1103515245 + 12345) mod 2³¹. */
-function rng(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 1103515245 + 12345) % 2147483648;
-    return s / 2147483648;
-  };
-}
 
 // ─── Учебная история на виртуальном времени ─────────────────────────────────────────────────
 
@@ -82,7 +74,7 @@ describe('HISTORY_CODE: стопки, снимки, группировка', () 
 
   it('снимки и правки дают одно и то же на случайных локальных сценариях', () => {
     for (let seed = 1; seed <= 300; seed++) {
-      const r = rng(seed);
+      const r = ansiLcg(seed);
       const ri = (n: number) => Math.floor(r() * n);
       const a = createEditor({ mode: 'ops', timeout: 500 });
       const b = createEditor({ mode: 'snapshots', timeout: 500 });
@@ -227,7 +219,7 @@ describe('Immer 11: структурное разделение и патчи', 
     let ops = 0;
     let same = 0;
     for (let seed = 1; seed <= t.PATCH_MATCH.seeds; seed++) {
-      const r = rng(seed);
+      const r = ansiLcg(seed);
       const base = { title: 'Список', todos: [{ text: 'молоко', done: false }], meta: { owner: 'Аня', tags: ['дом'] } };
       let mine: unknown = base;
       let theirs: unknown = base;
@@ -305,7 +297,7 @@ describe('Y.UndoManager 13.6 на подменённых часах', () => {
   it('HISTORY_CODE против Y.UndoManager на случайных сценариях двух клиентов — YJS_MATCH', () => {
     let same = 0;
     for (let seed = 1; seed <= t.YJS_MATCH.runs; seed++) {
-      const r = rng(seed);
+      const r = ansiLcg(seed);
       const ri = (n: number) => Math.floor(r() * n);
       const a = new Y.Doc();
       a.clientID = 1;

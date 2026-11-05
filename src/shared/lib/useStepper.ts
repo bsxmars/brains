@@ -17,7 +17,8 @@ export function useStepper(total: Ref<number> | number) {
   const counter = computed(() => `${index.value + 1} / ${count.value}`);
 
   const go = (i: number) => {
-    index.value = Math.min(count.value - 1, Math.max(0, i));
+    // Пустой сценарий оставляет индекс на нуле, а не уводит в −1.
+    index.value = Math.max(0, Math.min(count.value - 1, i));
   };
   const next = () => go(index.value + 1);
   const prev = () => go(index.value - 1);

@@ -11,6 +11,7 @@
  * ⚠️ Прогон — в `onMounted`: на сборке страницы `new Function` не нужен.
  */
 import { computed, onMounted, ref, shallowRef, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import CodeListing from '@/shared/ui/CodeListing.vue';
 import ConsoleView from '@/shared/ui/ConsoleView.vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
@@ -32,7 +33,8 @@ const options = props.scenarios.map((s) => ({ value: s.id, label: s.label }));
 const scenario = computed(() => props.scenarios.find((s) => s.id === picked.value) ?? props.scenarios[0]);
 
 const run = shallowRef<ScenarioRun | null>(null);
-const at = ref(0);
+const total = computed(() => run.value?.steps.length ?? 0);
+const { index: at, atStart, atEnd, go, next, prev, reset } = useStepper(total);
 const failed = ref('');
 
 async function boot() {
@@ -53,7 +55,6 @@ watch(picked, boot);
 onMounted(boot);
 
 const lines = computed(() => scenario.value.code.split('\n'));
-const total = computed(() => run.value?.steps.length ?? 0);
 const step = computed(() => run.value?.steps[at.value] ?? null);
 
 const KIND: Record<NodeKind, string> = { state: '$state', derived: '$derived', effect: '$effect', template: 'шаблон' };
@@ -74,10 +75,6 @@ const miniSoFar = computed(() =>
 const same = computed(
   () => run.value !== null && JSON.stringify(run.value.logs) === JSON.stringify(scenario.value.svelte),
 );
-
-function go(i: number) {
-  at.value = Math.max(0, Math.min(total.value - 1, i));
-}
 </script>
 
 <template>
@@ -96,13 +93,13 @@ function go(i: number) {
         <div class="sl-controls">
           <StepToolbar
             :counter="total ? `шаг ${at + 1} из ${total}` : '…'"
-            :at-start="at === 0"
-            :at-end="at >= total - 1"
-            @prev="go(at - 1)"
-            @next="go(at + 1)"
-            @reset="go(0)"
+            :at-start="atStart"
+            :at-end="atEnd"
+            @prev="prev"
+            @next="next"
+            @reset="reset"
           />
-          <Button variant="secondary" :disabled="at >= total - 1" @click="go(total - 1)">в конец</Button>
+          <Button variant="secondary" :disabled="atEnd" @click="go(total - 1)">в конец</Button>
         </div>
 
         <ol v-if="run" class="sl-steps" aria-label="Шаги прогона">

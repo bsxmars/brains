@@ -16,6 +16,7 @@ import {
   STOP_CODE,
   UPLOAD_CODE,
 } from '../../src/content/lessons/media-voice/data';
+import { withBrowser } from '../helpers/with-browser';
 
 /**
  * «Голос: запись с микрофона и речь» — каждое утверждение темы о поведении браузера.
@@ -72,15 +73,6 @@ async function open(
 
 const html = (code: string, extra = '') =>
   `<!doctype html><meta charset="utf-8">${extra}<script type="module">${code}</script>`;
-
-async function withBrowser<T>(type: BrowserType, opts: Parameters<BrowserType['launch']>[0], fn: (b: Browser) => Promise<T>) {
-  const browser = await type.launch(opts);
-  try {
-    return await fn(browser);
-  } finally {
-    await browser.close();
-  }
-}
 
 test.describe('раздел «Запись с микрофона»', () => {
   test('RECORD_CODE: куски каждые 500 мс, тип WebM/Opus, у <audio> длительность Infinity', async () => {

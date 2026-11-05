@@ -6,6 +6,7 @@ import { Window } from 'happy-dom';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import * as t from '@/content/patterns/trees/data';
+import { execute, tsHarness } from '../helpers/ts-diagnose';
 
 /**
  * Утверждения темы «Деревья и обход: компоновщик и итератор» — компилятором и исполнением.
@@ -19,7 +20,6 @@ import * as t from '@/content/patterns/trees/data';
  *   — пределы стека — отдельным процессом `node`: в нём стек по умолчанию, а не тот, что у vitest.
  */
 
-const FILE = 'fixture.ts';
 const BASE_OPTIONS: ts.CompilerOptions = {
   strict: true,
   noEmit: true,
@@ -31,63 +31,7 @@ const BASE_OPTIONS: ts.CompilerOptions = {
   skipLibCheck: true,
 };
 
-const libCache = new Map<string, ts.SourceFile>();
-
-function diagnose(source: string, options: ts.CompilerOptions = BASE_OPTIONS): { line: number; code: number; text: string }[] {
-  const host = ts.createCompilerHost(options, true);
-  const read = host.getSourceFile.bind(host);
-  host.getSourceFile = (name, version, onError, shouldCreate) => {
-    if (name === FILE) return ts.createSourceFile(name, source, version, true);
-    const cached = libCache.get(name);
-    if (cached) return cached;
-    const file = read(name, version, onError, shouldCreate);
-    if (file) libCache.set(name, file);
-    return file;
-  };
-  host.fileExists = (name) => name === FILE || ts.sys.fileExists(name);
-  host.readFile = (name) => (name === FILE ? source : ts.sys.readFile(name));
-  const program = ts.createProgram([FILE], options, host);
-  return [...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()]
-    .map((d) => ({
-      line: d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start).line + 1 : 0,
-      code: d.code,
-      text: ts.flattenDiagnosticMessageText(d.messageText, ' '),
-    }))
-    .sort((a, b) => a.line - b.line || a.code - b.code);
-}
-
-function markers(source: string): { line: number; code: number }[] {
-  return source.split('\n').flatMap((line, i) => {
-    const at = line.indexOf('//');
-    if (at < 0) return [];
-    return [...line.slice(at).matchAll(/\bts\((\d+)\)/g)].map((m) => ({ line: i + 1, code: Number(m[1]) }));
-  });
-}
-
-function checkPage(source: string): void {
-  const actual = diagnose(source);
-  const report = actual.map((d) => `  строка ${d.line}: ts(${d.code}) ${d.text}`).join('\n') || '  (тишина)';
-  expect(
-    actual.map(({ line, code }) => ({ line, code })),
-    `компилятор разошёлся с пометками на странице:\n${report}`,
-  ).toEqual(markers(source));
-}
-
-/** Стереть типы и выполнить; вернуть то, что напечатано. `globals` — имена, видимые коду (DOM). */
-async function execute(source: string, drop: RegExp[] = [], globals: Record<string, unknown> = {}): Promise<unknown[]> {
-  const cleaned = source
-    .split('\n')
-    .filter((l) => !drop.some((re) => re.test(l)))
-    .join('\n');
-  const js = ts.transpileModule(cleaned, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-  }).outputText.replace(/^export \{\};?\s*$/m, '');
-  const printed: unknown[] = [];
-  const fakeConsole = { log: (value: unknown) => printed.push(value) };
-  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
-  await new AsyncFunction('console', ...Object.keys(globals), js)(fakeConsole, ...Object.values(globals));
-  return printed;
-}
+const { diagnose, checkPage } = tsHarness(BASE_OPTIONS);
 
 /** Строки, которые компилятор отвергает, при выполнении бросили бы — их выкидываем. */
 const COMPILE_ONLY = [/ts\((2488)\)/];

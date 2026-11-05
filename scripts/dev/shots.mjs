@@ -13,6 +13,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
+import { waitForServer } from '../../tests/helpers/wait-for-server.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const [outDir = '/tmp', slug = 'promise-internals', width = '1280'] = process.argv.slice(2);
@@ -30,21 +31,6 @@ execFileSync('npx', ['astro', 'preview', '--background', '--port', String(PORT)]
   cwd: ROOT,
   stdio: 'ignore',
 });
-
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function waitForServer(url, attempts = 60) {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) return;
-    } catch {
-      /* сервер ещё поднимается */
-    }
-    await wait(500);
-  }
-  throw new Error(`сервер не поднялся: ${url}`);
-}
 
 try {
   mkdirSync(outDir, { recursive: true });

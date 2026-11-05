@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { isAlive, waitForServer } from '../helpers/wait-for-server';
 
 const run = promisify(execFile);
 
@@ -16,27 +17,13 @@ const run = promisify(execFile);
 export const PORT = 4329;
 const URL = `http://localhost:${PORT}/`;
 
-async function alive(): Promise<boolean> {
-  try {
-    const response = await fetch(URL);
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
 export default async function globalSetup() {
   await run('npm', ['run', 'build']);
 
   // Демон отдаёт файлы из dist/ при каждом запросе, поэтому пересборка под уже запущенным
   // сервером безопасна — перезапускать его незачем.
-  if (await alive()) return;
+  if (await isAlive(URL)) return;
 
   await run('npx', ['astro', 'preview', '--background', '--port', String(PORT)]);
-
-  for (let i = 0; i < 60; i++) {
-    if (await alive()) return;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error(`сервер предпросмотра не поднялся: ${URL}`);
+  await waitForServer(URL, { message: 'сервер предпросмотра не поднялся' });
 }

@@ -8,6 +8,7 @@
  * путь — из её скрипта. Те же строки сверяет с jsdiff `tests/unit/diff.test.ts`.
  */
 import { computed, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -42,11 +43,11 @@ const n = computed(() => A.value.length);
 const m = computed(() => B.value.length);
 const res = computed(() => myers(A.value, B.value));
 
-const step = ref(0);
+/** Шаг — число правок `d`: от 0 до `res.d` включительно. */
+const { index: step, atStart, atEnd, next, prev, reset } = useStepper(computed(() => res.value.d + 1));
 watch(res, () => {
   step.value = 0;
 });
-const atEnd = computed(() => step.value >= res.value.d);
 
 const minus = (k: number) => (k < 0 ? `−${-k}` : String(k));
 
@@ -106,13 +107,6 @@ const path = computed(() =>
 const script = computed(() =>
   res.value.script.map(([op, v], i) => ({ i, op, v: String(v), sign: op === '=' ? '' : op === '-' ? '−' : '+' })),
 );
-
-function next() {
-  if (!atEnd.value) step.value++;
-}
-function prev() {
-  if (step.value > 0) step.value--;
-}
 </script>
 
 <template>
@@ -135,11 +129,11 @@ function prev() {
 
       <StepToolbar
         :counter="`шаг d = ${step} из ${res.d}`"
-        :at-start="step === 0"
+        :at-start="atStart"
         :at-end="atEnd"
         @prev="prev"
         @next="next"
-        @reset="step = 0"
+        @reset="reset"
       />
 
       <div class="ml-split">

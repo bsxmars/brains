@@ -11,6 +11,7 @@
  * запроса входа — ту же проверку делал сервер авторизации стенда.
  */
 import { computed, onMounted, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -34,12 +35,9 @@ const auth = loadAuth(props.jwtCode, props.pkceCode);
 const hasCrypto = ref(true);
 
 // ── Шаги ──
-const at = ref(0);
+const { index: at, atStart, atEnd, next, prev, reset } = useStepper(computed(() => props.steps.length));
 const step = computed(() => props.steps[at.value]);
 const counter = computed(() => `шаг ${at.value + 1} из ${props.steps.length}`);
-const prev = () => (at.value = Math.max(0, at.value - 1));
-const next = () => (at.value = Math.min(props.steps.length - 1, at.value + 1));
-const reset = () => (at.value = 0);
 
 /** Проверка провайдера на шаге обмена: SHA-256 от verifier стенда. */
 const standCheck = ref('');
@@ -92,7 +90,7 @@ const checkLine = computed(() => {
 <template>
   <DemoFrame>
     <template #toolbar>
-      <StepToolbar :counter="counter" :at-start="at === 0" :at-end="at === steps.length - 1" @prev="prev" @next="next" @reset="reset" />
+      <StepToolbar :counter="counter" :at-start="atStart" :at-end="atEnd" @prev="prev" @next="next" @reset="reset" />
     </template>
 
     <div class="pf-body">

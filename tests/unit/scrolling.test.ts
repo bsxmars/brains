@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/render/scrolling/data';
 import { loadAnchor, loadSticky, SNAPSHOT_JS } from '@/widgets/scroll-lab/model/run';
 import type { ScrollSnapshot, StickyInput } from '@/widgets/scroll-lab/model/types';
+import { mulberry32 } from '../helpers/rng';
 
 /**
  * Тема «Прокрутка изнутри».
@@ -45,16 +46,10 @@ const open = (body: string, htmlStyle = '') =>
 const snap = (selector: string) =>
   page.evaluate(`(${SNAPSHOT_JS})(document.querySelector(${JSON.stringify(selector)}))`) as Promise<ScrollSnapshot>;
 
-/** Детерминированный генератор (mulberry32): случайные раскладки одни и те же от прогона к прогону. */
+/** Детерминированный генератор (mulberry32): случайные раскладки одни и те же от прогона к прогону. Отдаёт целое из `[0, n)`. */
 function rng(seed: number) {
-  let s = seed >>> 0;
-  return (n: number) => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let x = s;
-    x = Math.imul(x ^ (x >>> 15), x | 1);
-    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
-    return Math.floor((((x ^ (x >>> 14)) >>> 0) / 4294967296) * n);
-  };
+  const next = mulberry32(seed);
+  return (n: number) => Math.floor(next() * n);
 }
 
 // ─── Липкость ─────────────────────────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@
  * `tests/unit/eviction.test.ts` и сверяет число попаданий с `STEP_HITS`.
  */
 import { computed, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -36,9 +37,9 @@ const runs = computed(() =>
   ALGOS.map((a) => ({ ...a, frames: stepFrames(api, a.id, keys.value, props.capacity) })),
 );
 
-const step = ref(0);
-watch(picked, () => (step.value = 0));
 const total = computed(() => keys.value.length);
+const { index: step, atStart, atEnd, next, prev, reset } = useStepper(total);
+watch(picked, () => (step.value = 0));
 
 const panels = computed(() =>
   runs.value.map((r) => {
@@ -71,12 +72,12 @@ const WHY = { evict: 'вытеснен', reject: 'не допущен' };
 
       <StepToolbar
         :counter="`запрос ${step + 1} / ${total}`"
-        :at-start="step === 0"
-        :at-end="step >= total - 1"
+        :at-start="atStart"
+        :at-end="atEnd"
         next-label="Запрос →"
-        @prev="step = Math.max(0, step - 1)"
-        @next="step = Math.min(total - 1, step + 1)"
-        @reset="step = 0"
+        @prev="prev"
+        @next="next"
+        @reset="reset"
       />
 
       <div class="es-grid" aria-live="polite">

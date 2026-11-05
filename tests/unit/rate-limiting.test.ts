@@ -6,6 +6,7 @@ import * as t from '@/content/algorithms/rate-limiting/data';
 import { simulateDebounce, simulateThrottle } from '@/widgets/debounce-throttle/model/simulate';
 import { loadLimiters, loadWrappers, maxInWindow, runLimiters, runTape, runWrappers, seededTape } from '@/widgets/rate-lab/model/run';
 import type { Call, WrapperApi } from '@/widgets/rate-lab/model/types';
+import { mulberry32 } from '../helpers/rng';
 
 /**
  * Тема «Debounce, throttle и token bucket».
@@ -387,13 +388,7 @@ describe('окна', () => {
     const worst: Record<string, number> = { fixed: 0, counter: 0, log: 0 };
     for (let seed = 1; seed <= s.tapes; seed++) {
       // Своя лента: серии плотные (шаг до 30 мс) и редкие (до 400 мс) вперемешку.
-      let x = seed;
-      const rnd = () => {
-        x = (x + 0x6d2b79f5) | 0;
-        let y = Math.imul(x ^ (x >>> 15), 1 | x);
-        y = (y + Math.imul(y ^ (y >>> 7), 61 | y)) ^ y;
-        return ((y ^ (y >>> 14)) >>> 0) / 4294967296;
-      };
+      const rnd = mulberry32(seed);
       const times: number[] = [];
       let at = 0;
       for (let i = 0; i < s.events; i++) {

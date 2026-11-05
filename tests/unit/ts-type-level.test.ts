@@ -52,6 +52,7 @@ import {
   ZOD_CODE,
   ZOD_OUT,
 } from '@/content/tooling/typescript/data';
+import { FILE, type Found, markers as pageMarkers, tsHarness } from '../helpers/ts-diagnose';
 
 /**
  * Утверждения темы «TypeScript на уровне типов» — настоящим компилятором.
@@ -79,8 +80,6 @@ import {
  * программа платила бы за них заново.
  */
 
-const FILE = 'fixture.ts';
-
 const OPTIONS: ts.CompilerOptions = {
   strict: true,
   noEmit: true,
@@ -91,46 +90,8 @@ const OPTIONS: ts.CompilerOptions = {
   skipDefaultLibCheck: true,
 };
 
-/** Общий на все прогоны: разбор `lib.es2022.d.ts` стоит дороже любой фикстуры. */
-const libCache = new Map<string, ts.SourceFile>();
-
-function createProgram(source: string, extra: ts.CompilerOptions = {}): ts.Program {
-  const options: ts.CompilerOptions = { ...OPTIONS, ...extra };
-  const host = ts.createCompilerHost(options, true);
-  const readFromDisk = host.getSourceFile.bind(host);
-
-  host.getSourceFile = (name, languageVersion, onError, shouldCreate) => {
-    if (name === FILE) return ts.createSourceFile(name, source, languageVersion, true);
-    const cached = libCache.get(name);
-    if (cached) return cached;
-    const file = readFromDisk(name, languageVersion, onError, shouldCreate);
-    if (file) libCache.set(name, file);
-    return file;
-  };
-  host.fileExists = (name) => name === FILE || ts.sys.fileExists(name);
-  host.readFile = (name) => (name === FILE ? source : ts.sys.readFile(name));
-  host.writeFile = () => {};
-
-  return ts.createProgram([FILE], options, host);
-}
-
-interface Found {
-  line: number;
-  code: number;
-}
-
-function diagnose(source: string, extra?: ts.CompilerOptions): (Found & { text: string })[] {
-  const program = createProgram(source, extra);
-  const all = [...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()];
-
-  return all
-    .map((d) => ({
-      line: d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start).line + 1 : 0,
-      code: d.code,
-      text: ts.flattenDiagnosticMessageText(d.messageText, ' '),
-    }))
-    .sort((a, b) => a.line - b.line || a.code - b.code);
-}
+/** Разбор `lib.es2022.d.ts` стоит дороже любой фикстуры — кеш стенда общий на все прогоны. */
+const { libCache, createProgram, diagnose, checkPage } = tsHarness(OPTIONS);
 
 /** Метка ожидаемой ошибки прямо в фикстуре — рядом со строкой, которая обязана упасть. */
 const MARKER = /\/\/\s*@ts\((\d+)\)/;
@@ -764,18 +725,10 @@ use(main);
  * Здесь проверяется **строка из `data.ts`** — ровно то, что напечатано на странице, — а не копия.
  * Ожидаемые ошибки на странице помечены обычным комментарием `// … ts(NNNN)`: проверка берёт
  * код из той строки, где он написан, и требует, чтобы компилятор упал именно там и именно им,
- * а все строки без пометки остались чистыми.
+ * а все строки без пометки остались чистыми. Пометки разбирает `markers` из `tests/helpers/ts-diagnose`
+ * (здесь — `pageMarkers`), сверяет `checkPage` стенда.
  */
 const PAGE_MARKER = /\/\/.*?\bts\((\d+)\)/;
-
-/** Все коды из комментария строки: декоратор, например, даёт два на одной строке. */
-function pageMarkers(source: string): Found[] {
-  return source.split('\n').flatMap((line, i) => {
-    if (!PAGE_MARKER.test(line)) return [];
-    const comment = line.slice(line.indexOf('//'));
-    return [...comment.matchAll(/\bts\((\d+)\)/g)].map((m) => ({ line: i + 1, code: Number(m[1]) }));
-  });
-}
 
 /** Разрешение модулей как у сборщика — чтобы `import 'zod'` нашёл настоящий пакет. */
 const MODULES: ts.CompilerOptions = {
@@ -783,16 +736,6 @@ const MODULES: ts.CompilerOptions = {
   moduleResolution: ts.ModuleResolutionKind.Bundler,
 };
 const WITH_CONSOLE: ts.CompilerOptions = { lib: ['lib.es2022.d.ts', 'lib.dom.d.ts'] };
-
-function checkPage(source: string, extra?: ts.CompilerOptions): (Found & { text: string })[] {
-  const actual = diagnose(source, extra);
-  const report = actual.map((d) => `  строка ${d.line}: ts(${d.code}) ${d.text}`).join('\n');
-  expect(
-    actual.map(({ line, code }) => ({ line, code })),
-    `компилятор разошёлся с пометками на странице:\n${report || '  (тишина)'}`,
-  ).toEqual(pageMarkers(source));
-  return actual;
-}
 
 /** Многофайловая программа в памяти: пакет в `node_modules` и файлы проекта рядом. */
 const VROOT = path.join(process.cwd(), '__virtual__');

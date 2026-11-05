@@ -1,4 +1,4 @@
-import Module, { createRequire } from 'node:module';
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { MINI_VUE_CODE } from '@/content/frameworks/vue-internals/data';
 import {
@@ -31,6 +31,7 @@ import {
 } from '@/content/frameworks/vue-watch-internals/data';
 import { API_NAMES, apiArgs, ChainLab, loadMiniWatch, patchCode, runRace, ScopeLab } from '@/widgets/mini-watch';
 import type { MiniRef, MiniWatch, WatchApi } from '@/widgets/mini-watch';
+import { loadVue } from '../helpers/load-vue';
 
 /**
  * «Vue 3 изнутри: watch, effectScope и computed 3.5»: мини-реализация против настоящего Vue.
@@ -59,32 +60,9 @@ const require = createRequire(import.meta.url);
 
 type Build = 'production' | 'development';
 
-function loadVue(build: Build): { api: WatchApi; files: string[] } {
-  const resolver = Module as unknown as { _resolveFilename: (request: string, ...rest: unknown[]) => string };
-  const original = resolver._resolveFilename;
-  const suffix = build === 'production' ? '.prod' : '';
-  const purge = () => {
-    for (const key of Object.keys(require.cache)) if (key.includes('/node_modules/@vue/')) delete require.cache[key];
-  };
-
-  purge();
-  resolver._resolveFilename = function (request, ...rest) {
-    const pkg = /^@vue\/(runtime-core|reactivity|shared)$/.exec(request)?.[1];
-    if (pkg) return original.call(this, `@vue/${pkg}/dist/${pkg}.cjs${suffix}.js`, ...rest);
-    return original.call(this, request, ...rest);
-  };
-  try {
-    const api = require('@vue/runtime-core') as WatchApi;
-    const files = Object.keys(require.cache).filter((key) => key.includes('/node_modules/@vue/'));
-    return { api, files };
-  } finally {
-    resolver._resolveFilename = original;
-  }
-}
-
-const VUE: Record<Build, ReturnType<typeof loadVue>> = {
-  production: loadVue('production'),
-  development: loadVue('development'),
+const VUE: Record<Build, { api: WatchApi; files: string[] }> = {
+  production: loadVue<WatchApi>('production', 'runtime-core'),
+  development: loadVue<WatchApi>('development', 'runtime-core'),
 };
 
 const BUILDS: Build[] = ['production', 'development'];

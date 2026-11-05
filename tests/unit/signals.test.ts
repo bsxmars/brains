@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import Module, { createRequire } from 'node:module';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -17,6 +17,7 @@ import {
 } from '@/content/frameworks/signals/data';
 import { API_NAMES, DomLab, GraphLab, loadSignals, patchCode } from '@/widgets/mini-signals';
 import type { GraphScenario, GraphStep, SignalsApi, TraceEntry } from '@/widgets/mini-signals';
+import { loadVue } from '../helpers/load-vue';
 
 /**
  * «Сигналы»: мини-реализация против `@vue/reactivity` 3.5 и alien-signals.
@@ -46,28 +47,9 @@ interface VueReactivity {
   stop: (runner: unknown) => void;
 }
 
-function loadVue(build: Build): { api: VueReactivity; files: string[] } {
-  const resolver = Module as unknown as { _resolveFilename: (request: string, ...rest: unknown[]) => string };
-  const original = resolver._resolveFilename;
-  const suffix = build === 'production' ? '.prod' : '';
-  for (const key of Object.keys(require.cache)) if (key.includes('/node_modules/@vue/')) delete require.cache[key];
-  resolver._resolveFilename = function (request, ...rest) {
-    const pkg = /^@vue\/(reactivity|shared)$/.exec(request)?.[1];
-    if (pkg) return original.call(this, `@vue/${pkg}/dist/${pkg}.cjs${suffix}.js`, ...rest);
-    return original.call(this, request, ...rest);
-  };
-  try {
-    const api = require('@vue/reactivity') as VueReactivity;
-    const files = Object.keys(require.cache).filter((key) => key.includes('/node_modules/@vue/'));
-    return { api, files };
-  } finally {
-    resolver._resolveFilename = original;
-  }
-}
-
-const VUE: Record<Build, ReturnType<typeof loadVue>> = {
-  production: loadVue('production'),
-  development: loadVue('development'),
+const VUE: Record<Build, { api: VueReactivity; files: string[] }> = {
+  production: loadVue<VueReactivity>('production', 'reactivity'),
+  development: loadVue<VueReactivity>('development', 'reactivity'),
 };
 
 /**

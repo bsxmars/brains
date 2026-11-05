@@ -9,6 +9,7 @@
  * массив по рядам дерева — это рисунок, а не расчёт.
  */
 import { computed, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -36,7 +37,8 @@ const steps = computed(() =>
   ),
 );
 
-const step = ref(0);
+/** Сколько операций выполнено: 0 — ни одной, `steps.length` — все. */
+const { index: step, atStart, atEnd, next, prev, reset } = useStepper(computed(() => steps.value.length + 1));
 watch(picked, () => {
   step.value = 0;
 });
@@ -83,13 +85,6 @@ const pos = (i: number) => {
 const maxLen = computed(() => Math.max(1, ...steps.value.map((s) => s.after.length)));
 const height = computed(() => 34 + depth(maxLen.value - 1) * ROW + 34);
 const edges = computed(() => heap.value.slice(1).map((_, k) => ({ from: pos((k + 1 - 1) >> 1), to: pos(k + 1), key: k + 1 })));
-
-function prev() {
-  if (step.value > 0) step.value--;
-}
-function next() {
-  if (step.value < steps.value.length) step.value++;
-}
 </script>
 
 <template>
@@ -103,11 +98,11 @@ function next() {
 
       <StepToolbar
         :counter="`шаг ${step} из ${steps.length}`"
-        :at-start="step === 0"
-        :at-end="step === steps.length"
+        :at-start="atStart"
+        :at-end="atEnd"
         @prev="prev"
         @next="next"
-        @reset="step = 0"
+        @reset="reset"
       />
 
       <div class="hl-tree">

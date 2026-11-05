@@ -1,4 +1,3 @@
-import Module, { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import {
   BRANCH_CODE,
@@ -16,6 +15,7 @@ import {
   MiniSession,
 } from '@/widgets/mini-reactivity/model/session';
 import type { MiniVue, ReactivityApi } from '@/widgets/mini-reactivity/model/types';
+import { loadVue } from '../helpers/load-vue';
 
 /**
  * «Vue 3 изнутри»: мини-реализация против настоящего Vue.
@@ -42,41 +42,11 @@ import type { MiniVue, ReactivityApi } from '@/widgets/mini-reactivity/model/typ
  *   - намеренные отличия мини-версии от Vue — отдельный блок, с объяснением у каждой проверки.
  */
 
-const require = createRequire(import.meta.url);
-
 type Build = 'production' | 'development';
 
-/**
- * Загрузить Vue заказанной сборки: чистый кеш `require` и подмена разрешения трёх имён
- * (`runtime-core`, `reactivity`, `shared`) на файлы `dist/` нужной сборки — иначе
- * `runtime-core` из продакшен-сборки подтянул бы отладочную `reactivity`.
- */
-function loadVue(build: Build): { api: ReactivityApi; files: string[] } {
-  const resolver = Module as unknown as { _resolveFilename: (request: string, ...rest: unknown[]) => string };
-  const original = resolver._resolveFilename;
-  const suffix = build === 'production' ? '.prod' : '';
-  const purge = () => {
-    for (const key of Object.keys(require.cache)) if (key.includes('/node_modules/@vue/')) delete require.cache[key];
-  };
-
-  purge();
-  resolver._resolveFilename = function (request, ...rest) {
-    const pkg = /^@vue\/(runtime-core|reactivity|shared)$/.exec(request)?.[1];
-    if (pkg) return original.call(this, `@vue/${pkg}/dist/${pkg}.cjs${suffix}.js`, ...rest);
-    return original.call(this, request, ...rest);
-  };
-  try {
-    const api = require('@vue/runtime-core') as ReactivityApi;
-    const files = Object.keys(require.cache).filter((key) => key.includes('/node_modules/@vue/'));
-    return { api, files };
-  } finally {
-    resolver._resolveFilename = original;
-  }
-}
-
-const VUE: Record<Build, ReturnType<typeof loadVue>> = {
-  production: loadVue('production'),
-  development: loadVue('development'),
+const VUE: Record<Build, { api: ReactivityApi; files: string[] }> = {
+  production: loadVue<ReactivityApi>('production', 'runtime-core'),
+  development: loadVue<ReactivityApi>('development', 'runtime-core'),
 };
 
 /** Реализации под сверку. Мини-версия каждый раз свежая: своя таблица, своя очередь. */

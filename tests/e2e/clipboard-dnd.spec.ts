@@ -43,6 +43,7 @@ import {
   WEB_FORMAT_CODE,
   WEB_FORMAT_OUT,
 } from '../../src/content/lessons/clipboard-dnd/data';
+import { withBrowser } from '../helpers/with-browser';
 
 /**
  * «Буфер обмена и перетаскивание» — каждый пример и каждая строка таблиц запуском.
@@ -99,15 +100,6 @@ async function stand(
 
 /** Исполнить строку примера в странице как тело асинхронной функции (с жестом — см. шапку). */
 const run = (page: Page, code: string) => page.evaluate(`(async () => {\n${code}\n})()`);
-
-async function withBrowser<T>(type: BrowserType, fn: (b: Browser) => Promise<T>, opts = {}): Promise<T> {
-  const browser = await type.launch(opts);
-  try {
-    return await fn(browser);
-  } finally {
-    await browser.close();
-  }
-}
 
 const selectAll = (page: Page, selector: string) =>
   page.evaluate((s) => {
@@ -182,27 +174,23 @@ test.describe('копировать по кнопке', () => {
   });
 
   test('документ без фокуса: «Document is not focused» (полный Chromium)', async () => {
-    await withBrowser(
-      chromium,
-      async (browser) => {
-        const s = await stand(browser, html('<input>'), { perms: ['clipboard-read', 'clipboard-write'] });
-        const cdp = await s.context.newCDPSession(s.page);
-        await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: false });
-        const other = await s.context.newPage();
-        await other.goto('about:blank');
-        await other.bringToFront();
-        const got = await s.page.evaluate(async () => ({
-          focus: document.hasFocus(),
-          write: await navigator.clipboard.writeText('z').then(() => 'ok', (e: Error) => `${e.name}: ${e.message}`),
-          read: await navigator.clipboard.readText().then(() => 'ok', (e: Error) => `${e.name}: ${e.message}`),
-        }));
-        expect(got.focus).toBe(false);
-        expect(got.write).toMatch(/^NotAllowedError: .*Document is not focused/);
-        expect(got.read).toMatch(/^NotAllowedError: .*Document is not focused/);
-        expect(COPY_ROWS[4].write).toContain('Document is not focused');
-      },
-      { channel: 'chromium' },
-    );
+    await withBrowser(chromium, { channel: 'chromium' }, async (browser) => {
+      const s = await stand(browser, html('<input>'), { perms: ['clipboard-read', 'clipboard-write'] });
+      const cdp = await s.context.newCDPSession(s.page);
+      await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: false });
+      const other = await s.context.newPage();
+      await other.goto('about:blank');
+      await other.bringToFront();
+      const got = await s.page.evaluate(async () => ({
+        focus: document.hasFocus(),
+        write: await navigator.clipboard.writeText('z').then(() => 'ok', (e: Error) => `${e.name}: ${e.message}`),
+        read: await navigator.clipboard.readText().then(() => 'ok', (e: Error) => `${e.name}: ${e.message}`),
+      }));
+      expect(got.focus).toBe(false);
+      expect(got.write).toMatch(/^NotAllowedError: .*Document is not focused/);
+      expect(got.read).toMatch(/^NotAllowedError: .*Document is not focused/);
+      expect(COPY_ROWS[4].write).toContain('Document is not focused');
+    });
   });
 
   test('LATE_CODE: ClipboardItem с промисом дожидается ответа дольше жизни жеста', async ({ browser }) => {
@@ -229,7 +217,7 @@ for (const [name, type] of ENGINES) {
   test(`ENGINE_ROWS и жест в ${name}: запись по клику, чтение по своим правилам, промис ждёт`, async () => {
     test.setTimeout(60_000); // два ожидания по 7 с: жизнь жеста и поздний промис
     const row = ENGINE_ROWS.find((r) => r.engine.toLowerCase().startsWith(name))!;
-    await withBrowser(type, async (browser) => {
+    await withBrowser(type, {}, async (browser) => {
       const probe = `window.out = {};
         const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const res = (k, p) => p.then(() => out[k] = 'ok', (e) => out[k] = e.name);
@@ -357,7 +345,7 @@ test.describe('форматы', () => {
   });
 
   test('Firefox тоже чистит HTML и не слушает unsanitized; web-формат ему неизвестен', async () => {
-    await withBrowser(firefox, async (browser) => {
+    await withBrowser(firefox, {}, async (browser) => {
       const s = await stand(browser, html(''));
       await run(s.page, SANITIZE_CODE);
       expect(s.logs).toHaveLength(2);
@@ -380,7 +368,7 @@ test.describe('форматы', () => {
 
   for (const [name, type] of ENGINES) {
     test(`SUPPORTS_ROWS в ${name}`, async () => {
-      await withBrowser(type, async (browser) => {
+      await withBrowser(type, {}, async (browser) => {
         const s = await stand(browser, html(''));
         const types = SUPPORTS_ROWS.map((r) => r.type.replaceAll('`', ''));
         const got = await s.page.evaluate((ts) => ts.map((t) => ClipboardItem.supports(t)), types);
@@ -399,7 +387,7 @@ test.describe('форматы', () => {
     });
 
     test(`свой MIME через copy доходит до paste в ${name}, а read() его не видит`, async () => {
-      await withBrowser(type, async (browser) => {
+      await withBrowser(type, {}, async (browser) => {
         const probe = `window.log = [];
           document.addEventListener('copy', (e) => { e.clipboardData.setData('text/plain', 'плоско'); e.clipboardData.setData('application/x-card', '{"id":1}'); e.preventDefault(); });
           document.addEventListener('paste', (e) => log.push([e.clipboardData.types.includes('application/x-card'), e.clipboardData.getData('application/x-card')]));`;
@@ -472,7 +460,7 @@ test.describe('перетаскивание', () => {
 
   for (const [name, type] of ENGINES) {
     test(`draggable по умолчанию, tabIndex и синтетический DragEvent в ${name}`, async () => {
-      await withBrowser(type, async (browser) => {
+      await withBrowser(type, {}, async (browser) => {
         const body = '<div id="card" draggable="true">к</div><div id="plain">д</div><img id="im" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="><a id="ln" href="/x">с</a>';
         const s = await stand(browser, html(body));
         const got = await s.page.evaluate(() => {
@@ -504,7 +492,7 @@ test.describe('перетаскивание', () => {
   }
 
   test('Firefox отдаёт данные в dragover и после события', async () => {
-    await withBrowser(firefox, async (browser) => {
+    await withBrowser(firefox, {}, async (browser) => {
       const probe = `window.log = [];
         const card = document.querySelector('#card');
         card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', 'card-1'); window.saved = e.dataTransfer; });
@@ -574,19 +562,15 @@ test.describe('файлы из системы', () => {
   });
 
   test('файл мимо зоны Chromium открывает во вкладке; GUARD_CODE это отменяет', async () => {
-    await withBrowser(
-      chromium,
-      async (browser) => {
-        for (const guard of [false, true]) {
-          const s = await stand(browser, html('<p>страница</p>', guard ? GUARD_CODE : ''));
-          await dropFiles(s, 50, 50, [note]);
-          await s.page.waitForTimeout(1500);
-          const opened = s.context.pages().map((p) => p.url()).filter((u) => u.startsWith('file://'));
-          expect(opened.length, guard ? 'с GUARD_CODE файл не открылся' : 'без защиты файл открылся').toBe(guard ? 0 : 1);
-          await s.context.close();
-        }
-      },
-      { channel: 'chromium' },
-    );
+    await withBrowser(chromium, { channel: 'chromium' }, async (browser) => {
+      for (const guard of [false, true]) {
+        const s = await stand(browser, html('<p>страница</p>', guard ? GUARD_CODE : ''));
+        await dropFiles(s, 50, 50, [note]);
+        await s.page.waitForTimeout(1500);
+        const opened = s.context.pages().map((p) => p.url()).filter((u) => u.startsWith('file://'));
+        expect(opened.length, guard ? 'с GUARD_CODE файл не открылся' : 'без защиты файл открылся').toBe(guard ? 0 : 1);
+        await s.context.close();
+      }
+    });
   });
 });

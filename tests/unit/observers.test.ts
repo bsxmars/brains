@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/render/observers/data';
 import { depthMap, loadIo, loadResizeFrame } from '@/widgets/observer-lab/model/run';
 import type { Rect } from '@/widgets/observer-lab/model/types';
+import { mulberry32 } from '../helpers/rng';
 
 /**
  * Тема «Наблюдатели: Intersection, Resize, Mutation — когда они срабатывают».
@@ -33,17 +34,6 @@ afterAll(async () => {
 });
 
 const blank = () => page.setContent('<!doctype html><body style="margin:0">');
-
-function mulberry32(seed: number) {
-  let a = seed;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let x = Math.imul(a ^ (a >>> 15), 1 | a);
-    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 // ─── Порядок в кадре ───────────────────────────────────────────────────────────────────────
 

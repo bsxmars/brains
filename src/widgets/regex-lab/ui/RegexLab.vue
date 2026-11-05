@@ -9,6 +9,7 @@
  * не повесил вкладку настоящим `RegExp` — ровно тем, о чём тема.
  */
 import { computed, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -43,17 +44,12 @@ const text = computed(() => input.value.slice(0, MAX_INPUT));
 const result = computed(() => engine.match(example.value.pattern, text.value, { limit: props.limit, log: LOG }));
 const journal = computed(() => result.value.journal);
 
-const index = ref(0);
+const total = computed(() => journal.value.length);
+const { index, atStart, atEnd, next, prev, reset } = useStepper(total);
 watch(result, () => {
   index.value = 0;
 });
-const total = computed(() => journal.value.length);
-const atStart = computed(() => index.value === 0);
-const atEnd = computed(() => index.value >= total.value - 1);
 const counter = computed(() => `запись ${index.value + 1} / ${total.value}`);
-const go = (i: number) => {
-  index.value = Math.min(total.value - 1, Math.max(0, i));
-};
 
 const entry = computed<JournalEntry | undefined>(() => journal.value[index.value]);
 
@@ -141,9 +137,9 @@ const summary = computed(() => {
         :counter="counter"
         :at-start="atStart"
         :at-end="atEnd"
-        @prev="go(index - 1)"
-        @next="go(index + 1)"
-        @reset="go(0)"
+        @prev="prev"
+        @next="next"
+        @reset="reset"
       />
       <input
         v-model.number="index"

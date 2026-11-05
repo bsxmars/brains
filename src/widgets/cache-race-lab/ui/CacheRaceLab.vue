@@ -9,6 +9,7 @@
  * `tests/unit/redis-cache.test.ts` сверяет полный журнал каждого сценария с журналом настоящего Redis.
  */
 import { computed, ref, shallowRef, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -30,14 +31,13 @@ const picked = ref(props.scenarios[0].id);
 const options = props.scenarios.map((s) => ({ value: s.id, label: s.label }));
 const scenario = computed(() => props.scenarios.find((s) => s.id === picked.value) ?? props.scenarios[0]);
 
-const index = ref(0);
+const total = computed(() => stepsOf(scenario.value.order).length);
+/** Сколько шагов выполнено: 0 — ничего, `total` — всё; позиций на одну больше, чем шагов. */
+const { index, atStart, atEnd, next, prev, reset } = useStepper(computed(() => total.value + 1));
 watch(scenario, () => {
   index.value = 0;
 });
-const total = computed(() => stepsOf(scenario.value.order).length);
 const counter = computed(() => `шаг ${index.value} из ${total.value}`);
-const atStart = computed(() => index.value === 0);
-const atEnd = computed(() => index.value === total.value);
 
 type Snap = Awaited<ReturnType<typeof runRace>>['db'];
 const full = shallowRef<string[]>([]);
@@ -97,16 +97,6 @@ const rowText = (r: Row) => `${r.v}:${r.name}`;
 const cacheRows = computed(() => Object.entries(now.value.cache));
 const db = computed(() => now.value.db);
 const stale = computed(() => atEnd.value && now.value.cached !== null && now.value.cached !== now.value.primary);
-
-const prev = () => {
-  if (!atStart.value) index.value -= 1;
-};
-const next = () => {
-  if (!atEnd.value) index.value += 1;
-};
-const reset = () => {
-  index.value = 0;
-};
 </script>
 
 <template>

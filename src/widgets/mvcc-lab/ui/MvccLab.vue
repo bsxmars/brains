@@ -9,6 +9,7 @@
  * сверяет каждый их шаг с выводом двух настоящих сеансов Postgres.
  */
 import { computed, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -41,15 +42,13 @@ const level = ref<Level>(props.levels[0].value);
 const levelOptions = props.levels.map((l) => ({ value: l.value, label: l.label }));
 const levelSql = computed(() => props.levels.find((l) => l.value === level.value)?.sql ?? '');
 
-/** Сколько шагов выполнено: 0 — ничего, `steps.length` — всё. */
-const index = ref(0);
+const total = computed(() => scenario.value.steps.length);
+/** Сколько шагов выполнено: 0 — ничего, `steps.length` — всё; позиций на одну больше, чем шагов. */
+const { index, atStart, atEnd, next, prev, reset } = useStepper(computed(() => total.value + 1));
 watch([scenario, level], () => {
   index.value = 0;
 });
-const total = computed(() => scenario.value.steps.length);
 const counter = computed(() => `шаг ${index.value} из ${total.value}`);
-const atStart = computed(() => index.value === 0);
-const atEnd = computed(() => index.value === total.value);
 
 const run = computed(() => model.runSchedule(structuredClone(scenario.value.rows), scenario.value.steps, level.value, index.value));
 const final = computed(() => (atEnd.value ? finalOf(model, scenario.value, level.value) : ''));
@@ -131,16 +130,6 @@ const versions = computed(() => {
     b: model.visible(db, vb.tx, vb.tx.snap!, v),
   }));
 });
-
-const prev = () => {
-  if (!atStart.value) index.value -= 1;
-};
-const next = () => {
-  if (!atEnd.value) index.value += 1;
-};
-const reset = () => {
-  index.value = 0;
-};
 </script>
 
 <template>

@@ -12,6 +12,7 @@
  * Прогон в браузере асинхронный: ответ устаревшего прогона отбрасывается по номеру.
  */
 import { computed, onMounted, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import CodeListing from '@/shared/ui/CodeListing.vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
@@ -40,9 +41,9 @@ const scenario = computed(() => props.scenarios.find((s) => s.id === picked.valu
 const result = computed(() => simulate(scenario.value.steps, scenario.value.initial));
 const codeLines = computed(() => scenario.value.code.split('\n'));
 
-const step = ref(0);
-watch(picked, () => (step.value = 0));
 const total = computed(() => result.value.trace.length);
+const { index: step, atStart, atEnd, next, prev, reset } = useStepper(total);
+watch(picked, () => (step.value = 0));
 const current = computed(() => result.value.trace[step.value]);
 
 /** Подсвечена строка текущего шага; у событий базы строки нет — подсвечена последняя выполненная. */
@@ -126,11 +127,11 @@ const logs = computed(() => {
 
       <StepToolbar
         :counter="`шаг ${step + 1} / ${total}`"
-        :at-start="step === 0"
-        :at-end="step >= total - 1"
-        @prev="step = Math.max(0, step - 1)"
-        @next="step = Math.min(total - 1, step + 1)"
-        @reset="step = 0"
+        :at-start="atStart"
+        :at-end="atEnd"
+        @prev="prev"
+        @next="next"
+        @reset="reset"
       />
 
       <div class="tx-logs">

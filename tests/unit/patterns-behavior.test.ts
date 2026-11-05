@@ -6,6 +6,7 @@ import { legacy_createStore } from 'redux';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import * as t from '@/content/patterns/behavior/data';
+import { execute, toJs, tsHarness } from '../helpers/ts-diagnose';
 
 /**
  * Утверждения темы «Поведение как значение» — компилятором и исполнением.
@@ -19,7 +20,6 @@ import * as t from '@/content/patterns/behavior/data';
  *     vitest такой отказ уронил бы прогон, а в Node важен именно код выхода.
  */
 
-const FILE = 'fixture.ts';
 const OPTIONS: ts.CompilerOptions = {
   strict: true,
   noEmit: true,
@@ -31,67 +31,7 @@ const OPTIONS: ts.CompilerOptions = {
   skipLibCheck: true,
 };
 
-const libCache = new Map<string, ts.SourceFile>();
-
-function diagnose(source: string, extra: ts.CompilerOptions = {}): { line: number; code: number; text: string }[] {
-  const options = { ...OPTIONS, ...extra };
-  const host = ts.createCompilerHost(options, true);
-  const read = host.getSourceFile.bind(host);
-  host.getSourceFile = (name, version, onError, shouldCreate) => {
-    if (name === FILE) return ts.createSourceFile(name, source, version, true);
-    const cached = libCache.get(name);
-    if (cached) return cached;
-    const file = read(name, version, onError, shouldCreate);
-    if (file) libCache.set(name, file);
-    return file;
-  };
-  host.fileExists = (name) => name === FILE || ts.sys.fileExists(name);
-  host.readFile = (name) => (name === FILE ? source : ts.sys.readFile(name));
-  const program = ts.createProgram([FILE], options, host);
-  return [...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()]
-    .map((d) => ({
-      line: d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start).line + 1 : 0,
-      code: d.code,
-      text: ts.flattenDiagnosticMessageText(d.messageText, ' '),
-    }))
-    .sort((a, b) => a.line - b.line || a.code - b.code);
-}
-
-function markers(source: string): { line: number; code: number }[] {
-  return source.split('\n').flatMap((line, i) => {
-    const at = line.indexOf('//');
-    if (at < 0) return [];
-    return [...line.slice(at).matchAll(/\bts\((\d+)\)/g)].map((m) => ({ line: i + 1, code: Number(m[1]) }));
-  });
-}
-
-function checkPage(source: string, extra: ts.CompilerOptions = {}): void {
-  const actual = diagnose(source, extra);
-  const report = actual.map((d) => `  строка ${d.line}: ts(${d.code}) ${d.text}`).join('\n') || '  (тишина)';
-  expect(
-    actual.map(({ line, code }) => ({ line, code })),
-    `компилятор разошёлся с пометками на странице:\n${report}`,
-  ).toEqual(markers(source));
-}
-
-function toJs(source: string): string {
-  return ts
-    .transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
-    .outputText.replace(/^export \{\};?\s*$/m, '');
-}
-
-/** Стереть типы и выполнить; вернуть то, что напечатано. Строки из `drop` выкидываются. */
-async function execute(source: string, drop: RegExp[] = []): Promise<unknown[]> {
-  const cleaned = source
-    .split('\n')
-    .filter((l) => !drop.some((re) => re.test(l)))
-    .join('\n');
-  const printed: unknown[] = [];
-  const fakeConsole = { log: (value: unknown) => printed.push(value) };
-  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
-  await new AsyncFunction('console', toJs(cleaned))(fakeConsole);
-  return printed;
-}
+const { diagnose, checkPage } = tsHarness(OPTIONS);
 
 describe('раздел 1 · зачем', () => {
   it('лестница if в Auth компилируется', () => {

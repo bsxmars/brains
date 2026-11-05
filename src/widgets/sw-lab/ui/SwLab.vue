@@ -10,6 +10,7 @@
  * В режиме «свой порядок» шаги собирает читатель, и журнал считает только модель.
  */
 import { computed, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -40,11 +41,11 @@ const ownSteps = ref<SwStep[]>([]);
 const steps = computed<SwStep[]>(() => (own.value ? ownSteps.value : (scenario.value?.steps ?? [])));
 const snaps = computed<SwSnapshot[]>(() => run(steps.value));
 
-const at = ref(0);
+const total = computed(() => steps.value.length);
+const { index: at, atStart, atEnd, next, prev, reset } = useStepper(total);
 watch(picked, () => {
   at.value = 0;
 });
-const total = computed(() => steps.value.length);
 const snap = computed(() => snaps.value[at.value]);
 const chromiumSnap = computed(() => (own.value ? undefined : scenario.value?.chromium[at.value]));
 const same = computed(() => sameSnapshot(snap.value, chromiumSnap.value));
@@ -205,11 +206,11 @@ function resetOwn() {
       <StepToolbar
         v-if="!own"
         :counter="`шаг ${at + 1} / ${total}`"
-        :at-start="at === 0"
-        :at-end="at >= total - 1"
-        @prev="at = Math.max(0, at - 1)"
-        @next="at = Math.min(total - 1, at + 1)"
-        @reset="at = 0"
+        :at-start="atStart"
+        :at-end="atEnd"
+        @prev="prev"
+        @next="next"
+        @reset="reset"
       />
 
       <div class="swl-logs">

@@ -10,6 +10,7 @@
  * литерал стенда из `data.ts`, его пересобирает тот же тест.
  */
 import { computed, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -34,7 +35,7 @@ const picked = ref(props.plans[0].id);
 const options = props.plans.map((p) => ({ value: p.id, label: p.label }));
 const plan = computed(() => props.plans.find((p) => p.id === picked.value) ?? props.plans[0]);
 
-const index = ref(0);
+const { index, atStart, atEnd, next, prev, reset } = useStepper(computed(() => plan.value.steps.length));
 watch(plan, () => {
   index.value = 0;
 });
@@ -42,17 +43,6 @@ const step = computed(() => plan.value.steps[index.value]);
 const prevStep = computed(() => (index.value > 0 ? plan.value.steps[index.value - 1] : null));
 
 const counter = computed(() => `шаг ${index.value} из ${plan.value.steps.length - 1}`);
-const atStart = computed(() => index.value === 0);
-const atEnd = computed(() => index.value === plan.value.steps.length - 1);
-const prev = () => {
-  if (!atStart.value) index.value -= 1;
-};
-const next = () => {
-  if (!atEnd.value) index.value += 1;
-};
-const reset = () => {
-  index.value = 0;
-};
 
 const VERSION_IDS: VersionId[] = ['v1', 'v2', 'v3'];
 type Role = 'live' | 'fallback' | 'idle';

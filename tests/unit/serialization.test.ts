@@ -4,6 +4,7 @@ import * as t from '@/content/lessons/serialization/data';
 import { loadImpl, loadSample, nativeCheck, runMethods } from '@/widgets/clone-lab/model/run';
 import { losses, shape, show } from '@/widgets/clone-lab/model/shape';
 import { Money as DemoMoney } from '@/widgets/clone-survival/model/cases';
+import { mulberry32 } from '../helpers/rng';
 
 /**
  * Тема «Копирование и сериализация: JSON и structuredClone».
@@ -423,18 +424,6 @@ describe('учебный clone против structuredClone', () => {
 
 // ─── Случайные деревья ───────────────────────────────────────────────────────────────────
 
-/** mulberry32: маленький ГПСЧ с зерном — прогон повторяется один в один. */
-function rng(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let x = a;
-    x = Math.imul(x ^ (x >>> 15), x | 1);
-    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 const STRINGS = ['', 'a', 'кофе', '"', '\\', '\n', '\u0001', '\ud800', '\udfff', '😀', ' ', '0', '01', '1.5', '-1', '__proto__', 'toJSON', 'length'];
 const NUMBERS = [0, -0, 1, -1, 1.5, NaN, Infinity, -Infinity, 1e21, 2 ** 53 + 1, 5e-324];
 const KEYS = ['a', 'b', 'c', '0', '1', '10', '01', '-1', 'x y', '__proto__', 'ключ', '😀'];
@@ -447,7 +436,7 @@ interface GenOptions {
 }
 
 function makeTree(seed: number, opts: GenOptions): unknown {
-  const r = rng(seed);
+  const r = mulberry32(seed);
   const pick = <T,>(xs: readonly T[]) => xs[Math.floor(r() * xs.length)];
   const made: object[] = [];
 
@@ -550,7 +539,7 @@ function makeTree(seed: number, opts: GenOptions): unknown {
 
 /** Replacer и отступ для прогона: зависят от зерна, детерминированы. */
 function stringifyArgs(seed: number): [unknown, unknown] {
-  const r = rng(seed ^ 0x5bd1e995);
+  const r = mulberry32(seed ^ 0x5bd1e995);
   const replacers: unknown[] = [
     undefined,
     null,

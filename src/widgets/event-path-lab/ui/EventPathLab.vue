@@ -11,6 +11,7 @@
  * `iframe`, чтобы слушатели прошлого сценария на `window` и `document` не мешали.
  */
 import { computed, onMounted, ref, watch } from 'vue';
+import { useStepper } from '@/shared/lib/useStepper';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import StepToolbar from '@/shared/ui/StepToolbar.vue';
@@ -34,7 +35,8 @@ const options = props.scenarios.map((s) => ({ value: s.id, label: s.label }));
 const scenario = computed(() => props.scenarios.find((s) => s.id === picked.value) ?? props.scenarios[0]);
 
 const model = computed<DispatchResult>(() => runInModel(api, scenario.value));
-const step = ref(0);
+const total = computed(() => model.value.log.length);
+const { index: step, atStart, atEnd, next, prev, reset } = useStepper(total);
 watch(picked, () => (step.value = 0));
 
 const PHASE = ['0 — NONE', '1 — захват', '2 — цель', '3 — всплытие'];
@@ -48,7 +50,6 @@ const tree = computed(() => {
 });
 
 const current = computed(() => model.value.log[step.value]);
-const total = computed(() => model.value.log.length);
 
 /** Слушатель вызван до текущего шага включительно (в любом прогоне), вызывается сейчас или не вызывался. */
 function listenerState(l: ListenerSpec): 'now' | 'done' | 'wait' | 'never' {
@@ -164,12 +165,12 @@ const verdict = computed(() => {
         <div class="ep-pane ep-pane--step">
           <StepToolbar
             :counter="total ? `вызов ${step + 1} из ${total}` : 'ни одного вызова'"
-            :at-start="step === 0"
-            :at-end="step >= total - 1"
+            :at-start="atStart"
+            :at-end="atEnd"
             next-label="Следующий слушатель →"
-            @prev="step = Math.max(0, step - 1)"
-            @next="step = Math.min(total - 1, step + 1)"
-            @reset="step = 0"
+            @prev="prev"
+            @next="next"
+            @reset="reset"
           />
           <dl v-if="current" class="ep-facts">
             <dt>слушатель</dt>

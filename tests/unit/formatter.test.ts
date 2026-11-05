@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import * as t from '@/content/tooling/formatter/data';
 import { loadPrinter, outline } from '@/widgets/format-lab/model/run';
 import type { Doc, DocCommand } from '@/widgets/format-lab/model/types';
+import { mulberry32 } from '../helpers/rng';
 
 /**
  * Тема «Форматтер изнутри».
@@ -36,18 +37,6 @@ function toPlain(doc: unknown): Doc {
     return names.get(s);
   };
   return JSON.parse(JSON.stringify(doc, (_k, v) => (typeof v === 'symbol' ? sym(v) : v))) as Doc;
-}
-
-/** mulberry32 — воспроизводимый генератор для случайных Doc. */
-function rng(seed: number) {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let x = s;
-    x = Math.imul(x ^ (x >>> 15), x | 1);
-    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 const WORDS = ['a', 'id', 'foo', 'item', 'value', 'render', 'callback', '(', ')', '[', ']', '{', '}', ',', ':', '=>', 'x + y', 'items.length', ''];
@@ -96,8 +85,8 @@ function gen(r: () => number, depth: number, ids: symbol[]): unknown {
 
 /** Один и тот же Doc дважды: Prettier дописывает в группы `break: 'propagated'`, пусть пишет в свою копию. */
 function twin(seed: number): [unknown, Doc] {
-  const real = gen(rng(seed), 6, []);
-  const mine = gen(rng(seed), 6, []);
+  const real = gen(mulberry32(seed), 6, []);
+  const mine = gen(mulberry32(seed), 6, []);
   return [real, mine as Doc];
 }
 

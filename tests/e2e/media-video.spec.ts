@@ -19,6 +19,7 @@ import {
   STALL_CODE,
   STALL_OUT,
 } from '../../src/content/lessons/media-video/data';
+import { withBrowser } from '../helpers/with-browser';
 
 /**
  * «Видео в браузере»: каждый пример с выводом и каждое утверждение о движках.
@@ -63,18 +64,13 @@ async function serve(page: Page, html: string): Promise<string[]> {
   return logged;
 }
 
-async function withBrowser<T>(name: Name, fn: (browser: Browser) => Promise<T>, channel?: string): Promise<T> {
-  const browser = await TYPES[name].launch(channel ? { channel } : {});
-  try {
-    return await fn(browser);
-  } finally {
-    await browser.close();
-  }
-}
+/** Браузер по имени движка; `channel` — полный Chromium вместо headless shell. */
+const inBrowser = <T>(name: Name, fn: (browser: Browser) => Promise<T>, channel?: string): Promise<T> =>
+  withBrowser(TYPES[name], channel ? { channel } : {}, fn);
 
 /** Открыть страницу и ждать, пока в консоли не наберётся `lines` строк (или не появится строка `last`). */
 async function run(name: Name, html: string, lines: number | RegExp, after?: (page: Page) => Promise<void>): Promise<string[]> {
-  return withBrowser(name, async (browser) => {
+  return inBrowser(name, async (browser) => {
     const page = await browser.newPage();
     const logged = await serve(page, html);
     await page.goto(`${ORIGIN}/`);
@@ -138,7 +134,7 @@ const POLICY: Record<'chromium' | 'firefox', Record<string, unknown>> = {
 
 for (const name of ['chromium', 'firefox'] as const) {
   test(`правила автоплея в ${name}: атрибут autoplay, дорожка без звука, getAutoplayPolicy`, async () => {
-    await withBrowser(name, async (browser) => {
+    await inBrowser(name, async (browser) => {
       const page = await browser.newPage();
       const logged = await serve(page, POLICY_PAGE);
       await page.goto(`${ORIGIN}/`);
@@ -153,7 +149,7 @@ for (const name of ['chromium', 'firefox'] as const) {
 }
 
 test('getAutoplayPolicy нет в WebKit', async () => {
-  await withBrowser('webkit', async (browser) => {
+  await inBrowser('webkit', async (browser) => {
     const page = await browser.newPage();
     await page.setContent('<p>стенд</p>');
     expect(await page.evaluate(() => typeof (navigator as { getAutoplayPolicy?: unknown }).getAutoplayPolicy)).toBe('undefined');
@@ -164,7 +160,7 @@ const CODEC_CHANNEL: Record<Name, string | undefined> = { chromium: 'chromium', 
 
 for (const name of ALL) {
   test(`кодеки в ${name}: canPlayType, isTypeSupported и decodingInfo совпадают со снимком`, async () => {
-    const got = await withBrowser(name, async (browser) => {
+    const got = await inBrowser(name, async (browser) => {
       const page = await browser.newPage();
       const logged = await serve(page, '<p>стенд</p>');
       await page.goto(`${ORIGIN}/`);
@@ -176,7 +172,7 @@ for (const name of ALL) {
 }
 
 test('headless shell Chromium: HEVC не узнаёт и экономного декодера не видит', async () => {
-  const got = await withBrowser('chromium', async (browser) => {
+  const got = await inBrowser('chromium', async (browser) => {
     const page = await browser.newPage();
     const logged = await serve(page, '<p>стенд</p>');
     await page.goto(`${ORIGIN}/`);
@@ -198,7 +194,7 @@ const HLS_NATIVE: Record<Name, string> = { chromium: 'loadedmetadata 4', firefox
 
 for (const name of ALL) {
   test(`HLS по ссылке на плейлист в ${name}: ${HLS_NATIVE[name]}`, async () => {
-    await withBrowser(name, async (browser) => {
+    await inBrowser(name, async (browser) => {
       const page = await browser.newPage();
       await serve(page, `<video src="hls/index.m3u8" muted></video><script>
         const v = document.querySelector('video');
@@ -271,7 +267,7 @@ const MSE_FACTS_PAGE = `${MSE_SETUP_CODE}
 
 for (const name of ALL) {
   test(`MediaSource в ${name}: InvalidStateError, waiting — не пауза, без endOfStream нет ended`, async () => {
-    await withBrowser(name, async (browser) => {
+    await inBrowser(name, async (browser) => {
       const page = await browser.newPage();
       await serve(page, MSE_FACTS_PAGE);
       await page.goto(`${ORIGIN}/`);
@@ -306,7 +302,7 @@ for (const name of ['chromium', 'firefox', 'webkit'] as const) {
 
 for (const name of ALL) {
   test(`кадр с чужого источника пачкает холст в ${name}`, async () => {
-    await withBrowser(name, async (browser) => {
+    await inBrowser(name, async (browser) => {
       const read = async (crossorigin: boolean) => {
         const page = await browser.newPage();
         await page.route('http://cdn.media-video.test/**', (route) =>
@@ -333,7 +329,7 @@ for (const name of ALL) {
 
 for (const name of ALL) {
   test(`preload, duration до метаданных и Picture-in-Picture в ${name}`, async () => {
-    await withBrowser(name, async (browser) => {
+    await inBrowser(name, async (browser) => {
       const page = await browser.newPage();
       await serve(page, `<video id="none" src="clip.mp4" preload="none"></video>
         <video id="meta" src="clip.mp4" preload="metadata"></video><script>
@@ -360,7 +356,7 @@ for (const name of ALL) {
 }
 
 test('<source>: Chromium без HEVC пропускает первый источник и берёт webm', async () => {
-  await withBrowser('chromium', async (browser) => {
+  await inBrowser('chromium', async (browser) => {
     const page = await browser.newPage();
     await serve(page, `<video muted>
       <source src="clip.mp4" type='video/mp4; codecs="hvc1.1.6.L93.B0"'>

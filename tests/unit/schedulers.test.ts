@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import * as t from '@/content/algorithms/schedulers/data';
 import { loadHeap, loadMiniScheduler, loadRunner, toSlices, traceHeap } from '@/widgets/sched-lab/model/run';
 import type { HeapNode, Job, LogEntry } from '@/widgets/sched-lab/model/types';
+import { mulberry32 } from '../helpers/rng';
 
 /**
  * Тема «Планировщики: очередь с приоритетом и нарезка времени».
@@ -70,15 +71,6 @@ const runReal = loadRunner(t.HOST_CODE, t.JOB_CODE, t.SCENARIO_CODE, realSchedul
 const fmt = (log: LogEntry[]) =>
   toSlices(log).map((e) => `#${e.slice} t=${e.t} ${e.name}${e.part}${e.didTimeout ? '!' : ''}`);
 
-function rng(seed: number) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 const scenario = (id: string) => t.SCHED_SCENARIOS.find((s) => s.id === id)!;
 const withPriority = (jobs: Job[], name: string, priority: Job['priority']) =>
   jobs.map((j) => (j.name === name ? { ...j, priority } : j));
@@ -92,7 +84,7 @@ describe('стенд', () => {
 describe('куча темы', () => {
   it('выдаёт то же, что сортировка, на случайных операциях', () => {
     for (let seed = 1; seed <= 50; seed++) {
-      const r = rng(seed);
+      const r = mulberry32(seed);
       const h = heapApi();
       const heap: HeapNode[] = [];
       const model: HeapNode[] = [];
@@ -122,7 +114,7 @@ describe('куча темы', () => {
       pop(h: HeapNode[]): HeapNode;
     };
     const h = heapApi();
-    const r = rng(7);
+    const r = mulberry32(7);
     const mine: HeapNode[] = [];
     const theirs: HeapNode[] = [];
     let id = 1;
@@ -143,7 +135,7 @@ describe('куча темы', () => {
     for (const row of t.COST_ROWS) {
       const heap = heapApi();
       const sorted = heapApi();
-      const r = rng(1);
+      const r = mulberry32(1);
       const h: HeapNode[] = [];
       const s: HeapNode[] = [];
       for (let i = 0; i < row.n; i++) {
@@ -218,7 +210,7 @@ describe('мини-планировщик против настоящего sche
 
   it('на 200 случайных сценариях журналы совпадают дословно', () => {
     for (let seed = 1; seed <= 200; seed++) {
-      const r = rng(seed * 31);
+      const r = mulberry32(seed * 31);
       const jobs: Job[] = Array.from({ length: 2 + Math.floor(r() * 9) }, (_, i) => ({
         name: `J${i}_`,
         priority: (1 + Math.floor(r() * 5)) as Job['priority'],
@@ -351,7 +343,7 @@ describe('unstable_mock — второй оракул порядка', () => {
 
   it('200 случайных сценариев без событий: тот же порядок задач', () => {
     for (let seed = 1; seed <= 200; seed++) {
-      const r = rng(seed * 17);
+      const r = mulberry32(seed * 17);
       const jobs: Job[] = Array.from({ length: 2 + Math.floor(r() * 9) }, (_, i) => ({
         name: `J${i}`,
         priority: (1 + Math.floor(r() * 5)) as Job['priority'],
