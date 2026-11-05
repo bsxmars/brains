@@ -230,7 +230,7 @@
 | Блок | Данные | Вывод |
 |---|---|---|
 | **Словарь** — слова, которые тема употребляет раньше, чем объясняет | `GLOSSARY: GlossaryTerm[]` | `<Glossary items={GLOSSARY} />` во вводном разделе |
-| **Перед началом** — что тема считает известным, 3–4 карточки со ссылкой «Где разобрано» | `PREREQ: Prereq[]`, `PREREQ_NOTE` | `<Prereq items={PREREQ} note={PREREQ_NOTE} />`, первый пункт `nav` (`s0`) |
+| **Перед началом** — что тема считает известным, 3–4 карточки со ссылкой «Где разобрано» | `PREREQ: Prereq[]`, `PREREQ_NOTE` | `<Prereq items={PREREQ} lead={PREREQ_NOTE} />`, первый пункт `nav` (`s0`) |
 | Тонкие места — где интуиция промахивается систематически. **Необязателен** | `PITFALLS: Pitfall[]` | `<Pitfalls items={PITFALLS} />` |
 | Что осталось за кадром. **Необязателен**; если объявлен — выведен и не пуст | `OFFSCREEN` | — |
 | **Источники и смежное** | `SOURCES: Source[]`, `RELATED` | `<SourceList items={SOURCES} />`, `<Md text={RELATED} />` |

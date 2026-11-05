@@ -60,13 +60,15 @@ function push(kind: 'event' | 'model' | 'dom', text: string) {
   log.value = [...log.value, { id: ++seq, kind, text }].slice(-12);
 }
 
-const proto = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!;
+/** Родной `value` поля. Функцией, а не константой: setup исполняется и в Node, где `HTMLInputElement` нет. */
+const valueDescriptor = () => Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!;
 const q = (v: unknown) => JSON.stringify(v);
 
 function bind() {
   stop?.();
   const el = field.value;
   if (!el) return;
+  const proto = valueDescriptor();
   const s = props.setters.find((x) => x.id === setter.value) ?? props.setters[0];
   const transform = TRANSFORM[s.id] ?? TRANSFORM.none;
   let raw: unknown = s.initial;
@@ -145,6 +147,7 @@ async function typeIme() {
   const el = field.value;
   if (!el) return;
   el.focus();
+  const proto = valueDescriptor();
   const base = proto.get!.call(el);
   el.dispatchEvent(new CompositionEvent('compositionstart', { data: '' }));
   for (const text of [...props.ime.steps, props.ime.commit]) {
