@@ -108,7 +108,7 @@ export default defineConfig({
   base: BASE,
   /**
    * Старые адреса тем, переехавших между направлениями 2026-10-01
-   * (docs/plans/regroup-directions.md). Ссылки извне живут дольше, чем наша раскладка.
+   * (docs/history/regroup-directions.md). Ссылки извне живут дольше, чем наша раскладка.
    */
   redirects: {
     '/js/browser-extensions/': '/render/browser-extensions/',

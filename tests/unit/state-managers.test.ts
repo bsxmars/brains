@@ -27,7 +27,7 @@ import type { LabAction, LabMode, LabState, MiniStore, TrackedStore } from '@/wi
  * DOM — happy-dom в глобальной области, до первого рендера. React и zustand грузятся через
  * `require`, чтобы React был один (CJS); Vue и pinia — через `import`, по той же причине (pinia
  * есть только в ESM и сама импортирует `vue`). JSX примеров снимает TypeScript: плагина Babel
- * для JSX в проекте нет (см. `docs/agents/stack.md`).
+ * для JSX в проекте нет (см. `AGENTS.md`, «Стек, тесты и ловушки»).
  */
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));

@@ -8,7 +8,7 @@
  * Пояснение под колонками — из `data.ts`, его сверяет тест с тем же прогоном модели.
  *
  * Классы с префиксом `ck-`: на дев-сервере стили островов живут голыми селекторами
- * (`docs/agents/lesson-structure.md`).
+ * (`AGENTS.md`, «Острова»).
  */
 import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';

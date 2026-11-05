@@ -26,7 +26,7 @@ import type { AbortScenario } from '@/widgets/abort-lab/model/types';
  *   — HTTP/2: Chromium 153 по TLS к `node:http2` и клиент `node:http2` с `{ signal }` — поток
  *     закрывается с `rstCode` 8 (CANCEL), сессия остаётся, следующий запрос идёт по ней же;
  *   — сборщик и `AbortSignal.any()` (`GC_ROWS`): по 1000 зависимых сигналов на долгоживущем,
- *     `WeakRef` + отдать поток циклу событий + `gc()` (рецепт из `docs/agents/lesson-structure.md`),
+ *     `WeakRef` + отдать поток циклу событий + `gc()` (рецепт из `AGENTS.md`, «Память и сборщик»),
  *     Node 24.11 и 26.8 с `--expose-gc`, Chromium с `--js-flags=--expose-gc`; 3 прогона из 3;
  *   — API Node (`NODE_API_ROWS`): имя, `code`, `cause` ошибки; число слушателей
  *     через `events.getEventListeners`; `getMaxListeners(signal)` — 0;
