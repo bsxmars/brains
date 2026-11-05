@@ -63,6 +63,7 @@ import {
   SAMPLING_TAKEAWAY,
   PLAIN_SAMPLING_SIZES,
   FLOOR_ALERTS,
+  RELATED,
 } from './data';
 
 <Section
@@ -436,15 +437,6 @@ import {
   </Card>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [«Профилирование памяти»](/js/memory-profiling/) — снимок, три
-    снимка и панель Retainers: то, что делают, когда профиль назвал функцию.
-    [«Память в Node»](/js/node-memory/) — поля `memoryUsage`, `--trace-gc`, лимиты
-    контейнера и цена снимка с живого процесса. [«Память и GC»](/js/memory-gc/) — поколения
-    и нижняя огибающая графика. [«Event Loop»](/js/event-loop/#s5) — откуда берётся
-    задержка цикла в Node. [«Движок V8»](/js/v8-engine/#s1) — встраивание, из-за которого
-    профиль видит не все функции. [«Безопасность фронтенда», раздел «Изоляция страницы»](/platform/security/#s7) — изоляция
-    источника, без которой браузер не меряет память.
-
+    <Md text={RELATED} />
   </Card>
 </Section>

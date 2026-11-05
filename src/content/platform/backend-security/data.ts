@@ -1042,3 +1042,6 @@ export const SOURCES: SourceGroup[] = [
     ],
   },
 ];
+
+export const RELATED =
+  'Смежное на сайте: [Безопасность фронтенда](/platform/security/) — браузерная половина: источник, [CORS](/platform/security/#s2), [XSS и CSP](/platform/security/#s4), [CSRF](/platform/security/#s5), [куки и JWT](/platform/security/#s6). [Пакетные менеджеры](/tooling/package-managers/#s6) — скрипты установки, порог возраста версии и `npm audit`. [Модули и сборка](/tooling/modules/#s6) — как значение переменной окружения оказывается строкой в бандле. [Объектная модель](/js/object-model/#s2) — прототипы и prototype pollution.';

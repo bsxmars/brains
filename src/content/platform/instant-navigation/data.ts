@@ -985,3 +985,6 @@ export const SOURCES: SourceGroup[] = [
     ],
   },
 ];
+
+export const RELATED =
+  'Смежное на сайте: [View Transitions](/render/view-transitions/#s5) — анимация перехода между документами, в том числе к предрендеренной странице. [Планирование задач](/js/task-scheduling/#s4) — состояния страницы, заморозка и место bfcache среди них. [Сеть и кеширование](/platform/network/#s2) — HTTP-кеш, `no-store` и `no-cache`. [Критический путь](/render/rendering-crp/) — LCP, CLS, INP и чем их мерить. [Кадр браузера](/render/render-pipeline/#s2) — почему у спрятанной и замороженной страницы нет кадров. [Устройство браузера](/js/browser-architecture/#s1) — источник, сайт и процессы, в которых живёт предрендер.';

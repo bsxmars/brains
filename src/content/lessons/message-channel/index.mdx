@@ -69,6 +69,7 @@ import {
   BASICS_CHANNEL_OUT,
   BASICS_PAGE_CODE,
   BASICS_WORKER_CODE,
+  RELATED,
 } from './data';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
@@ -749,15 +750,6 @@ import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
   </Card>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [воркеры и параллелизм](/js/workers/) — что переживает структурное
-    клонирование, с живым демо. [Цикл событий](/js/event-loop/#s2) — источники задач и порядок
-    между ними. [Планирование работы](/js/task-scheduling/) — во что обходится каждая пауза, в которой поток отдан браузеру.
-    [Память и сборщик](/js/memory-gc/) — почему живой порт держит поддерево.
-    [Объектная модель](/js/object-model/) — прототипы, приватные поля и геттеры, которых клон
-    не увидит.
-    [Копирование и сериализация](/js/serialization/) — алгоритм `structuredClone` по шагам
-    и чем он отличается от JSON.
-
+    <Md text={RELATED} />
   </Card>
 </Section>

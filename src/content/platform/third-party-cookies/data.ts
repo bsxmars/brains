@@ -873,3 +873,6 @@ export const SOURCES: SourceGroup[] = [
     ],
   },
 ];
+
+export const RELATED =
+  'Смежное на сайте: [Безопасность фронтенда](/platform/security/#s5) — `SameSite`, CSRF и умолчание `Lax`. [XS-Leaks](/platform/xs-leaks/#s2) — разделение HTTP-кеша как защита от межсайтовых утечек. [Мгновенная навигация](/platform/instant-navigation/#s4) — почему prefetch на чужой сайт не уходит, когда у пользователя есть его куки. [Устройство браузера](/js/browser-architecture/#s1) — сайт как граница процессов и кук. [Хранилища браузера](/platform/browser-storage/) — localStorage, IndexedDB, Cache API, OPFS и квота, которую делят по сайту.';

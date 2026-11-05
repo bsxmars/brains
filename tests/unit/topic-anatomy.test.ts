@@ -176,11 +176,14 @@ describe('анатомия темы: обязательные блоки у ка
     });
 
     it('есть «Смежное на сайте» — выход из темы', () => {
-      const related = topic.mdx.includes('Смежное на сайте') || topic.data.includes('Смежное на сайте');
       expect(
-        related,
-        `${topic.id}: нет блока «Смежное на сайте». Без него тема — тупик: читатель ` +
-          'дочитал и не знает, куда идти дальше.',
+        /export const RELATED\b[\s\S]*?Смежное на сайте/.test(topic.data),
+        `${topic.id}: в data.ts нет RELATED со «Смежным на сайте». Без него тема — тупик: ` +
+          'читатель дочитал и не знает, куда идти дальше.',
+      ).toBe(true);
+      expect(
+        topic.mdx.includes('<Md text={RELATED} />'),
+        `${topic.id}: RELATED объявлен, но не выведен. «Смежное» — строкой в data.ts, в MDX — <Md text={RELATED} />.`,
       ).toBe(true);
     });
 

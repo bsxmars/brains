@@ -87,6 +87,7 @@ import {
   PRERENDER_SCENE_CODE,
   PRERENDER_STEPS,
   PRERENDER_ENDINGS,
+  RELATED,
 } from './data';
 
 <Section variant="intro" eyebrow="Навигация, которую не нужно ждать" gap={24}>
@@ -499,14 +500,6 @@ import {
   </CardGrid>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [View Transitions](/render/view-transitions/#s5) — анимация перехода между документами, в том числе к предрендеренной странице.
-    [Планирование задач](/js/task-scheduling/#s4) — состояния страницы,
-    заморозка и место bfcache среди них. [Сеть и кеширование](/platform/network/#s2) —
-    HTTP-кеш, `no-store` и `no-cache`. [Критический путь](/render/rendering-crp/) — LCP, CLS,
-    INP и чем их мерить. [Кадр браузера](/render/render-pipeline/#s2) — почему у спрятанной
-    и замороженной страницы нет кадров. [Устройство браузера](/js/browser-architecture/#s1) —
-    источник, сайт и процессы, в которых живёт предрендер.
-
+    <Md text={RELATED} />
   </Card>
 </Section>

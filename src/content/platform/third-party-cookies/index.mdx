@@ -81,6 +81,7 @@ import {
   PLAIN_TWO_FILTERS,
   SAA_TIMELINE,
   PLAIN_SAA_TIMELINE,
+  RELATED,
 } from './data';
 
 <Section variant="intro" eyebrow="Чужая стена, свой пропуск" gap={24}>
@@ -372,14 +373,6 @@ import {
   </CardGrid>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [Безопасность фронтенда](/platform/security/#s5) — `SameSite`, CSRF
-    и умолчание `Lax`. [XS-Leaks](/platform/xs-leaks/#s2) — разделение HTTP-кеша как защита
-    от межсайтовых утечек. [Мгновенная навигация](/platform/instant-navigation/#s4) — почему
-    prefetch на чужой сайт не уходит, когда у пользователя есть его куки. [Устройство
-    браузера](/js/browser-architecture/#s1) — сайт как граница процессов и кук.
-    [Хранилища браузера](/platform/browser-storage/) — localStorage, IndexedDB, Cache API, OPFS
-    и квота, которую делят по сайту.
-
+    <Md text={RELATED} />
   </Card>
 </Section>

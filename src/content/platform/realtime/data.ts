@@ -1021,3 +1021,6 @@ export const SOURCES: SourceGroup[] = [
     ],
   },
 ];
+
+export const RELATED =
+  'Смежное на сайте: [Стримы и обратное давление](/platform/streams/#s4) — формат SSE, `EventSource` и переподключение с `Last-Event-ID`. [Сеть и кеширование](/platform/network/#s1) — TCP, TLS, HTTP/2 и QUIC, на которых стоят все три канала. [Безопасность фронтенда](/platform/security/#s5) — источник, сайт, `SameSite` и CSRF. [Навигации без ожидания](/platform/instant-navigation/#s2) — открытый сокет и кнопка «назад». [Планирование задач](/js/task-scheduling/#s4) — таймеры heartbeat в фоновой вкладке. [Воркеры и параллелизм](/js/workers/#s1) — что доступно внутри воркера, в том числе `WebSocket`. [WebRTC](/platform/webrtc/) — соединение браузер–браузер: сигнализация через ваш сервер, ICE-кандидаты, DTLS и каналы данных. [Web Push](/platform/web-push/) — сообщение, которое доходит даже до закрытой вкладки: подписка, VAPID и шифрование тела. [Ограничение частоты в API](/platform/rate-limits/) — три вида джиттера, 429 и `Retry-After`, бюджет повторов.';

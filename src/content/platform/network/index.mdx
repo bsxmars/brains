@@ -102,6 +102,7 @@ import {
   SW_DEPLOY_SCENE_CODE,
   SW_DEPLOY_SCENE_NOTE,
   SW_DEPLOY_STEPS,
+  RELATED,
 } from './data';
 
 <Section variant="intro" eyebrow="Что происходит до того, как браузер получил байты" gap={24}>
@@ -797,23 +798,6 @@ import {
   </CardGrid>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [CDN и серверный кеш](/platform/cdn-cache/) — общий кеш между вами и сервером:
-    `s-maxage`, устаревшие ответы, толпа при истечении и кеш внутри приложения.
-    [Долгие соединения: WebSocket, SSE и WebTransport](/platform/realtime/) — когда
-    одного запроса мало и соединение держат открытым.
-    [Критический путь и Web Vitals](/render/rendering-crp/) — preload scanner,
-    LCP и его разложение, `loading="lazy"`, CLS. [Устройство браузера](/js/browser-architecture/) —
-    процессы и то, где живёт сеть. [Event loop](/js/event-loop/) — почему Service Worker это
-    отдельный контекст со своим циклом событий. [Безопасность фронтенда](/platform/security/#s2) —
-    почему вообще возникает preflight. [Стримы](/platform/streams/) — что происходит с телом
-    ответа, пока оно едет по сети, и [SSE](/platform/streams/#s4) — ответ, который не заканчивается.
-    [Мгновенная навигация](/platform/instant-navigation/) — [кеш «назад-вперёд»](/platform/instant-navigation/#s2)
-    и [Speculation Rules](/platform/instant-navigation/#s4): переход, который не ждёт сети вовсе.
-    [HTTP/2 и HTTP/3](/platform/http2-http3/) — кадры, потоки и HPACK по байтам, QUIC и QPACK.
-    [REST, GraphQL и gRPC-web](/platform/api-styles/) — один экран тремя API: запросы, байты и кеш.
-    [Сжатие в вебе](/platform/compression/) — выбор кодировки по `Accept-Encoding`, уровни и словари сжатия.
-    [TLS и сертификаты](/delivery/tls-certificates/) — рукопожатие по сообщениям, цепочка доверия и ACME.
-
+    <Md text={RELATED} />
   </Card>
 </Section>

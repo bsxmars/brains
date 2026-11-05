@@ -83,6 +83,7 @@ import {
   DISPATCH_SCENE_NOTE,
   DISPATCH_STEPS,
   PLAIN_DISPATCH,
+  RELATED,
 } from './data';
 
 <Section
@@ -641,15 +642,6 @@ import {
   </Card>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [цикл событий](/js/event-loop/) — очереди, из которых ваш колбэк
-    достают. [Промис изнутри](/js/promise-internals/) — те самые гарантии, разобранные
-    по шагам спецификации. [Память и сборщик](/js/memory-gc/) — почему забытый слушатель
-    держит целое поддерево.
-    [Отмена: AbortController и AbortSignal](/js/abort-controller/) — сигнал, `any` и `timeout`,
-    что отменяет `fetch` и как не оставить слушателей на долгоживущем сигнале.
-    [Debounce, throttle и token bucket](/algorithms/rate-limiting/) — обёртки, которые зовут
-    ваш колбэк реже, чем приходят события, и ограничители частоты.
-
+    <Md text={RELATED} />
   </Card>
 </Section>

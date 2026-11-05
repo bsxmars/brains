@@ -99,6 +99,7 @@ import {
   PLAIN_STOP,
   LAYERS_DIAGRAM,
   STAGES_DIAGRAM,
+  RELATED,
 } from './data';
 
 <Section variant="intro" eyebrow="Почему про образ стоит знать больше, чем «это коробка с приложением»" gap={24}>
@@ -564,16 +565,6 @@ import {
   </CardGrid>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [Docker Compose](/delivery/compose/) — несколько контейнеров, их сеть,
-    тома и ожидание готовности. [Kubernetes](/delivery/kubernetes/) — пробы, лимиты и выкат
-    образа волнами. [Сеть и кеширование](/platform/network/) — слои скачиваются по сети
-    и кешируются по хешу содержимого, так же как файлы сайта в браузере. [Память Node](/js/node-memory/) —
-    почему лимит памяти контейнера и предел кучи Node нужно согласовывать вручную.
-    [Модули и сборка](/tooling/modules/) — что выдаёт сборщик и, значит, что переносить
-    в финальную ступень.
-    [Цепочка поставок](/platform/supply-chain/) — `integrity` в lock-файле, скрипты установки
-    и подменённые имена пакетов.
-
+    <Md text={RELATED} />
   </Card>
 </Section>

@@ -103,6 +103,7 @@ import {
   HOOK_SCENE_CODE,
   HOOK_SCENE_NOTE,
   HOOK_STEPS,
+  RELATED,
 } from './data';
 
 <Section variant="intro" eyebrow="Обработчик верит только себе" gap={24}>
@@ -514,14 +515,6 @@ import {
   </CardGrid>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [Безопасность фронтенда](/platform/security/) — браузерная половина:
-    источник, [CORS](/platform/security/#s2), [XSS и CSP](/platform/security/#s4),
-    [CSRF](/platform/security/#s5), [куки и JWT](/platform/security/#s6).
-    [Пакетные менеджеры](/tooling/package-managers/#s6) — скрипты установки, порог возраста
-    версии и `npm audit`. [Модули и сборка](/tooling/modules/#s6) — как значение переменной
-    окружения оказывается строкой в бандле. [Объектная модель](/js/object-model/#s2) —
-    прототипы и prototype pollution.
-
+    <Md text={RELATED} />
   </Card>
 </Section>

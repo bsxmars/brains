@@ -628,3 +628,6 @@ export const SOURCES: SourceGroup[] = [
     ],
   },
 ];
+
+export const RELATED =
+  'Смежное на сайте: [Безопасность фронтенда](/platform/security/#s1) — источник, SOP, CORS, `SameSite` и кликджекинг. [Сеть и кеширование](/platform/network/#s1) — Resource Timing и `Timing-Allow-Origin`. [Устройство браузера](/js/browser-architecture/#s1) — сайт, изоляция процессов и ORB. [Безопасность фронтенда, раздел «Изоляция страницы: COOP и COEP»](/platform/security/#s7) — COOP и COEP ради изоляции источника. [Сжатие в вебе](/platform/compression/#s6) — BREACH: длина сжатого ответа выдаёт секрет.';

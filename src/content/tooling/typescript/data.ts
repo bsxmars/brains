@@ -2149,3 +2149,6 @@ export const PREREQ: Prereq[] = [
     tone: 'warn' as const,
   },
 ];
+
+export const RELATED =
+  'Смежное на сайте: [модули](/tooling/modules/) — как типы и код приезжают в проект одними и теми же путями и почему `moduleResolution` в библиотеке — ловушка. [Объектная модель](/js/object-model/) — как устроен объект, который описывает тип.';

@@ -161,6 +161,7 @@ import {
   STORAGE_SCENE_NOTE,
   STORAGE_STEPS,
   PLAIN_TOKEN_STORAGE,
+  RELATED,
 } from './data';
 
 <Section variant="intro" eyebrow="Откуда вообще берутся все эти механизмы" gap={24}>
@@ -1077,19 +1078,6 @@ import {
   </CardGrid>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [безопасность бэкенда глазами фронтенда](/platform/backend-security/) —
-    чужой объект по id, запрос на адрес пользователя, инъекции и лишние поля в теле запроса.
-    [Встроенный контент без сторонних кук](/platform/third-party-cookies/) —
-    CHIPS, разделённое хранилище и Storage Access для виджетов на чужих сайтах.
-    [Сеть и кеширование](/platform/network/#s3) — preflight как лишний RTT
-    и его отдельный кеш, `Vary` и сжатие. [Общая память и Atomics](/js/atomics/) — общий буфер и правила работы с ним, ради которых изоляцию включают. [Устройство браузера](/js/browser-architecture/#s1) — процессы,
-    Spectre, ORB и почему единица изоляции site, а не origin.
-    [Аутентификация](/platform/authentication/) — сессии и токены, OAuth с PKCE и OIDC
-    глазами фронтенда.
-    [CSP и Trusted Types](/platform/csp/) — строгая политика на nonce, отчёты и поэтапное внедрение.
-    [Загрузка файлов](/platform/uploads/) — проверка типа по первым байтам, лимиты и чистка имени файла.
-    [Цепочка поставок](/platform/supply-chain/) — SRI для скриптов с CDN и `integrity` в lock-файле.
-
+    <Md text={RELATED} />
   </Card>
 </Section>

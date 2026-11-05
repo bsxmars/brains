@@ -76,6 +76,7 @@ import {
   COOP_SCENE_NOTE,
   COOP_STEPS,
   PLAIN_COOP_VALUES,
+  RELATED,
 } from './data';
 
 <Section variant="intro" eyebrow="Утечка без чтения" gap={24}>
@@ -358,13 +359,6 @@ import {
   </CardGrid>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
-
-    Смежное на сайте: [Безопасность фронтенда](/platform/security/#s1) — источник, SOP,
-    CORS, `SameSite` и кликджекинг. [Сеть и кеширование](/platform/network/#s1) — Resource
-    Timing и `Timing-Allow-Origin`. [Устройство браузера](/js/browser-architecture/#s1) —
-    сайт, изоляция процессов и ORB. [Безопасность фронтенда, раздел «Изоляция страницы: COOP и COEP»](/platform/security/#s7) —
-    COOP и COEP ради изоляции источника.
-    [Сжатие в вебе](/platform/compression/#s6) — BREACH: длина сжатого ответа выдаёт секрет.
-
+    <Md text={RELATED} />
   </Card>
 </Section>
