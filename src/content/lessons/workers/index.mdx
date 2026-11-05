@@ -1,7 +1,7 @@
 ---
 title: Воркеры и параллелизм
-order: 7
-lead: "Воркер — не «ещё один поток» с общими переменными, а **отдельный агент**: своя память, свой цикл событий, ни одного общего объекта. Всё остальное следует из этой границы, включая цену её пересечения — а платить обычно приходится не там, где ждут."
+order: 20
+lead: "Воркер — не «ещё один поток» с общими переменными, а **отдельный агент**: у него своя память и свой цикл событий, общих объектов с окном нет. Данные через эту границу копируются, передаются или кладутся в общую память — и у каждого способа своя цена. Чаще всего её платит главный поток, когда собирает ответ воркера."
 leadWidth: 66
 summary: "Агент и его изоляция, три канала через границу — копия, передача владения и общая память — и цена каждого, снятая замером в браузере."
 verifiedOn: Chromium 153.0.8010.12 · Node 26.8.2 (вычитка 2026-10-29)
@@ -11,8 +11,8 @@ nav:
   - { id: s2, label: Клонирование }
   - { id: s3, label: Владение }
   - { id: s4, label: Цена }
-  - { id: s5, label: Общая память }
-  - { id: s6, label: Сколько их и холст }
+  - { id: s5, label: Пул воркеров }
+  - { id: s6, label: Холст в воркере }
   - { id: s7, label: Тонкие места }
   - { id: s8, label: Источники }
 ---
@@ -29,46 +29,29 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
-import CloneSurvival from '@/widgets/clone-survival/ui/CloneSurvival.vue';
-import IsolationProbe from '@/widgets/isolation-probe/ui/IsolationProbe.vue';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import TransferCost from '@/widgets/transfer-cost/ui/TransferCost.vue';
 import TransferDiagram from '@/widgets/workers-transfer-diagram/ui/TransferDiagram.astro';
 import {
   ADVICE,
   AGENT_CARDS,
-  ARM_NOTE,
-  ATOMICS_WHY,
   BOOT_NOTE,
-  CANBLOCK_NOTE,
   CANVAS_FACTS,
   CANVAS_MODES,
   CANVAS_WIRE_CODE,
   CANVAS_WIRE_FACTS,
-  CLUSTER_CODE,
-  CLUSTER_NOTE,
   COORDINATE_NOTE,
-  NODE_LINKS,
-  NODE_PAR,
-  NODE_PAR_WHY,
   PROFILE_NOTE,
-  SHARE_ENV_CODE,
-  SHARE_ENV_NOTE,
   TIME_ORIGIN_CODE,
   TIME_ORIGIN_NOTE,
-  UNTRANSFERABLE_CODE,
-  UNTRANSFERABLE_NOTE,
-  CHANNEL_NOTE,
-  CLONE_FOOT,
-  CLONE_GROUPS,
-  CLONE_NOTE,
   CLONE_STEPS,
   CLONE_STEPS_NOTE,
-  CLONE_WHY,
+  CLONE_SUMMARY,
   COMLINK_NOTE,
   COST,
   COST_LEAD_NOTE,
   COST_NOTE,
+  COST_SETUP,
   DETACH,
   DETACH_NOTE,
   ERRORS_CODE,
@@ -77,39 +60,24 @@ import {
   GLOSSARY,
   HAVE,
   HAVENT,
+  HELLO_MAIN_CODE,
+  HELLO_NOTE,
+  HELLO_OUT,
+  HELLO_WORKER_CODE,
   INTRO_NOTE,
-  ISOLATION,
-  ISOLATION_BREAKS,
-  ISOLATION_DENIED,
-  ISOLATION_FOOT,
-  ISOLATION_GRANTED,
-  ISOLATION_HEADERS,
-  ISOLATION_NOTE,
-  ISOLATION_WHY,
   LOCAL_TRANSFER,
-  MEMORY_MAP_CODE,
-  MEMORY_MAP_NOTE,
-  NODE_NOTE,
   NO_DOM_NOTE,
   PITFALLS,
   POOL_CODE,
   POOL_CODE_NOTE,
   POOL_WORKER_CODE,
-  MONEY_CODE,
+  NODE_TOPIC_NOTE,
   POOL_NOTE,
   POOL_ROWS,
   POOL_RULES,
-  PUBLISH_CODE,
-  PUBLISH_NOTE,
-  RECEIVER_NOTE,
-  REORDER_NOTE,
-  SAB_FACTS,
   SHAPE,
   SHAPE_NOTE,
-  SHARED_WHY,
   SOURCES,
-  SPECTRE_NOTE,
-  SPECTRE_BRIEF,
   START_CODE,
   START_COST,
   START_NOTE,
@@ -124,7 +92,6 @@ import {
   TRANSFER_WHY,
   TYPES_NOTE,
   VIEW_RULE,
-  WAIT_NOTE,
   WASM_NOTE,
   WHY_NO_DOM,
   WORKER_TYPES,
@@ -134,17 +101,9 @@ import {
   PLAIN_AGENT,
   PLAIN_CLONE,
   PLAIN_TRANSFER,
-  PLAIN_PUBLISH,
-  CLONE_DEMO_NOTE,
   TRANSFER_DEMO_NOTE,
-  ISOLATION_DEMO_NOTE,
-  CHANNEL_SCENE_NOTE,
-  CHANNEL_STEPS,
   PLAIN_CHANNELS,
-  PUBLISH_SCENE_NOTE,
-  PUBLISH_WAIT_CODE,
-  PUBLISH_STEPS,
-  PLAIN_PUBLISH_WAIT,
+  SHARED_TOPIC_NOTE,
   OWNERSHIP_DIAGRAM,
 } from './data';
 
@@ -195,6 +154,18 @@ import {
     ))}
 
   </CardGrid>
+
+  ### Самый простой воркер
+
+  <CodeBlock code={HELLO_MAIN_CODE} />
+
+  <CodeBlock code={HELLO_WORKER_CODE} />
+
+  <CodeBlock code={HELLO_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={HELLO_NOTE} />
+  </Card>
 
   ### Что есть в воркере и чего нет
 
@@ -256,50 +227,19 @@ import {
     <Md text={BOOT_NOTE} />
   </Card>
 
-  ### В Node: `worker_threads` против `cluster`
-
-  <Card pad={20} gap={11} size={15.5} lh={1.6}>
-    <Md text={NODE_PAR_WHY} />
-  </Card>
-
-  <Table
-    head={NODE_PAR.head}
-    rows={NODE_PAR.rows}
-    cols={NODE_PAR.cols}
-    kinds={NODE_PAR.kinds}
-    minWidth={NODE_PAR.minWidth}
-  />
-
-  <CodeBlock code={CLUSTER_CODE} />
-
-  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={CLUSTER_NOTE} />
-  </Card>
-
-  <CodeBlock code={SHARE_ENV_CODE} />
-
-  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={SHARE_ENV_NOTE} />
-  </Card>
-
   <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={NODE_LINKS} />
+    <Md text={NODE_TOPIC_NOTE} />
   </Card>
 </Section>
 
 <Section
   id="s2"
-  eyebrow="Раздел 2 · демо"
-  eyebrowTone="demo"
+  eyebrow="Раздел 2"
   title="Что можно передать"
-  lead="Объект нельзя передать по ссылке: у другого агента своя куча, и чужой объект он не видит. Значит, объект надо **собрать заново** на той стороне, и делает это алгоритм structured clone. Заучивать, что он умеет, бесполезно; полезно знать, что он теряет **молча**."
+  lead="Объект нельзя передать по ссылке: у другого агента своя память, и чужих объектов он не видит. Поэтому объект **копируют**: отправитель записывает его поле за полем, а получатель собирает заново. Делает это алгоритм structured clone (структурное клонирование). Часть данных при этом теряется **молча**, без ошибки, и код дальше работает с неполной копией."
   leadWidth={72}
 >
   <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLONE} />
-
-  <Card pad={20} gap={11} size={15.5} lh={1.6}>
-    <Md text={CLONE_WHY} />
-  </Card>
 
   <Card title="Копирование идёт в два приёма, и платят за него оба потока" titleSize={17} pad={20} gap={13}>
     <NumberedList items={CLONE_STEPS} size={15.5} />
@@ -309,35 +249,9 @@ import {
     <Md text={CLONE_STEPS_NOTE} />
   </Callout>
 
-  ### Чем structured clone лучше JSON
-
-  <CodeBlock code={MEMORY_MAP_CODE} />
-
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={MEMORY_MAP_NOTE} />
+    <Md text={CLONE_SUMMARY} />
   </Card>
-
-  ### Что переживёт клонирование
-
-  <CodeBlock code={MONEY_CODE} />
-
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={CLONE_DEMO_NOTE} />
-  </Card>
-
-  <CloneSurvival client:visible foot={CLONE_FOOT} />
-
-  <CardGrid min={290} gap={14} align="start">
-    <Card tone="ok" title={CLONE_GROUPS[0].t} titleSize={16.5} pad={20} gap={10} size={15} lh={1.6} text={CLONE_GROUPS[0].d} />
-
-    <Card tone="err" title={CLONE_GROUPS[1].t} titleSize={16.5} pad={20} gap={10} size={15} lh={1.6} text={CLONE_GROUPS[1].d} />
-
-    <Card tone="warn" title={CLONE_GROUPS[2].t} titleSize={16.5} pad={20} gap={10} size={15} lh={1.6} text={CLONE_GROUPS[2].d} />
-  </CardGrid>
-
-  <Callout size={17} lh={1.55} pad="20px 22px">
-    <Md text={CLONE_NOTE} />
-  </Callout>
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={GETTER_NOTE} />
@@ -413,14 +327,6 @@ import {
     <Md text={WASM_NOTE} />
   </Card>
 
-  ### Буфер, который отдавать нельзя: `markAsUntransferable` в Node
-
-  <CodeBlock code={UNTRANSFERABLE_CODE} />
-
-  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={UNTRANSFERABLE_NOTE} />
-  </Card>
-
   ### Переносимые стримы: поток вместо пачки сообщений
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
@@ -438,6 +344,13 @@ import {
     ))}
 
   </CardGrid>
+  ### Третий способ: общая память
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHANNELS} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SHARED_TOPIC_NOTE} />
+  </Card>
 </Section>
 
 <Section
@@ -450,6 +363,8 @@ import {
   <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={COST_LEAD_NOTE} />
   </Card>
+
+  <Md text={COST_SETUP} />
 
   <Table
     head={COST.head}
@@ -477,14 +392,6 @@ import {
     <Md text={SHAPE_NOTE} />
   </Callout>
 
-  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={RECEIVER_NOTE} />
-  </Card>
-
-  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={CHANNEL_NOTE} />
-  </Card>
-
   ### Воркер в профиле: у каждого агента свои часы
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
@@ -497,33 +404,15 @@ import {
     <Md text={TIME_ORIGIN_NOTE} />
   </Card>
 
-  ### Что с этим делать — по убыванию эффекта
+  ### Как сделать передачу дешевле
 
-  <Card title="Четыре шага, и общая память среди них последняя" titleSize={17} pad={20} gap={13}>
+  <Card title="Сначала то, что даёт больше всего" titleSize={17} pad={20} gap={13}>
     <NumberedList items={ADVICE} size={15.5} />
   </Card>
 
   <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={COMLINK_NOTE} />
   </Card>
-
-  ### Один буфер, три канала
-
-  <Md text={CHANNEL_SCENE_NOTE} />
-
-  <CardGrid min={290} gap={14} align="start">
-    {CHANNEL_STEPS.map((b) => (
-      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
-        <Md text={`**Правило:** ${b.when}.`} />
-        <Md text={b.what} />
-        <Md text={`**Чем платит:** ${b.cost}`} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHANNELS} />
 
   <DarkPanel eyebrow="Где ошибаются">
     <DarkText>
@@ -539,141 +428,9 @@ import {
 
 <Section
   id="s5"
-  eyebrow="Раздел 5 · демо"
-  eyebrowTone="demo"
-  title="Разделяемая память и Atomics"
-  lead="Третий канал устроен иначе, чем первые два: копии нет вообще, есть один участок памяти и два агента. За это платят дважды: порядок доступа к памяти придётся обеспечивать самим, а весь сайт — перевести в режим изоляции."
-  leadWidth={72}
->
-  <Card pad={20} gap={11} size={15.5} lh={1.6}>
-    <Md text={SHARED_WHY} />
-  </Card>
-
-  <Card title="Чем общий буфер отличается от обычного" titleSize={17} pad={20} gap={13}>
-    <NumberedList items={SAB_FACTS} size={15.5} />
-  </Card>
-
-  ### Почему его выключили: атака Spectre
-
-  <Card pad={20} gap={11} size={15.5} lh={1.6}>
-    <Md text={SPECTRE_BRIEF} />
-  </Card>
-
-  <Callout size={17} lh={1.55} pad="20px 22px">
-    <Md text={SPECTRE_NOTE} />
-  </Callout>
-
-  ### Как его вернули: cross-origin isolation
-
-  <CodeBlock code={ISOLATION_HEADERS} />
-
-  <Card pad={20} gap={11} size={15.5} lh={1.6}>
-    <Md text={ISOLATION_WHY} />
-  </Card>
-
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={ISOLATION_DEMO_NOTE} />
-  </Card>
-
-  <IsolationProbe
-    client:visible
-    denied={ISOLATION_DENIED}
-    granted={ISOLATION_GRANTED}
-    foot={ISOLATION_FOOT}
-  />
-
-  <Table
-    head={ISOLATION.head}
-    rows={ISOLATION.rows}
-    cols={ISOLATION.cols}
-    kinds={ISOLATION.kinds}
-    minWidth={ISOLATION.minWidth}
-  />
-
-  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={ISOLATION_NOTE} />
-  </Card>
-
-  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <p class="t-body">
-      Почему изоляция вообще защищает — разговор про процессы, а не про JS. Браузер разносит
-      по разным процессам разные **сайты**, а не разные источники (origin): страницы двух
-      поддоменов одного сайта могут жить в одном процессе. К тому же в процесс страницы попадают
-      чужие картинки и скрипты, которые она загрузила. Поэтому изоляция и требует, чтобы каждый
-      чужой ресурс согласился там оказаться. Подробно — в теме
-      <a href="/js/browser-architecture/#s1">Устройство браузера</a>.
-    </p>
-  </Card>
-
-  <Card title="Что ломается — настоящая цена изоляции" titleSize={17} pad={20} gap={13}>
-    <NumberedList items={ISOLATION_BREAKS} size={15.5} />
-    <CardNote tone="prose">
-      Взамен, кроме общей памяти, изоляция даёт точный `performance.now()` и
-      `performance.measureUserAgentSpecificMemory()`. Это решение для всего сайта,
-      а не флажок на одной странице.
-    </CardNote>
-  </Card>
-
-  ### Atomics: неделимость и порядок
-
-  <Card pad={20} gap={11} size={15.5} lh={1.6}>
-    <Md text={ATOMICS_WHY} />
-  </Card>
-
-  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={REORDER_NOTE} />
-  </Card>
-
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUBLISH} />
-
-  <CodeBlock code={PUBLISH_CODE} />
-
-  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={PUBLISH_NOTE} />
-  </Card>
-
-  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={ARM_NOTE} />
-  </Card>
-
-  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={WAIT_NOTE} />
-  </Card>
-
-  <Callout size={17} lh={1.55} pad="20px 22px">
-    <Md text={CANBLOCK_NOTE} />
-  </Callout>
-
-  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={NODE_NOTE} />
-  </Card>
-
-  ### Один флажок, три способа ждать
-
-  <Md text={PUBLISH_SCENE_NOTE} />
-
-  <CodeBlock code={PUBLISH_WAIT_CODE} />
-
-  <CardGrid min={290} gap={14} align="start">
-    {PUBLISH_STEPS.map((b) => (
-      <Card title={b.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
-        <Md text={`**Как устроено:** ${b.when}.`} />
-        <Md text={b.what} />
-        <Md text={`**Чем платит:** ${b.cost}`} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUBLISH_WAIT} />
-</Section>
-
-<Section
-  id="s6"
-  eyebrow="Раздел 6"
-  title="Сколько воркеров заводить и холст в воркере"
-  lead="Число воркеров кажется арифметической задачей, но арифметикой не решается: платформа не сообщает, сколько ядер свободно на самом деле. А холст, отданный воркеру (`OffscreenCanvas`), рисует своим циклом кадров, пока главный поток занят чем угодно."
+  eyebrow="Раздел 5"
+  title="Пул воркеров: сколько заводить"
+  lead="Число воркеров кажется арифметической задачей, но арифметикой не решается: платформа не сообщает, сколько ядер свободно на самом деле. Поэтому воркеры заводят заранее, держат в пуле и раздают им задачи через очередь с пределом."
   leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
@@ -722,7 +479,16 @@ import {
     <Md text={POOL_CODE_NOTE} />
   </Card>
 
-  ### Холст в воркере: кадры вне окна
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Холст в воркере"
+  lead="Холст можно отдать воркеру (`OffscreenCanvas`), и тогда он рисует своим циклом кадров, пока главный поток занят чем угодно. Ввод при этом остаётся на странице, а размер и шрифты воркеру приходится передавать самому."
+  leadWidth={72}
+>
+  ### Кадры вне окна
 
   <Table
     head={CANVAS_MODES.head}
@@ -746,7 +512,7 @@ import {
     <Md text="Как рисовать в таком холсте и как отдать готовый кадр через `ImageBitmap` — в теме [Canvas 2D и OffscreenCanvas, раздел «Холст в воркере»](/render/canvas/#s7). Здесь важна одна граница: воркер получает холст, но не получает ввод, и связывают их те же сообщения, что во всей этой теме." />
   </Card>
 
-  ### Холст в воркере на деле: размер, ввод и шрифты
+  ### На деле: размер, ввод и шрифты
 
   <CodeBlock code={CANVAS_WIRE_CODE} />
 

@@ -2,7 +2,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 import type { ScopeProgram } from '@/widgets/scope-lab/model/types';
 
 /**
- * Данные темы «Замыкания и области видимости: что функция уносит с собой».
+ * Данные темы «Замыкания и области видимости».
  *
  * Тема написана 2026-10-01. Уже разобранное в других темах здесь дано фразой со ссылкой:
  * устройство Context по слотам, `%DebugPrint` с `FunctionContext[N]` и вид Context в снимке

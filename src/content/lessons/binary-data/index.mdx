@@ -2,7 +2,7 @@
 title: Бинарные данные
 heading: "Бинарные данные: ArrayBuffer, TypedArray, DataView, Blob"
 headingWidth: 24
-order: 26
+order: 12
 lead: "`new Uint32Array(bytes.buffer)[0]` читает ширину картинки 3 как 50 331 648, `Uint8Array.of(300)` молча хранит 44, а `btoa('Привет')` бросает исключение. Байты в JS — это буфер без смысла и виды, которые этот смысл задают: тип элемента, смещение, порядок байт. Как они устроены — на разборе настоящего PNG."
 leadWidth: 66
 summary: "`ArrayBuffer` и виды на него; `subarray` против `slice`; выравнивание и `RangeError`; переполнение и `Uint8ClampedArray`; little- и big-endian, `DataView` с флагом; `TextEncoder`/`TextDecoder` и `stream: true`; base64: `btoa` и его ловушка, `Uint8Array.toBase64`; `Blob` и `File`, `slice` без чтения; растущий буфер и `transfer()`; разбор PNG: сигнатура, блоки, `IHDR`, CRC-32."

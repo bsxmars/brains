@@ -18,6 +18,7 @@
 <details>
 <summary><b>Карта</b> — знать, что это существует</summary>
 
+- Изоляция страницы: `COOP: same-origin` + `COEP: require-corp` → `crossOriginIsolated`, `SharedArrayBuffer` и точные часы; ломает OAuth-окна и чужие ресурсы без согласия → «раздел Изоляция страницы».
 - Origin — протокол + хост + порт; site — регистрируемый домен; куки живут не в origin-модели → «раздел Origin и правило одного источника».
 - Простой запрос выводится из того, что умела форма; разрешение проверяется дважды — на preflight и на ответе → «раздел CORS и preflight».
 - `default-src` не покрывает `frame-ancestors`, `base-uri`, `form-action`; внедрять через report-only → «раздел CSP».

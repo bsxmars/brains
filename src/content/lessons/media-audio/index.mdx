@@ -1,0 +1,383 @@
+---
+title: "Звук: Web Audio API"
+headingWidth: 24
+order: 24
+lead: "Web Audio собирает звук из узлов: генератор или файл, громкость, фильтр, эхо, анализатор — и соединяет их в граф. Сэмплы считает не страница, а отдельный поток, блоками по 128 и по своим часам. Ноты по этим часам планируют с точностью до сэмпла, громкость меняют расписанием, а не рывком. И ни один звук не начнётся, пока пользователь не нажмёт что-нибудь на странице."
+leadWidth: 66
+summary: "Первый звук: `AudioContext`, генератор, громкость, `start` и `stop`; почему контекст стоит `suspended` до клика; граф узлов — источники, обработка, анализатор; часы звука и `start(when)`; расписание `AudioParam` и откуда берётся щелчок; блоки по 128 сэмплов, `baseLatency` и `outputLatency`; свой узел на `AudioWorklet` и его порт; `decodeAudioData`."
+verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 (Playwright 1.63, headless, macOS arm64), ноябрь 2026: каждый пример с выводом исполняет tests/e2e/media-audio.spec.ts; сэмплы — на OfflineAudioContext, где рендер одинаков от запуска к запуску"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Первый звук }
+  - { id: s2, label: Граф узлов }
+  - { id: s3, label: Время звука }
+  - { id: s4, label: Блоки и задержка }
+  - { id: s5, label: AudioWorklet }
+  - { id: s6, label: Декодирование }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  GLOSSARY,
+  PLAIN_AUDIO,
+  PREREQ,
+  PREREQ_NOTE,
+  FIRST_CODE,
+  FIRST_OUT,
+  FIRST_NOTE,
+  ONE_SHOT_NOTE,
+  AUTOPLAY_CODE,
+  AUTOPLAY_OUT,
+  AUTOPLAY_NOTE,
+  PLAIN_AUTOPLAY,
+  NODE_ROWS,
+  GRAPH_NOTE,
+  PLAIN_OFFLINE,
+  ECHO_CODE,
+  ECHO_OUT,
+  ECHO_NOTE,
+  FILTER_CODE,
+  FILTER_OUT,
+  FILTER_NOTE,
+  CLOCK_NOTE,
+  PLAIN_CLOCK,
+  START_CODE,
+  START_OUT,
+  START_NOTE,
+  AUTOMATION_LEAD,
+  AUTOMATION_ROWS,
+  CLICK_CODE,
+  CLICK_OUT,
+  CLICK_NOTE,
+  ANCHOR_NOTE,
+  BLOCK_NOTE,
+  PLAIN_BLOCK,
+  SUSPEND_CODE,
+  SUSPEND_OUT,
+  SUSPEND_NOTE,
+  LATENCY_NOTE,
+  LATENCY_FACTS,
+  LATENCY_ROWS,
+  LATENCY_TABLE_NOTE,
+  QUANTUM_NOTE,
+  WORKLET_LEAD_NOTE,
+  PLAIN_WORKLET,
+  WORKLET_PROCESSOR_CODE,
+  WORKLET_MAIN_CODE,
+  WORKLET_OUT,
+  WORKLET_NOTE,
+  WORKLET_SCOPE_FACTS,
+  WORKLET_PORT_LINKS,
+  BUSY_CODE,
+  BUSY_OUT,
+  BUSY_NOTE,
+  DECODE_CODE,
+  DECODE_OUT,
+  DECODE_NOTE,
+  DECODE_FACTS,
+  CLOSING,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Звук из узлов" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Страница не играет звук сама — она описывает граф узлов и расписание по часам звука,
+    а сэмплы считает отдельный поток браузера. Ошибки здесь слышны, а не видны: щелчок,
+    треск или тишина, и чаще всего без единого исключения в консоли.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AUDIO} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Первый звук: контекст, генератор, громкость"
+  lead="Короткая нота по клику — это контекст, два узла, одна цепочка `connect` и время начала и конца по часам контекста."
+  leadWidth={72}
+>
+  <CodeBlock code={FIRST_CODE} />
+
+  <CodeBlock code={FIRST_OUT} tone="ok" />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={FIRST_NOTE} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ONE_SHOT_NOTE} />
+  </Card>
+
+  ### Без клика звук не пойдёт
+
+  <CodeBlock code={AUTOPLAY_CODE} />
+
+  <CodeBlock code={AUTOPLAY_OUT} tone="ok" />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={AUTOPLAY_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AUTOPLAY} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Граф: откуда сигнал берётся и куда течёт"
+  lead="Каждый узел делает одно дело. Источники создают сигнал, обработка его меняет, анализатор подсматривает, а `destination` выводит."
+  leadWidth={72}
+>
+  <Table
+    head={['узел', 'роль', 'что делает']}
+    rows={NODE_ROWS.map((r) => [r.k, r.v, r.w])}
+    kinds={['mono', 'muted', 'prose']}
+    cols="minmax(220px,1.1fr) minmax(90px,0.5fr) minmax(260px,1.6fr)"
+    minWidth={600}
+  />
+
+  <Md text={GRAPH_NOTE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OFFLINE} />
+
+  ### Раздвоить и сложить: эхо
+
+  <CodeBlock code={ECHO_CODE} />
+
+  <CodeBlock code={ECHO_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ECHO_NOTE} />
+  </Card>
+
+  ### Фильтр и анализатор
+
+  <CodeBlock code={FILTER_CODE} />
+
+  <CodeBlock code={FILTER_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={FILTER_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Часы звука и плавные изменения"
+  lead="Звук живёт по своим часам, а не по часам страницы. По ним планируют начало нот и изменения громкости — с точностью до сэмпла."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={CLOCK_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLOCK} />
+
+  <CodeBlock code={START_CODE} />
+
+  <CodeBlock code={START_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={START_NOTE} />
+  </Card>
+
+  ### Расписание параметра
+
+  <Md text={AUTOMATION_LEAD} />
+
+  <Table
+    head={['метод', 'что делает']}
+    rows={AUTOMATION_ROWS.map((r) => [r.k, r.v])}
+    kinds={['prose', 'prose']}
+    cols="minmax(260px,1.1fr) minmax(280px,1.5fr)"
+    minWidth={560}
+  />
+
+  ### Откуда берётся щелчок
+
+  <CodeBlock code={CLICK_CODE} />
+
+  <CodeBlock code={CLICK_OUT} tone="ok" />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CLICK_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ANCHOR_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Блоки по 128 сэмплов и задержка"
+  lead="Поток звука работает порциями. От размера порции и запаса впереди зависит, через сколько миллисекунд после `start` звук выйдет из колонки."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={BLOCK_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BLOCK} />
+
+  <CodeBlock code={SUSPEND_CODE} />
+
+  <CodeBlock code={SUSPEND_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SUSPEND_NOTE} />
+  </Card>
+
+  ### Задержка до колонки
+
+  <Card title="Что сообщает контекст" titleSize={17} pad={20} gap={13}>
+    <Md text={LATENCY_NOTE} />
+    <NumberedList items={LATENCY_FACTS} size={15.5} />
+  </Card>
+
+  <Table
+    head={['`latencyHint`', '`baseLatency` в Chromium 153', 'в Firefox 155', 'в WebKit 26.6']}
+    rows={LATENCY_ROWS.map((r) => [r.k, r.v, r.w, r.x])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(180px,1.1fr) minmax(170px,1fr) minmax(110px,0.7fr) minmax(150px,0.9fr)"
+    minWidth={620}
+  />
+
+  <Md text={LATENCY_TABLE_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={QUANTUM_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="AudioWorklet: свой узел в потоке звука"
+  lead="Свой узел — это класс с методом `process()`. Поток звука вызывает его на каждый блок, а главный поток говорит с ним через порт."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={WORKLET_LEAD_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WORKLET} />
+
+  <CodeBlock code={WORKLET_PROCESSOR_CODE} />
+
+  <CodeBlock code={WORKLET_MAIN_CODE} />
+
+  <CodeBlock code={WORKLET_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={WORKLET_NOTE} />
+  </Card>
+
+  <Card title="Чем ворклет отличается от обычного кода страницы" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={WORKLET_SCOPE_FACTS} size={15.5} />
+  </Card>
+
+  <Md text={WORKLET_PORT_LINKS} />
+
+  ### Главный поток занят, а звук идёт
+
+  <CodeBlock code={BUSY_CODE} />
+
+  <CodeBlock code={BUSY_OUT} tone="ok" />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={BUSY_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Декодирование файла в буфер"
+  lead="Короткие звуки — щелчки, шаги, ноты сэмплера — загружают файлом и декодируют в `AudioBuffer` один раз. Потом их играют сколько угодно раз без задержки."
+  leadWidth={72}
+>
+  <CodeBlock code={DECODE_CODE} />
+
+  <CodeBlock code={DECODE_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={DECODE_NOTE} />
+  </Card>
+
+  <Card title="Три вещи, о которых молчит сигнатура" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={DECODE_FACTS} size={15.5} />
+  </Card>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={CLOSING} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

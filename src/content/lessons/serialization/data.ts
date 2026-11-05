@@ -84,9 +84,9 @@ export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; 
   },
   {
     t: 'Передача данных в воркер',
-    d: '`postMessage` копирует сообщение тем же алгоритмом, что и `structuredClone`. Список того, что переживает копию и что теряется, проверенный в вашем браузере, уже разобран.',
+    d: '`postMessage` копирует сообщение тем же алгоритмом, что и `structuredClone`, и платят за копию оба потока: отправитель записывает, получатель собирает.',
     href: '/js/workers/#s2',
-    hrefLabel: '«Воркеры», раздел «Клонирование»',
+    hrefLabel: '«Воркеры и параллелизм», раздел «Что можно передать»',
     tone: 'info',
   },
   {
@@ -595,6 +595,65 @@ console.log(frame.byteLength, moved.byteLength);   // → 0 1024`;
 export const TRANSFER_NOTE =
   'Второй аргумент `structuredClone` — список переноса, как у `postMessage`. Буфер из списка не копируется, а **переезжает**: у копии данные, у оригинала пусто. Зачем это нужно и как ошибки в списке ломают передачу — в [«Воркерах», раздел «Передача владения»](/js/workers/#s3) и [«MessageChannel», раздел «Правила transfer-списка»](/js/message-channel/#s3).';
 
+/** Общие ссылки и циклы. Перенесено 2026-11-03 из «Воркеров»; исполняется `serialization.test.ts`. */
+export const MEMORY_MAP_CODE = `const inner = { n: 1 };
+const src = { a: inner, b: inner };   // ОДИН объект в двух полях
+src.self = src;                       // цикл
+
+JSON.parse(JSON.stringify(src));      // TypeError: Converting circular structure
+
+const c = structuredClone(src);
+c.a === c.b;    // true  ← идентичность сохранена: это по-прежнему ОДИН объект
+c.self === c;   // true  ← цикл сохранён и указывает на сам клон`;
+
+export const MEMORY_MAP_NOTE =
+  'Это работа таблицы `memory`: встретив объект второй раз, алгоритм возвращает уже сделанную копию, а не обходит его заново. `JSON.stringify` такой таблицы не ведёт. Он превратил бы `inner` в два независимых объекта — тихо поменяв смысл данных, — а на цикле просто упал. Допустим, одна запись лежит сразу в двух индексах: после JSON их станет две, и правка через один индекс перестанет быть видна через другой. Таблица живёт ровно один вызов: два `structuredClone` — или два `postMessage` — с одним и тем же объектом дают два независимых объекта. Идентичность между вызовами не переносится.';
+
+/**
+ * Экземпляр класса через копирование. Перенесено 2026-11-03 из «Воркеров»; на этот класс
+ * ссылается тонкое место 06. Исполняется `serialization.test.ts`: копия — `{ currency: 'EUR' }`,
+ * `instanceof` — `false`, `back.format()` — `'12.5 EUR'`; тот же класс — в `widgets/clone-survival`.
+ */
+export const MONEY_CODE = `class Money {
+  #cents;
+  constructor(cents, currency = 'EUR') {
+    this.#cents = cents;
+    this.currency = currency;
+  }
+  get amount() { return this.#cents / 100; }
+  format() { return \`\${this.amount} \${this.currency}\`; }
+
+  toDTO() { return { cents: this.#cents, currency: this.currency }; }
+  static from(dto) { return new Money(dto.cents, dto.currency); }
+}
+
+const price = new Money(1250);
+const copy = structuredClone(price);   // так экземпляр уезжает через postMessage
+copy;                                  // { currency: 'EUR' } — и больше ничего
+copy instanceof Money;                 // false
+
+const back = Money.from(structuredClone(price.toDTO()));  // туда — данные, обратно — сборка
+back.format();                                            // '12.5 EUR'`;
+
+export const MONEY_NOTE =
+  'Из экземпляра доезжает только `currency` — обычное собственное поле. `#cents` — приватное поле, в списке ключей его нет. `format` и геттер `amount` живут **на прототипе**, а прототип не копируется: у копии он `Object.prototype`, и `instanceof` даёт `false`. Расхожее «геттер вычислится и уедет значением» верно только для геттера из литерала объекта, а у класса геттер в копию не попадает вообще. Ошибки при этом нет, и потеря проявится через неделю, когда кто-то вызовет метод у копии. Поэтому через границу копирования — `postMessage`, IndexedDB, JSON — отправляют **данные** (`toDTO()`), а экземпляр собирают на месте явно: `Money.from(dto)`.';
+
+/** Сводка «что доезжает». Перенесено 2026-11-03 из «Воркеров». */
+export const CLONE_GROUPS = [
+  {
+    t: 'Переживает',
+    d: 'Примитивы, включая `BigInt` и `undefined`; объекты-обёртки; `Date`; `RegExp`; массивы и обычные объекты; `Map` и `Set`; `ArrayBuffer`, `DataView` и все TypedArray; `Error` со стандартными подтипами — `name`, `message`, `cause`; `Blob`, `File`, `ImageData`, `ImageBitmap`, `CryptoKey`, `DOMException`, `DOMPoint` и соседи.',
+  },
+  {
+    t: 'Падает громко — `DataCloneError`',
+    d: 'Функции, включая стрелочную функцию в собственном поле. `Symbol` как значение. DOM-узлы и большинство встроенных объектов браузера. `Proxy` — а значит, `reactive()` из Vue, observable из MobX и черновики immer. Уже отсоединённый `ArrayBuffer`. `WeakMap`, `WeakSet`, `WeakRef`. `Promise` и `AbortSignal` — всегда: в список переноса их тоже не положить. `MessagePort` — если его забыли положить в список переноса.',
+  },
+  {
+    t: 'Теряется молча — и это опаснее',
+    d: 'Прототип: копия экземпляра класса — обычный объект. `instanceof` даёт `false`, методов нет, приватные поля исчезли. Ключи-символы. Настройки свойств (дескрипторы): `Object.freeze` копия не сохраняет. Неперечисляемые и унаследованные свойства. И `lastIndex` у `RegExp`. Каждая из этих потерь — прототип, дескриптор, приватное поле — разобрана в [объектной модели](/js/object-model/).',
+  },
+];
+
 export const CLONE_USERS =
   'Тот же алгоритм работает ещё в трёх местах: `postMessage` в воркер, окно или `MessageChannel`, запись в IndexedDB и `history.pushState`. Поэтому `reactive()`-объект из Vue одинаково не уходит ни в воркер, ни в базу. Как IndexedDB хранит клонированные записи — в [«Хранилищах браузера», раздел «IndexedDB»](/platform/browser-storage/#s3).';
 
@@ -810,4 +869,4 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Воркеры, раздел «Клонирование»](/js/workers/#s2) — что переживает `postMessage`, проверка в вашем браузере. [MessageChannel, раздел «Правила transfer-списка»](/js/message-channel/#s3) — перенос вместо копии. [Ошибки и стеки, раздел «Отчёт»](/js/errors/#s6) — как сериализовать ошибку целиком. [Proxy и Reflect, раздел «Личность и слоты»](/js/proxy-reflect/#s5) — почему прокси не клонируется. [Числа, раздел «Где теряются целые»](/js/numbers/#s3) — большие числа в JSON. [Объектная модель, раздел «Дескрипторы»](/js/object-model/#s5) — что теряет спред. [Хранилища браузера, раздел «IndexedDB»](/platform/browser-storage/#s3) — третий потребитель того же алгоритма.';
+  'Смежное на сайте: [Воркеры, раздел «Что можно передать»](/js/workers/#s2) — кто платит за копию в `postMessage` и как передать экземпляр класса. [MessageChannel, раздел «Правила transfer-списка»](/js/message-channel/#s3) — перенос вместо копии. [Ошибки и стеки, раздел «Отчёт»](/js/errors/#s6) — как сериализовать ошибку целиком. [Proxy и Reflect, раздел «Личность и слоты»](/js/proxy-reflect/#s5) — почему прокси не клонируется. [Числа, раздел «Где теряются целые»](/js/numbers/#s3) — большие числа в JSON. [Объектная модель, раздел «Дескрипторы»](/js/object-model/#s5) — что теряет спред. [Хранилища браузера, раздел «IndexedDB»](/platform/browser-storage/#s3) — третий потребитель того же алгоритма.';

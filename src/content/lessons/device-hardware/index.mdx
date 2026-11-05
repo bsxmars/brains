@@ -1,0 +1,368 @@
+---
+title: "Доступ к железу: Serial, USB, Bluetooth, HID и MIDI"
+headingWidth: 24
+order: 28
+lead: "Страница может говорить с платой Arduino, браслетом, геймпадом или синтезатором напрямую, без программы-посредника. Пять API устроены по одному договору: запрос только по клику, устройство выбирает человек в окне браузера, сайт получает одно устройство и только его. Работает это в Chromium; Firefox даёт Serial и MIDI через дополнение, Safari — ничего."
+leadWidth: 66
+summary: "Полный цикл Web Serial: окно выбора, `open`, запись, чтение строк из потока, закрытие; общая для пяти API модель разрешений — безопасный контекст, жест, окно выбора, `getPorts`, `forget`, фреймы; поддержка в трёх движках и позиции Mozilla и Apple; чем отличаются USB, Bluetooth LE, HID и MIDI; blocklist и почему это опасно; как проверить код без устройства."
+verifiedOn: "Chromium 153, Firefox 155, WebKit 26.6 (Playwright 1.63), ноябрь 2026: tests/e2e/device-hardware.spec.ts исполняет примеры — Serial на тестовом порту Firefox, Bluetooth на фальшивом устройстве Chromium; USB и HID без устройства — только до окна выбора"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Первый порт }
+  - { id: s2, label: Разрешения }
+  - { id: s3, label: Где работает }
+  - { id: s4, label: "USB, Bluetooth, HID, MIDI" }
+  - { id: s5, label: Опасность }
+  - { id: s6, label: Без железа }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  PLAIN_DEVICE,
+  GLOSSARY,
+  PREREQ,
+  PREREQ_NOTE,
+  SERIAL_CODE,
+  SERIAL_OUT,
+  SERIAL_NOTE,
+  PLAIN_BAUD,
+  STREAM_FACTS,
+  STREAM_LINK,
+  PERMISSION_STEPS,
+  PLAIN_GESTURE,
+  PERMISSION_CODE,
+  PERMISSION_OUT,
+  ERROR_ROWS,
+  ERROR_NOTE,
+  SUPPORT,
+  SUPPORT_NOTE,
+  FIREFOX_NOTE,
+  POSITIONS,
+  API_ROWS,
+  USB_CODE,
+  PLAIN_TRANSFERS,
+  USB_NOTE,
+  BT_CODE,
+  BT_OUT,
+  PLAIN_GATT,
+  BT_NOTE,
+  HID_CODE,
+  HID_OUT,
+  HID_NOTE,
+  MIDI_CODE,
+  MIDI_OUT,
+  MIDI_SAMPLES,
+  MIDI_NOTE,
+  SYSEX_NOTE,
+  DANGER_WHY,
+  YUBIKEY_NOTE,
+  BLOCK_ROWS,
+  BLOCK_NOTE,
+  FRAME_NOTE,
+  CLOSING,
+  TEST_ROWS,
+  TEST_NOTE,
+  BT_EMULATION_CODE,
+  BT_EMULATION_NOTE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Провод от страницы к устройству" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Пять API дают странице прямой доступ к устройству: Serial — к порту, USB — к интерфейсам,
+    Bluetooth — к характеристикам, HID — к отчётам, MIDI — к нотам и регуляторам. Договор
+    у них один: просить можно только по клику, а выбирает устройство человек.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEVICE} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Первый порт: Web Serial от клика до закрытия"
+  lead="Плата Arduino подключена USB-кабелем. Страница просит порт, открывает его, отправляет `ping` и читает ответ построчно. Пять шагов — и все они на обычных стримах."
+  leadWidth={72}
+>
+  <CodeBlock code={SERIAL_CODE} />
+
+  <CodeBlock code={SERIAL_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SERIAL_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BAUD} />
+
+  ### Порт — это два стрима
+
+  <Card title="Что важно про потоки порта" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={STREAM_FACTS} size={15.5} />
+  </Card>
+
+  <Md text={STREAM_LINK} />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Разрешения: выбирает человек, а не сайт"
+  lead="У всех пяти API одна модель доступа. Сайт не видит списка устройств и не может открыть окно сам. Он просит по клику, человек выбирает одно устройство, и разрешение запоминается за источником страницы."
+  leadWidth={72}
+>
+  <Card title="Шесть правил доступа" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={PERMISSION_STEPS} size={15.5} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GESTURE} />
+
+  ### Уже разрешённые порты и отзыв
+
+  <CodeBlock code={PERMISSION_CODE} />
+
+  <CodeBlock code={PERMISSION_OUT} tone="ok" />
+
+  ### Что отвечает Chromium
+
+  <Table
+    head={['вызов', 'когда', 'что вышло']}
+    rows={ERROR_ROWS.map((r) => [r.call, r.when, r.got])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.2fr) minmax(220px,1.2fr) minmax(160px,.9fr)"
+    minWidth={640}
+  />
+
+  <Md text={ERROR_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Где это работает и почему не везде"
+  lead="Все пять API придумали в Chromium, и полностью они есть только там. Mozilla и Apple отказались от большей части не из-за сложности: они считают, что согласие одной кнопкой не защищает ни человека, ни устройство."
+  leadWidth={72}
+>
+  <Table
+    head={['API', 'Chromium 153', 'Firefox 155', 'WebKit 26.6']}
+    rows={SUPPORT.map((r) => [r.api, r.chromium ? 'есть' : 'нет', r.ff, r.webkit ? 'есть' : 'нет'])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(140px,.8fr) minmax(120px,.7fr) minmax(220px,1.4fr) minmax(120px,.7fr)"
+    minWidth={600}
+  />
+
+  <Md text={SUPPORT_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={FIREFOX_NOTE} />
+  </Card>
+
+  <CardGrid min={290} gap={14} align="start">
+    {POSITIONS.map((p) => (
+      <Card title={p.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={p.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="USB, Bluetooth, HID и MIDI: чем отличаются"
+  lead="Окно выбора и разрешения у всех одинаковые. Различается то, о чём страница говорит с устройством: передачами, характеристиками, отчётами или нотами."
+  leadWidth={72}
+>
+  <Table
+    head={['API', 'единица обмена', 'путь в коде', 'для чего']}
+    rows={API_ROWS}
+    kinds={['prose', 'prose', 'prose', 'muted']}
+    cols="minmax(110px,.6fr) minmax(170px,1fr) minmax(260px,1.5fr) minmax(170px,1fr)"
+    minWidth={720}
+  />
+
+  ### WebUSB: интерфейсы и передачи
+
+  <CodeBlock code={USB_CODE} />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSFERS} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={USB_NOTE} />
+  </Card>
+
+  ### Web Bluetooth: сервисы и характеристики
+
+  <CodeBlock code={BT_CODE} />
+
+  <CodeBlock code={BT_OUT} tone="ok" />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GATT} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={BT_NOTE} />
+  </Card>
+
+  ### WebHID: отчёты
+
+  <CodeBlock code={HID_CODE} />
+
+  <CodeBlock code={HID_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={HID_NOTE} />
+  </Card>
+
+  ### Web MIDI: сообщения из трёх байт
+
+  <CodeBlock code={MIDI_CODE} />
+
+  <CodeBlock code={MIDI_OUT} tone="ok" />
+
+  <Table
+    head={['байты `e.data`', 'что вернёт `describe`']}
+    rows={MIDI_SAMPLES.map((s) => ['`[0x' + s.bytes[0].toString(16) + ', ' + s.bytes.slice(1).join(', ') + ']`', s.out])}
+    kinds={['mono', 'prose']}
+    cols="minmax(160px,.7fr) minmax(260px,1.3fr)"
+    minWidth={460}
+  />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={MIDI_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SYSEX_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Почему это опасно и что закрыто"
+  lead="Окно выбора защищает от тихого доступа. Но устройства не рассчитывали, что с ними будет говорить веб-страница, и часть из них браузер не отдаёт ни при каком согласии."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={DANGER_WHY} />
+  </Card>
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={YUBIKEY_NOTE} />
+  </Card>
+
+  ### Что закрыто даже с согласия
+
+  <Table
+    head={['API', 'что не отдаётся сайту']}
+    rows={BLOCK_ROWS}
+    kinds={['prose', 'prose']}
+    cols="minmax(110px,.5fr) minmax(320px,2fr)"
+    minWidth={480}
+  />
+
+  <Md text={BLOCK_NOTE} />
+
+  ### Фреймы и Permissions-Policy
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={FRAME_NOTE} />
+  </Card>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={CLOSING} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Как проверить без железа"
+  lead="Без устройства проверяется больше, чем кажется: наличие API, все отказы, пустые списки. Полный цикл подделать можно для Serial в Firefox и для Bluetooth в Chromium. Для USB и HID подделки нет."
+  leadWidth={72}
+>
+  <Table
+    head={['что', 'где', 'как']}
+    rows={TEST_ROWS}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(110px,.5fr) minmax(280px,1.6fr)"
+    minWidth={620}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={TEST_NOTE} />
+  </Card>
+
+  ### Фальшивое Bluetooth-устройство
+
+  <CodeBlock code={BT_EMULATION_CODE} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={BT_EMULATION_NOTE} />
+  </Card>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

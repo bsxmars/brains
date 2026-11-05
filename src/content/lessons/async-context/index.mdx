@@ -2,7 +2,7 @@
 title: "Асинхронный контекст: AsyncLocalStorage и AsyncContext"
 heading: "Асинхронный контекст: AsyncLocalStorage и AsyncContext"
 headingWidth: 24
-order: 28
+order: 19
 lead: "Каждая строка лога должна знать id своего запроса. Передавать его аргументом через все слои — утомительно, положить в глобальную переменную — нельзя: два запроса перекрываются по времени, и после `await` там окажется чужой id. Node решает это `AsyncLocalStorage`: значение, которое едет вместе с цепочкой `await`, таймеров и колбэков. Как оно устроено, в какой момент запоминается и почему в браузере его до сих пор нет."
 leadWidth: 66
 summary: "Гонка на глобальной переменной на сервере `node:http`; `run`, `getStore`, `exit` и опасный `enterWith`; момент снимка — регистрация, а не вызов: `then`, `await`, таймеры, `nextTick`, `EventEmitter` и `AsyncResource.bind`; `AsyncContextFrame` в Node 24 против `async_hooks` по числу вызовов хука; учебная переменная контекста на подмене `then` и `setTimeout` и её предел на `await`; предложение `AsyncContext`, zone.js, React, Vue и OpenTelemetry."

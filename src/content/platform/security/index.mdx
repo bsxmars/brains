@@ -14,8 +14,9 @@ nav:
   - { id: s4, label: XSS }
   - { id: s5, label: CSRF и кликджекинг }
   - { id: s6, label: Куки и JWT для фронта }
-  - { id: s7, label: Тонкие места }
-  - { id: s8, label: Источники }
+  - { id: s7, label: Изоляция страницы }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
@@ -33,6 +34,7 @@ import Table from '@/shared/ui/Table.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import CspSandbox from '@/widgets/csp-sandbox/ui/CspSandbox.vue';
 import CorsPreflight from '@/widgets/cors-preflight/ui/CorsPreflight.vue';
+import IsolationProbe from '@/widgets/isolation-probe/ui/IsolationProbe.vue';
 import SecuritySequence from '@/widgets/security-sequence-diagram/ui/SecuritySequence.astro';
 import {
   ALLOWLIST_FAILS,
@@ -131,6 +133,17 @@ import {
   CORS_DEMO_NOTE,
   CSP_DEMO_NOTE,
   SOP_SPECTRE,
+  SPECTRE_NOTE,
+  ISOLATION_HEADERS,
+  ISOLATION_WHY,
+  ISOLATION,
+  ISOLATION_NOTE,
+  ISOLATION_DEMO_NOTE,
+  ISOLATION_DENIED,
+  ISOLATION_GRANTED,
+  ISOLATION_FOOT,
+  ISOLATION_BREAKS,
+
   SANITIZER_API,
   UPLOAD_NOTE,
   UPLOAD_RULES,
@@ -193,8 +206,7 @@ import {
   </CardGrid>
 
   Где живёт сетевой процесс и почему браузер разводит по процессам сайты (site), а не отдельные
-  источники (origin), — в [«Устройстве браузера»](/js/browser-architecture/#s1). Изоляция
-  агентов и `crossOriginIsolated` — в [«Воркерах и параллелизме»](/js/workers/#s5). Почему
+  источники (origin), — в [«Устройстве браузера»](/js/browser-architecture/#s1). Как изолировать страницу и что это ломает — в разделе «Изоляция страницы: COOP и COEP». Почему
   preflight — это **лишний поход на сервер и обратно** и как он кешируется — в [«Сети
   и кешировании»](/platform/network/#s3).
 
@@ -1005,14 +1017,80 @@ import {
   </Card>
 </Section>
 
-<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+<Section
+  id="s7"
+  eyebrow="Раздел 7 · демо"
+  eyebrowTone="demo"
+  title="Изоляция страницы: COOP и COEP"
+  lead="Общая память между потоками (`SharedArrayBuffer`) и точные часы `performance.now()` браузер выдаёт только изолированной странице: в её процессе не должно быть чужих данных без их согласия. Изоляцию включают два заголовка ответа, и она ломает часть привычного: окна входа через OAuth и чужие ресурсы без разрешения."
+  leadWidth={72}
+>
+  ### Почему браузеры отключали `SharedArrayBuffer`: атака Spectre
+
+  <Callout size={17} lh={1.55} pad="20px 22px">
+    <Md text={SPECTRE_NOTE} />
+  </Callout>
+
+  ### Как общую память вернули: два заголовка ответа
+
+  <CodeBlock code={ISOLATION_HEADERS} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={ISOLATION_WHY} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ISOLATION_DEMO_NOTE} />
+  </Card>
+
+  <IsolationProbe
+    client:visible
+    denied={ISOLATION_DENIED}
+    granted={ISOLATION_GRANTED}
+    foot={ISOLATION_FOOT}
+  />
+
+  <Table
+    head={ISOLATION.head}
+    rows={ISOLATION.rows}
+    cols={ISOLATION.cols}
+    kinds={ISOLATION.kinds}
+    minWidth={ISOLATION.minWidth}
+  />
+
+  <Card tone="info" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ISOLATION_NOTE} />
+  </Card>
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <p class="t-body">
+      Почему изоляция вообще защищает — разговор про процессы, а не про JS. Браузер разносит
+      по разным процессам разные **сайты**, а не разные источники (origin): страницы двух
+      поддоменов одного сайта могут жить в одном процессе. К тому же в процесс страницы попадают
+      чужие картинки и скрипты, которые она загрузила. Поэтому изоляция и требует, чтобы каждый
+      чужой ресурс согласился там оказаться. Подробно — в теме
+      <a href="/js/browser-architecture/#s1">Устройство браузера</a>.
+    </p>
+  </Card>
+
+  <Card title="Что ломается — настоящая цена изоляции" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={ISOLATION_BREAKS} size={15.5} />
+    <CardNote tone="prose">
+      Взамен, кроме общей памяти, изоляция даёт точный `performance.now()` и
+      `performance.measureUserAgentSpecificMemory()`. Это решение для всего сайта,
+      а не флажок на одной странице.
+    </CardNote>
+  </Card>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
 </Section>
 
 
 <Section
-  id="s8"
-  eyebrow="Раздел 8"
+  id="s9"
+  eyebrow="Раздел 9"
   title="Источники"
   lead="Спецификации меняются медленно, и в спорном вопросе последнее слово за ними. Статьи и инструменты устаревают быстро, зато объясняют, зачем что-то придумано, — в спецификации этого нет."
   leadWidth={72}
@@ -1036,8 +1114,7 @@ import {
     [Встроенный контент без сторонних кук](/platform/third-party-cookies/) —
     CHIPS, разделённое хранилище и Storage Access для виджетов на чужих сайтах.
     [Сеть и кеширование](/platform/network/#s3) — preflight как лишний RTT
-    и его отдельный кеш, `Vary` и сжатие. [Воркеры и параллелизм](/js/workers/#s5) — изоляция
-    агентов и `crossOriginIsolated`. [Устройство браузера](/js/browser-architecture/#s1) — процессы,
+    и его отдельный кеш, `Vary` и сжатие. [Общая память и Atomics](/js/atomics/) — общий буфер и правила работы с ним, ради которых изоляцию включают. [Устройство браузера](/js/browser-architecture/#s1) — процессы,
     Spectre, ORB и почему единица изоляции site, а не origin.
     [Аутентификация](/platform/authentication/) — сессии и токены, OAuth с PKCE и OIDC
     глазами фронтенда.

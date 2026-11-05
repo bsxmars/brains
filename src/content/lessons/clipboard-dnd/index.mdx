@@ -1,0 +1,403 @@
+---
+title: "Буфер обмена и перетаскивание"
+headingWidth: 24
+order: 27
+lead: "Кнопка «Скопировать» — одна строка `navigator.clipboard.writeText`, и работает она только по клику. Чтение буфера — только с разрешения, а HTML из него браузер отдаёт почищенным. Перетаскивание устроено так же, как копирование: данные лежат в `DataTransfer`, и браузер решает, кому и когда их показать. В `dragover` видно только тип груза, сам груз — в `drop`."
+leadWidth: 66
+summary: "`writeText` и `readText`: жест, фокус, разрешение и `NotAllowedError`; события `copy`, `cut`, `paste` и подмена копируемого; картинка из буфера файлом; `ClipboardItem`, разрешённые типы в трёх движках, чистка HTML и свои форматы `web `; `draggable`, `dragover` и `drop`, `effectAllowed` и `dropEffect`; что видно в каком событии; файлы и папки из системы, `webkitGetAsEntry`; перетаскивание и клавиатура."
+verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 из Playwright 1.63, macOS arm64, ноябрь 2026: каждый пример исполняет tests/e2e/clipboard-dnd.spec.ts, файлы из системы бросаются настоящим drop через DevTools"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Копировать по кнопке }
+  - { id: s2, label: copy, cut и paste }
+  - { id: s3, label: Форматы }
+  - { id: s4, label: Перетаскивание }
+  - { id: s5, label: Режимы DataTransfer }
+  - { id: s6, label: Файлы и папки }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  GLOSSARY,
+  PLAIN_CLIPBOARD,
+  PREREQ,
+  PREREQ_NOTE,
+  COPY_MARKUP,
+  COPY_CODE,
+  COPY_OUT,
+  READ_CODE,
+  READ_OUT_DENIED,
+  READ_OUT_GRANTED,
+  COPY_NOTE,
+  COPY_ROWS,
+  WHY_NOTE,
+  PLAIN_ACTIVATION,
+  ENGINE_ROWS,
+  LATE_CODE,
+  LATE_NOTE,
+  COPY_EVENT_MARKUP,
+  COPY_EVENT_CODE,
+  COPY_EVENT_OUT,
+  COPY_EVENT_NOTE,
+  EXEC_NOTE,
+  PASTE_IMAGE_CODE,
+  PASTE_IMAGE_OUT,
+  PASTE_IMAGE_NOTE,
+  ITEM_CODE,
+  ITEM_OUT,
+  ITEM_NOTE,
+  SUPPORTS_ROWS,
+  SUPPORTS_NOTE,
+  SANITIZE_CODE,
+  SANITIZE_OUT,
+  SANITIZE_NOTE,
+  SANITIZE_WARN,
+  WEB_FORMAT_CODE,
+  WEB_FORMAT_OUT,
+  PLAIN_WEB_FORMAT,
+  WEB_FORMAT_NOTE,
+  EVENT_TYPES_NOTE,
+  DRAG_MARKUP,
+  DRAG_CODE,
+  DRAG_OUT,
+  DRAG_NOTE,
+  PLAIN_DROP,
+  DRAGOVER_NOTE,
+  EFFECT_NOTE,
+  KEYBOARD_NOTE,
+  MODES_ROWS,
+  MODES_NOTE,
+  PLAIN_PROTECTED,
+  AFTER_NOTE,
+  FIREFOX_NOTE,
+  SYNTHETIC_NOTE,
+  FILE_DROP_MARKUP,
+  FILE_DROP_CODE,
+  FILE_DROP_OUT,
+  FILES_NOTE,
+  FOLDER_NOTE,
+  GUARD_CODE,
+  GUARD_NOTE,
+  CLOSING,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Общий стол" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Буфер обмена один на всю систему, и в нём бывает что угодно — от пароля до номера карты.
+    Поэтому каждое правило здесь отвечает на один вопрос: стоит ли за страницей человек.
+    Записать можно по его клику, прочитать — с его разрешения, а то, что он тащит мышью,
+    видно только тому, на кого он это бросил.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLIPBOARD} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Копировать по кнопке: writeText и readText"
+  lead="Кнопка «Скопировать» рядом с командой или ссылкой — это одна строка: `navigator.clipboard.writeText(текст)`. Вызов возвращает промис, и тот отклоняется, если браузер решил, что сейчас копировать нельзя."
+  leadWidth={72}
+>
+  <CodeBlock code={COPY_MARKUP} />
+
+  <CodeBlock code={COPY_CODE} />
+
+  <CodeBlock code={READ_CODE} />
+
+  <CodeBlock code={`// клик по «Скопировать», затем по «Что в буфере?»\n${COPY_OUT}\n${READ_OUT_DENIED}\n// после «Разрешить»\n${READ_OUT_GRANTED}`} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={COPY_NOTE} />
+  </Card>
+
+  ### Когда браузер отказывает
+
+  Тот же `writeText` и тот же `readText` в Chromium в разных обстоятельствах:
+
+  <Table
+    head={['когда вызвали', 'writeText', 'readText']}
+    rows={COPY_ROWS.map((r) => [r.when, r.write, r.read])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(220px,1.3fr) minmax(180px,1fr) minmax(200px,1.1fr)"
+    minWidth={640}
+  />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={WHY_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIVATION} />
+
+  <Table
+    head={['движок', 'запись', 'чтение']}
+    rows={ENGINE_ROWS.map((r) => [r.engine, r.write, r.read])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(150px,0.8fr) minmax(200px,1fr) minmax(260px,1.5fr)"
+    minWidth={640}
+  />
+
+  ### Текст ещё не готов, а жест уже уходит
+
+  <CodeBlock code={LATE_CODE} />
+
+  <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={LATE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="События copy, cut и paste"
+  lead="Когда человек нажимает Ctrl+C, Ctrl+X или Ctrl+V, браузер сначала шлёт событие, а потом делает своё. В событии есть `clipboardData`: в `copy` в него можно положить своё, в `paste` — прочитать, что вставляют."
+  leadWidth={72}
+>
+  ### Подменить то, что копируют
+
+  <CodeBlock code={COPY_EVENT_MARKUP} />
+
+  <CodeBlock code={COPY_EVENT_CODE} />
+
+  <CodeBlock code={`// в буфере после Ctrl+C\n${COPY_EVENT_OUT}`} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={COPY_EVENT_NOTE} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={EXEC_NOTE} />
+  </Card>
+
+  ### Вставить картинку
+
+  <CodeBlock code={PASTE_IMAGE_CODE} />
+
+  <CodeBlock code={PASTE_IMAGE_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={PASTE_IMAGE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Форматы: ClipboardItem, write и read"
+  lead="В буфере лежит не одна строка, а одна вещь в нескольких видах: текст, HTML, картинка. `writeText` кладёт только текст. Чтобы положить несколько видов сразу, нужны `ClipboardItem` и `navigator.clipboard.write`."
+  leadWidth={72}
+>
+  <CodeBlock code={ITEM_CODE} />
+
+  <CodeBlock code={ITEM_OUT.join('\n')} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ITEM_NOTE} />
+  </Card>
+
+  <Table
+    head={['тип', 'Chromium 153', 'Firefox 155', 'WebKit 26.6']}
+    rows={SUPPORTS_ROWS.map((r) => [r.type, r.chromium, r.firefox, r.webkit])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(240px,1.6fr) minmax(110px,1fr) minmax(110px,1fr) minmax(110px,1fr)"
+    minWidth={600}
+  />
+
+  <Md text={SUPPORTS_NOTE} />
+
+  ### Браузер чистит HTML, но вам всё равно чистить
+
+  <CodeBlock code={SANITIZE_CODE} />
+
+  <CodeBlock code={SANITIZE_OUT.join('\n')} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SANITIZE_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SANITIZE_WARN} />
+  </Card>
+
+  ### Свой формат: приставка web
+
+  <CodeBlock code={WEB_FORMAT_CODE} />
+
+  <CodeBlock code={WEB_FORMAT_OUT.join('\n')} tone="ok" />
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WEB_FORMAT} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={WEB_FORMAT_NOTE} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={EVENT_TYPES_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Перетаскивание: draggable, dragover и drop"
+  lead="Перетаскивание — та же передача данных, что и буфер обмена, только мышью. Источник кладёт данные в `dataTransfer` в `dragstart`, приёмник забирает их в `drop`. Между ними `dragover` решает, можно ли сюда бросить."
+  leadWidth={72}
+>
+  <CodeBlock code={DRAG_MARKUP} />
+
+  <CodeBlock code={DRAG_CODE} />
+
+  <CodeBlock code={DRAG_OUT.join('\n')} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={DRAG_NOTE} />
+  </Card>
+
+  ### Почему без preventDefault ничего не бросится
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DROP} />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={DRAGOVER_NOTE} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={EFFECT_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={KEYBOARD_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Режимы DataTransfer: что видно и когда"
+  lead="Один и тот же `DataTransfer` открывается по-разному в разных событиях. Писать в него можно, пока груз собирают, читать — когда его приняли, а в пути видно только наклейку с типом."
+  leadWidth={72}
+>
+  <Table
+    head={['событие', 'что можно']}
+    rows={MODES_ROWS.map((r) => [r.when, r.what])}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(300px,1.6fr)"
+    minWidth={560}
+  />
+
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={MODES_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROTECTED} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={AFTER_NOTE} />
+  </Card>
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="dim" color="tone" pad={18} radius={5} size={15.5} lh={1.6} text={FIREFOX_NOTE} />
+
+    <Card tone="dim" color="tone" pad={18} radius={5} size={15.5} lh={1.6} text={SYNTHETIC_NOTE} />
+  </CardGrid>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Файлы и папки из системы"
+  lead="Когда файл тащат с рабочего стола, `dragstart` на странице нет: источник — система. В `types` приходит `Files`, а сами файлы — в `drop`, через `dataTransfer.files` или `items`."
+  leadWidth={72}
+>
+  <CodeBlock code={FILE_DROP_MARKUP} />
+
+  <CodeBlock code={FILE_DROP_CODE} />
+
+  <CodeBlock code={FILE_DROP_OUT.join('\n')} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={FILES_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={FOLDER_NOTE} />
+  </Card>
+
+  ### Бросили мимо зоны
+
+  <CodeBlock code={GUARD_CODE} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={GUARD_NOTE} />
+  </Card>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={CLOSING} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

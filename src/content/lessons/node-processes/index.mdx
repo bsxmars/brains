@@ -1,0 +1,307 @@
+---
+title: "Процессы и потоки в Node"
+headingWidth: 24
+order: 36
+lead: "В Node работу уносят из главного потока тремя руками: воркер — ваш JS в другом потоке того же процесса, дочерний процесс — любая программа рядом, `cluster` — несколько копий сервера на одном порту. Они различаются тем, что делят с главным потоком, и по-разному теряют данные в канале между собой."
+leadWidth: 66
+summary: "Первый воркер на `worker_threads`; что воркер делит с процессом, а что нет; ошибки и выход воркера; `spawn`, `exec`, `execFile` и `fork` — оболочка, вывод, канал; JSON в канале между процессами; как `cluster` раздаёт соединения и почему не раздаёт запросы."
+verifiedOn: "Node 26.8.2, ноябрь 2026: каждый пример с выводом исполняет tests/unit/node-processes.test.ts в отдельном процессе Node; время старта воркера и процесса — медиана семи запусков на ноутбуке"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Первый воркер }
+  - { id: s2, label: worker_threads }
+  - { id: s3, label: child_process }
+  - { id: s4, label: cluster }
+  - { id: s5, label: Тонкие места }
+  - { id: s6, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  GLOSSARY,
+  PLAIN_PROCESS,
+  PREREQ,
+  PREREQ_NOTE,
+  FIRST_MAIN_CODE,
+  FIRST_WORKER_CODE,
+  FIRST_OUT,
+  FIRST_NOTE,
+  PLAIN_FOUR,
+  FOUR_WAYS,
+  FOUR_WAYS_NOTE,
+  SHARED_ROWS,
+  SHARE_ENV_CODE,
+  SHARE_ENV_OUT,
+  SHARE_ENV_NOTE,
+  ERRORS_CODE,
+  ERRORS_OUT,
+  ERRORS_NOTE,
+  WORKER_FACTS,
+  UNTRANSFERABLE_CODE,
+  UNTRANSFERABLE_OUT,
+  UNTRANSFERABLE_NOTE,
+  CP_FUNCS,
+  CP_FUNCS_NOTE,
+  SPAWN_CODE,
+  SPAWN_OUT,
+  SPAWN_NOTE,
+  CP_FACTS,
+  FORK_CODE,
+  FORK_CHILD_CODE,
+  FORK_OUT,
+  FORK_NOTE,
+  PLAIN_CLUSTER,
+  CLUSTER_RR_CODE,
+  CLUSTER_RR_OUT,
+  CLUSTER_RR_NOTE,
+  CLUSTER_ROWS,
+  CLUSTER_NOTE,
+  CLOSING,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Один процесс — не один поток" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Процесс разделяет память, воркер разделяет процесс, а объекты не разделяет никто. Поэтому
+    в любом канале — между потоками или между процессами — данные копируются, и важно, что
+    при этом теряется молча.
+
+  </Callout>
+
+  Сервер на Node выполняет ваш JS в одном потоке. Пока один запрос считает, остальные ждут.
+  Чтобы задействовать другие ядра, у Node есть три механизма, и каждый отвечает на свой
+  вопрос: где выполнить долгий расчёт, как запустить чужую программу и как раздать
+  соединения одного порта по ядрам.
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROCESS} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Первый воркер и четыре способа"
+  lead="Воркер в Node — это два файла: главный создаёт `Worker` и слушает события, воркер получает стартовые данные и отправляет результат. Главный поток в это время свободен."
+  leadWidth={72}
+>
+  <CodeBlock code={FIRST_MAIN_CODE} />
+
+  <CodeBlock code={FIRST_WORKER_CODE} />
+
+  <CodeBlock code={FIRST_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={FIRST_NOTE} />
+  </Card>
+
+  ### Четыре способа убрать работу из главного потока
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FOUR} />
+
+  <Table
+    head={FOUR_WAYS.head}
+    rows={FOUR_WAYS.rows}
+    cols={FOUR_WAYS.cols}
+    kinds={FOUR_WAYS.kinds}
+    minWidth={FOUR_WAYS.minWidth}
+  />
+
+  <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={FOUR_WAYS_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="worker_threads: поток внутри процесса"
+  lead="Воркер — отдельный агент: своя куча, свой цикл событий, свои глобальные переменные. Но процесс у него общий с главным потоком, и от этого зависит, что в воркере работает, а что нет."
+  leadWidth={72}
+>
+  <Table
+    head={['что', 'у воркера']}
+    rows={SHARED_ROWS.map((r) => [r.k, r.v])}
+    tones={SHARED_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,.9fr) minmax(300px,1.6fr)"
+    minWidth={560}
+  />
+
+  <CodeBlock code={SHARE_ENV_CODE} />
+
+  <CodeBlock code={SHARE_ENV_OUT.join('\n')} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SHARE_ENV_NOTE} />
+  </Card>
+
+  ### Ошибка и выход воркера
+
+  <CodeBlock code={ERRORS_CODE} />
+
+  <CodeBlock code={ERRORS_OUT.join('\n')} tone="ok" />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ERRORS_NOTE} />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {WORKER_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Буфер, который отдавать нельзя: `markAsUntransferable`
+
+  <CodeBlock code={UNTRANSFERABLE_CODE} />
+
+  <CodeBlock code={UNTRANSFERABLE_OUT.join('\n')} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={UNTRANSFERABLE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="child_process: программа рядом"
+  lead="Дочерний процесс — отдельная программа со своей памятью и своим `pid`. Node умеет запустить её четырьмя функциями, и они различаются тремя вещами: идёт ли команда через оболочку, как приходит вывод и есть ли канал для сообщений."
+  leadWidth={72}
+>
+  <Table
+    head={CP_FUNCS.head}
+    rows={CP_FUNCS.rows}
+    cols={CP_FUNCS.cols}
+    kinds={CP_FUNCS.kinds}
+    minWidth={CP_FUNCS.minWidth}
+  />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CP_FUNCS_NOTE} />
+  </Card>
+
+  ### Вывод кусками и два события конца
+
+  <CodeBlock code={SPAWN_CODE} />
+
+  <CodeBlock code={SPAWN_OUT.join('\n')} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SPAWN_NOTE} />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {CP_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### `fork`: канал между процессами по умолчанию — JSON
+
+  <CodeBlock code={FORK_CODE} />
+
+  <CodeBlock code={FORK_CHILD_CODE} />
+
+  <CodeBlock code={FORK_OUT.join('\n')} tone="ok" />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={FORK_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="cluster: копии сервера на одном порту"
+  lead="`cluster` запускает несколько копий приложения через `fork`, а главный процесс принимает соединения и раздаёт их копиям по кругу. Так один порт обслуживают все ядра."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLUSTER} />
+
+  <CodeBlock code={CLUSTER_RR_CODE} />
+
+  <CodeBlock code={CLUSTER_RR_OUT.join('\n')} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={CLUSTER_RR_NOTE} />
+  </Card>
+
+  <Table
+    head={['что', 'в cluster']}
+    rows={CLUSTER_ROWS.map((r) => [r.k, r.v])}
+    tones={CLUSTER_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(180px,.8fr) minmax(320px,1.7fr)"
+    minWidth={540}
+  />
+
+  <Md text={CLUSTER_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={CLOSING} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s5" eyebrow="Раздел 5" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s6" eyebrow="Раздел 6" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

@@ -2,7 +2,7 @@
 title: "Ошибки и стеки: от throw до отчёта"
 heading: "Ошибки и стеки: от throw до отчёта"
 headingWidth: 22
-order: 22
+order: 9
 lead: "В отчёте об ошибке из продакшена пусто: `{}`. В стеке нет функции, которая бросила, зато есть та, что ошибку создала. После `await` половина вызовов на месте, после `.then` — пропала. А ошибка из скрипта с CDN пришла как «Script error.» без единой подробности. Всё это — не баги, а устройство объекта ошибки, стека V8 и глобальных обработчиков."
 leadWidth: 66
 summary: "Что лежит в объекте ошибки и почему `JSON.stringify` даёт `{}`; `cause`, `AggregateError` и брошенные не-ошибки; стек снимается в `new Error`, а печатается при первом чтении; `captureStackTrace`, `stackTraceLimit` и CallSite API; какие кадры V8 восстанавливает после `await`; `onerror`, `unhandledrejection` и «Script error.» в браузере, `uncaughtException` и коды выхода в Node; `finally`, `using` и `SuppressedError`; сборка отчёта с цепочкой причин и разбор стека на кадры."

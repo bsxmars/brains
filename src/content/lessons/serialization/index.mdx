@@ -2,7 +2,7 @@
 title: "Копирование и сериализация: JSON и structuredClone"
 heading: "Копирование и сериализация: JSON и structuredClone"
 headingWidth: 24
-order: 27
+order: 11
 lead: "`{ ...obj }` копирует один уровень, `JSON.parse(JSON.stringify(obj))` молча теряет даты и `undefined`, `structuredClone` падает на первой же функции. У каждого способа свой алгоритм, и все три записаны в спецификациях по шагам. Зная шаги, можно заранее сказать, что приедет в копию, а что нет, — и почему replacer видит дату строкой."
 leadWidth: 66
 summary: "Поверхностная копия: спред и `Object.assign`, геттеры и дескрипторы; `JSON.stringify` по шагам спецификации — `toJSON`, replacer, отступ, циклы, учебная реализация; `JSON.parse` и reviver снизу вверх, `context.source`; `structuredClone` по алгоритму HTML — таблица `memory`, слоты, ошибки, буферы, `DataCloneError` посреди обхода, перенос; сравнение с `cloneDeep` из lodash."
@@ -86,6 +86,11 @@ import {
   TRANSFER_CODE,
   TRANSFER_NOTE,
   CLONE_USERS,
+  CLONE_GROUPS,
+  MEMORY_MAP_CODE,
+  MEMORY_MAP_NOTE,
+  MONEY_CODE,
+  MONEY_NOTE,
   COMPARE_HEAD,
   COMPARE_ROWS,
   COMPARE_NOTE,
@@ -342,6 +347,16 @@ import {
 
   <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SLOT} />
 
+  ### Общие ссылки и циклы
+
+  <Card titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MEMORY_MAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={MEMORY_MAP_NOTE} />
+    </CardNote>
+  </Card>
+
   ### Учебный structuredClone
 
   <Card title="clone — по спецификации HTML" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
@@ -391,6 +406,26 @@ import {
       <Md text={TRANSFER_NOTE} />
     </CardNote>
   </Card>
+
+  ### Экземпляр класса
+
+  <Card titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MONEY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={MONEY_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что доезжает, что падает, что теряется
+
+  <CardGrid min={290} gap={14} align="start">
+    <Card tone="ok" title={CLONE_GROUPS[0].t} titleSize={16.5} pad={20} gap={10} size={15} lh={1.6} text={CLONE_GROUPS[0].d} />
+
+    <Card tone="err" title={CLONE_GROUPS[1].t} titleSize={16.5} pad={20} gap={10} size={15} lh={1.6} text={CLONE_GROUPS[1].d} />
+
+    <Card tone="warn" title={CLONE_GROUPS[2].t} titleSize={16.5} pad={20} gap={10} size={15} lh={1.6} text={CLONE_GROUPS[2].d} />
+  </CardGrid>
 
   <Md text={CLONE_USERS} />
 </Section>

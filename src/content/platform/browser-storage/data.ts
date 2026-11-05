@@ -131,8 +131,8 @@ export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; 
   {
     t: 'Структурное клонирование',
     d: 'Алгоритм, которым браузер копирует объект: `Date`, `Map`, `Blob` и `ArrayBuffer` переживают копию, функции и классы — нет. IndexedDB хранит записи именно так.',
-    href: '/js/workers/#s2',
-    hrefLabel: '«Воркеры», раздел «Клонирование»',
+    href: '/js/serialization/#s4',
+    hrefLabel: '«Копирование и сериализация», раздел «Structured clone по шагам»',
     tone: 'info',
   },
 ];
@@ -1223,4 +1223,4 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Безопасность фронтенда, раздел «Куки и JWT для фронта»](/platform/security/#s6) — кука, `localStorage` или память для токена. [Аутентификация, раздел «Где держать вход»](/platform/authentication/#s3) — кто проходит вход и что остаётся в браузере. [Встроенный контент без сторонних кук, раздел «Разделённое хранилище»](/platform/third-party-cookies/#s4) — хранилище фрейма под чужим сайтом. [Сеть, раздел «Service Worker»](/platform/network/#s5) — стратегии кеша поверх Cache API. [Кеш серверных данных, раздел «Серверное состояние — не ваше»](/frameworks/data-cache/#s1) — почему данные с сервера живут в кеше, а не в сторе. [Воркеры, раздел «Что можно передать»](/js/workers/#s2) — структурное клонирование, которым IndexedDB копирует записи. [Service Worker изнутри](/render/service-worker/) — жизненный цикл, почему новая версия ждёт, перехват fetch и работа без сети. [Копирование и сериализация](/js/serialization/) — `JSON.stringify` по шагам, алгоритм `structuredClone` и что теряет каждая копия.';
+  'Смежное на сайте: [Безопасность фронтенда, раздел «Куки и JWT для фронта»](/platform/security/#s6) — кука, `localStorage` или память для токена. [Аутентификация, раздел «Где держать вход»](/platform/authentication/#s3) — кто проходит вход и что остаётся в браузере. [Встроенный контент без сторонних кук, раздел «Разделённое хранилище»](/platform/third-party-cookies/#s4) — хранилище фрейма под чужим сайтом. [Сеть, раздел «Service Worker»](/platform/network/#s5) — стратегии кеша поверх Cache API. [Кеш серверных данных, раздел «Серверное состояние — не ваше»](/frameworks/data-cache/#s1) — почему данные с сервера живут в кеше, а не в сторе. [Копирование и сериализация, раздел «Structured clone по шагам»](/js/serialization/#s4) — структурное клонирование, которым IndexedDB копирует записи. [Service Worker изнутри](/render/service-worker/) — жизненный цикл, почему новая версия ждёт, перехват fetch и работа без сети. [Копирование и сериализация](/js/serialization/) — `JSON.stringify` по шагам, алгоритм `structuredClone` и что теряет каждая копия.';

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import * as t from '@/content/lessons/serialization/data';
 import { loadImpl, loadSample, nativeCheck, runMethods } from '@/widgets/clone-lab/model/run';
 import { losses, shape, show } from '@/widgets/clone-lab/model/shape';
+import { Money as DemoMoney } from '@/widgets/clone-survival/model/cases';
 
 /**
  * Тема «Копирование и сериализация: JSON и structuredClone».
@@ -661,5 +662,38 @@ describe('демо: примеры и учебные функции', () => {
     const a = { x: 1 };
     expect(show({ a, b: a })).toBe('{ a: <ref *1> { x: 1 }, b: [Ref *1] }');
     expect(losses({ n: 1 }, { n: 1 })).toEqual([]);
+  });
+});
+
+describe('раздел «Structured clone по шагам» · общие ссылки и циклы', () => {
+  it('MEMORY_MAP_CODE: JSON падает на цикле, клон сохраняет и общую ссылку, и цикл', () => {
+    const jsonLine = 'JSON.parse(JSON.stringify(src));';
+    expect(t.MEMORY_MAP_CODE).toContain(jsonLine);
+    const run = new Function(
+      `"use strict";
+${t.MEMORY_MAP_CODE.replace(jsonLine, `let jsonError; try { ${jsonLine} } catch (e) { jsonError = e; }`)}
+const again = structuredClone(src);
+return { jsonError, shared: c.a === c.b, cycle: c.self === c, across: again.a === c.a };`,
+    ) as () => { jsonError: unknown; shared: boolean; cycle: boolean; across: boolean };
+    const out = run();
+    expect(out.jsonError).toBeInstanceOf(TypeError);
+    expect(out).toMatchObject({ shared: true, cycle: true, across: false });
+  });
+});
+
+describe('раздел «Structured clone по шагам» · экземпляр класса Money', () => {
+  it('листинг: копия — { currency }, не экземпляр; через DTO и Money.from класс собирается', () => {
+    const out = new Function(
+      `"use strict";\n${t.MONEY_CODE}\nreturn { copy, isInstance: copy instanceof Money, formatted: back.format() };`,
+    )() as { copy: object; isInstance: boolean; formatted: string };
+    expect(out.copy).toEqual({ currency: 'EUR' });
+    expect(Object.keys(out.copy)).toEqual(['currency']);
+    expect(out.isInstance).toBe(false);
+    expect(out.formatted).toBe('12.5 EUR');
+  });
+
+  it('демо клонирует тот же класс: те же ключи копии и тот же format()', () => {
+    expect(structuredClone(new DemoMoney(1250))).toEqual({ currency: 'EUR' });
+    expect(DemoMoney.from(structuredClone(new DemoMoney(1250).toDTO())).format()).toBe('12.5 EUR');
   });
 });

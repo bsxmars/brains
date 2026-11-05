@@ -204,7 +204,7 @@ const ratio = computed(() => {
             <tr>
               <th>размер</th>
               <th>способ</th>
-              <th>внутри postMessage</th>
+              <th>главный поток стоит</th>
               <th>до ответа воркера</th>
               <th>byteLength у отправителя</th>
             </tr>

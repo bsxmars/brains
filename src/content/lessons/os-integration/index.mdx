@@ -1,0 +1,373 @@
+---
+title: "Страница и система: экран, „Поделиться“, значок, оплата"
+headingWidth: 24
+order: 29
+lead: "Четыре вещи, которые сайт берёт у операционной системы: экран, который не гаснет, системное меню «Поделиться», число на иконке приложения и окно оплаты. Каждая — одна строка кода и промис. А отказывает промис по причинам, которых в этой строке не видно: страница не на HTTPS, человек ничего не нажимал, вызов идёт из чужого iframe, сайт не установлен как приложение или движок этого просто не умеет."
+leadWidth: 66
+summary: "`navigator.wakeLock` и почему замок снимается со скрытой вкладкой; `navigator.share`, `canShare` и запасной путь; значок `setAppBadge` и почему во вкладке его не видно; `PaymentRequest` от `canMakePayment` до `complete` и почему на деле ставят кнопку провайдера; жест пользователя и его пять секунд, `allow` у iframe и заголовок `Permissions-Policy`; проверка по имени в `navigator`, а не по юзер-агенту."
+verifiedOn: "Chromium 153 (полный и headless shell), Firefox 155 и WebKit 26.6 из Playwright 1.63 на macOS, ноябрь 2026: каждый пример с выводом и каждую таблицу исполняет tests/e2e/os-integration.spec.ts; окно жеста — пять запусков в трёх движках"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Wake Lock }
+  - { id: s2, label: Поделиться }
+  - { id: s3, label: Значок }
+  - { id: s4, label: Оплата }
+  - { id: s5, label: Жест и iframe }
+  - { id: s6, label: Есть ли API }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  GLOSSARY,
+  PLAIN_SYSTEM,
+  PREREQ,
+  PREREQ_NOTE,
+  WAKE_CODE,
+  WAKE_OUT,
+  WAKE_NOTE,
+  WAKE_ROWS,
+  WAKE_REFUSE_NOTE,
+  PLAIN_WAKE,
+  VIS_CODE,
+  VIS_OUT,
+  VIS_NOTE,
+  VIS_WEBKIT_NOTE,
+  SHARE_CODE,
+  SHARE_OUT,
+  SHARE_NOTE,
+  SHARE_FALLBACK_NOTE,
+  SHARE_ROWS,
+  SHARE_TABLE_NOTE,
+  SHARE_TARGET_NOTE,
+  BADGE_CODE,
+  BADGE_OUT,
+  BADGE_NOTE,
+  BADGE_TAB_NOTE,
+  BADGE_PUSH_NOTE,
+  PAY_CODE,
+  PAY_OUT,
+  PAY_FLOW,
+  PAY_STAND_NOTE,
+  PLAIN_PAY,
+  PAY_REALITY,
+  ACTIVATION_CODE,
+  ACTIVATION_OUT,
+  ACTIVATION_NOTE,
+  PLAIN_ACTIVATION,
+  CONSUME_CODE,
+  CONSUME_OUT,
+  CONSUME_NOTE,
+  GESTURE_ROWS,
+  IFRAME_ROWS,
+  IFRAME_CODE,
+  IFRAME_NOTE,
+  HEADER_ENGINE_NOTE,
+  DETECT_CODE,
+  SUPPORT_ROWS,
+  SUPPORT_NOTE,
+  UA_NOTE,
+  INSTALL_NOTE,
+  MANIFEST_CODE,
+  INSTALL_SW_NOTE,
+  CLOSING,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  outcome,
+  has,
+} from './data';
+
+<Section variant="intro" eyebrow="Просьбы к системе" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Не гасить экран, открыть меню «Поделиться», поставить число на иконку, открыть окно
+    оплаты — всё это делает не страница, а операционная система по её просьбе. Система
+    соглашается, только когда видит, что просит сам человек: страница на HTTPS, он только что
+    нажал кнопку, а вызов идёт не из чужой рекламы.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYSTEM} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Не гасить экран: Wake Lock"
+  lead="Человек читает рецепт с телефона, руки в муке, а экран гаснет через тридцать секунд. `navigator.wakeLock.request('screen')` просит систему не гасить экран, пока вкладка видна. Ответ — промис с объектом-замком."
+  leadWidth={72}
+>
+  <CodeBlock code={WAKE_CODE} />
+
+  <CodeBlock code={WAKE_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={WAKE_NOTE} />
+  </Card>
+
+  ### Когда замок не дают
+
+  <Table
+    head={['где', 'что отвечает `request`']}
+    rows={WAKE_ROWS.map((r) => [r.k, r.v])}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,0.8fr) minmax(300px,1.6fr)"
+    minWidth={540}
+  />
+
+  <Md text={WAKE_REFUSE_NOTE} />
+
+  ### Вкладку спрятали — замок снят
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WAKE} />
+
+  <CodeBlock code={VIS_CODE} />
+
+  <CodeBlock code={VIS_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={VIS_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={VIS_WEBKIT_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Системное меню «Поделиться»: Web Share"
+  lead="`navigator.share` открывает то же меню «Поделиться», что у фотографии в галерее телефона. Вызывается только из обработчика клика, а на случай, когда меню нет, нужен запасной путь."
+  leadWidth={72}
+>
+  <CodeBlock code={SHARE_CODE} />
+
+  <CodeBlock code={SHARE_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SHARE_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={SHARE_FALLBACK_NOTE} />
+  </Card>
+
+  ### Что `share` и `canShare` отвечают заранее
+
+  <Table
+    head={['вызов', 'Chromium 153', 'WebKit 26.6']}
+    rows={SHARE_ROWS.map((r) => [r.k, outcome(r.chromium), outcome(r.webkit)])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(240px,1.4fr) minmax(140px,1fr) minmax(140px,1fr)"
+    minWidth={540}
+  />
+
+  <Md text={SHARE_TABLE_NOTE} />
+
+  <Md text={SHARE_TARGET_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Число на иконке: Badging API"
+  lead="`navigator.setAppBadge(3)` рисует тройку на иконке веб-приложения, как у почты или мессенджера. Вызов прост, а результат виден не везде."
+  leadWidth={72}
+>
+  <CodeBlock code={BADGE_CODE} />
+
+  <CodeBlock code={BADGE_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={BADGE_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={BADGE_TAB_NOTE} />
+  </Card>
+
+  <Md text={BADGE_PUSH_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Окно оплаты: Payment Request"
+  lead="`PaymentRequest` открывает окно оплаты самого браузера: сохранённая карта, адрес доставки, Google Pay. Сайт описывает, что продаёт и какие способы принимает, а данные карты собирает браузер или платёжное приложение — сайт их не видит."
+  leadWidth={72}
+>
+  <CodeBlock code={PAY_CODE} />
+
+  <CodeBlock code={PAY_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={PAY_STAND_NOTE} />
+  </Card>
+
+  <Card title="Пять шагов одной оплаты" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={PAY_FLOW} size={15.5} />
+  </Card>
+
+  ### Почему на деле ставят кнопку провайдера
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PAY} />
+
+  <Md text={PAY_REALITY} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Жест, безопасный контекст и iframe"
+  lead="У всех четырёх API три общих условия. Без HTTPS их имён нет вовсе. Системное окно открывается только сразу после действия человека. А чужой iframe получает возможность, только если страница разрешила её явно."
+  leadWidth={72}
+>
+  <CodeBlock code={ACTIVATION_CODE} />
+
+  <CodeBlock code={ACTIVATION_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ACTIVATION_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIVATION} />
+
+  ### Вызов забирает жест
+
+  <CodeBlock code={CONSUME_CODE} />
+
+  <CodeBlock code={CONSUME_OUT} tone="ok" />
+
+  <Md text={CONSUME_NOTE} />
+
+  <Table
+    head={['без жеста, при загрузке', 'Chromium 153', 'Firefox 155', 'WebKit 26.6']}
+    rows={GESTURE_ROWS.map((r) => [r.k, outcome(r.chromium), outcome(r.firefox), outcome(r.webkit)])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(200px,1.3fr) minmax(130px,1fr) minmax(110px,1fr) minmax(130px,1fr)"
+    minWidth={600}
+  />
+
+  ### Iframe с другого сайта
+
+  <CodeBlock code={IFRAME_CODE} />
+
+  <Table
+    head={['что', 'без `allow`: Chromium · Firefox · WebKit', 'с `allow`: Chromium · Firefox · WebKit']}
+    rows={IFRAME_ROWS.map((r) => [
+      `${r.k}, \`${r.feature}\``,
+      [r.without.chromium, r.without.firefox, r.without.webkit].map(outcome).join(' · '),
+      [r.with.chromium, r.with.firefox, r.with.webkit].map(outcome).join(' · '),
+    ])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(240px,1.3fr) minmax(240px,1.3fr)"
+    minWidth={700}
+  />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={IFRAME_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={HEADER_ENGINE_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Есть ли API: проверка по имени, а не по браузеру"
+  lead="Поддержку проверяют по имени в `navigator` или `window`. Одна и та же версия Chromium с одинаковым юзер-агентом даёт разный набор API, а на `http:` имена пропадают целиком."
+  leadWidth={72}
+>
+  <CodeBlock code={DETECT_CODE} />
+
+  <Table
+    head={['имя', 'Chromium 153', 'headless shell 153', 'Firefox 155', 'WebKit 26.6']}
+    rows={SUPPORT_ROWS.map((r) => [r.k, has(r.full), has(r.shell), has(r.firefox), has(r.webkit)])}
+    kinds={['mono', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(200px,1.4fr) repeat(4, minmax(100px,1fr))"
+    minWidth={620}
+  />
+
+  <Md text={SUPPORT_NOTE} />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={UA_NOTE} />
+  </Card>
+
+  ### Что зависит от установки
+
+  <Md text={INSTALL_NOTE} />
+
+  <CodeBlock code={MANIFEST_CODE} />
+
+  <Md text={INSTALL_SW_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={CLOSING} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

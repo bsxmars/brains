@@ -1,0 +1,384 @@
+---
+title: "Видео в браузере"
+headingWidth: 24
+order: 23
+lead: "`<video>` — проигрыватель, которым управляют из JS. `play()` возвращает промис и бывает отклонён: со звуком без жеста пользователя ролик не пойдёт. Что браузер сумеет показать, решает кодек, а не расширение файла. Длинный ролик и смену качества плеер собирает сам — кусками через MediaSource, а `waiting` и `readyState` показывают, где кончился буфер."
+leadWidth: 66
+summary: "Первый ролик из JS: события по порядку и промис `play()`; контейнер и кодек, `canPlayType`, `isTypeSupported` и `mediaCapabilities` в трёх движках; автоплей и `NotAllowedError`; MediaSource, куски HLS из фрагментированного mp4 и смена качества; буфер, `readyState` и почему перемотка ждёт; `requestVideoFrameCallback`."
+verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 из Playwright 1.63 на Apple M1, ноябрь 2026: каждый пример с выводом исполняет tests/e2e/media-video.spec.ts на роликах из tests/fixtures/media-video, снятых ffmpeg"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Первый ролик }
+  - { id: s2, label: Контейнер и кодек }
+  - { id: s3, label: Автоплей }
+  - { id: s4, label: MediaSource }
+  - { id: s5, label: Буфер и readyState }
+  - { id: s6, label: Кадр за кадром }
+  - { id: s7, label: Тонкие места }
+  - { id: s8, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import NumberedList from '@/shared/ui/NumberedList.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import {
+  GLOSSARY,
+  PLAIN_VIDEO,
+  PREREQ,
+  PREREQ_NOTE,
+  FIRST_CODE,
+  FIRST_OUT,
+  FIRST_NOTE,
+  ELEMENT_ROWS,
+  PRELOAD_NOTE,
+  PLAY_ERRORS_CODE,
+  PLAY_ERRORS_OUT,
+  PLAY_REJECT_ROWS,
+  PLAY_ERRORS_NOTE,
+  PLAIN_CODEC,
+  CODEC_CODE,
+  CODEC_ROWS,
+  CODEC_NOTE,
+  DECODE_ROWS,
+  DECODE_NOTE,
+  CODEC_STRING_NOTE,
+  PICK_STEPS,
+  AUTOPLAY_CODE,
+  AUTOPLAY_OUT,
+  AUTOPLAY_NOTE,
+  PLAIN_AUTOPLAY,
+  AUTOPLAY_FACTS,
+  MSE_WHY,
+  PLAIN_FRAGMENTS,
+  MASTER_M3U8,
+  MEDIA_M3U8,
+  HLS_NOTE,
+  MSE_SETUP_CODE,
+  MSE_FEED_CODE,
+  MSE_OUT,
+  MSE_STEPS,
+  ADAPT_NOTE,
+  MMS_NOTE,
+  READY_ROWS,
+  NETWORK_ROWS,
+  READY_NOTE,
+  STALL_CODE,
+  STALL_OUT,
+  STALL_NOTE,
+  PLAIN_WAITING,
+  SEEK_NOTE,
+  WEBKIT_SEEK_NOTE,
+  FRAME_CODE,
+  FRAME_OUT,
+  FRAME_NOTE,
+  CANVAS_NOTE,
+  MORE_NOTE,
+  CLOSING,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Проигрыватель под управлением JS" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Ролик на странице грузится, разбирается, разжимается и показывается сам, своим ходом.
+    JS не управляет этими шагами, а узнаёт о них из событий. Поэтому `play()` — просьба,
+    а не команда: браузер выполнит её, когда будут кадры, или откажет.
+
+  </Callout>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VIDEO} />
+
+  <CardGrid min={250} gap={12}>
+    {GLOSSARY.map((term) => (
+      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s0"
+  eyebrow="Перед началом"
+  title="Что тема считает известным"
+  lead={PREREQ_NOTE}
+  leadWidth={72}
+>
+  <CardGrid min={290} gap={16} align="start">
+    {PREREQ.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Первый ролик: play, pause и события"
+  lead="Ролик в две секунды и слушатели на все события загрузки и показа. Когда браузер готов, код зовёт `play()` и ждёт его промис."
+  leadWidth={72}
+>
+  <CodeBlock code={FIRST_CODE} />
+
+  <CodeBlock code={FIRST_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={FIRST_NOTE} />
+  </Card>
+
+  <Table
+    head={['что', 'что делает']}
+    rows={ELEMENT_ROWS.map((r) => [r.k, r.v])}
+    kinds={['prose', 'prose']}
+    cols="minmax(240px,1fr) minmax(260px,1.4fr)"
+    minWidth={540}
+  />
+
+  <Md text={PRELOAD_NOTE} />
+
+  ### Когда `play()` отказывает
+
+  <CodeBlock code={PLAY_ERRORS_CODE} />
+
+  <CodeBlock code={PLAY_ERRORS_OUT} tone="ok" />
+
+  <Table
+    head={['отказ', 'когда бывает']}
+    rows={PLAY_REJECT_ROWS.map((r) => [r.k, r.v])}
+    tones={PLAY_REJECT_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,.8fr) minmax(280px,1.6fr)"
+    minWidth={520}
+  />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={PLAY_ERRORS_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Контейнер и кодек: что браузер сумеет показать"
+  lead="Расширение файла говорит только о контейнере. Сыграет ли ролик, зависит от кодека внутри — и спрашивать браузер надо точной строкой с кодеком."
+  leadWidth={72}
+>
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CODEC} />
+
+  <CodeBlock code={CODEC_CODE} />
+
+  <Table
+    head={['строка', 'Chromium 153', 'Firefox 155', 'WebKit 26.6']}
+    rows={CODEC_ROWS}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1.4fr) minmax(150px,1fr) minmax(150px,1fr) minmax(150px,1fr)"
+    minWidth={680}
+  />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={CODEC_NOTE} />
+  </Card>
+
+  ### Потяну ли этот ролик: `decodingInfo`
+
+  <Table
+    head={['кодек, 1080p30', 'Chromium 153', 'Firefox 155', 'WebKit 26.6']}
+    rows={DECODE_ROWS}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1.4fr) minmax(150px,1fr) minmax(150px,1fr) minmax(150px,1fr)"
+    minWidth={680}
+  />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={DECODE_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CODEC_STRING_NOTE} />
+  </Card>
+
+  <Card title="Как выбрать файл" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={PICK_STEPS} size={15.5} />
+  </Card>
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Автоплей: без звука можно, со звуком — после жеста"
+  lead="Ролик пробует запуститься сам, со звуком. Если браузер откажет, код выключает звук и пробует снова, а кнопка включает звук обратно."
+  leadWidth={72}
+>
+  <CodeBlock code={AUTOPLAY_CODE} />
+
+  <CodeBlock code={AUTOPLAY_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={AUTOPLAY_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AUTOPLAY} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {AUTOPLAY_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="MediaSource: куски подаёт плеер"
+  lead="Вместо файла у ролика пустой источник, и код сам скачивает куски по секунде и кладёт их в буфер. Так работают плееры HLS и DASH — и так же они меняют качество на ходу."
+  leadWidth={72}
+>
+  <Card pad={20} gap={11} size={15.5} lh={1.6}>
+    <Md text={MSE_WHY} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FRAGMENTS} />
+
+  ### Плейлист HLS
+
+  <CodeBlock code={MASTER_M3U8} />
+
+  <CodeBlock code={MEDIA_M3U8} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={HLS_NOTE} />
+  </Card>
+
+  ### Куски в буфер
+
+  <CodeBlock code={MSE_SETUP_CODE} />
+
+  <CodeBlock code={MSE_FEED_CODE} />
+
+  <CodeBlock code={MSE_OUT} tone="ok" />
+
+  <Card title="Пять шагов MediaSource" titleSize={17} pad={20} gap={13}>
+    <NumberedList items={MSE_STEPS} size={15.5} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={ADAPT_NOTE} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55}>
+    <Md text={MMS_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Буфер, readyState и waiting: почему перемотка ждёт"
+  lead="Два числа описывают ролик в любой момент: `readyState` — сколько данных есть, `networkState` — что браузер делает с сетью. А `buffered` показывает, какие секунды уже лежат в памяти."
+  leadWidth={72}
+>
+  <Table
+    head={['readyState', 'что есть']}
+    rows={READY_ROWS.map((r) => [r.k, r.v])}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,.9fr) minmax(280px,1.6fr)"
+    minWidth={540}
+  />
+
+  <Table
+    head={['networkState', 'что делает']}
+    rows={NETWORK_ROWS.map((r) => [r.k, r.v])}
+    kinds={['prose', 'prose']}
+    cols="minmax(220px,.9fr) minmax(280px,1.6fr)"
+    minWidth={540}
+  />
+
+  <Md text={READY_NOTE} />
+
+  ### Буфер кончился, буфер с дырой
+
+  <Md text="Та же подготовка, что в разделе «MediaSource», — `video`, `append` и `ranges`, — но куски приходят с опозданием, а посреди ролика — перемотка туда, где данных нет." />
+
+  <CodeBlock code={STALL_CODE} />
+
+  <CodeBlock code={STALL_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={STALL_NOTE} />
+  </Card>
+
+  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WAITING} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SEEK_NOTE} />
+  </Card>
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={WEBKIT_SEEK_NOTE} />
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Кадр за кадром: requestVideoFrameCallback"
+  lead="Чтобы обработать каждый кадр — нарисовать его на холсте, наложить эффект, подписать время, — нужен колбэк на кадр ролика, а не на кадр экрана."
+  leadWidth={72}
+>
+  <CodeBlock code={FRAME_CODE} />
+
+  <CodeBlock code={FRAME_OUT} tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={FRAME_NOTE} />
+  </Card>
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={CANVAS_NOTE} />
+  </Card>
+
+  <Md text={MORE_NOTE} />
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+      <Md text={CLOSING} />
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>
