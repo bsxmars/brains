@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { PortLines } from '@/widgets/port-lifecycle/model/types';
 import type { CompareRow } from '@/widgets/tool-compare/model/types';
 import type { TransferCase } from '@/widgets/transfer-rules/model/types';
@@ -398,7 +398,7 @@ export const SHARED_FACTS = [
  * Вторая строка обязательна: ссылка на спеку без неё означает «я это где-то видел».
  * Нормативное и справочное разделены намеренно — у них разный срок годности.
  */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'HTML Standard · 9.4 Channel messaging',
     href: 'https://html.spec.whatwg.org/multipage/web-messaging.html#channel-messaging',
@@ -445,7 +445,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
  * «макрозадача» — там же, `detached` — в первом разделе. Каждое объясняется одной
  * фразой, но до объяснения читатель, пришедший из поиска, не доживает.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'realm',
     d: 'Отдельный мир значений со своим глобальным объектом и своими встроенными прототипами: другое окно, iframe, воркер. Объект из чужого realm чужой и по идентичности: `instanceof` с ним уже не работает. Между окнами одного источника объект можно передать и по ссылке, а между воркерами и чужими источниками — только копией по правилам клонирования.',
@@ -524,7 +524,7 @@ export const BASICS_WORKER_OUT = 'ответ воркера: 42';
 /* ⚠️ Здесь стоял лид «Известными считаются три факта из соседних тем: без них не объяснить…» — пересказ карточек. Снят 2026-10-01. */
 export const PREREQ_NOTE = '';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что такое источник задач',
     d: 'Доставка сообщения — **отдельный источник** задач, а порядок гарантирован только внутри одного источника. Поэтому нельзя заранее сказать, обгонит ли сообщение таймер.',

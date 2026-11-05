@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AsyncCase, ReportCase } from '@/widgets/error-lab/model/types';
 
 /**
@@ -61,7 +61,7 @@ import type { AsyncCase, ReportCase } from '@/widgets/error-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'кадр стека',
     d: 'Одна строка вида `at saveOrder (file:///app/order.mjs:8:3)`: функция, которая была в работе, файл, строка и колонка. Стек — список таких кадров, от места ошибки к самому первому вызову.',
@@ -94,7 +94,7 @@ export const PLAIN_ERROR =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи, каждая разобрана отдельно. Здесь — только то, что нужно, чтобы понимать стеки и отчёты.';
 
-export const PREREQ: { t: string; d: string; href: string; hrefLabel: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Стек вызовов',
     d: 'Стопка функций, которые сейчас выполняются: каждая вызвала следующую и ждёт её возврата. Колбэк из `setTimeout` вызывается позже, под пустым стеком: того, кто его поставил, на стеке уже нет.',
@@ -1080,7 +1080,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMAScript — Error Objects',
     href: 'https://tc39.es/ecma262/#sec-error-objects',

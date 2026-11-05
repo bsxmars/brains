@@ -2,7 +2,6 @@
 title: MessageChannel
 order: 18
 lead: "`MessageChannel` создаёт два связанных порта: что отправили в один, приходит в другой. Любой порт можно отдать в воркер, iframe или другую вкладку, и дальше разговаривает тот, к кому он попал. Поэтому порт — это **право на разговор, которое можно передать**. Чаще всего удивляют три вещи: пока порт не запущен, сообщения копятся и не доставляются; в браузере каждое сообщение приходит отдельной задачей; а сообщение в закрытый или отданный порт пропадает без ошибки."
-leadWidth: 66
 summary: "Порт как переносимое полномочие — буферизация до start(), правила transfer-списка, планировщик без паузы в 4 мс и утечка на незакрытом канале."
 verifiedOn: Node 24.11 и 26.8
 nav:
@@ -72,42 +71,22 @@ import {
   BASICS_WORKER_CODE,
 } from './data';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 
-<Section
-  variant="intro"
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={70}
->
+<Prereq items={PREREQ} lead={PREREQ_NOTE} variant="intro">
+  <Fragment slot="before">
 
   Главный поток отдаёт расчёт воркеру и ждёт ответа именно на этот запрос, а не на соседний.
   Виджет в iframe должен говорить только с вашей страницей, а не с любым, кто дотянулся
   до окна. Планировщику нужно отпустить поток на кадр и сразу вернуться к работе. Все три
   задачи решает одна маленькая вещь — пара связанных портов.
 
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
+  </Fragment>
 
-    ))}
-
-  </CardGrid>
-
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
-</Section>
+  <Glossary items={GLOSSARY} />
+</Prereq>
 
 <Section
   id="basics"
@@ -182,7 +161,7 @@ import Table from '@/shared/ui/Table.astro';
     </Card>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CAPABILITY} />
+  <Plain text={PLAIN_CAPABILITY} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={PATH_DEMO_NOTE} />
@@ -199,7 +178,7 @@ import Table from '@/shared/ui/Table.astro';
   title="Жизненный цикл порта"
   lead="Три свойства порта видны только в работе: до `start()` сообщения копятся, включение нельзя отменить, а после `close()` или передачи порта вместо ошибки — тишина."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE} />
+  <Plain text={PLAIN_QUEUE} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={PORT_DEMO_NOTE} />
@@ -268,7 +247,7 @@ import Table from '@/shared/ui/Table.astro';
     слушающий порт — это корень для сборщика (GC root)**: он держит в памяти замыкание
     обработчика и всё, что оно захватило.
 
-    <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GC_ROOT} />
+    <Plain text={PLAIN_GC_ROOT} />
 
     <FlowChips
       minWidth={0}
@@ -310,7 +289,7 @@ import Table from '@/shared/ui/Table.astro';
   клик по кнопке ждёт. Лечение — резать работу на порции по несколько миллисекунд и между порциями отдавать
   поток. Весь вопрос в том, чем отдавать.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_YIELD} />
+  <Plain text={PLAIN_YIELD} />
 
   <Card title="Планировщик на сообщениях порта" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
     <CodeBlock code={SCHEDULER_CODE} size={12} />
@@ -386,7 +365,7 @@ import Table from '@/shared/ui/Table.astro';
   title="Правила transfer-списка"
   lead="Transfer-список — второй аргумент `postMessage`: в нём перечисляют объекты, которые надо не скопировать, а отдать. Transfer — не копия и не ссылка, а **смена владельца**: у отправителя `byteLength` обнуляется в тот же момент. Ошибки в списке ведут себя по-разному: одни падают громко, а одна молча портит ваш буфер."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSFER} />
+  <Plain text={PLAIN_TRANSFER} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={TRANSFER_DEMO_NOTE} />
@@ -484,7 +463,7 @@ import Table from '@/shared/ui/Table.astro';
   </Card>
 </Section>
 
-<Section id="s4" eyebrow="Раздел 4" title="Применение" lead={APPLY_LEAD} leadWidth={72}>
+<Section id="s4" eyebrow="Раздел 4" title="Применение" lead={APPLY_LEAD}>
   <Card title="Приватный канал с iframe: владение портом вместо проверки origin" titleSize={18} pad={22} radius={5} gap={16}>
     <CardGrid min={270} gap={16}>
       <Card tone="err" label="window.postMessage" labelTone="tone" labelSize={11} pad={16} radius={5} gap={9}>
@@ -663,7 +642,7 @@ import Table from '@/shared/ui/Table.astro';
     <Md text={SYNC_WRONG_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYNC_CALL} />
+  <Plain text={PLAIN_SYNC_CALL} />
 
   ### `SharedWorker`: порт — единственный вход
 

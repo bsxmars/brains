@@ -5,7 +5,6 @@ headingWidth: 24
 order: 1
 kicker: данные и бэкенд
 lead: "Индекс создан, а `EXPLAIN` упрямо пишет `Seq Scan`. Иногда Postgres прав, и индекс правда хуже чтения всей таблицы. Иногда индекс не подходит к запросу: функция над столбцом, не тот тип, не тот столбец составного индекса. А иногда планировщик просто ошибся в числе строк. Как различить эти случаи по плану и что делать в каждом."
-leadWidth: 66
 summary: "Таблица как набор страниц и Seq Scan; B-дерево: уровни, листья, поиск и диапазон, расщепление страниц; как читать `EXPLAIN (ANALYZE, BUFFERS)` — узлы, оценка против факта, `cost`, `loops`; как планировщик выбирает между Seq, Index и Bitmap Scan; почему индекс не берётся; Index Only Scan, `INCLUDE`, частичные индексы и индексы по выражению; цена индекса на запись."
 verifiedOn: "@electric-sql/pglite 0.5.8 (PostgreSQL 18.3 в WebAssembly) с pageinspect, Node 24.11.0, октябрь 2026: планы, прочитанные страницы, уровни и листья B-дерева, цены вариантов плана и цена записи сняты стендом и пересобираются tests/unit/indexes.test.ts; мини-B-дерево сверено с pageinspect и SQL, модель стоимости — с выбором и ценами EXPLAIN на 17 запросах. По документации Postgres: text_pattern_ops для LIKE в сортировке не C, отсутствие дедупликации у индексов с INCLUDE, появление skip scan в версии 18, пороги автоматического ANALYZE"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BtreeLab from '@/widgets/index-lab/ui/BtreeLab.vue';
@@ -123,46 +125,18 @@ import {
   лежат кучно. Когда строк много или они рассыпаны по таблице, индекс заставляет прыгать
   по страницам вразброс — и проигрывает простому чтению подряд.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HEAP} />
+  <Plain text={PLAIN_HEAP} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Таблица — это страницы"
   lead="Пример на всю тему — таблица пользователей на 30 000 строк. В файле она лежит страницами по 8 КБ, строки — в порядке вставки. Без индекса найти строку можно одним способом: прочитать все страницы."
-  leadWidth={72}
 >
   <Card title="Таблица users" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SETUP_SQL} size={11.5} lh={1.65} pad="14px 16px" />
@@ -200,9 +174,8 @@ import {
   eyebrowTone="demo"
   title="B-дерево: строка за три страницы"
   lead="Индекс — отдельный файл из таких же страниц, только данные в нём отсортированы и разложены по уровням. Поиск идёт сверху вниз и на каждом уровне читает одну страницу."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BTREE} />
+  <Plain text={PLAIN_BTREE} />
 
   <Card title="Тот же запрос с индексом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={INDEX_SQL} size={11.5} lh={1.65} pad="14px 16px" />
@@ -245,9 +218,8 @@ import {
   eyebrow="Раздел 3"
   title="Как читать EXPLAIN"
   lead="`EXPLAIN` печатает план — дерево шагов. С `ANALYZE` запрос по-настоящему выполняется, и рядом с каждой оценкой появляется факт. С `BUFFERS` — сколько страниц прочитал каждый шаг."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PLAN} />
+  <Plain text={PLAIN_PLAN} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Вторая таблица: заказы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -287,9 +259,8 @@ import {
   eyebrowTone="demo"
   title="Как планировщик выбирает план"
   lead="Для одной таблицы у Postgres обычно три способа прочитать нужные строки. Для каждого он считает цену по формулам и статистике и берёт самый дешёвый. Индекс выигрывает не всегда — это видно прямо по ценам."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PLANNER} />
+  <Plain text={PLAIN_PLANNER} />
 
   <CardGrid min={260} gap={14} align="start">
     {SCAN_KINDS.map((s) => (
@@ -322,7 +293,6 @@ import {
   eyebrow="Раздел 5"
   title="Почему индекс не берётся"
   lead="Индекс есть, запрос по нужному столбцу, а в плане `Seq Scan`. Причин немного, и каждая оставляет след в плане: условие в `Filter` вместо `Index Cond`, оценка строк, далёкая от факта, или честно посчитанная цена, в которой индекс проигрывает."
-  leadWidth={72}
 >
   <CardGrid min={320} gap={16} align="start">
     {WHY_CASES.map((c) => (
@@ -337,7 +307,7 @@ import {
 
   ### Устаревшая статистика
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STATS} />
+  <Plain text={PLAIN_STATS} />
 
   <Card title="Новое значение, старая статистика" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={STALE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
@@ -368,9 +338,8 @@ import {
   eyebrow="Раздел 6"
   title="Index Only Scan, INCLUDE, частичные индексы"
   lead="Индекс можно сделать таким, чтобы таблица не понадобилась вовсе, или таким, чтобы в нём лежали только нужные строки. Оба приёма экономят страницы, у обоих есть условия."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VISIBILITY} />
+  <Plain text={PLAIN_VISIBILITY} />
 
   <Md text={IOS_TEXT} />
 
@@ -440,7 +409,6 @@ import {
   eyebrow="Раздел 7"
   title="Цена индекса на запись"
   lead="Индекс ускоряет чтение, а платит за это запись: каждый `INSERT` кладёт ключ в каждый индекс таблицы. Цену видно в тех же единицах — страницах и записях журнала."
-  leadWidth={72}
 >
   <Md text={WRITE_TEXT} />
 

@@ -5,7 +5,6 @@ headingWidth: 24
 order: 8
 kicker: алгоритмы во фронтенде
 lead: "gzip, PNG, zip и `CompressionStream` сжимают одним и тем же форматом — DEFLATE. В нём два приёма подряд: повтор заменяется ссылкой назад, а получившиеся символы записываются кодами разной длины. Как ищутся повторы, чем уровень 9 отличается от 6, откуда берутся коды и как распаковать настоящий поток по одному биту."
-leadWidth: 66
 summary: "LZ77: окно 32 КБ, пары (расстояние, длина) 3–258, перекрытие; хеш-цепочки, жадный и ленивый поиск, configuration_table zlib; дерево Хаффмана, префиксный код, ограничение 15 бит; канонический код и fixed-коды; блоки stored, fixed, dynamic, алфавиты с extra-битами, заголовок HLIT/HDIST/HCLEN; распаковщик в девяносто строк; обёртки gzip и zlib, CRC-32 и Adler-32; энтропия, окно, Brotli и zstd."
 verifiedOn: "Node 24.11.0 (zlib 1.3.1), fflate 0.8.3, pako 1.0.11, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: учебный inflate распаковывает вывод zlib, fflate и pako на уровнях 0–9 байт в байт, длины кодов совпадают с dynamic-блоками zlib, размеры и биты заголовка пересчитываются tests/unit/deflate.test.ts; поведение Chromium с битым gzip снято стендом; устройство Brotli и zstd — по RFC"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DeflateLab from '@/widgets/deflate-lab/ui/DeflateLab.vue';
@@ -116,48 +118,20 @@ import {
   разобрано в [«Сжатии в вебе»](/platform/compression/). Здесь — что происходит внутри
   `gzip`: как находятся повторы, откуда берутся коды и что лежит в потоке бит за битом.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEFLATE} />
+  <Plain text={PLAIN_DEFLATE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="LZ77: ссылки назад"
   lead="Сжатие идёт по данным слева направо и на каждой позиции спрашивает: встречались ли эти байты раньше? Если да — вместо них пишется пара (расстояние, длина). Если нет — сам байт, литерал. Распаковщик повторяет ссылки, глядя на то, что уже собрал."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LZ77} />
+  <Plain text={PLAIN_LZ77} />
 
   <Card title={`«${BLAH_TEXT}» — семь токенов`} titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <Table
@@ -198,9 +172,8 @@ import {
   eyebrow="Раздел 2"
   title="Поиск повторов и уровни"
   lead="Сравнить текущую позицию со всеми 32 768 прошлыми — слишком дорого. Поэтому компрессор помнит, где раньше встречалась каждая тройка байт, и проверяет только эти места. Сколько мест проверить и когда остановиться — это и есть уровень сжатия."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHAIN} />
+  <Plain text={PLAIN_CHAIN} />
 
   <CardGrid min={260} gap={14} align="start">
     {CHAIN_STEPS.map((step) => (
@@ -246,9 +219,8 @@ import {
   eyebrow="Раздел 3"
   title="Коды Хаффмана"
   lead="После LZ77 остаются символы: литералы, длины и расстояния. Одни встречаются сотни раз, другие — однажды. Если давать частым короткие коды, а редким длинные, бит выйдет меньше, чем при восьми на каждый."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HUFFMAN} />
+  <Plain text={PLAIN_HUFFMAN} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title={`Дерево для «${ABRA_TEXT}»`} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -284,7 +256,7 @@ import {
 
   ### Не длиннее 15 бит
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KRAFT} />
+  <Plain text={PLAIN_KRAFT} />
 
   <Md text={FIB_NOTE} />
 </Section>
@@ -294,9 +266,8 @@ import {
   eyebrow="Раздел 4"
   title="Канонический код"
   lead="Распаковщик должен знать коды, которые выбрал компрессор. Передавать таблицу «символ → код» дорого. DEFLATE передаёт только длины, а сами коды обе стороны выводят из длин по одному правилу."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANON} />
+  <Plain text={PLAIN_CANON} />
 
   <Table
     head={['длина', 'какие коды']}
@@ -326,7 +297,6 @@ import {
   eyebrow="Раздел 5"
   title="Блоки DEFLATE"
   lead="Поток DEFLATE — это блоки подряд. Каждый говорит в первых трёх битах, последний ли он и как записаны его данные. Внутри — символы двух алфавитов: литералы вперемешку с длинами и расстояния."
-  leadWidth={72}
 >
   <Table
     head={['`BTYPE`', 'как записано', 'когда выбирают']}
@@ -339,7 +309,7 @@ import {
 
   <Md text={BLOCK_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BITORDER} />
+  <Plain text={PLAIN_BITORDER} />
 
   ### Два алфавита
 
@@ -410,7 +380,6 @@ import {
   eyebrow="Раздел 6"
   title="Обёртки gzip и zlib"
   lead="Сам DEFLATE не знает ни имени файла, ни контрольной суммы. Это добавляют обёртки: zlib — два байта спереди и Adler-32 сзади, gzip — заголовок от десяти байт и CRC-32 с длиной. Поток DEFLATE внутри одинаковый."
-  leadWidth={72}
 >
   <Table
     head={['формат', 'спереди', 'сзади', 'HTML из демо, байт', 'где встречается']}
@@ -453,9 +422,8 @@ import {
   eyebrow="Раздел 7"
   title="Предел сжатия"
   lead="Сжатие не создаёт место из ничего: оно убирает предсказуемость. Где байты уже непредсказуемы — случайные данные, уже сжатое, — убирать нечего, и DEFLATE честно пишет их как есть, ещё и с заголовками."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENTROPY} />
+  <Plain text={PLAIN_ENTROPY} />
 
   <Table
     head={['данные', 'байт', 'бит на байт', 'предел по частотам', 'только Хаффман', 'DEFLATE 9']}

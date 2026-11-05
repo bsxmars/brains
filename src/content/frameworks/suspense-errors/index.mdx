@@ -5,7 +5,6 @@ headingWidth: 22
 order: 23
 kicker: фреймворки изнутри
 lead: "Компонент, которому не хватает данных, бросает промис. Компонент, который сломался, бросает ошибку. И то и другое летит вверх по дереву до ближайшей границы, которая умеет это ловить, — `<Suspense>` или границы ошибок. Как React и Vue выбирают границу, почему промис обязан быть стабильным, откуда берётся водопад запросов и что не ловит ни одна граница."
-leadWidth: 66
 summary: "`use(promise)` и бросок до ближайшего `<Suspense>`, повтор рендера с начала и прогрев соседей, стабильный промис и вечная заглушка, водопад вложенных границ, переходы без заглушки, классовая граница ошибок и чего она не ловит, `onCaughtError`/`onUncaughtError` у корня React 19, `<Suspense>` с `async setup`, `onErrorCaptured` и `app.config.errorHandler` во Vue, учебная модель, сверенная с обоими фреймворками."
 verifiedOn: "React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, октябрь 2026: все примеры кода темы исполняются в настоящих React и Vue тестом tests/unit/suspense-errors.test.ts; учебная модель сверена с обоими фреймворками на всех 243 сочетаниях демо-дерева и в режиме загрузки волнами. Задержка заглушки 300 мс и обработчики корня по умолчанию — по исходникам React 19.3"
 nav:
@@ -25,7 +24,6 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
@@ -33,6 +31,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BoundaryLab from '@/widgets/boundary-lab/ui/BoundaryLab.vue';
@@ -119,46 +120,18 @@ import {
   живёт внутри фреймворка, а вы только расставляете по дереву границы — места, где бросок
   можно остановить и показать что-то вместо упавшего или ждущего поддерева.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THROW} />
+  <Plain text={PLAIN_THROW} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Бросок и ближайшая граница"
   lead={S1_LEAD}
-  leadWidth={72}
 >
   <Card title="Профиль с данными" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -174,7 +147,7 @@ import {
 
   <Md text={USE_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RETRY} />
+  <Plain text={PLAIN_RETRY} />
 
   <CardGrid min={280} gap={14} align="start">
     {S1_FACTS.map((fact) => (
@@ -191,7 +164,6 @@ import {
   eyebrow="Раздел 2"
   title="Стабильный промис"
   lead={S2_LEAD}
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Промис в рендере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -213,7 +185,7 @@ import {
 
   <Md text={UNSTABLE_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE} />
+  <Plain text={PLAIN_CACHE} />
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={UNCACHED_WARNING} />
 
@@ -232,7 +204,6 @@ import {
   eyebrow="Раздел 3"
   title="Водопад вложенных границ"
   lead={S3_LEAD}
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card tone="warn" title="Посты ждут профиль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -262,7 +233,6 @@ import {
   eyebrow="Раздел 4"
   title="Переходы: без заглушки"
   lead={S4_LEAD}
-  leadWidth={72}
 >
   <Card title="Две кнопки — два обновления" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TRANSITION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -286,7 +256,6 @@ import {
   eyebrow="Раздел 5"
   title="Граница ошибок"
   lead={S5_LEAD}
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Граница — класс" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -298,7 +267,7 @@ import {
     </Card>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BOUNDARY} />
+  <Plain text={PLAIN_BOUNDARY} />
 
   ### Что и в каком порядке вызывается
 
@@ -334,7 +303,6 @@ import {
   eyebrow="Раздел 6"
   title="Ошибки у корня React 19"
   lead={S6_LEAD}
-  leadWidth={72}
 >
   <Card title="Три колбэка `createRoot`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ROOT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -358,7 +326,6 @@ import {
   eyebrow="Раздел 7"
   title="Vue: async setup и перехват ошибок"
   lead={S7_LEAD}
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Компонент, который ждёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -407,7 +374,6 @@ import {
   eyebrow="Раздел 8"
   title="Дерево границ: модель"
   lead={S8_LEAD}
-  leadWidth={72}
 >
   <Card title="Учебная модель: кто что ловит" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={BOUNDARY_CODE} size={11.5} lh={1.65} pad="14px 16px" />

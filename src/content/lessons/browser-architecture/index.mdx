@@ -2,7 +2,6 @@
 title: Устройство браузера
 order: 30
 lead: "Браузер разводит разные сайты по разным процессам, чтобы их данные никогда не лежали в одной памяти. Процессов он заводит ровно столько, сколько для этого нужно, — остальное экономит. Отсюда изоляция сайтов (Site Isolation), песочница и половина ограничений, которые выглядят как капризы API."
-leadWidth: 66
 summary: "Процессы, потоки и изоляция: почему браузер делит вкладки по сайтам, а не по origin, и какой скрипт может подвесить соседнюю страницу."
 verifiedOn: Chrome 153.0.8010.12
 nav:
@@ -24,6 +23,8 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import ImplicationChain from '@/widgets/implication-chain/ui/ImplicationChain.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import ProcessArchitecture from '@/widgets/process-architecture/ui/ProcessArchitecture.astro';
@@ -100,13 +101,7 @@ import {
 
   </Card>
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
 <Section
@@ -114,7 +109,6 @@ import {
   eyebrow="Перед началом"
   title="Граница наблюдаемого"
   lead="**Страница почти ничего не знает о процессах браузера** — и это сделано нарочно. Страница, которая умеет сосчитать процессы, умела бы следить и за чужими вкладками. Поэтому скрыто ровно то, что опасно показать."
-  leadWidth={72}
 >
   <CardGrid min={290} gap={16} align="start">
     <Card tone="err" title="Не наблюдаемо из JS вообще" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
@@ -221,9 +215,8 @@ import {
   eyebrowTone="demo"
   title="Процессы делят по сайту, а не по origin, и порт не считается"
   lead="Браузер решает, в какой процесс положить документ, по его **сайту (site)**: это схема (`https`) плюс домен, который можно купить у регистратора, — например, `shop.com` для `app.shop.com`. Такой домен называют **eTLD+1**: публичный суффикс вроде `.com` или `.co.uk` и ещё одна метка слева. Хост целиком и порт в сайт не входят — в отличие от origin, по которому браузер проверяет доступ к чужому DOM."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SITE} />
+  <Plain text={PLAIN_SITE} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={SITE_DEMO_NOTE} />
@@ -312,7 +305,7 @@ import {
     (SOP) и так запрещает читать чужой DOM, проверки стоят в каждом API — значит, данным
     разных сайтов в одном процессе ничего не грозит.
 
-    <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPECTRE} />
+    <Plain text={PLAIN_SPECTRE} />
 
     <Card tone="err" color="tone" pad="15px 17px" radius={4} gap={11} size={16} lh={1.6}>
 
@@ -376,12 +369,12 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ORB} />
+  <Plain text={PLAIN_ORB} />
 
   ### Изоляция по источнику: `SharedArrayBuffer`, COOP и COEP
 
   <Card tone="warn" color="tone" title="Почему `SharedArrayBuffer` на этом сайте нет даже как имени" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ISOLATION} />
+    <Plain text={PLAIN_ISOLATION} />
 
     Память, общую для нескольких потоков, браузер выдаёт только странице, **изолированной
     по источнику**. Изоляцию включают два заголовка ответа сервера.
@@ -426,9 +419,8 @@ import {
   eyebrowTone="demo"
   title="Каталог процессов: кто есть кто"
   lead="Один баг в разборщике картинок — и атакующий выполняет свой код в процессе страницы. Что он сможет сделать дальше, решают права этого процесса. Наверху — процесс браузера: ему доверяют, и через него идут все просьбы к системе. Под ним — процессы с урезанными правами, которые сами почти ничего не могут."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SANDBOX} />
+  <Plain text={PLAIN_SANDBOX} />
 
   <ProcessArchitecture />
 
@@ -481,7 +473,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SITE_INSTANCE} />
+  <Plain text={PLAIN_SITE_INSTANCE} />
 
   ### Песочницу строят в расчёте на то, что рендерер уже захвачен
 
@@ -556,9 +548,8 @@ import {
   eyebrowTone="demo"
   title="Внутри рендерера: потоки"
   lead="Скрипт завис в бесконечном цикле, кнопки не нажимаются — а страница всё ещё прокручивается, и анимация крутится. Так бывает потому, что «JavaScript однопоточный» — это про главный поток (main thread), а не про браузер: у процесса страницы потоков несколько. Очереди главного потока разобраны в [«Цикле событий»](/js/event-loop/), порядок, в котором он достаётся задачам, — в [«Планировании задач»](/js/task-scheduling/)."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MAIN_THREAD} />
+  <Plain text={PLAIN_MAIN_THREAD} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={THREADS_DEMO_NOTE} />
@@ -600,7 +591,6 @@ import {
   eyebrow="Раздел 4"
   title="Цепочка, которую стоит запомнить целиком"
   lead={CHAIN_LEAD}
-  leadWidth={72}
 >
   <CardGrid min={300} gap={20} align="start">
     <ImplicationChain title="Почему зависший скрипт вешает соседа" steps={CHAIN_DOWN} tone="err" />

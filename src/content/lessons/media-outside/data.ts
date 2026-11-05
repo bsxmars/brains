@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Плеер вне вкладки: Picture-in-Picture, Media Session и захват экрана».
@@ -76,7 +76,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 // ─── Вводный раздел ────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'Picture-in-Picture',
     d: '«Картинка в картинке»: маленькое окно поверх всех программ. Человек ушёл из вкладки в почту, а видео продолжает идти в углу экрана.',
@@ -108,7 +108,7 @@ export const PLAIN_OUTSIDE =
 
 export const PREREQ_NOTE = 'Тема опирается на три вещи из соседних тем.';
 
-export const PREREQ: { t: string; d: string; href: string; hrefLabel: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Элемент `<video>`',
     d: 'Как ролик грузится и играет, что такое `readyState` и события `loadedmetadata`, `play`, `pause`, `timeupdate`.',
@@ -458,7 +458,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Picture-in-Picture',
     href: 'https://w3c.github.io/picture-in-picture/',

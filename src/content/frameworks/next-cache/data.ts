@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import { stepLabel } from '@/widgets/next-cache-lab/model/run';
 import type { Scenario, StandStep, Step } from '@/widgets/next-cache-lab/model/types';
 
@@ -665,7 +665,7 @@ export const APP2_STAND: StandStep[] = [
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'App Router',
     d: 'Нынешний способ писать приложение на Next.js: каталог `app/`, в нём папка на каждый адрес и файл `page.jsx`. Компоненты в нём по умолчанию серверные — выполняются на сервере, а в браузер уходит результат.',
@@ -702,7 +702,7 @@ export const PLAIN_LAYERS =
 export const PREREQ_NOTE =
   'Тема опирается на то, как устроены серверные компоненты и HTTP-кеш. Сами они разобраны в других темах.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Серверные компоненты',
     d: 'Компонент выполняется на сервере, может быть `async` и сам ходить за данными. В браузер уходит не его код, а результат — поток RSC.',
@@ -1114,7 +1114,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Next.js — Caching and Revalidating (Previous Model)',
     href: 'https://nextjs.org/docs/app/guides/caching-without-cache-components',

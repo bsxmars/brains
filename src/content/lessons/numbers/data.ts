@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DoublePreset } from '@/widgets/double-lab/model/types';
 
 /**
@@ -65,7 +65,7 @@ export const exprTones = (rows: ExprRow[]) => rows.map((r) => r.tone);
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'double (IEEE 754, binary64)',
     d: 'Формат числа с плавающей точкой из стандарта IEEE 754: 64 бита. Каждое `number` в JS — такое число, в том числе `1`, `42` и `-0`. Отдельного целого типа у `number` нет.',
@@ -106,7 +106,7 @@ export const PLAIN_DOUBLE =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Двоичная запись числа',
     d: 'Число 13 в двоичной записи — `1101`: 8 + 4 + 1. Дробная часть пишется так же, но степенями ½: `0.101` — это ½ + ⅛ = 0,625. Шестнадцатеричная цифра — четыре бита: `a` — `1010`.',
@@ -690,7 +690,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 — The Number Type',
     href: 'https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type',

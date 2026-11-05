@@ -4,6 +4,7 @@ import type { AnatomyProperty, AnatomyProto, AnatomySlot, NewStep } from '@/widg
 import type { ObjectLayer } from '@/widgets/object-layers/model/types';
 import type { MatrixRow } from '@/widgets/property-matrix/model/types';
 import type { SetScenario } from '@/widgets/set-algorithm/model/types';
+import type { GlossaryTerm, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные урока «Объектная модель JavaScript». Перенесены из
@@ -201,7 +202,7 @@ export const LOCK_OPENER_NOTE =
  * через него — «пара ключ → дескриптор», — то есть термин употреблялся раньше, чем вводился.
  * Ровно тот случай, ради которого словарь и существует.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'свойство',
     d: 'Пара «ключ → **дескриптор**», а не «ключ → значение». Значение может отсутствовать вовсе — у геттера его нет.',
@@ -1879,7 +1880,7 @@ console.log('Temperature.is(real)        →', Temperature.is(real));`,
  * ⚠️ Вторая строка у каждого источника обязательна — без неё ссылка означает «я это где-то
  * видел». С ней читатель знает, какой раздел открывать и зачем именно.
  */
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 · 10.1 Ordinary Object Internal Methods',
     href: 'https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots',
@@ -1928,7 +1929,7 @@ export const SOURCES = [
 /* PREREQ_NOTE («Читать тему можно с нуля…») снят 2026-09-30 по замечанию автора курса: первая
    половина — о том, как читать тему, вторая дословно повторяла первую карточку `PREREQ`. */
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что из этого видно из JS, а что нет',
     d: 'Всё, что тема называет **слоями и слотами**, наблюдаемо: `Object.getOwnPropertyDescriptor`, `Reflect.ownKeys`, `Object.getPrototypeOf` отвечают честно. А вот **форма объекта, словарный режим и состояние inline cache** из языка не видны вовсе: это представление движка, и о нём тема говорит словами, а не показывает.',

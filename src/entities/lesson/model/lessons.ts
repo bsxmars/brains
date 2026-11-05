@@ -20,7 +20,7 @@ export type Lesson =
   | CollectionEntry<'data'>
   | CollectionEntry<'patterns'>;
 
-export async function getLessons(collection: LessonCollection): Promise<Lesson[]> {
+async function getLessons(collection: LessonCollection): Promise<Lesson[]> {
   const lessons = await getCollection(collection);
   return [...lessons].sort((a, b) => a.data.order - b.data.order);
 }
@@ -29,10 +29,3 @@ export async function getLessons(collection: LessonCollection): Promise<Lesson[]
 export function getDirectionLessons(direction: Direction): Promise<Lesson[]> {
   return getLessons(direction.collection);
 }
-
-/**
- * Соседи урока лежат в отдельном файле: там чистая функция без `astro:content`, и потому
- * её можно закрыть юнит-тестом. Порядок задаётся полем `order` и правится во frontmatter.
- */
-export { neighbours } from './neighbours';
-export type { Neighbours } from './neighbours';

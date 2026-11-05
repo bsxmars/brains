@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AbortScenario } from '@/widgets/abort-lab/model/types';
 
 /**
@@ -45,7 +45,7 @@ import type { AbortScenario } from '@/widgets/abort-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`EventTarget` и слушатель',
     d: 'Объект, на который подписываются через `addEventListener(type, fn)` и который рассылает события через `dispatchEvent`. Слушатель — функция `fn`, которую он позовёт. `AbortSignal` — тоже `EventTarget`.',
@@ -70,7 +70,7 @@ export const PLAIN_PAIR =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи, разобранные в других темах. Если какая-то из них незнакома, начните со ссылки на карточке.';
 
-export const PREREQ: { t: string; d: string; href: string; hrefLabel: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Промис — результат, а не операция',
     d: 'У промиса нет ссылки на работу, которая его выполнит. Остановить можно только саму работу, а промис просто получит отказ.',
@@ -942,7 +942,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'DOM Standard — Aborting ongoing activities',
     href: 'https://dom.spec.whatwg.org/#aborting-ongoing-activities',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { MiniScenario } from '@/widgets/mini-reactivity/model/types';
 
 /**
@@ -398,7 +398,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Как разобрать будильник, чтобы понять, почему он звенит в семь, а не в шесть. Снаружи видно только поведение, а причина — конкретная шестерёнка. Мини-Vue — тот же будильник со снятой крышкой: шестерёнок меньше, чем в настоящем, но каждая на своём месте, и можно вынуть любую и посмотреть, что перестанет работать.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'ловушка прокси · `Reflect` · receiver',
     d: 'Ловушка — функция в `new Proxy(target, handler)`, перехватывающая одну операцию (`get`, `set`, `has`, `ownKeys`, `deleteProperty`); `Reflect` выполняет ту же операцию «как обычно»; receiver — объект, от имени которого идёт обращение, он станет `this` в геттере. Подробно — в теме [«Proxy и Reflect»](/js/proxy-reflect/).',
@@ -432,7 +432,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Мини-Vue стоит на двух механизмах языка — `Proxy` замечает операцию, микрозадача откладывает реакцию — и воспроизводит поведение, которое снаружи уже описано в «Реактивности Vue».';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как реактивность Vue ведёт себя снаружи',
     d: 'Эффект перезапускается от прочитанного, `computed` ленив и кеширует, три записи дают одну перерисовку, режимы `flush` различаются моментом. Здесь каждое из этих правил получает свою строку кода.',
@@ -875,7 +875,7 @@ export const PITFALLS: Pitfall[] = [
 // Раздел 10 · источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: '`@vue/reactivity` · `dep.ts`',
     href: 'https://github.com/vuejs/core/blob/main/packages/reactivity/src/dep.ts',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { RealRun, RunnerName, Scenario } from '@/widgets/test-runner-lab/model/types';
 
 /**
@@ -41,7 +41,7 @@ import type { RealRun, RunnerName, Scenario } from '@/widgets/test-runner-lab/mo
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'тест-раннер',
     d: 'Программа, которая находит тестовые файлы, исполняет их и собирает отчёт. Vitest и Jest — раннеры. `expect` — отдельная библиотека проверок, которую они кладут в комплект.',
@@ -85,7 +85,7 @@ export const PLAIN_RUNNER =
 
 export const PREREQ_NOTE = 'Тема опирается на четыре вещи, разобранные в других темах.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Модуль исполняется один раз',
     d: 'Второй импорт того же файла не запускает его код снова, а отдаёт уже готовый модуль из карты модулей. На этом держится и изоляция тестов, и моки.',
@@ -1480,7 +1480,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Vitest — Test Lifecycle',
     href: 'https://vitest.dev/guide/lifecycle',

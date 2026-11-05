@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 import type { CookieSpec, EngineId, MeasuredRow, Outcome, RequestSpec } from '@/widgets/tpc-cookie-verdict/model/verdict';
 
 /**
@@ -55,7 +55,7 @@ import type { CookieSpec, EngineId, MeasuredRow, Outcome, RequestSpec } from '@/
 
 /* ──────────────────── Вводный раздел · словарь темы ──────────────────── */
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'сайт верхнего уровня',
     d: 'Сайт страницы в адресной строке. Для фрейма `embed.test` на странице `top.test` сайт верхнего уровня — `top.test`. От него зависит, какие куки и какое хранилище фрейм увидит.',
@@ -91,7 +91,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Что такое сторонний контекст, раздел и доступ к хранилищу, объясняется здесь с нуля. Известными считаются четыре вещи — у каждой есть свой разбор на сайте.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: '`SameSite`: какие куки уходят с чужого сайта',
     d: 'Три значения, умолчание `Lax` в Chromium и его отсутствие в Firefox. Здесь `SameSite` — первый фильтр: всё, что он отсёк, дальше не рассматривается.',
@@ -852,7 +852,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Раздел 8 · источники ──────────────────── */
 
-export const SOURCES: { t: string; items: string[] }[] = [
+export const SOURCES: SourceGroup[] = [
   {
     t: 'Спецификации',
     items: [

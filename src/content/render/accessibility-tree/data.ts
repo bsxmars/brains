@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AxCase, AxScene, ChromeVerdict } from '@/widgets/ax-tree-lab/model/types';
 
 /**
@@ -65,7 +65,7 @@ import type { AxCase, AxScene, ChromeVerdict } from '@/widgets/ax-tree-lab/model
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'дерево доступности',
     d: 'Второе дерево, которое браузер строит рядом с DOM. В нём только то, что имеет смысл для человека: кнопки, ссылки, заголовки, поля, текст. У каждого узла — роль, имя и состояния. Обёртки без смысла в него не попадают.',
@@ -106,7 +106,7 @@ export const PLAIN_AXTREE =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Вычисленный стиль и наследование',
     d: 'Для каждого элемента браузер вычисляет итоговое значение каждого свойства CSS. Одни свойства наследуются детьми, другие нет: `visibility: hidden` у родителя прячет и детей через наследование, а `display: none` не наследуется — он просто не даёт рисовать всё поддерево.',
@@ -992,7 +992,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Accessible Name and Description Computation 1.2',
     href: 'https://www.w3.org/TR/accname-1.2/',

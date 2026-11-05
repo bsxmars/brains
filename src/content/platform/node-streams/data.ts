@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { NsModeInfo, NsParams } from '@/widgets/ns-tick-lab/model/types';
 
 /**
@@ -43,7 +43,7 @@ export const PLAIN_SHELF =
   'Readable — прилавок с полкой на `highWaterMark` мест. Продавец (`_read`) выкладывает товар (`push`), покупатель забирает. Пока полка не заполнена, продавца зовут снова; заполнилась — не зовут, пока покупатель не заберёт. Всё остальное в `node:stream` — правила о том, **кто кого и когда зовёт**: они и есть внутренности.';
 
 /** Слова, которые тема употребляет раньше, чем объясняет. */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'чанк',
     d: 'Порция данных за один раз. В байтовом режиме — `Buffer` (строка превращается в него), в objectMode — любое значение, кроме `null`: `null` означает «данных больше не будет».',
@@ -72,7 +72,7 @@ export const GLOSSARY = [
 
 // ─── Перед началом ──────────────────────────────────────────────────────────────────
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Очередь с порогом и обратное давление',
     d: 'Что стрим — это очередь с `highWaterMark`, а обратное давление — отсутствие вызова, а не сообщение «притормози».',
@@ -1536,7 +1536,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ──────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Node.js: Stream — API for stream implementers',
     href: 'https://nodejs.org/api/stream.html#api-for-stream-implementers',

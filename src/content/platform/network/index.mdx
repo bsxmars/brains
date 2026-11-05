@@ -3,7 +3,6 @@ title: Сеть и кеширование
 order: 1
 kicker: сеть и безопасность
 lead: "Прежде чем браузер получит первый байт ответа, он узнаёт адрес сервера (DNS), устанавливает соединение и ждёт, пока сервер ответит. Почти ни один из этих шагов не зависит от скорости вашего кода. Самый быстрый запрос — тот, которого не было: один заголовок кеширования убирает все эти шаги разом."
-leadWidth: 66
 summary: "Почему страница ждёт сеть, даже когда файлы маленькие, чем различаются три версии HTTP, когда браузер берёт ответ из кеша, что качается первым и когда нужен Service Worker — с проверкой прямо в вашем браузере."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless) против локального сервера на Node 24.11, сентябрь 2026. HTTP/2, HTTP/3, QUIC, CDN и Service Worker замером не закрыты — локальный сервер отвечает по http/1.1"
 nav:
@@ -29,6 +28,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import HolDiagram from '@/widgets/network-hol-diagram/ui/HolDiagram.astro';
 import CacheHeaders from '@/widgets/cache-headers/ui/CacheHeaders.vue';
@@ -119,7 +121,7 @@ import {
   узлов. Поэтому протоколы за пятнадцать лет улучшали одно — **сколько раз надо сходить туда
   и обратно**, прежде чем придёт первый полезный байт.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RTT} />
+  <Plain text={PLAIN_RTT} />
 
   Что браузер делает с байтами, когда они пришли, — в [«Критическом пути»](/render/rendering-crp/),
   а где живёт сам сетевой процесс — в [«Устройстве браузера», раздел «Каталог процессов»](/js/browser-architecture/#s2).
@@ -139,35 +141,10 @@ import {
     </CardNote>
   </Card>
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -175,7 +152,6 @@ import {
   eyebrowTone="demo"
   title="Транспорт и RTT-бюджет"
   lead="Первый запрос к новому серверу проходит три отдельных круговых обмена, прежде чем вообще попросит страницу. Версии HTTP различаются прежде всего тем, сколько из этих кругов они убирают и что происходит с остальными файлами, когда теряется один пакет."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сколько стоит первый запрос к новому серверу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -288,7 +264,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOL} />
+  <Plain text={PLAIN_HOL} />
 
   <Table
     head={['', 'HTTP/1.1', 'HTTP/2', 'HTTP/3']}
@@ -348,9 +324,8 @@ import {
   eyebrowTone="demo"
   title="Кеш и валидация"
   lead="«Выкатили правку, а у пользователя старая версия» и «каждый заход качает всё заново» — две стороны одной путаницы. У ответа в кеше две разные фазы жизни, и заголовки кеширования путают потому, что эти фазы смешивают. Пока ответ **свежий**, браузер отдаёт его без всякой сети. Когда срок вышел, начинается **валидация**: браузер спрашивает сервер, годится ли ещё старая копия."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FRESHNESS} />
+  <Plain text={PLAIN_FRESHNESS} />
 
   <CodeBlock code={FRESHNESS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
@@ -426,7 +401,7 @@ import {
     </CardNote>
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VARY} />
+  <Plain text={PLAIN_VARY} />
 
   <Card title="Сжатие: вариант, о котором договариваются заголовками" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <Md text={COMPRESSION_NOTE} />
@@ -505,13 +480,12 @@ import {
   eyebrow="Раздел 3"
   title="Preflight: лишний запрос перед запросом — и его отдельный кеш"
   lead="Запрос на другой источник, который не укладывается в «простой» — например, `POST` с JSON или со своим заголовком, — браузер отправляет не сразу. Сначала он спрашивает у сервера разрешение отдельным запросом `OPTIONS`: это и есть preflight. Он добавляет **ещё один RTT** к стоимости запроса, и у него собственный кеш, которым `Cache-Control` не управляет."
-  leadWidth={72}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={PREFLIGHT_WHEN} />
 
   <CodeBlock code={PREFLIGHT_RTT_CODE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PREFLIGHT} />
+  <Plain text={PLAIN_PREFLIGHT} />
 
   ### Сколько `OPTIONS` дошло до сервера
 
@@ -543,7 +517,6 @@ import {
   eyebrow="Раздел 4"
   title="Приоритеты загрузки"
   lead="Когда браузер уже знает про десятки ресурсов, он решает, что качать первым и кому отдать канал. Приоритеты он расставляет сам — вы ничего не настраивали, но это уже происходит. Ваша задача — поправить его там, где он не может знать, что важно на самом деле."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Какие приоритеты браузер ставит сам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -650,9 +623,8 @@ import {
   eyebrow="Раздел 5"
   title="Service Worker"
   lead="Service Worker — ваш JavaScript, который перехватывает запросы страницы раньше, чем браузер заглянет в свой кеш, и может вернуть что угодно. Это самый мощный и самый опасный слой. Поэтому брать его надо в последнюю очередь — и только для того, что нельзя сделать заголовками."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SW} />
+  <Plain text={PLAIN_SW} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Чем Service Worker отличается от обычного скрипта" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
@@ -811,7 +783,6 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
   lead="Спецификации (RFC) меняются медленно, и в спорном вопросе последнее слово за ними. Статьи и блоги устаревают быстро, зато объясняют, зачем что-то придумано, — в RFC этого нет."
-  leadWidth={72}
 >
   <CardGrid min={320} gap={16} align="start">
     {SOURCES.map((group) => (

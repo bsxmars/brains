@@ -4,7 +4,6 @@ heading: "Отмена: AbortController и AbortSignal — кто решает �
 headingWidth: 24
 order: 16
 lead: "Отмена в JS — не прерывание, а договорённость двух объектов. Контроллер решает, что работа больше не нужна. Сигнал сообщает об этом всем, кто работу делает, и каждый сам решает, как остановиться. Отсюда и всё неочевидное: что видит сервер, когда `fetch` отменён, чей `reason` побеждает в `AbortSignal.any`, почему `{ once: true }` не спасает от утечки и почему отмена после ответа ничего не делает."
-leadWidth: 66
 summary: "Разделение прав между контроллером и сигналом; событие `abort` — синхронное и однократное; учебная реализация с `any` и `timeout` против настоящей; что отменяет `fetch` на каждой стадии и что видит сервер по HTTP/1.1 и HTTP/2; один сигнал вместо шести способов отписаться; правило «проверь — подпишись — отпишись» и утечка слушателей числом; API Node и их `AbortError`; гонка отмены с завершением и общий запрос для нескольких потребителей."
 verifiedOn: "Node 24.11.0 и 26.8.2, Chromium 153.0.8010.12 (Playwright, headless), октябрь 2026: сценарии демо исполнены на учебных и настоящих классах в Node и Chromium; fetch — на свой node:http и node:http2; сборка зависимых сигналов — WeakRef и gc() в отдельном процессе. Примеры исполняет tests/unit/abort-controller.test.ts. Без таймерных замеров"
 nav:
@@ -29,6 +28,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AbortLab from '@/widgets/abort-lab/ui/AbortLab.vue';
@@ -102,44 +104,18 @@ import {
   «прекратить», и делает это по-своему: `fetch` рвёт соединение, `spawn` убивает процесс,
   а ваша функция, если вы о ней не позаботились, не сделает ничего.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PAIR} />
+  <Plain text={PLAIN_PAIR} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Контроллер и сигнал: кто решает, кто слушает"
   lead="`new AbortController()` создаёт пару: сам контроллер с методом `abort()` и сигнал `controller.signal`. Отменить может только тот, у кого контроллер. Сигнал можно раздать кому угодно — по нему можно узнать об отмене, но не вызвать её."
-  leadWidth={72}
 >
   <Card title="Поиск, который отменяет прошлый запрос" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PAIR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -213,13 +189,12 @@ import {
   eyebrow="Раздел 2"
   title="Как это устроено: сигнал на сотне строк"
   lead="Сигнал — это `EventTarget` с причиной внутри. `abort()` записывает причину и рассылает событие. Чуть сложнее только `AbortSignal.any`: он заводит зависимый сигнал, который отменяется вместе со своими источниками."
-  leadWidth={72}
 >
   <Card title="Учебные AbortController и AbortSignal" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MINI_CODE} size={11} lh={1.65} pad="14px 16px" />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEPENDENT} />
+  <Plain text={PLAIN_DEPENDENT} />
 
   <CardGrid min={280} gap={14} align="start">
     {MINI_FACTS.map((fact) => (
@@ -269,7 +244,6 @@ import {
   eyebrow="Раздел 3"
   title="fetch с сигналом: что именно отменяется"
   lead="Отменённый `fetch` отклоняется — это видят все. Менее заметно, что происходит по ту сторону: дошёл ли запрос до сервера, узнал ли сервер об отмене и что он сделал дальше. Ответ зависит от того, на какой стадии случилась отмена."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сервер: бросает работу, когда клиент ушёл" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -305,7 +279,6 @@ import {
   eyebrow="Раздел 4"
   title="timeout и any: кто отменил и чья причина"
   lead="`AbortSignal.timeout(ms)` — сигнал, который отменит себя сам, с причиной `TimeoutError`. `AbortSignal.any([...])` — сигнал, который отменится вслед за любым из источников. Вместе они дают привычное «отменить по кнопке или через пять секунд»."
-  leadWidth={72}
 >
   <Card title="Таймаут и отмена пользователем в одной функции" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={COMBINE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -327,9 +300,8 @@ import {
   eyebrow="Раздел 5"
   title="Отмена в своём коде: проверь, подпишись, отпишись"
   lead="Функция, которая принимает сигнал, обещает три вещи. Не начинать работу, если отмена уже была. Остановить работу, если отмена придёт во время неё. И не оставить после себя слушателя, когда работа закончится — любым способом."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RULE} />
+  <Plain text={PLAIN_RULE} />
 
   <Card title="delay с сигналом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={DELAY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -384,7 +356,6 @@ import {
   eyebrow="Раздел 6"
   title="Гонка: отмена после завершения и почему промис не отменить"
   lead="Отмена и завершение работы приходят независимо, и иногда отмена опаздывает. Тогда побеждает то, что случилось раньше: промис уже получил результат и менять его не станет."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Отмена на строку позже ответа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

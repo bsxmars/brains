@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 import type { DnsChoice, EgressCase } from '@/widgets/bs-egress-check/model/types';
 import type { FieldCase } from '@/widgets/bs-field-allowlist/model/types';
 
@@ -69,7 +69,7 @@ export const INTRO_THESIS =
 export const PLAIN_SERVER =
   'Фронт — это витрина и бланки заказа. Сервер — склад. Покупатель может заполнить бланк от руки, вписать чужой номер заказа и лишнюю графу «скидка 100%». Склад, который верит бланку, потому что «на витрине такой графы не было», отгрузит что угодно.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'аутентификация и авторизация',
     d: 'Аутентификация отвечает «кто это» — сессия, токен. Авторизация отвечает «можно ли ему **это**» — конкретный заказ, конкретное поле. Большинство дыр этой темы — не в первой, а во второй.',
@@ -110,7 +110,7 @@ export const GLOSSARY = [
 
 /* ──────────────────── Перед началом ──────────────────── */
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Сессия, куки и токен',
     d: 'Как сервер узнаёт пользователя по запросу: кука сессии, `HttpOnly`, JWT. Здесь `req.user` — готовый результат этого шага; тема начинается там, где он заканчивается.',
@@ -1022,7 +1022,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Источники ──────────────────── */
 
-export const SOURCES: { t: string; items: string[] }[] = [
+export const SOURCES: SourceGroup[] = [
   {
     t: 'OWASP',
     items: [

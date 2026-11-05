@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 import type { FrameDiagramData } from '@/widgets/realtime-frame-diagram/model/types';
 
 /**
@@ -90,7 +90,7 @@ export const PLAIN_SOCKET =
  * Слова, которые тема употребляет раньше, чем объясняет. Коды закрытия и «идл-таймаут»
  * всплывают уже в сравнении способов, а кадр и опкод — задолго до разбора кадра.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'долгое соединение',
     d: 'Одно соединение TCP (или QUIC), которое живёт минуты и часы. Сервер пишет в него, **когда у него появилось что сказать**, а не когда его спросили.',
@@ -138,7 +138,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Долгое соединение — это всё тот же TCP или QUIC, открытый HTTP-запросом и окружённый теми же правилами источника, что и `fetch`. Эти опоры тема считает известными.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'TCP, TLS, HTTP/2 и QUIC',
     d: 'Во что обходится открыть соединение, чем HTTP/2 отличается от HTTP/1.1 и почему HTTP/3 живёт на UDP. WebSocket открывается тем же обменом, а WebTransport без QUIC не существует.',
@@ -998,7 +998,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Источники ──────────────────── */
 
-export const SOURCES: { t: string; items: string[] }[] = [
+export const SOURCES: SourceGroup[] = [
   {
     t: 'Спецификации',
     items: [

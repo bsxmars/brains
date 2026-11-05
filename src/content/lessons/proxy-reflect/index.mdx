@@ -4,7 +4,6 @@ heading: "Proxy и Reflect: перехват операций над объек�
 headingWidth: 24
 order: 3
 lead: "Прокси встаёт перед объектом и получает каждую операцию над ним: чтение, запись, `in`, `delete`, перебор ключей, вызов. `Reflect` выполняет ту же операцию «как было». На этой паре построены реактивность Vue, черновики Immer и мембраны. А то, чего прокси не видит, — `===`, внутренние слоты, `#`-поля — объясняет, почему ломается `Map` в прокси и почему состояние не уходит в воркер."
-leadWidth: 66
 summary: "Ловушка и `Reflect`; все тринадцать ловушек и операции, которые их вызывают; receiver и `set` → `boolean`; двадцать инвариантов; что прокси не перехватывает — личность, слоты, `#`-поля, `Array.isArray`, `DataCloneError` у `structuredClone`; реактивность на прокси, сверенная с Vue, и Immer; `Proxy.revocable` и мембрана; цена перехвата."
 verifiedOn: "Node 24.11.0 (V8 13.6) и 26.8.2 (V8 14.6), Chromium 153.0.8010.12 (Playwright 1.63), @vue/reactivity 3.5.42, immer 11.1.18, октябрь 2026: журналы ловушек сняты handler’ом темы, реактивность сверена с Vue, клонирование прокси — в Node и в Chromium. Всё, кроме браузера, повторяет tests/unit/proxy-reflect.test.ts"
 nav:
@@ -24,13 +23,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ProxyCost from '@/widgets/proxy-traps/ui/ProxyCost.astro';
@@ -66,46 +67,18 @@ import {
   угодно, записать чтение в журнал или передать его дальше вызовом `Reflect.get`. Если
   в handler’е нужной функции нет, операция уходит в `target` как обычно.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+  <Plain text={PLAIN_PROXY} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Ловушка и Reflect"
   lead={PROXY_INTRO_NOTE}
-  leadWidth={72}
 >
   Handler, который замечает каждую операцию, пишется в несколько строк. Имена ловушек
   совпадают с именами функций `Reflect`, поэтому handler собирается циклом: на каждое имя —
@@ -139,7 +112,6 @@ import {
   eyebrow="Раздел 2"
   title="Тринадцать ловушек"
   lead="Каждая ловушка отвечает одному внутреннему методу, а вызывает её не одна операция, а целое семейство — и часто не та, на которую думаешь."
-  leadWidth={72}
 >
   <Table
     head={['ловушка', 'внутренний метод', 'что её вызывает', 'почему']}
@@ -165,9 +137,8 @@ import {
   eyebrow="Раздел 3"
   title="Receiver и ответ set"
   lead="Две ошибки, которые делают почти все, кто пишет первый прокси: ловушка забывает, от чьего имени идёт чтение, и ловушка `set` забывает ответить."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RECEIVER} />
+  <Plain text={PLAIN_RECEIVER} />
 
   <CardGrid min={290} gap={16} align="start">
     <Card tone="err" title="Потерянный receiver" titleSize={16.5} pad={18} gap={11} size={15}>
@@ -187,7 +158,6 @@ import {
   eyebrow="Раздел 4"
   title="Инварианты"
   lead="Ловушка вольна ответить что угодно, но движок сверяет ответ с target и принимает не всякий."
-  leadWidth={72}
 >
   <DarkPanel eyebrow="Почему ловушка не может врать">
     <DarkText>
@@ -226,7 +196,6 @@ import {
   eyebrow="Раздел 5"
   title="Личность и слоты"
   lead="Прокси перехватывает внутренние методы — и только их. Ссылка на объект и его внутренние слоты к внутренним методам не относятся, поэтому здесь прокси ничего не может: ни перехватить, ни пропустить к цели."
-  leadWidth={72}
 >
   <CodeBlock code={IDENTITY_CODE} size={12} />
 
@@ -286,9 +255,8 @@ import {
   eyebrow="Раздел 6"
   title="Реактивность на прокси"
   lead="Реактивность — это «перезапусти код, когда изменится то, что он читал». Прокси даёт ровно две нужные вещи: узнать о каждом чтении и о каждой записи. Остальное — журнал, кто что читал."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REACTIVE} />
+  <Plain text={PLAIN_REACTIVE} />
 
   <CodeBlock code={REACTIVE_CODE} size={12} />
 
@@ -333,11 +301,10 @@ import {
   eyebrow="Раздел 7"
   title="Отзыв и мембрана"
   lead="Прокси задумывался не для реактивности, а для изоляции: дать чужому коду доступ к объекту — и уметь забрать его обратно."
-  leadWidth={72}
 >
   <CodeBlock code={MEMBRANE_CODE} size={12} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MEMBRANE} />
+  <Plain text={PLAIN_MEMBRANE} />
 
   <CardGrid min={280} gap={14} align="start">
     {MEMBRANE_FACTS.map((fact) => (
@@ -353,7 +320,6 @@ import {
   eyebrow="Раздел 8"
   title="Цена перехвата"
   lead="Каждое чтение через прокси — вызов функции вместо прямого доступа к полю. Движок не может «запомнить», где лежит свойство: между кодом и объектом стоит handler."
-  leadWidth={72}
 >
   <ProxyCost bars={PROXY_COST} caption={PROXY_COST_CAPTION} note={PROXY_COST_NOTE} />
 

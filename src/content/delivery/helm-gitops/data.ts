@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Один манифест на много окружений: Helm, Kustomize и GitOps».
@@ -1316,7 +1316,7 @@ export const INTRO_NOTE =
 export const PLAIN_TWO_WAYS =
   'Kustomize — калька поверх чертежа. Сам чертёж не трогают, а на кальке для каждого окружения рисуют только отличия: под калькой всегда виден чертёж. Helm — бланк с пропусками: «реплик: ___, домен: ___». Бланк один, заполненных экземпляров три, и предусмотреть в бланке можно что угодно, но читать тогда приходится бланк, а не чертёж.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'манифест',
     d: 'YAML-описание объекта Kubernetes: Deployment, Service, Ingress, ConfigMap. `kubectl apply -f` отправляет его в кластер, а тот приводит себя в соответствие.',
@@ -1370,7 +1370,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема собирает манифесты и доставляет их. Что происходит с манифестом в кластере, разобрано отдельно.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Смена шаблона пода запускает выкат',
     d: 'Deployment пересоздаёт поды, только когда меняется `spec.template`. На этом держится хеш в имени ConfigMap: он превращает смену настроек в смену шаблона пода.',
@@ -2253,7 +2253,7 @@ export const PITFALLS: Pitfall[] = [
 // Источники
 // ─────────────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Kubernetes: Update API Objects in Place Using kubectl patch',
     href: 'https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/',

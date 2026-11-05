@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { RouteScenario } from '@/widgets/ing-router/model/types';
 
 /**
@@ -50,7 +50,7 @@ export const INTRO_NOTE =
 export const PLAIN_ENTRY =
   'Кластер — бизнес-центр. У каждой фирмы внутри есть свой добавочный номер (сервис), но с улицы по добавочному не дозвониться. На входе сидит ресепшн — контроллер входа — с табличкой: «доставка для „Магазина“ — на третий этаж, всё с пометкой „бухгалтерия“ — на пятый». Ingress и HTTPRoute — это и есть табличка. Повесить табличку можно, даже если ресепшн пуст, — только читать её будет некому.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'контроллер входа',
     d: 'Прокси (nginx, Envoy, HAProxy, Traefik), запущенный в кластере как обычные поды, плюс программа, которая следит за объектами Ingress или Gateway API и перестраивает конфигурацию прокси. В сам Kubernetes не входит — его ставят отдельно.',
@@ -100,7 +100,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Вход стоит последним звеном цепочки: он выбирает сервис, а дальше работает то, что уже устроено в кластере.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Сервис — имя поверх списка адресов',
     d: 'Ingress и HTTPRoute ссылаются не на поды, а на сервис. Как сервис находит поды по меткам и почему опечатка в селекторе даёт пустой список без единой ошибки, здесь не повторяется.',
@@ -1342,7 +1342,7 @@ export const PITFALLS: Pitfall[] = [
 // Источники
 // ─────────────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Kubernetes: Ingress',
     href: 'https://kubernetes.io/docs/concepts/services-networking/ingress/',

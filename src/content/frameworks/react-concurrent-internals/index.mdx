@@ -3,7 +3,6 @@ title: "React изнутри: конкурентность и lanes"
 order: 5
 kicker: фреймворки изнутри
 lead: "Переход, который не мешает вводу, заглушка Suspense и отложенное значение — снаружи три разных обещания, а внутри один механизм: у каждого обновления есть полоса-бит, рендер берёт одну полосу за раз, и более срочная выбрасывает начатое дерево. Здесь этот механизм написан по шагам, на виртуальных часах, и тест сверяет его с React 19.3."
-leadWidth: 66
 summary: "Конкурентный React своими руками: полосы как битовые маски, планировщик с квантом, прерывание и перезапуск рендера, переходы как «пометить полосой», Suspense через брошенный промис и просрочка голодающих полос."
 verifiedOn: React 19.3 · Node 26.8
 nav:
@@ -22,11 +21,13 @@ nav:
 
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniLanes from '@/widgets/mini-lanes/ui/MiniLanes.vue';
@@ -102,46 +103,19 @@ import {
   variant="intro"
   eyebrow="Срочное и несрочное"
   lead="Поле поиска над списком из тысячи строк: если список перерисовывается одним куском, каждая следующая буква ждёт конца этой работы, и ввод залипает. В мини-рендерере [«React изнутри»](/frameworks/react-internals/) любое обновление бросает начатое и рендерит заново: скорость у всех одна. Настоящий React различает клик и загрузку списка — и почти всё, что называют «конкурентным режимом», следует из того, как он это различает: одного числа на корне и одной функции, которая выбирает из него бит."
-  leadWidth={70}
 >
-  <CardGrid min={240} gap={14}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={70}
->
-  <CardGrid min={260} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} min={260} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Полосы: приоритет — это бит"
   lead={S1_LEAD}
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LANES} />
+  <Plain text={PLAIN_LANES} />
 
   <Card title="Шаг 1 · полосы и `getNextLanes`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_LANES} />
@@ -183,9 +157,8 @@ import {
   eyebrow="Раздел 2"
   title="Планировщик: очередь по дедлайну и квант в 5 мс"
   lead={S2_LEAD}
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCHEDULER} />
+  <Plain text={PLAIN_SCHEDULER} />
 
   <Card title="Хост мини-версии" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={HOST_SHAPE} />
@@ -209,7 +182,6 @@ import {
   eyebrow="Раздел 3"
   title="Прерывание: срочное выбрасывает начатое"
   lead={S3_LEAD}
-  leadWidth={70}
 >
   <Card title="Шаг 3 · корень, заказ работы и рендер с корня" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_ROOT} />
@@ -232,7 +204,7 @@ import {
 
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESTART} />
+  <Plain text={PLAIN_RESTART} />
 
   <Card title="Клик посреди перехода — лог обоих рендереров" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={INTERRUPT_SHOWN} tone="ok" />
@@ -257,13 +229,12 @@ import {
   eyebrow="Раздел 4"
   title="Переходы: пометить полосой"
   lead={S4_LEAD}
-  leadWidth={70}
 >
   <Card title="Шаг 5 · `useState` с полосами" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_UPDATES} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REBASE} />
+  <Plain text={PLAIN_REBASE} />
 
   <Card title="Два обновления одного состояния в разных полосах" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={SCENARIO_REBASE} />
@@ -308,9 +279,8 @@ import {
   eyebrow="Раздел 5"
   title="Suspense: рендер, остановленный броском"
   lead={S5_LEAD}
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SUSPENSE} />
+  <Plain text={PLAIN_SUSPENSE} />
 
   <Card title="Шаг 7 · граница, бросок и пинг" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_SUSPENSE} />
@@ -330,7 +300,6 @@ import {
   eyebrow="Раздел 6"
   title="Голодание: у полосы есть срок"
   lead={S6_LEAD}
-  leadWidth={70}
 >
   <Card title="Шаг 8 · `markStarvedLanesAsExpired`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_EXPIRE} />
@@ -347,7 +316,6 @@ import {
   eyebrowTone="demo"
   title="Полосы, кванты и перезапуск по шагам"
   lead="Клик между двумя квантами перехода выбрасывает начатое дерево, а тот же ввод из таймера встаёт в очередь за переходом. Брошенный промис даёт заглушку на монтировании — но переход, наткнувшись на него, оставляет на экране прежнюю страницу и горящий `isPending`."
-  leadWidth={70}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEMO_NOTE} />
 
@@ -359,7 +327,6 @@ import {
   eyebrow="Раздел 8"
   title="Чего в мини-версии нет"
   lead="На сценариях темы мини-версия выдаёт то же, что React 19.3: тот же лог, ту же разметку, те же биты в `pendingLanes`. Расходится она там, где React оптимизирует сверх механизма, и два таких места видны прямо по выводу."
-  leadWidth={70}
 >
   <Table
     head={DIFF.head}
@@ -387,7 +354,6 @@ import {
   eyebrow="Раздел 10"
   title="Источники"
   lead="Спецификации у React нет — есть исходники. Ссылки ведут в файлы, где лежат настоящие версии функций с теми же именами, что и здесь."
-  leadWidth={70}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { PushMode } from '@/widgets/push-lab/model/types';
 
 /**
@@ -81,7 +81,7 @@ import type { PushMode } from '@/widgets/push-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'push-сервис',
     d: 'Сервер производителя браузера, к которому устройство держит одно постоянное соединение: у Chrome — FCM от Google, у Firefox — autopush от Mozilla, у Safari — сервис Apple. Ваш сервер отдаёт сообщение ему, а не устройству.',
@@ -118,7 +118,7 @@ export const PLAIN_PUSH =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Service Worker',
     d: 'Скрипт сайта, который живёт отдельно от вкладок: браузер будит его на событие и снова усыпляет. Сообщение push приходит именно ему — открытой страницы в этот момент может не быть вовсе.',
@@ -712,7 +712,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'RFC 8030 — Generic Event Delivery Using HTTP Push',
     href: 'https://www.rfc-editor.org/rfc/rfc8030',

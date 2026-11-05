@@ -3,7 +3,6 @@ title: "Прогрессивная доставка: сине-зелёный в�
 order: 9
 kicker: доставка
 lead: "Выкат всем сразу проверяет новую версию на всех пользователях одновременно. Прогрессивная доставка показывает её сначала немногим, сравнивает их числа со старой версией и расширяет круг, только если сравнение в её пользу. Главная трудность — статистика: **1% трафика на 5 минут** часто не даёт данных ни для «хуже», ни для «не хуже», а ноль ошибок на сотне запросов — ещё не ноль процентов."
-leadWidth: 68
 summary: "Чем плох выкат всем сразу; сине-зелёный выкат и цена двух копий; миграции «расширяй, потом сужай» и когда откат перестаёт быть бесплатным; канарейка — доли, липкость, хеш от id; анализ по интервалу Уилсона и p95 на малых выборках; автоматический откат в Argo Rollouts и Flagger; флаги функций, выключатель и флаги-долг; две версии бандла, кеш CDN и совместимость API."
 verifiedOn: "Назначение по хешу, интервалы, решение анализа, план выката и совместимость схемы — учебной моделью темы; её сверяет тест на таблицах случаев, на ста тысячах синтетических id и моделированием с сидом. Кластера, Argo Rollouts, Flagger и Prometheus не было: их поведение — по документации, сентябрь 2026, и помечено в тексте"
 nav:
@@ -23,12 +22,14 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PdCanary from '@/widgets/pd-canary/ui/PdCanary.vue';
@@ -111,45 +112,19 @@ import {
   BUNDLE_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE} leadWidth={72}>
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANARY} />
+<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
+  <Plain text={PLAIN_CANARY} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Чем плох выкат всем сразу"
   lead="Ошибку, которую пропустили тесты, находят пользователи — вопрос только в том, сколько их и как долго. Постепенный выкат уменьшает оба числа, но лишь если следующий шаг разрешает что-то умнее пробы готовности."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={ALL_AT_ONCE_WHY} />
@@ -169,7 +144,6 @@ import {
   eyebrow="Раздел 2"
   title="Сине-зелёный выкат: две копии и переключатель"
   lead="Новая версия поднимается целиком рядом со старой, проверяется и получает весь трафик разом. Откат — обратное переключение за секунды, пока старая копия жива. Не откатывается только одно: база данных, общая для обеих копий."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={BG_WHY} />
@@ -195,7 +169,7 @@ import {
 
   ### База данных: расширяй, потом сужай
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EXPAND} />
+  <Plain text={PLAIN_EXPAND} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={EXPAND_WHY} />
@@ -229,7 +203,6 @@ import {
   eyebrow="Раздел 3"
   title="Канарейка: доля трафика по шагам"
   lead="Новая версия получает малую долю, и доля растёт, пока числа не хуже базы. Делить можно запросы или людей — и для сайта это не одно и то же."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={CANARY_WHY} />
@@ -255,7 +228,7 @@ import {
 
   ### Хеш от id: кто внутри
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HASH} />
+  <Plain text={PLAIN_HASH} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={HASH_WHY} />
@@ -273,13 +246,12 @@ import {
   eyebrow="Раздел 4"
   title="Анализ канарейки: хуже, не хуже или рано судить"
   lead="Канарейку сравнивают с базой в то же время, по доле ошибок и по p95. Ответов три, а не два: когда данных мало, честный ответ — «ждать данных»."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={ANALYSIS_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTERVAL} />
+  <Plain text={PLAIN_INTERVAL} />
 
   <Card title="Как принимается решение" titleSize={17} pad={20} gap={13}>
     <NumberedList items={DECISION_STEPS} size={15.5} />
@@ -301,7 +273,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VERDICT} />
+  <Plain text={PLAIN_VERDICT} />
 
   <CodeBlock code={STATS_CODE} />
 
@@ -333,7 +305,6 @@ import {
   eyebrow="Раздел 5"
   title="Автоматический откат: Argo Rollouts и Flagger"
   lead="Контроллер выката двигает долю по плану, спрашивает метрики и откатывает, когда условие провалено. Само условие пишете вы, и в нём легко забыть про объём выборки."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={AUTO_WHY} />
@@ -399,13 +370,12 @@ import {
   eyebrow="Раздел 6"
   title="Флаги функций: выкатить и включить — разные события"
   lead="Код приезжает ко всем, функция включается части пользователей, а выключается одним щелчком, без выката. За это платят долгом: каждый забытый флаг удваивает число вариантов поведения."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={FLAGS_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLAG} />
+  <Plain text={PLAIN_FLAG} />
 
   <Table
     head={FLAG_KINDS.head}
@@ -434,7 +404,6 @@ import {
   eyebrowTone="demo"
   title="Канарейка по шагам"
   lead="Доля, сценарий и поток виртуальных пользователей. Кто в какой версии, накопленные числа и решение анализа считает модель из этой темы."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={DEMO_WHY} />
@@ -461,7 +430,6 @@ import {
   eyebrow="Раздел 8"
   title="Фронтенд: две версии бандла и совместимость API"
   lead="Во время выката у пользователей живут обе версии фронтенда, а открытые вкладки — ещё дольше. Статику выкатывают так, чтобы любой HTML находил свои файлы, а API меняют так, чтобы его понимали оба клиента."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={FRONT_WHY} />
@@ -484,7 +452,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FRONT} />
+  <Plain text={PLAIN_FRONT} />
 
   <Card title="Порядок выката статики" titleSize={17} pad={20} gap={13}>
     <NumberedList items={FRONT_STEPS} size={15.5} />
@@ -504,7 +472,6 @@ import {
   eyebrow="Раздел 9"
   title="Тонкие места"
   lead="Почти все они молчат: выкат прошёл зелёным, анализ ответил «продолжить», а пострадали те, кого он не видел."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>

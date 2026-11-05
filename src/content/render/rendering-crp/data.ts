@@ -1,7 +1,7 @@
 import type { ClsCase } from '@/widgets/cls-live/model/types';
 import type { CrpCase, CrpLane } from '@/widgets/crp-timeline/model/types';
 import type { InpMode } from '@/widgets/inp-breakdown/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { SelfCheckItem } from '@/widgets/self-check/model/types';
 
 /**
@@ -1077,7 +1077,7 @@ export const SELF_CHECK: SelfCheckItem[] = [
  * в таблицах и в разложении. Для читателя, пришедшего за «почему у меня красный LCP»,
  * это стена незнакомых букв в первом же экране.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'FCP',
     d: 'First Contentful Paint — момент, когда на экране появился **хоть какой-то** контент страницы. Не путать с LCP: FCP отвечает «началось ли вообще», LCP — «появилось ли главное».',
@@ -1129,7 +1129,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Три вещи тема считает известными. Без второй из них — что микрозадача поток не отпускает — замер INP выглядит заклинанием про «отдать поток».';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Из каких фаз состоит кадр',
     d: 'Задача, микрозадачи, `rAF`, style, layout, paint, commit — и граница, после которой работа уходит с главного потока. Здесь это используется постоянно: третье слагаемое INP — буквально style, layout и paint после вашего обработчика.',
@@ -1155,7 +1155,7 @@ export const PREREQ = [
 
 // ---- Раздел 8 · источники ----
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Largest Contentful Paint API',
     href: 'https://w3c.github.io/largest-contentful-paint/',

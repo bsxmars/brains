@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Scenario, Step } from '@/widgets/query-cache-lab/model/types';
 
 /**
@@ -45,7 +45,7 @@ import type { Scenario, Step } from '@/widgets/query-cache-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'серверное состояние',
     d: 'Данные, которыми владеет сервер: список заказов, профиль, комментарии. У браузера — только копия, снятая в какой-то момент. Её меняют и другие люди, поэтому она стареет сама.',
@@ -90,7 +90,7 @@ export const PLAIN_SERVER_STATE =
 export const PREREQ_NOTE =
   'Кеш данных — это стор с особыми правилами: он сам ходит в сеть и решает, когда копия устарела. Поэтому тема опирается на устройство стора, на промисы и на то, как HTTP-кеш обходится с устаревшими ответами.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Стор: состояние и подписчики',
     d: 'Объект вне компонентов, который держит данные и сообщает подписчикам об изменении. Кеш запросов устроен так же, только записей много и у каждой свои подписчики.',
@@ -887,7 +887,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'TanStack Query — Important Defaults',
     href: 'https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults',

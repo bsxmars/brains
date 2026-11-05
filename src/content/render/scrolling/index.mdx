@@ -5,7 +5,6 @@ headingWidth: 24
 order: 21
 kicker: браузер и рендеринг
 lead: "Липкая шапка вдруг перестаёт липнуть, лента чата прыгает при подгрузке истории, а «назад» открывает каталог с самого верха. У всех трёх одна природа: прокрутку ведёт браузер по своим правилам, и у каждого правила есть точная граница. Где она проходит — и как браузер выбирает, за какую строку держаться, когда сверху меняется содержимое."
-leadWidth: 66
 summary: "Кто прокручивает и что заставляет ждать JS, `touch-action`; `position: sticky` — сдвиг, ближайший контейнер прокрутки, почему `overflow: hidden` и растянутый элемент не липнут; якорь прокрутки — выбор узла, исключения, подавление поправки, `overflow-anchor`; `overscroll-behavior` и цепочка; scroll snap, `scrollsnapchange`, `scrollend`; `scroll-padding` и `scroll-margin` под липкой шапкой; `scrollbar-gutter`; `history.scrollRestoration`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: позиции, сдвиги прокрутки, события и возврат на место сняты стендом и снимаются заново в tests/unit/scrolling.test.ts; функция темы stickyOffset сверена с getBoundingClientRect на 150 случайных раскладках, selectAnchor — со сдвигом прокрутки после вставки перед каждым узлом на случайных деревьях"
 nav:
@@ -32,6 +31,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ScrollLab from '@/widgets/scroll-lab/ui/ScrollLab.vue';
@@ -104,46 +106,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCROLL} />
+  <Plain text={PLAIN_SCROLL} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Кто прокручивает страницу"
   lead="Прокрутка — сдвиг уже нарисованного слоя, и делает его поток композитора, поэтому страница едет, даже когда главный поток занят (подробно — [«Кадр браузера», раздел «Что дешевле двигать»](/render/render-pipeline/#s4)). Отнять прокрутку у композитора может только тот, кто вправе отменить жест."
-  leadWidth={72}
 >
   <Md text={WHO_NOTE} />
 
@@ -176,9 +150,8 @@ import {
   eyebrow="Раздел 2"
   title="Липкая шапка: где она остановится"
   lead="`position: sticky` — элемент, который стоит в потоке как обычный, а при прокрутке получает сдвиг. Сдвиг считается от ближайшего контейнера прокрутки и ограничен родителем. Этих двух правил достаточно, чтобы объяснить и то, как шапка липнет, и почему она иногда не липнет вовсе."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STICKY} />
+  <Plain text={PLAIN_STICKY} />
 
   <Card title="Пример на раздел: два дня ленты" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={STICKY_HTML} size={11.5} lh={1.65} pad="14px 16px" />
@@ -237,9 +210,8 @@ import {
   eyebrowTone="demo"
   title="Якорь: почему лента не прыгает"
   lead="Над тем, что вы читаете, выросло содержимое — догрузилась история, раскрылся блок, приехала картинка. Без поправки всё видимое уехало бы вниз. Браузер выбирает узел-якорь, смотрит, на сколько тот сдвинулся, и сдвигает прокрутку на столько же. Важно, какой узел он выберет."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ANCHOR} />
+  <Plain text={PLAIN_ANCHOR} />
 
   <Card title="selectAnchor" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ANCHOR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -294,9 +266,8 @@ import {
   eyebrow="Раздел 4"
   title="Цепочка прокрутки и упор"
   lead="Вложенный контейнер дошёл до края — и следующий жест прокручивает страницу под ним. Так задумано: иначе из прокрученного до конца блока нельзя было бы уйти. Но для модального окна, карты или чата это лишнее, и решение — одно свойство CSS."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHAIN} />
+  <Plain text={PLAIN_CHAIN} />
 
   Вложенный блок прокручен до конца, жест вниз на 200px — колесом и пальцем:
 
@@ -324,9 +295,8 @@ import {
   eyebrow="Раздел 5"
   title="Точки привязки и конец прокрутки"
   lead="Scroll snap — правило, по которому браузер сам доводит прокрутку до ближайшей точки: начала слайда, карточки, страницы. Доводка — тоже прокрутка, и о её конце сообщает `scrollend`, а о смене слайда — `scrollsnapchange`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAP} />
+  <Plain text={PLAIN_SNAP} />
 
   <Card title="Карусель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SNAP_HTML} size={11.5} lh={1.65} pad="14px 16px" />
@@ -366,7 +336,6 @@ import {
   eyebrow="Раздел 6"
   title="Цель под липкой шапкой"
   lead="`scrollIntoView()` и переход по ссылке `#раздел` ставят цель к верху окна. Если там липкая шапка, цель оказывается под ней. Браузеру нужно сказать, что верхняя полоса окна занята, — и для этого есть два свойства с разными хозяевами."
-  leadWidth={72}
 >
   <Card title="Шапка и цель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={INTO_VIEW_HTML} size={11.5} lh={1.65} pad="14px 16px" />
@@ -391,9 +360,8 @@ import {
   eyebrow="Раздел 7"
   title="Полоса прокрутки и сдвиг вёрстки"
   lead="Классическая полоса прокрутки занимает место внутри контейнера. Пока содержимое помещается, полосы нет; стоит ему вырасти — она появляется и отнимает ширину у содержимого. `scrollbar-gutter` резервирует это место заранее."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GUTTER} />
+  <Plain text={PLAIN_GUTTER} />
 
   <Table
     head={['контейнер', '`clientWidth`: короткое', '`clientWidth`: длинное']}
@@ -418,7 +386,6 @@ import {
   eyebrow="Раздел 8"
   title="Возврат на место"
   lead="Перешли по ссылке, нажали «назад» — и страница открылась там, где вы были. Это `history.scrollRestoration` в режиме `auto`: браузер запомнил позицию в записи истории и ставит её, пока страница грузится заново. Ключевое слово — «пока»."
-  leadWidth={72}
 >
   <Table
     head={['страница A', 'прокрутка после «назад»']}

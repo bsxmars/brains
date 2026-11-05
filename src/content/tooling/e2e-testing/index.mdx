@@ -5,7 +5,6 @@ headingWidth: 24
 order: 12
 kicker: сборка и инструменты
 lead: "`await page.getByRole('button').click()` — одна строка, а за ней процесс браузера, протокол отладки, поиск элемента заново на каждом действии и до семи проверок перед кликом с паузами 0, 20, 100, 100, 500 мс. Как Playwright дожидается кнопки, почему веб-ассерт и обычный `expect` ведут себя по-разному и откуда берутся тесты, которые то проходят, то нет."
-leadWidth: 66
 summary: "Процесс браузера и CDP, контекст как изолированный профиль; локатор как запрос против `ElementHandle`; `getByRole` и строгость; авто-ожидание: прикреплён, стабилен, видим, включён, не перекрыт — и лестница пауз; `force`, `dispatchEvent` и `el.click()` мимо проверок; веб-ассерты с повтором; гонка с сетью, общий стейт, повторы и статус `flaky`; что лежит в `trace.zip`."
 verifiedOn: "@playwright/test 1.63.0, Chromium 153.0.8010.12 (headless shell), Node 24.11.0, октябрь 2026: журналы действий (DEBUG=pw:api) на пяти фикстурах по три прогона, сообщения CDP (DEBUG=pw:protocol), спецификации темы и трасса сняты стендом на своём node:http; учебная autoWait сверена с журналами Playwright дословно, а её паузы — с исходником playwright-core в tests/unit/e2e-testing.test.ts"
 nav:
@@ -32,6 +31,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AutoWaitLab from '@/widgets/autowait-lab/ui/AutoWaitLab.vue';
@@ -102,46 +104,18 @@ import {
   процессе браузера, со своими таймерами, сетью и кадрами. Каждая строка `await page…` —
   это сообщение через границу процессов и ответ на него. Пока ответ идёт, страница не стоит.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_E2E} />
+  <Plain text={PLAIN_E2E} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Кто кем управляет: процессы, протокол, контексты"
   lead="Playwright запускает браузер как дочерний процесс и говорит с ним JSON-сообщениями через трубу. Для Chromium это протокол DevTools — тот же, через который работает панель разработчика."
-  leadWidth={72}
 >
   <Card title="Цепочка процессов во время теста" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={720} chips={PROC_CHIPS} />
@@ -151,7 +125,7 @@ import {
     </CardNote>
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CDP} />
+  <Plain text={PLAIN_CDP} />
 
   <Table
     head={['вызов', 'команд', 'событий', 'что ушло в браузер']}
@@ -184,9 +158,8 @@ import {
   eyebrow="Раздел 2"
   title="Локатор — это запрос, а не элемент"
   lead="`page.getByRole('button', { name: 'Купить' })` ничего не ищет в момент вызова. Это описание, которое Playwright выполняет заново перед каждым действием и каждой проверкой. Поэтому фреймворк может сколько угодно раз заменить узел — локатор найдёт новый."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOCATOR} />
+  <Plain text={PLAIN_LOCATOR} />
 
   <Card title="Тот же узел против того же описания" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LOCATOR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -235,9 +208,8 @@ import {
   eyebrowTone="demo"
   title="Авто-ожидание: что Playwright проверяет перед кликом"
   lead="Перед кликом Playwright убеждается, что настоящая мышь в этот момент попала бы в кнопку и кнопка бы сработала. Каждая проверка, которая не прошла, — строка в журнале и пауза, после которой всё начинается сначала. Паузы растут ступенями и упираются в 500 мс."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIONABILITY} />
+  <Plain text={PLAIN_ACTIONABILITY} />
 
   <CardGrid min={240} gap={14} align="start">
     {ACT_STEPS.map((step) => (
@@ -292,7 +264,6 @@ import {
   eyebrow="Раздел 4"
   title="Мимо проверок: force, dispatchEvent, el.click()"
   lead="У каждой проверки есть обход, и каждый обход проверяет уже не то, что сделал бы человек. Кнопка под оверлеем, четыре способа её «нажать»."
-  leadWidth={72}
 >
   <Table
     head={['вызов', 'что получила страница', 'isTrusted']}
@@ -311,9 +282,8 @@ import {
   eyebrow="Раздел 5"
   title="Веб-ассерты: проверка, которая ждёт"
   lead="Авто-ожидание есть у действий. У проверок его даёт только `expect`, которому передан локатор: он перечитывает страницу по той же лестнице пауз, пока условие не выполнится или не выйдет время."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ASSERT} />
+  <Plain text={PLAIN_ASSERT} />
 
   <Card title="Три теста на одной странице" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ASSERT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -350,7 +320,6 @@ import {
   eyebrow="Раздел 6"
   title="Почему тесты мигают"
   lead="Мигание — это гонка: тест и страница делают что-то одновременно, и порядок зависит от скорости сервера, загрузки машины, соседних тестов. Тест проходит, пока его допущение о порядке случайно верно."
-  leadWidth={72}
 >
   <Card title="Сон против ожидания" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RACE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -397,7 +366,6 @@ import {
   eyebrow="Раздел 7"
   title="Трасса: что лежит в trace.zip"
   lead="Трасса — запись прогона, из которой просмотрщик собирает упавший тест заново: каждое действие с журналом, DOM до и после, сеть и кадры экрана. Это ZIP с несколькими файлами JSON Lines — построчными событиями."
-  leadWidth={72}
 >
   <Table
     head={['файл', 'что внутри']}

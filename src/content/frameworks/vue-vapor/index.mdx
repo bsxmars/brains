@@ -3,7 +3,6 @@ title: "Vapor Mode во Vue"
 order: 14
 kicker: фреймворки изнутри
 lead: "Тот же однофайловый компонент, но без виртуального DOM: компилятор выдаёт строку HTML для клонирования и эффекты, которые пишут прямо в узлы. DOM-операций от этого почти не убавляется — убавляется работа JS до них: ни вызова render, ни дерева VNode на каждое изменение."
-leadWidth: 66
 summary: "Что выдаёт компилятор Vapor вместо render-функции, как устроены `template`, `renderEffect`, `createFor` и `createIf`, сколько работы уходит на одно изменение у VDOM и у Vapor, как включить и смешать режимы и чего в релиз-кандидате 3.6 ещё нет."
 verifiedOn: Vue 3.6.0-rc.9 и 3.5.42 · Node 26.8.2 · happy-dom 20.14.5
 nav:
@@ -23,10 +22,12 @@ nav:
 import Md from '@/shared/ui/Md.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VaporLab from '@/widgets/vapor-lab/ui/VaporLab.vue';
@@ -50,49 +51,23 @@ import {
   variant="intro"
   eyebrow="Идея"
   lead={INTRO_NOTE}
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+  <Plain text={PLAIN_INTRO} />
 
-  <CardGrid min={240} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  leadWidth={72}
->
-  <CardGrid min={270} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Один компонент — два вывода"
   lead="Компонент `Cart` — заголовок, счётчик с классом, список с ключами, условный абзац и кнопка. Отличается от обычного одним словом — `vapor` в теге `<script setup>`."
-  leadWidth={72}
 >
   <CodeBlock code={CART_SFC} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEMPLATE} />
+  <Plain text={PLAIN_TEMPLATE} />
 
   ### Обычный вывод: render-функция
 
@@ -118,7 +93,6 @@ import {
   eyebrow="Раздел 2"
   title="Рантайм: `template`, `renderEffect`, `setText`"
   lead="Рантайм Vapor — набор маленьких функций, которые вызывает сгенерированный код. Половина работает только при создании компонента, другая половина — при каждом изменении, и у этой половины есть память: она пишет в DOM, только если значение отличается от записанного."
-  leadWidth={72}
 >
   <Table
     head={RUNTIME_HEAD}
@@ -130,7 +104,7 @@ import {
 
   ### Эффект на блок, память на узле
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MEMO} />
+  <Plain text={PLAIN_MEMO} />
 
   <Card title="`setText` в `runtime-vapor` 3.6.0-rc.9, без ветки гидратации" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SETTEXT_SOURCE} />
@@ -144,7 +118,6 @@ import {
   eyebrow="Раздел 3"
   title="Списки и условия: `createFor` и `createIf`"
   lead="`v-for` и `v-if` не помещаются в один эффект с остальными привязками: они создают и снимают целые куски DOM. У каждого — свой эффект, который читает только список или только условие, и свои блоки внутри."
-  leadWidth={72}
 >
   <CardGrid min={290} gap={16} align="start">
     <Card title="`createFor`" titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={FOR_NOTE} />
@@ -176,7 +149,6 @@ import {
   eyebrow="Раздел 4"
   title="Мини-vapor: компилятор и рантайм"
   lead={MINI_LEAD}
-  leadWidth={72}
 >
   ### Ячейки, эффекты, блоки
 
@@ -192,7 +164,7 @@ import {
 
   ### Компилятор
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPILE} />
+  <Plain text={PLAIN_COMPILE} />
 
   <CodeBlock code={STEP_COMPILER} />
 
@@ -218,9 +190,8 @@ import {
   eyebrow="Раздел 5"
   title="Одна запись: сколько работы у VDOM и у Vapor"
   lead="Десять действий подряд над только что смонтированным `Cart`. Для VDOM считаются вызовы render-функции и созданные VNode, для Vapor — прогоны эффектов, для обоих — DOM-операции одним и тем же щупом. Это счёт, а не время: числа не зависят от машины."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MEASURE} />
+  <Plain text={PLAIN_MEASURE} />
 
   ### `count++` по шагам
 
@@ -242,7 +213,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INC} />
+  <Plain text={PLAIN_INC} />
 
   ### Все десять действий
 
@@ -266,7 +237,6 @@ import {
   eyebrow="Раздел 6"
   title="Как включить и смешать"
   lead="Режим выбирается на уровне компонента, приложение — на уровне точки входа. Смешивать можно в обе стороны, но только через плагин."
-  leadWidth={72}
 >
   <CodeBlock code={ENABLE_CODE} />
 
@@ -294,7 +264,6 @@ import {
   eyebrow="Раздел 7"
   title="Чего нет в rc.9"
   lead="Vapor-компонент пишется только на Composition API, и часть привычных точек входа в экземпляр компонента в нём пуста."
-  leadWidth={72}
 >
   <CardGrid min={270} gap={14} align="start">
     {LIMITS.map((item) => (
@@ -310,7 +279,6 @@ import {
   eyebrow="Раздел 8"
   title="Вес рантайма"
   lead="Размер считается байтами файлов, а не временем загрузки. Готовые файлы `dist` показывают, сколько весит всё сразу; сборка настоящего приложения — сколько остаётся после отбрасывания неиспользуемого."
-  leadWidth={72}
 >
   <Table
     head={WEIGHT_HEAD}
@@ -348,7 +316,6 @@ import {
   eyebrow="Раздел 10"
   title="Источники"
   lead="Исходники `runtime-vapor` и `compiler-vapor` в репозитории Vue; здесь они читались по собранным файлам 3.6.0-rc.9 из `node_modules`."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

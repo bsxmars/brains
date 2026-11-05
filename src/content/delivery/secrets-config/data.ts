@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { EnvFiles, ScanSample } from '@/widgets/env-lab/model/types';
 
 /**
@@ -57,7 +57,7 @@ import type { EnvFiles, ScanSample } from '@/widgets/env-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'конфигурация',
     d: 'Всё, что отличается между окружениями при одном и том же коде: адрес API, уровень логов, включённые функции. Код один, конфигурация у разработки, стенда и продакшена своя.',
@@ -98,7 +98,7 @@ export const PLAIN_SECRET =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи. Три разобраны на сайте, четвёртая объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Переменные окружения',
     d: 'Каждый процесс получает при запуске набор строк `ИМЯ=значение`. Оболочка передаёт свои переменные каждой команде: `API_URL=… node server.js` запускает сервер с ещё одной переменной. Из Node они читаются как `process.env.API_URL`.',
@@ -864,7 +864,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'The Twelve-Factor App — III. Config',
     href: 'https://12factor.net/config',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { SelfCheckItem } from '@/widgets/self-check/model/types';
 
 /**
@@ -671,7 +671,7 @@ export const SELF_CHECK: SelfCheckItem[] = [
  * Четвёртый добавлен по находке вычитки: **полосы** держат весь разбор bailout (`childLanes`
  * в разделе 2, `SyncLane` в разделе 4), а определения у них не было нигде на сайте.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'элемент',
     d: 'Обычный объект `{ type, key, props }`, который получается из JSX. После создания его не меняют. Это не DOM-узел и не экземпляр компонента, а описание: «здесь должен быть такой-то компонент с такими-то пропсами». Создать его дёшево — это просто новый объект.',
@@ -699,7 +699,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема про внутренности React, но опираются они на браузер. Два факта о платформе объясняют здесь больше, чем документация библиотеки. Без первого непонятен батчинг, без второго — почему `useEffect` даёт скачок контента, а `useLayoutEffect` нет.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что микрозадача выполняется до отрисовки',
     d: 'На этом стоит весь батчинг: `setState` не рендерит сразу, а планирует микрозадачу. Она гарантированно выполнится до кадра, и промежуточное состояние на экран не попадёт. Другого механизма с такой парой свойств в платформе нет.',
@@ -775,7 +775,7 @@ export const VUE_BATCH_NOTE =
 
 // ---- Раздел 7 · источники ----
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'React · Render and Commit',
     href: 'https://react.dev/learn/render-and-commit',

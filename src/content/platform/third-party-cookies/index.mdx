@@ -5,7 +5,6 @@ headingWidth: 26
 order: 9
 kicker: сеть и безопасность
 lead: "Виджет чата, платёжная форма и кнопка входа живут во фрейме чужого сайта — и там их кука сторонняя. Firefox и WebKit такую куку не отдают, Chromium отдаёт, пока пользователь не запретил. Что работает везде: разделённая кука `Partitioned`, хранилище, разделённое по сайту верхнего уровня, доступ по кнопке через Storage Access API и сессия, переданная сайтом-хозяином."
-leadWidth: 66
 summary: "Что такое сторонняя кука и что с ней делают Chromium, Firefox и WebKit; разделённые куки CHIPS и ключ раздела; разделение localStorage, IndexedDB, Cache Storage и BroadcastChannel; Storage Access API и что он отвечает без жеста; Related Website Sets и FedCM; как строить встраиваемый виджет — с таблицей из 27 случаев, снятой в трёх движках, и калькулятором, который её повторяет."
 verifiedOn: "Chromium 153.0.8010.12 (с разрешёнными и с ограниченными сторонними куками; разделение хранилища возвращено — Playwright его выключает), Firefox 155.0 с cookieBehavior=5 и CHIPS, WebKit 26.6 (сборка Playwright под macOS, не Safari); Playwright 1.63 против своего https-сервера на Node 26.8.2, сайты top.test, top2.test, shop.top.test, blog.top.test, embed.test, api.embed.test и www.embed.test, сентябрь 2026. Без таймерных замеров. Related Website Sets, FedCM, поведение Safari и инкогнито Chrome — по документации"
 nav:
@@ -32,6 +31,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import TpcCookieVerdict from '@/widgets/tpc-cookie-verdict/ui/TpcCookieVerdict.vue';
 import {
@@ -91,44 +93,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THIRD_PARTY} />
+  <Plain text={PLAIN_THIRD_PARTY} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Сторонняя кука и что с ней делают браузеры"
   lead="Решение принимается дважды: сначала `SameSite` — пустить ли куку в запрос с чужого сайта, потом политика сторонних кук — пустить ли её во встроенный контекст вообще. Второй фильтр у движков разный, и отсекает он и `SameSite=None`."
-  leadWidth={72}
 >
   <Card title="Кто здесь сторонний" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={560} chips={SETUP_CHIPS} />
@@ -156,7 +132,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_FILTERS} />
+  <Plain text={PLAIN_TWO_FILTERS} />
 
   ### Что делают движки
 
@@ -178,9 +154,8 @@ import {
   eyebrow="Раздел 2"
   title="CHIPS: кука со своим разделом"
   lead="Атрибут `Partitioned` делает ровно то, чего хотят браузеры: кука встраиваемого сайта остаётся, но под каждым сайтом верхнего уровня — своя. Слежки через неё нет, а чат на сайте магазина помнит открытый разговор."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PARTITION} />
+  <Plain text={PLAIN_PARTITION} />
 
   <Card title="Как поставить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={CHIPS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
@@ -222,7 +197,6 @@ import {
   eyebrow="Раздел 3 · демо"
   title="Уйдёт ли кука"
   lead="Решение складывается из пяти признаков куки и четырёх признаков запроса. Движки расходятся ровно в трёх местах: что значит отсутствие `SameSite`, принимается ли `None` без `Secure` и что происходит с неразделённой кукой во фрейме чужого сайта."
-  leadWidth={72}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={VERDICT_NOTE} />
 
@@ -244,7 +218,6 @@ import {
   eyebrow="Раздел 4"
   title="Разделённое хранилище"
   lead="Если закрыть только куки, та же метка переедет в `localStorage` фрейма. Поэтому хранилище встроенного контекста тоже разделено по сайту верхнего уровня — и без всяких атрибутов: сайт не выбирает, браузер делает это сам."
-  leadWidth={72}
 >
   <Table
     head={['что', 'Chromium 153', 'Firefox 155 (TCP)', 'WebKit 26.6', 'контроль: снова под `top.test`']}
@@ -275,9 +248,8 @@ import {
   eyebrow="Раздел 5"
   title="Storage Access API"
   lead="Когда встроенному коду нужна именно общая кука — пользователь уже вошёл на `embed.test` и хочет того же входа во фрейме, — фрейм может попросить доступ. Просьба проходит только в ответ на клик, а решает её браузер."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SAA} />
+  <Plain text={PLAIN_SAA} />
 
   <CardGrid min={320} gap={16} align="start">
     <Card title="Фрейм чата просит доступ" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -312,7 +284,7 @@ import {
     <NumberedList items={SAA_TIMELINE} size={15.5} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SAA_TIMELINE} />
+  <Plain text={PLAIN_SAA_TIMELINE} />
 
   <CardGrid min={280} gap={14} align="start">
     {SAA_RULES.map((rule) => (
@@ -342,9 +314,8 @@ import {
   eyebrow="Раздел 6"
   title="Встраиваемый виджет без сторонних кук"
   lead="Почти всё, для чего виджету была нужна общая кука, решается без неё: состояние на одном сайте — разделённой кукой, вход — сессией, которую передаёт сайт-хозяин. Общая кука остаётся нужна только там, где связь между сайтами — сама суть функции."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HANDOFF} />
+  <Plain text={PLAIN_HANDOFF} />
 
   <CardGrid min={290} gap={14} align="start">
     {WIDGET_CASES.map((item) => (

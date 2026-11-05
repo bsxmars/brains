@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { MfPreset, MfState } from '@/widgets/mf-share-scope/model/types';
 
 /**
@@ -49,7 +49,7 @@ import type { MfPreset, MfState } from '@/widgets/mf-share-scope/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'микрофронтенд',
     d: 'Часть интерфейса, которую делает, собирает и выкатывает отдельная команда: каталог, корзина, профиль. На странице части встречаются, а в репозитории и в конвейере — нет.',
@@ -83,7 +83,7 @@ export const GLOSSARY = [
 export const PLAIN_FEDERATION =
   'Представьте фудкорт. Каждое кафе готовит своё и открывается, когда хочет, а зал, столы и электричество общие. Module Federation — договор о зале: где стоит чей прилавок и **чья** плита работает, если плита есть у всех. Самое трудное здесь не расставить прилавки, а не включить пять плит в одну розетку.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Модуль исполняется один раз на адрес',
     d: 'Браузер кладёт модуль в module map по его URL: второй `import` того же адреса вернёт уже исполненный экземпляр. Разные адреса — разные экземпляры, даже если текст один и тот же. На этом держится вся история про «две копии».',
@@ -912,7 +912,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'webpack — Module Federation',
     href: 'https://webpack.js.org/concepts/module-federation/',

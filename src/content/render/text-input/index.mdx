@@ -5,7 +5,6 @@ headingWidth: 24
 order: 17
 kicker: браузер и рендеринг
 lead: "Человек нажал клавишу — поле получило пять событий, и только одно из них позволяет не пустить букву в поле. Японское слово набирается так, что `preventDefault()` перестаёт работать. Автозаполнение меняет поле без единого нажатия, а `el.value = …` — без единого события. Здесь — что браузер делает с полем ввода сам, до всяких фреймворков."
-leadWidth: 66
 summary: "Порядок `keydown` → `keypress` → `beforeinput` → `input` → `keyup`, `inputType` и что отменяемо; `key` против `code` на русской раскладке, устаревшие `keyCode` и `keypress`; IME: `insertCompositionText`, неотменяемый `beforeinput`, Enter с `isComposing` и код 229; вставка и `clipboardData`, HTML в `contenteditable`; `el.value` без событий и без истории, `setRangeText`; автозаполнение — токены `autocomplete`, события без нажатий и `:autofill`; `contenteditable`, `execCommand` и `beforeinput`. Учебная модель поля сверена с журналами Chromium."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63: headless shell и полный Chromium для автозаполнения), Node 24.11.0, macOS, октябрь 2026: журналы событий, вставка, история правок, contenteditable и автозаполнение сняты в Chromium и снимаются заново tests/unit/text-input.test.ts; модель simulateField сверена с журналами на всех сценариях. Раскладка и IME имитированы командами CDP; keyCode 229, Safari, менеджер паролей и one-time-code — по документации"
 nav:
@@ -32,6 +31,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import InputLab from '@/widgets/input-lab/ui/InputLab.vue';
@@ -101,46 +103,18 @@ import {
   что получилось. Отличить символ от вставки, недописанное японское слово от готового
   и автозаполнение от набора можно только по этой переписке.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INPUT} />
+  <Plain text={PLAIN_INPUT} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Одно нажатие — пять событий"
   lead="Человек нажал «a» в пустом поле. Chromium 153 прислал полю пять событий, и значение поменялось ровно между третьим и четвёртым."
-  leadWidth={72}
 >
   <Table
     head={['событие', 'что происходит', '`value` в этот момент', 'отменяемое']}
@@ -173,9 +147,8 @@ import {
   eyebrow="Раздел 2"
   title="Что можно отменить"
   lead="`preventDefault()` останавливает правку, только пока она не сделана. Каждое отменяемое событие до `input` отрезает всё, что идёт после него, — а `keyup` приходит в любом случае."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANCEL} />
+  <Plain text={PLAIN_CANCEL} />
 
   <Table
     head={['`preventDefault()` в', 'что пропадает']}
@@ -225,9 +198,8 @@ import {
   eyebrow="Раздел 3"
   title="`key`, `code` и раскладка"
   lead="Одна и та же клавиша на английской и русской раскладке. Что напечатано, говорит `key`; где клавиша, говорит `code`. Старые поля `keyCode` и `charCode` отвечают на третий вопрос — и отвечают по-разному в `keydown` и `keypress`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEY} />
+  <Plain text={PLAIN_KEY} />
 
   <Table
     head={['поле', 'английская: «a»', 'русская: «ф»', 'что это']}
@@ -254,9 +226,8 @@ import {
   eyebrow="Раздел 4"
   title="IME: слово, которое ещё набирается"
   lead="Японец набирает «かん» и выбирает в подсказке «漢». Пока он выбирает, поле получает обычные `beforeinput` и `input` — но правила для них другие: правка заменяет слово целиком и не отменяется."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IME} />
+  <Plain text={PLAIN_IME} />
 
   Поле `ab`, каретка в конце. Три шага набора, Enter посреди набора и выбор слова:
 
@@ -291,9 +262,8 @@ import {
   eyebrow="Раздел 5"
   title="Вставка и буфер обмена"
   lead="Перед вставкой приходит событие `paste` с содержимым буфера в `clipboardData`. В буфере обычно несколько видов одного и того же: текст, HTML, иногда картинка. Что из них возьмёт браузер, зависит от поля."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLIPBOARD} />
+  <Plain text={PLAIN_CLIPBOARD} />
 
   В буфере — `text/plain` «жирный» и `text/html` с тем же словом, стилем, картинкой
   с обработчиком `onerror` и тегом `<script>`. Этот буфер вставили в разные поля:
@@ -320,9 +290,8 @@ import {
   eyebrow="Раздел 6"
   title="Запись из кода и каретка"
   lead="Код может поменять поле тремя способами: присвоить `value`, вызвать `setRangeText` или `document.execCommand`. Для браузера это три разные вещи — по событиям, по каретке и по истории Ctrl+Z."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VALUE} />
+  <Plain text={PLAIN_VALUE} />
 
   <Md text={PROGRAM_START} />
 
@@ -364,7 +333,6 @@ import {
   eyebrow="Раздел 7"
   title="Автозаполнение"
   lead="Браузер помнит имя, адрес, карту и пароли и сам вписывает их в форму. Какое поле чем заполнить, он узнаёт из атрибута `autocomplete` — или угадывает. А код страницы узнаёт о заполнении из событий, которые на набор похожи только названием."
-  leadWidth={72}
 >
   <Table
     head={['`autocomplete`', 'что в поле']}
@@ -378,7 +346,7 @@ import {
 
   ### Что видит страница
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AUTOFILL} />
+  <Plain text={PLAIN_AUTOFILL} />
 
   Форма из трёх полей — `name`, `email`, `address-level2`. Человек выбрал сохранённый
   адрес в подсказке под первым полем. Каждое из трёх полей получило шесть событий:
@@ -408,7 +376,6 @@ import {
   eyebrow="Раздел 8"
   title="contenteditable: `beforeinput` вместо `execCommand`"
   lead="В `<input>` правка меняет строку. В `contenteditable` — дерево HTML: абзацы, переносы, теги жирного. Описывает правки тот же `beforeinput`, и отменить можно любую."
-  leadWidth={72}
 >
   <Table
     head={['действие', '`inputType`', 'HTML после']}

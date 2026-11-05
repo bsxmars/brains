@@ -1,5 +1,5 @@
 import type { PipeOptions } from '@/widgets/backpressure-pipe/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { SseCase } from '@/widgets/sse-split/model/types';
 
 /**
@@ -1064,7 +1064,7 @@ export const MEASURED: { k: string; v: string; where: string }[] = [
  * Осталось то, что тема не вмещает: `node:stream` целиком — отдельная тема.
  */
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'WHATWG Streams Standard',
     href: 'https://streams.spec.whatwg.org/',
@@ -1106,7 +1106,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
  * `highWaterMark`), и они выглядят самоочевидными. Самоочевидны они ровно до первого вопроса
  * «почему источник перестал вызываться».
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'чанк',
     d: 'Кусок данных, который проходит через стрим за один раз. Это любое JS-значение, **не обязательно байты**. У `res.body` чанки — массивы байт произвольной длины, после `TextDecoderStream` — строки, после разборщика — объекты. Разные звенья цепочки работают с разными типами, и это нормально.',
@@ -1150,7 +1150,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Очередь, порог и обратное давление объясняются здесь с нуля. Нужны две вещи из «Внутренностей JS», и обе не про стримы: без первой непонятно, чем опасен брошенный промис записи, без второй — почему `break` из цикла обрывает соединение.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что непойманная ошибка промиса не пропадает',
     d: 'Промис от `write()` нельзя просто выбросить: если запись упадёт, ошибку будет некому поймать, и придёт событие `unhandledrejection`. Как это событие устроено и в какой очереди возникает, разобрано отдельно.',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Final, QueueScenario, RawStep, Step } from '@/widgets/queue-lab/model/types';
 
 /**
@@ -62,7 +62,7 @@ import type { Final, QueueScenario, RawStep, Step } from '@/widgets/queue-lab/mo
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'очередь (брокер сообщений)',
     d: 'Сервер, который принимает сообщения от одних программ и раздаёт другим. Отправитель кладёт сообщение и не ждёт, пока его обработают. Примеры: Redis Streams, RabbitMQ, Amazon SQS, Kafka.',
@@ -110,7 +110,7 @@ export const PLAIN_QUEUE =
 
 export const PREREQ_NOTE = 'Тема опирается на три вещи, и все три разобраны на сайте.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Транзакция: всё или ничего',
     d: 'Команды между `BEGIN` и `COMMIT` применяются вместе или не применяются вовсе. Если процесс упал до `COMMIT`, Postgres сам отменит всё, что транзакция успела сделать.',
@@ -1634,7 +1634,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Redis — Streams',
     href: 'https://redis.io/docs/latest/develop/data-types/streams/',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { IceScenario } from '@/widgets/ice-lab/model/types';
 import { STAND } from './stand';
 
@@ -68,7 +68,7 @@ export { STAND };
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'peer-to-peer',
     d: 'Соединение «равный с равным»: браузеры шлют данные друг другу, без сервера посередине. Сервер нужен только чтобы познакомить их — и иногда чтобы передавать пакеты, если напрямую не выходит.',
@@ -113,7 +113,7 @@ export const PLAIN_WEBRTC =
 export const PREREQ_NOTE =
   'WebRTC собран из готовых сетевых деталей. Тема опирается на четыре из них.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'TCP, UDP и TLS',
     d: 'TCP доставляет байты по порядку и без потерь, UDP — отдельными пакетами, которые могут потеряться. TLS шифрует соединение и проверяет сертификат сервера. Медиа WebRTC едет по UDP: опоздавший кадр видео уже не нужен.',
@@ -734,7 +734,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   { title: 'W3C — WebRTC: Real-Time Communication in Browsers', href: 'https://www.w3.org/TR/webrtc/', what: '`RTCPeerConnection`, состояния, `setLocalDescription` без аргумента, `iceTransportPolicy`, `RTCDataChannel`, неявный откат offer' },
   { title: 'RFC 8445 — ICE', href: 'https://www.rfc-editor.org/rfc/rfc8445', what: 'типы кандидатов, формулы приоритета кандидата и пары, проверки связности, controlling и nominated' },
   { title: 'RFC 8838 — Trickle ICE', href: 'https://www.rfc-editor.org/rfc/rfc8838', what: 'кандидаты по одному после описания, `a=ice-options:trickle`' },

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { SeqScenario } from '@/widgets/crdt-lab/model/types';
 
 /**
@@ -53,7 +53,7 @@ import type { SeqScenario } from '@/widgets/crdt-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'реплика',
     d: 'Копия общих данных у одного участника: в его вкладке, на его телефоне, на сервере. Каждая реплика правится сама, не спрашивая остальных.',
@@ -86,7 +86,7 @@ export const PLAIN_CRDT =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи, разобранные в других темах: правку как список вставок и удалений, оптимистичное обновление и доставку сообщений между браузерами.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Правка — это вставка и удаление',
     d: 'Изменение текста можно записать списком «вставить вот это, удалить вот то». Diff находит такой список, сравнивая две готовые версии; редактор записывает его сам, по мере набора.',
@@ -621,7 +621,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'M. Shapiro, N. Preguiça, C. Baquero, M. Zawirski — A comprehensive study of Convergent and Commutative Replicated Data Types (INRIA, 2011)',
     href: 'https://inria.hal.science/inria-00555588',

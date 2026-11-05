@@ -5,7 +5,6 @@ headingWidth: 22
 order: 19
 kicker: фреймворки изнутри
 lead: "Текст, который человек набрал в поле, лежит в DOM — в `input.value`. React и Vue держат вторую копию в своём состоянии и синхронизируют их на каждый символ. Отсюда прыгающая каретка, сломанный японский ввод, тормозящая большая форма и поле, которое не даёт себя редактировать. Здесь — что именно делают `onChange` и `v-model`, сколько стоит одно нажатие и что браузер умеет сам: проверку полей, `FormData` и отправку."
-leadWidth: 66
 summary: "Контролируемые и неконтролируемые поля React, во что компилируется `v-model` и что делают его директивы, модификаторы `.lazy`/`.trim`/`.number`, сколько компонентов перерисовывает один символ при разном устройстве состояния, почему уезжает каретка, IME и `compositionend`, встроенная проверка и `:user-invalid`, `FormData`, действия формы в React 19."
 verifiedOn: "React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, esbuild 0.28.2, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: вывод компилятора Vue пересобирается; мини-v-model сверен с директивами Vue, модель рендеров — со счётчиками React и Vue на всех вариантах формы; каретка, IME (имитация через CDP), проверка полей, FormData и действия React 19 сняты в Chromium тестом tests/unit/forms.test.ts. react-hook-form — по документации"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VModelLab from '@/widgets/form-lab/ui/VModelLab.vue';
@@ -111,46 +113,18 @@ import {
   и браузер получает новую строку целиком. Он не знает, что это «та же плюс одна буква»,
   и ведёт себя как при замене текста: переносит каретку в конец и прерывает набор слова.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_COPIES} />
+  <Plain text={PLAIN_TWO_COPIES} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Где живёт значение поля"
   lead="Контролируемое поле в React — это `value` из состояния и `onChange`, который состояние меняет. Поле показывает то, что лежит в состоянии. Человек печатает в DOM, а React после каждого события сверяет DOM со своим состоянием и при расхождении переписывает поле."
-  leadWidth={72}
 >
   <Card title="Сквозной пример: форма заказа в React" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={REACT_LIFT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -190,9 +164,8 @@ import {
   eyebrow="Раздел 2"
   title="`v-model` изнутри"
   lead="Документация Vue объясняет `v-model` как сокращение для `:value` и `@input`. Для компонента это так и есть. Для обычного поля компилятор делает другое: вешает директиву, у которой своя логика для текста, флажка, переключателя и списка."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DIRECTIVE} />
+  <Plain text={PLAIN_DIRECTIVE} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Компонент" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -224,7 +197,7 @@ import {
     minWidth={520}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CAST} />
+  <Plain text={PLAIN_CAST} />
 
   ### `v-model` на компоненте
 
@@ -254,7 +227,6 @@ import {
   eyebrow="Раздел 3"
   title="Цена одного символа"
   lead="Каждое нажатие меняет состояние, и фреймворк перерисовывает тех, кого это касается. Кого именно — решает не фреймворк сам по себе, а место, где лежит состояние формы. Одна и та же форма заказа стоит от нуля до двадцати двух рендеров на символ."
-  leadWidth={72}
 >
   Форма из раздела «Где живёт значение поля» держит всё состояние в `Form`. Ниже та же форма
   на Vue: состояние — `reactive` в `Form`, поля получают его через `v-model` на компоненте.
@@ -292,7 +264,6 @@ import {
   eyebrow="Раздел 4"
   title="Почему каретка уезжает в конец"
   lead="Человек ставит курсор в середину слова, печатает букву — и курсор оказывается в конце строки. Так бывает только с контролируемым полем и только когда код вернул в него не ту строку, что была в DOM."
-  leadWidth={72}
 >
   <Md text={CARET_WHY} />
 
@@ -329,9 +300,8 @@ import {
   eyebrow="Раздел 5"
   title="IME: слово, которое ещё набирается"
   lead="Японец набирает «にほん», выбирает в подсказке «日本» и только тогда считает слово написанным. Всё это время поле получает обычные события `input` с недописанным текстом. Отличить их можно по флагу `isComposing` и по паре событий `compositionstart` и `compositionend` вокруг набора."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IME} />
+  <Plain text={PLAIN_IME} />
 
   <Table
     head={['событие', '`data`', '`isComposing`', '`value` в этот момент']}
@@ -357,7 +327,6 @@ import {
   eyebrow="Раздел 6"
   title="Валидация: встроенная и своя"
   lead={'Браузер умеет проверять поля сам: `required`, `pattern`, `type="email"`, `min` и `max` записывают результат в `input.validity` и не пускают форму на отправку. Проверка работает и с контролируемыми полями — она смотрит на DOM, а не на состояние фреймворка.'}
-  leadWidth={72}
 >
   <Card title="Форма для проверки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={VALID_HTML} size={11.5} lh={1.65} pad="14px 16px" />
@@ -397,7 +366,6 @@ import {
   eyebrow="Раздел 7"
   title="Отправка: FormData и действия React 19"
   lead="При отправке форме не нужен ни один `useState`: браузер сам соберёт пары «имя — значение» из полей, если у них есть `name`. React 19 этим пользуется — функция в `action` получает готовый `FormData`."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Форма" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

@@ -5,7 +5,6 @@ headingWidth: 24
 order: 16
 kicker: фреймворки изнутри
 lead: "Данные с сервера в браузере — всегда копия, и стареть она начинает в момент получения. TanStack Query и SWR держат такие копии в одной таблице по ключу запроса и решают за компоненты три вопроса: когда показать копию без запроса, когда сходить за новой и кого разбудить, когда она пришла."
-leadWidth: 66
 summary: "Серверное состояние против клиентского, запись кеша по ключу, `status` и `fetchStatus`, дедупликация, `staleTime` против `gcTime`, обновление при фокусе и возврате сети, повторы с паузами, инвалидация, оптимистичное обновление и откат, структурное разделение. Мини-кеш в демо сверен тестом с `@tanstack/query-core` 5 и SWR 2 на одних сценариях."
 verifiedOn: "@tanstack/query-core 5.104.0, swr 2.5.1, React 19.3.0, happy-dom 20.14.5, Node 24.11.0, vitest 5.0.0, октябрь 2026: моменты запросов и состояния наблюдателей сняты на фейковых таймерах и повторяются tests/unit/data-cache.test.ts; мини-кеш темы сверен с query-core на семи сценариях при трёх staleTime; хук useQuery (@tanstack/react-query) не устанавливался — его отслеживание полей описано по документации"
 nav:
@@ -25,13 +24,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import QueryCacheLab from '@/widgets/query-cache-lab/ui/QueryCacheLab.vue';
@@ -113,46 +114,18 @@ import {
   компонентов, его надо загрузить, переждать ошибку и обновить после изменения. Эти заботы
   одинаковы в любом приложении, поэтому их забирают в библиотеку.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SERVER_STATE} />
+  <Plain text={PLAIN_SERVER_STATE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Серверное состояние — не ваше"
   lead="Клиентское состояние приложение создаёт само и знает о нём всё. Серверное — только копия: её меняют другие люди, она устаревает без вашего участия, и нужна она обычно сразу нескольким компонентам."
-  leadWidth={72}
 >
   <Table
     head={['', 'клиентское', 'серверное']}
@@ -176,9 +149,8 @@ import {
   eyebrow="Раздел 2"
   title="Кеш по ключу"
   lead="Внутри TanStack Query — `Map` из строки-ключа в запись. Запись хранит данные, ошибку, время получения, список наблюдателей и промис запроса, если он в пути. Ниже — учебная версия этой таблицы: те же поля записи, тот же общий промис, те же два статуса."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE} />
+  <Plain text={PLAIN_CACHE} />
 
   <Card title="Ключ → строка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={KEY_CODE} />
@@ -231,9 +203,8 @@ import {
   eyebrow="Раздел 3"
   title="Свежесть и сборка мусора: `staleTime` и `gcTime`"
   lead="У записи два срока, и их постоянно путают. `staleTime` отвечает, когда идти за новыми данными. `gcTime` — когда выбросить запись, на которую никто не смотрит. Устаревшие данные никуда не деваются: их показывают, пока идёт обновление."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STALE} />
+  <Plain text={PLAIN_STALE} />
 
   <Card title="Наблюдатель, свежесть, сборка мусора, фокус" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={OBSERVE_CODE} />
@@ -288,7 +259,6 @@ import {
   eyebrow="Раздел 4"
   title="Фокус окна, возврат сети и повторы"
   lead="Пользователь ушёл в другую вкладку и вернулся через час. Компоненты всё это время были смонтированы и ничего не перезапрашивали — монтирования не было. Поэтому кеш слушает ещё два события: окно снова видно и сеть вернулась."
-  leadWidth={72}
 >
   <Table
     head={['фокус в 10; 10,1 и 11,1 с', 'запросы', 'что получил наблюдатель']}
@@ -339,7 +309,6 @@ import {
   eyebrow="Раздел 5"
   title="Мутации: инвалидация, оптимизм и откат"
   lead="Запрос читает, мутация меняет. После изменения на сервере копии в кеше врут, и только приложение знает, какие именно. Есть два способа это исправить: перезапросить затронутое или сразу записать в кеш ожидаемый результат, а при ошибке вернуть как было."
-  leadWidth={72}
 >
   <Card title="Инвалидация и запись в кеш" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={INVALIDATE_CODE} />
@@ -349,7 +318,7 @@ import {
 
   ### Оптимистичное добавление
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OPTIMISTIC} />
+  <Plain text={PLAIN_OPTIMISTIC} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Мини-кеш" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -380,7 +349,6 @@ import {
   eyebrow="Раздел 6"
   title="Структурное разделение: старые ссылки в новом ответе"
   lead="Повторный запрос почти всегда возвращает почти то же самое. Если отдать компонентам новый ответ как есть, каждый объект в нём будет новым, и перерисуется всё, что его получает. Кеш поступает иначе: сливает новый ответ со старым и сохраняет ссылки там, где ничего не изменилось."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="replaceEqualDeep" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -420,7 +388,6 @@ import {
   eyebrow="Раздел 7"
   title="Кеш в работе"
   lead="Одна запись `['todos']`, два компонента и сервер, который отвечает за 0,3 с. Сценарии повторяют шаги, по которым сняты таблицы темы."
-  leadWidth={72}
 >
   <QueryCacheLab
     client:visible
@@ -450,7 +417,6 @@ import {
   eyebrow="Раздел 8"
   title="SWR: то же самое проще"
   lead={SWR_NOTE}
-  leadWidth={72}
 >
   <Table
     head={['сценарий', 'TanStack Query', 'SWR']}

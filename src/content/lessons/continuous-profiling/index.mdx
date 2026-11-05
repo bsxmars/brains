@@ -3,7 +3,6 @@ title: Непрерывное профилирование памяти
 order: 38
 headingWidth: 22
 lead: "Снять снимок кучи с боевого сервера — значит остановить его на время записи и раздуть его память в разы. Поэтому на работающем сервисе держат включённым то, что почти ничего не стоит: **выборочный профиль выделений** и метрики процесса. Они называют функцию, которая выделяет, и показывают, растёт ли пол кучи, — но не говорят, кто держит объекты."
-leadWidth: 68
 summary: "Выборочный профиль выделений вместо снимка: два его режима, цена интервала, свёртка в flame graph, метрики процесса для алертов и как отличить утечку от кеша по полу кучи."
 verifiedOn: "Node 26.8.2 (V8 14.6) и 24.11.0, macOS arm64, под параллельной нагрузкой (load average 1.8–3.5 на 8 ядрах) — поэтому время только отношениями. Браузерная часть — Chromium 153.0.8010.12. Pyroscope, Datadog и Parca — по их документации (сверено 29 сентября 2026), не запускались."
 nav:
@@ -21,10 +20,12 @@ nav:
 import Md from '@/shared/ui/Md.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PpFlame from '@/widgets/pp-flame/ui/PpFlame.vue';
@@ -69,42 +70,18 @@ import {
   eyebrow="Наблюдение, которое не останавливает сервис"
   gap={24}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SAMPLING} />
+  <Plain text={PLAIN_SAMPLING} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Выборочный профиль вместо снимка"
   lead="Снимок строит граф всех живых объектов — отсюда его цена (замеры в теме «Память в Node», раздел [«Снимок с живого процесса»](/js/node-memory/#s5)). Профиль выделений ничего не строит: он записывает стек вызовов на случайной доле выделений, пока сервис работает."
-  leadWidth={72}
 >
   ### Стенд: сервис с одной утечкой
 
@@ -131,7 +108,7 @@ import {
   это не «кто выделял», а «где родилось то, что ещё живо». Два флага `include…` оставляют
   в профиле и собранное — тогда он отвечает на вопрос о мусоре.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIVE} />
+  <Plain text={PLAIN_LIVE} />
 
   Стенд, записанный в обоих режимах кодом выше (Node 26.8.2 и 24.11.0, по два прогона на режим):
 
@@ -168,7 +145,6 @@ import {
   eyebrowTone="demo"
   title="Цена выборки"
   lead="V8 не считает каждое выделение. После сэмпла он отмеряет случайное число байт — в среднем интервал выборки — и записывает стек того выделения, на которое придётся отметка. Поэтому цена записи растёт с числом сэмплов, а не с числом объектов."
-  leadWidth={72}
 >
   Отсюда три формулы, и все три следуют из того, что отметки ставятся случайно: расстояние
   до следующей не зависит от прошлых и в среднем равно интервалу (показательное распределение):
@@ -194,7 +170,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SAMPLING_SIZES} />
+  <Plain text={PLAIN_SAMPLING_SIZES} />
 
   <Md text={SAMPLING_TAKEAWAY} />
 
@@ -244,14 +220,13 @@ import {
   eyebrowTone="demo"
   title="Из сэмплов — в flame graph"
   lead="Профиль — это список сэмплов со стеками. Чтобы его прочитать, одинаковые начала стеков сливают в дерево, а ширину каждого узла делают пропорциональной его сумме. Так же устроен формат pprof: сэмпл — это стек и несколько значений."
-  leadWidth={72}
 >
   Весь путь — четыре небольшие функции. Первая работает там, где снят профиль; три остальные
   демо исполняет в вашем браузере — именно этот код, а не копию.
 
   <CodeBlock code={FOLD_CODE} size={11.5} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLAME} />
+  <Plain text={PLAIN_FLAME} />
 
   Сумма корня равна сумме полей `size` сэмплов. С суммой `selfSize` по дереву она совпадает
   не точно — в профиле стенда расхождение меньше десятой доли процента: V8 приписывает
@@ -290,7 +265,6 @@ import {
   eyebrow="Раздел 4"
   title="Метрики процесса для алертов"
   lead="Профиль отвечает «кто», метрики — «когда и насколько». Их снимают раз в несколько секунд, и стоят они ещё меньше профиля: несколько чтений счётчиков и один наблюдатель за сборками."
-  leadWidth={72}
 >
   <CodeBlock code={METRICS_CODE} size={11.5} />
 
@@ -307,7 +281,7 @@ import {
 
   ### Загрузка и задержка цикла
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ELU} />
+  <Plain text={PLAIN_ELU} />
 
   Три режима цикла (Node 26.8.2, шаг опроса 10 мс; задержка — как её отдаёт гистограмма, без вычета шага):
 
@@ -381,7 +355,6 @@ import {
   eyebrow="Раздел 5"
   title="Непрерывное профилирование как практика"
   lead="Разовый профиль отвечает на вопрос, когда вы уже знаете, что искать. Непрерывный снимают всегда: агент внутри процесса записывает профиль окнами (у Pyroscope по умолчанию — минута, `flushIntervalMs: 60000`) и отправляет на сервер с метками — сервис, версия, под. Тогда профиль есть и за ту минуту, которую никто не ждал."
-  leadWidth={72}
 >
   Pyroscope, Datadog и Parca описаны по их документации (сентябрь 2026): их агенты
   на стенде темы не запускались.
@@ -412,7 +385,6 @@ import {
   eyebrow="Раздел 6"
   title="В браузере"
   lead="У страницы нет ни протокола отладчика, ни профиля выделений. Мерить свою память из кода она может одним стандартным вызовом, и тот требует изоляции источника."
-  leadWidth={72}
 >
   Замер в Chromium 153: локальный сервер, одна страница без заголовков изоляции,
   другая с `COOP: same-origin` и `COEP: require-corp`.

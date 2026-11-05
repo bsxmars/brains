@@ -37,7 +37,9 @@
  */
 
 /** Словарь: термины, которые тема употребляет раньше, чем объясняет. */
-export const GLOSSARY = [
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
+
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'Manifest V3 (MV3)',
     d: 'Третья версия формата расширений Chrome, обязательная сейчас. Файл `manifest.json` в корне расширения объявляет всё: из каких частей оно состоит, на каких сайтах работает и какие API ему разрешены. Предыдущая версия, MV2, отличалась прежде всего фоном и сетью: постоянная фоновая страница вместо засыпающего воркера и блокировка запросов функцией расширения.',
@@ -71,7 +73,7 @@ export const GLOSSARY = [
 /* ⚠️ Здесь стоял лид «Тема опирается на четыре механики, разобранные в других темах…» — пересказ карточек. Снят 2026-10-01. */
 export const PREREQ_NOTE = '';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Рендерер и процессы браузера',
     d: 'Страница живёт в процессе рендерера со своим главным потоком; процессы разводятся по сайтам. Контент-скрипт работает в этом же рендерере — отсюда половина его свойств.',
@@ -443,7 +445,7 @@ export const DEFENSE = [
 export const MEMORY_NOTE =
   'Память: объекты контент-скриптов живут в куче рендерера страницы и попадают в её снимок — поэтому профилируют без расширений. Как снимать и что там искать — в [«Профилировании памяти»](/js/memory-profiling/#s2), раздел «Семь шагов».';
 
-export const PITFALLS = [
+export const PITFALLS: Pitfall[] = [
   {
     n: '01',
     t: '`event.source === window` не отличает контент-скрипт от страницы',
@@ -494,7 +496,7 @@ export const PITFALLS = [
 ];
 
 /** Источники: документация Chrome отдельно, Firefox отдельно. */
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Chrome for Developers · Content scripts',
     href: 'https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts',

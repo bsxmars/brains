@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DemoVariant, HmrGraph, HmrJournal, HmrNode, NodePos } from '@/widgets/hmr-boundary/model/types';
 
 /**
@@ -46,7 +46,7 @@ import type { DemoVariant, HmrGraph, HmrJournal, HmrNode, NodePos } from '@/widg
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'граф модулей',
     d: 'Запись dev-сервера о том, кто кого импортирует. Vite заполняет её, когда браузер запрашивает модули и сервер их переводит: модуль, который никто ещё не запросил, в графе не разобран.',
@@ -79,7 +79,7 @@ export const PLAIN_HMR =
 export const PREREQ_NOTE =
   'Тема начинается с момента, когда файл на диске изменился. Как браузер грузит модуль и почему разработка устроена иначе, чем рабочая сборка, здесь считается известным.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Три фазы модуля и module map',
     d: 'Браузер кеширует модуль по адресу: второй `import` того же адреса вернёт уже исполненный экземпляр и в сеть не пойдёт. Отсюда вся механика `?t=` в этой теме.',
@@ -906,7 +906,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Vite — HMR API',
     href: 'https://vite.dev/guide/api-hmr',

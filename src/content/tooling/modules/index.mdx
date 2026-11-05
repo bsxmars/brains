@@ -3,7 +3,6 @@ title: Модули и сборка
 order: 1
 kicker: сборка и инструменты
 lead: "Браузер узнаёт, от чего зависит модуль, **ещё до того, как выполнит хоть одну его строку**. Из этого следует почти всё остальное: зависимости качаются заранее, опечатка в имени импорта ловится до запуска, импорт видит свежее значение переменной, а сборщик может выбросить неиспользуемый код. Отсюда же — почему цикл между модулями падает не там, где вы думали."
-leadWidth: 66
 summary: "Как модуль загружается в три шага, почему импорт видит свежее значение, как браузер разрешает голые имена по import maps и грузит WebAssembly, как стыкуются CommonJS и ESM и откуда берутся фантомные зависимости, почему сборщик выбрасывает только то, в чём уверен, как он режет код на чанки — и почему dev-сервер ведёт себя не так, как рабочая сборка."
 verifiedOn: "Node 24.11 и Chromium 153.0.8010.12 (Playwright 1.63), сентябрь 2026; резолвинг, условия exports и интероп с CommonJS — Node 26.8.2, условия Vite прочитаны у Vite 8.3.0; конвейеры Vite 8, раскладка чанков и карты исходников — сборкой фикстур на Vite 8.3.0 (Rolldown 1.2.8); размеры сборки — rolldown 1.2.8 и esbuild 0.28.2 на синтетических фикстурах. import maps, `nomodule` и WebAssembly — Chromium 153.0.8010.12 и Node 26.8.2, раскладки `node_modules` и кеш предбандла — Node 26.8.2 и Vite 8.3.0, закреплено `tests/unit/modules.test.ts`. Поведение webpack (включая его кеш на диске), плагин легаси-сборки, предбандлинг Vite при новой зависимости на лету и цикл между чанками от manualChunks замером не закрыты и помечены в тексте"
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CycleLab from '@/widgets/cycle-lab/ui/CycleLab.vue';
@@ -192,42 +194,16 @@ import {
 
   ### Слова, которые встретятся раньше, чем их объяснят
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Три фазы: разбор, связывание, исполнение"
   lead="Браузер обрабатывает модули в три захода. Сначала скачивает и читает все файлы, потом связывает имена импортов с экспортами, и только потом выполняет код. Почти любую странность модулей объясняет вопрос «на каком из трёх шагов это случилось». В спецификации шаги называются `LoadRequestedModules`, `Link` и `Evaluate`, в статьях — construction, instantiation, evaluation."
-  leadWidth={72}
 >
   <FlowChips
     minWidth={620}
@@ -239,7 +215,7 @@ import {
     ]}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PHASES} />
+  <Plain text={PLAIN_PHASES} />
 
   <CardGrid min={280} gap={14}>
     {PHASE_CARDS.map((phase) => (
@@ -348,7 +324,7 @@ import {
   тег `<script type="importmap">`: JSON, в котором голому имени сопоставлен адрес. Разрешение
   имени происходит на первой фазе, при построении графа, — до выполнения чего бы то ни было.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IMPORTMAP} />
+  <Plain text={PLAIN_IMPORTMAP} />
 
   <Card title="Одна карта, три правила" titleSize={18} pad={22} gap={14}>
     <CodeBlock code={IMPORTMAP_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -417,9 +393,8 @@ import {
   eyebrowTone="demo"
   title="Живые привязки и циклы"
   lead="Импортированное имя — не копия значения, а ссылка на саму переменную в чужом модуле. Модуль поменял свою переменную — импортёр сразу видит новое значение. Оба демо ниже грузят настоящие модули настоящим `import()` в вашем браузере."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIVE} />
+  <Plain text={PLAIN_LIVE} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={LIVE_DEMO_NOTE} />
 
@@ -458,7 +433,7 @@ import {
     </CardNote>
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CYCLE} />
+  <Plain text={PLAIN_CYCLE} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CYCLE_DEMO_NOTE} />
 
@@ -484,7 +459,6 @@ import {
   eyebrow="Раздел 3"
   title="CommonJS против ESM и цена их стыковки"
   lead="Фронтенд пишется на ESM, но CommonJS — старая система модулей Node с `require` и `module.exports` — никуда не делся. На нём написана половина зависимостей и почти все конфиги инструментов. Разбираться в нём нужно потому, что от стыковки двух систем (её называют интероп) зависит, какой файл вашей зависимости окажется в бандле."
-  leadWidth={72}
 >
   ### `require` изнутри
 
@@ -543,7 +517,7 @@ import {
     </DarkText>
   </DarkPanel>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTEROP} />
+  <Plain text={PLAIN_INTEROP} />
 
   ### Три правила на одном пакете
 
@@ -655,7 +629,7 @@ import {
   менеджеру пакетов, чтобы разложить файлы, а загрузчик видит только то, что лежит на диске.
   Поэтому всё решает раскладка.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PHANTOM} />
+  <Plain text={PLAIN_PHANTOM} />
 
   <Card title="Один и тот же код приложения в трёх раскладках" titleSize={18} pad={22} gap={14}>
     <CodeBlock code={PHANTOM_APP} size={11.5} lh={1.7} pad="14px 16px" />
@@ -741,14 +715,13 @@ import {
   eyebrow="Раздел 4"
   title="Tree shaking и побочные эффекты"
   lead="Tree shaking — это когда бандлер не кладёт в сборку код, который никто не использует. Но выбрасывает он только то, в чём уверен: что это никому не нужно и само по себе ничего не делает. Поэтому его нельзя «включить сильнее» — можно только писать код, про который это легко доказать. Числа ниже сняты на тестовых проектах. Они показывают не «сколько вы сэкономите», а во сколько обходится каждый способ помешать бандлеру."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Бандлер не удаляет лишнее, а собирает нужное" titleSize={16.5} pad={18} gap={11} size={15.5} text={SHAKE_DEFINITION} />
     <Card title="Tree shaking — не то же, что удаление мёртвого кода" titleSize={16.5} pad={18} gap={11} size={15.5} text={SHAKE_VS_DCE} />
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHAKE} />
+  <Plain text={PLAIN_SHAKE} />
 
   <Table
     head={['что собирали', 'размер', 'почему так']}
@@ -801,7 +774,6 @@ import {
   eyebrow="Раздел 5"
   title="Чанки и кеш"
   lead="Бандлер не только выбрасывает лишнее, но и решает, какие модули лягут в один файл. Файл, который получился из группы модулей, называют чанком. От раскладки зависят три вещи: сколько запросов сделает браузер, сколько перекачает пользователь после деплоя и что сломается, если старая вкладка попросит новый файл."
-  leadWidth={72}
 >
   <Card title="Где сборка режет код на отдельные файлы" titleSize={18} pad={22} gap={14}>
     <NumberedList items={SPLIT_POINTS} size={14.5} />
@@ -843,7 +815,7 @@ import {
     <NumberedList items={CHUNK_STEPS} size={14.5} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHUNKS} />
+  <Plain text={PLAIN_CHUNKS} />
 
   <CardGrid min={280} gap={14}>
     {COLORING_FACTS.map((fact) => (
@@ -912,7 +884,6 @@ import {
   eyebrow="Раздел 6"
   title="Dev не равен prod"
   lead="Под одним конфигом Vite работают два разных конвейера. В разработке браузер сам грузит модули по одному, а dev-сервер лишь переводит каждый файл на лету. Для рабочей сборки сборщик склеивает всё в несколько чанков. В Vite 8 в обоих местах работает один сборщик, Rolldown, но конвейеры от этого одинаковыми не стали — и целый класс багов в разработке не виден вообще."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Как dev-сервер обходится без сборки" titleSize={16.5} pad={18} gap={11} size={15.5}>

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { SpatialSetup } from '@/widgets/spatial-lab/model/types';
 
 /**
@@ -45,7 +45,7 @@ import type { SpatialSetup } from '@/widgets/spatial-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'пространственный индекс',
     d: 'Структура, которая раскладывает фигуры по месту на плоскости. Она отвечает на вопрос «что лежит здесь», не проверяя каждую фигуру: целые области, где ответа быть не может, отбрасываются одной проверкой.',
@@ -82,7 +82,7 @@ export const PLAIN_INDEX =
 export const PREREQ_NOTE =
   'Тема опирается на три разбора из других тем и на одну запись, которая объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Попадание на холсте считаете вы',
     d: 'Холст — это пиксели, а не узлы. Событие мыши приходит на `<canvas>` целиком, и какую фигуру задели, код решает сам: проверяет фигуры по координатам клика.',
@@ -775,7 +775,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'rbush — README и исходник',
     href: 'https://github.com/mourner/rbush',

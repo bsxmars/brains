@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Face, Metrics, StandRun } from '@/widgets/font-display-lab/model/types';
 
 /**
@@ -56,7 +56,7 @@ import type { Face, Metrics, StandRun } from '@/widgets/font-display-lab/model/t
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'веб-шрифт и `@font-face`',
     d: 'Шрифт, который страница приносит с собой файлом. Правило `@font-face` даёт ему имя для `font-family` и адрес файла. Само правило ничего не качает — это только объявление.',
@@ -89,7 +89,7 @@ export const PLAIN_FONTS =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из соседних тем и одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Кадр: стили, раскладка, отрисовка',
     d: 'Браузер сначала вычисляет стили, потом считает геометрию (layout), потом рисует. Шрифт нужен уже раскладке: без его метрик не узнать, где перенести строку.',
@@ -550,7 +550,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'CSS Fonts Module Level 4 — `font-display`',
     href: 'https://www.w3.org/TR/css-fonts-4/#font-display-desc',

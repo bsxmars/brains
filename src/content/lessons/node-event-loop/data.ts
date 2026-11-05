@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LoopScenario, PoolStand } from '@/widgets/libuv-lab/model/types';
 
 /**
@@ -63,7 +63,7 @@ import type { LoopScenario, PoolStand } from '@/widgets/libuv-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'libuv',
     d: 'Библиотека на C, на которой стоит Node. Она даёт циклу событий таймеры, сокеты, файлы и пул потоков — одинаково на Linux, macOS и Windows. Сам JS про неё ничего не знает: её колбэки зовёт Node.',
@@ -104,7 +104,7 @@ export const PLAIN_LOOP =
 export const PREREQ_NOTE =
   'Тема продолжает «Event Loop» и опирается на три вещи оттуда.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Задача и оборот цикла',
     d: 'Один поток выполняет одну задачу до конца, потом берёт следующую. Перебить начатую задачу нельзя.',
@@ -833,7 +833,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Node.js — The Node.js Event Loop',
     href: 'https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick',

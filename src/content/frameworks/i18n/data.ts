@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { IcuPreset, IcuValues } from '@/widgets/i18n-lab/model/types';
 
 /**
@@ -57,7 +57,7 @@ import type { IcuPreset, IcuValues } from '@/widgets/i18n-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'локаль',
     d: 'Язык плюс местные правила: как писать числа, даты, множественное число. Записывается тегом BCP 47: `ru`, `ru-RU`, `pt-BR`, `zh-Hant-TW` — язык, по желанию письменность и регион через дефис.',
@@ -94,7 +94,7 @@ export const PLAIN_MESSAGE =
 export const PREREQ_NOTE =
   'Тема опирается на три разбора с других страниц и на одну вещь из Vue.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Категории множественного числа',
     d: 'Правила CLDR для «1 файл, 2 файла, 5 файлов», учебная функция `pluralRu` и `Intl.PluralRules` — со всеми операндами и дробями. Здесь они используются как готовый инструмент.',
@@ -790,7 +790,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ICU User Guide — Formatting Messages',
     href: 'https://unicode-org.github.io/icu/userguide/format_parse/messages/',

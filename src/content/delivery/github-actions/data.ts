@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Scenario } from '@/widgets/pipeline-timeline/model/types';
 
 /**
@@ -1419,7 +1419,7 @@ export const NOT_REPRODUCED = [
 // Раздел 9. Источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Workflow syntax for GitHub Actions',
     href: 'https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions',
@@ -1511,7 +1511,7 @@ export const SOURCES = [
  * не то, что подсказывает вид файла. «Шаг» похож на строку скрипта, «джоб» — на функцию,
  * а на деле это границы, через которые данные не проходят.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'событие',
     d: 'То, что произошло в репозитории: push, открытие пул-реквеста, релиз, расписание. Прогон появляется **только** если событие перечислено в `on:` — нет в списке, нет и прогона.',
@@ -1581,7 +1581,7 @@ export const PIPELINE_DEMO_NOTE =
 export const PREREQ_NOTE =
   'Конвейер обычно собирает код и упаковывает его в образ. Как устроено и то, и другое, тема считает известным.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что производит сборка',
     d: 'Конвейер почти всегда что-то собирает и кладёт результат в артефакт. Что выдаёт сборщик — один файл, много файлов-чанков или ещё и карты исходников (source maps), — определяет и размер артефакта, и то, что должно доехать до выката.',

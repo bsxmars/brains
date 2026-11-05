@@ -5,7 +5,6 @@ headingWidth: 24
 order: 13
 kicker: доставка
 lead: "Сборщик вписывает переменные окружения в бандл строкой, и после этого их читает каждый посетитель. Префикс `VITE_` не прячет значение — он только решает, согласится ли Vite его вписать. А на сервере переменная окружения течёт в дочерние процессы, в `/proc`, в отчёты о падении и в историю git."
-leadWidth: 66
 summary: "Конфигурация против секрета; 12 факторов; как `import.meta.env.VITE_*`, `process.env.NEXT_PUBLIC_*` и `define` вписывают значения в бандл и как обходят защиту префиксом; порядок `.env`-файлов в Vite; конфиг при сборке против конфига при запуске; переменная окружения против файла, `/proc/<pid>/environ`, Secret в Kubernetes; история git, сканер утечек и ротация."
 verifiedOn: "Vite 8.3.0, esbuild 0.28.2, Node 24.11.0, kubectl 1.30.5, git 2.44.0, октябрь 2026: бандлы, порядок .env-файлов (768 сочетаний против loadEnv), выводы Node, YAML Secret, история git и находки сканера на бандлах Vue, React и d3 пересобираются tests/unit/secrets-config.test.ts. /proc/<pid>/environ и docker inspect сняты в Docker 27.4 (node:24-alpine) без повтора в тесте; порядок файлов Next, хранение Secret в etcd и ротация — по документации"
 nav:
@@ -23,13 +22,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import EnvLab from '@/widgets/env-lab/ui/EnvLab.vue';
@@ -121,46 +122,18 @@ import {
   список имён, которые разрешено подставлять, — и её легко снять одной строкой конфига, даже
   не заметив.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SECRET} />
+  <Plain text={PLAIN_SECRET} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Конфигурация и секрет"
   lead="Код один на все окружения, отличия приходят снаружи. Но «снаружи» ещё не значит «тайно»: часть конфигурации обязана дойти до браузера, а часть не должна покидать сервер никогда."
-  leadWidth={72}
 >
   <Md text={TWELVE_TEXT} />
 
@@ -181,9 +154,8 @@ import {
   eyebrow="Раздел 2"
   title="Что сборщик вписывает в бандл"
   lead="В браузере нет `process` и нет файлов `.env`. Поэтому сборщик подставляет значения при сборке — строкой, прямо в JS. После этого значение — часть файла, который скачивает каждый посетитель."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INLINE} />
+  <Plain text={PLAIN_INLINE} />
 
   <Card title=".env фикстуры" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={BUNDLE_ENV} size={11.5} lh={1.65} pad="14px 16px" />
@@ -244,9 +216,8 @@ import {
   eyebrowTone="demo"
   title=".env-файлы: кто кого перебивает"
   lead="Vite читает до четырёх файлов, и каждый следующий перебивает предыдущий. Порядок легко запомнить неверно — особенно если раньше работали с Next."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENV_ORDER} />
+  <Plain text={PLAIN_ENV_ORDER} />
 
   <Table
     head={ORDER_TABLE.head}
@@ -286,9 +257,8 @@ import {
   eyebrow="Раздел 4"
   title="Сборка или запуск"
   lead="Значение, вписанное при сборке, заморожено в образе. Конфиг при запуске позволяет собрать образ один раз — но не делает значения ни на бит секретнее."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RUNTIME} />
+  <Plain text={PLAIN_RUNTIME} />
 
   <Md text={RUNTIME_TEXT} />
 
@@ -323,9 +293,8 @@ import {
   eyebrow="Раздел 5"
   title="Секрет на сервере: переменная или файл"
   lead="Серверу секрет нужен, и обычно его кладут в переменную окружения. Это удобно — и течёт в большее число мест, чем кажется: окружение строковое, наследуется, лежит в `/proc` и попадает в отчёты."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENVIRON} />
+  <Plain text={PLAIN_ENVIRON} />
 
   ### Окружение — это строки
 
@@ -394,7 +363,6 @@ import {
   eyebrowTone="demo"
   title="Утечка: найти и сменить"
   lead="Утёкший секрет не прячут, а меняют. Удалённая строка остаётся в истории git, в старых бандлах на CDN и в чужих копиях. Поиск нужен, чтобы понять, что именно менять и с какого момента."
-  leadWidth={72}
 >
   ### История git
 
@@ -409,7 +377,7 @@ import {
 
   ### Сканер по бандлу
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENTROPY} />
+  <Plain text={PLAIN_ENTROPY} />
 
   <Card title="Правила и энтропия" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SCAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />

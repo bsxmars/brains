@@ -15,8 +15,6 @@ interface Props {
   heading: string;
   headingWidth?: number;
   lead: string;
-  /** Устарел: текст идёт на всю ширину колонки (решение автора, 2026-09-28). Проп оставлен для совместимости. */
-  leadWidth?: number;
 }
 
 const { kicker, heading, headingWidth = 16, lead } = Astro.props;

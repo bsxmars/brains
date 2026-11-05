@@ -5,7 +5,6 @@ headingWidth: 24
 order: 2
 kicker: данные и бэкенд
 lead: "Два запроса одновременно пополнили один счёт, а в базе учтён только один. Ошибок нет, логи чистые. Это не баг Postgres, а уровень изоляции по умолчанию: Read Committed разрешает такую гонку. Как устроены версии строк и снимки, что именно разрешает каждый уровень и что делать с ошибкой `40001`."
-leadWidth: 66
 summary: "ACID без мистики; версии строк, `xmin` и `xmax`, снимок и правило видимости; Read Committed, Repeatable Read и Serializable в Postgres; потерянное обновление, неповторяемое чтение, фантом и write skew по шагам двух сеансов; конфликт записи и `40001`; `SELECT … FOR UPDATE`, `FOR NO KEY UPDATE` и внешние ключи; оптимистичная блокировка; SSI; повтор транзакции и дедлок `40P01`."
 verifiedOn: "PostgreSQL 16.15 (postgres:16-alpine в Docker, два сеанса psql) и @electric-sql/pglite 0.5.8 (PostgreSQL 18.3, одна сессия, pageinspect), Node 24.11.0, октябрь 2026: вывод каждого шага десяти сценариев на трёх уровнях, матрица блокировок строк, внешний ключ, SKIP LOCKED и порядок захвата сняты двумя сеансами (пересборка — tests/unit/transactions.test.ts при TX_PG_CONTAINER); версии на странице, xmin/xmax, снимки и повтор на 40001 — PGlite при каждом прогоне. Учебная модель сверена с обоими стендами шаг в шаг. По документации Postgres: таблица аномалий стандарта, выбор жертвы дедлока, предикатные блокировки SSI и его ложные срабатывания, READ ONLY DEFERRABLE, долговечность через WAL"
 nav:
@@ -32,6 +31,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MvccLab from '@/widgets/mvcc-lab/ui/MvccLab.vue';
@@ -109,46 +111,18 @@ import {
   показывает свою «фотографию» данных. Отсюда и аномалии: две транзакции смотрят на разные
   фотографии и принимают решения, которые вместе дают невозможный итог.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TX} />
+  <Plain text={PLAIN_TX} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Что обещает транзакция"
   lead="ACID — четыре обещания транзакции. Три из них Postgres выполняет всегда и полностью. Четвёртое, изоляция, выдаётся уровнями, и от выбранного уровня зависит, какие гонки база остановит сама, а какие останутся приложению."
-  leadWidth={72}
 >
   <Table
     head={['буква', 'что обещает', 'как это устроено в Postgres']}
@@ -169,9 +143,8 @@ import {
   eyebrow="Раздел 2"
   title="Версии строк: xmin и xmax"
   lead="Чтобы читатель не ждал писателя, Postgres никогда не меняет строку на месте. `UPDATE` пишет новую версию рядом со старой, `DELETE` только помечает версию, а откат вообще ничего не трогает на странице. Кто какую версию видит, решают два номера в её заголовке."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MVCC} />
+  <Plain text={PLAIN_MVCC} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Четыре транзакции подряд" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -196,7 +169,7 @@ import {
 
   ### Снимок
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+  <Plain text={PLAIN_SNAPSHOT} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Номер и снимок изнутри транзакции" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -231,7 +204,6 @@ import {
   eyebrow="Раздел 3"
   title="Снимки и уровни изоляции"
   lead="Уровни изоляции в Postgres различаются двумя вещами: как часто берётся снимок и что происходит, когда транзакция хочет изменить строку, которую после её снимка изменил кто-то другой."
-  leadWidth={72}
 >
   <Table
     head={['уровень', 'снимок', 'чужая свежая запись в строке']}
@@ -244,7 +216,7 @@ import {
 
   ### Какие аномалии разрешает каждый уровень
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ANOMALY} />
+  <Plain text={PLAIN_ANOMALY} />
 
   <Table
     head={['уровень', 'грязное чтение', 'неповторяемое чтение', 'фантом', 'потерянное обновление', 'write skew']}
@@ -264,7 +236,6 @@ import {
   eyebrow="Раздел 4"
   title="Аномалии по шагам: два сеанса"
   lead="Каждая аномалия — это расписание: какой сеанс какую команду выполнил и в каком порядке. Одно и то же расписание на разных уровнях даёт разный итог, и видно почему: у сеансов разные снимки, а у строк — разные версии."
-  leadWidth={72}
 >
   <CardGrid min={260} gap={14} align="start">
     {ANOMALIES.map((a) => (
@@ -295,9 +266,8 @@ import {
   eyebrow="Раздел 5"
   title="Конфликт записи: ждать, перечитать или 40001"
   lead="Читатели и писатели друг друга не ждут. А два писателя одной строки — ждут: второй не может положить новую версию поверх версии, судьба которой ещё не решена. Что он делает, когда первый закончил, и есть главное различие Read Committed и Repeatable Read."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONFLICT} />
+  <Plain text={PLAIN_CONFLICT} />
 
   <CardGrid min={260} gap={14} align="start">
     {CONFLICT_STEPS.map((step) => (
@@ -318,7 +288,6 @@ import {
   eyebrow="Раздел 6"
   title="Блокировки строк и оптимистичная блокировка"
   lead="`SELECT … FOR UPDATE` превращает чтение в захват: строку никто не изменит, пока транзакция не закончится. Режимов захвата четыре, и выбор между `FOR UPDATE` и `FOR NO KEY UPDATE` решает, будут ли ждать вставки в соседние таблицы."
-  leadWidth={72}
 >
   <Table
     head={['режим', 'кто его берёт']}
@@ -381,9 +350,8 @@ import {
   eyebrow="Раздел 7"
   title="Serializable: как Postgres ловит write skew"
   lead="Write skew проходит мимо снимков и мимо блокировок строк: две транзакции пишут разные строки. Поймать его можно, только помня, кто что читал. Этим и занят Serializable — Serializable Snapshot Isolation, SSI."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SSI} />
+  <Plain text={PLAIN_SSI} />
 
   <Md text={SSI_TEXT} />
 
@@ -413,7 +381,6 @@ import {
   eyebrow="Раздел 8"
   title="Повтор транзакции и дедлоки"
   lead="`40001` и `40P01` — не сбои, а штатные ответы базы: «эту транзакцию я откатила, попробуйте ещё раз». Код, который поднимает уровень изоляции или берёт блокировки, обязан уметь повторять."
-  leadWidth={72}
 >
   <Card title="Обёртка с повтором" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RETRY_CODE} size={11.5} lh={1.65} pad="14px 16px" />

@@ -1,6 +1,6 @@
 import type { CacheMode } from '@/widgets/cache-headers/model/types';
 import type { HolDiagramData } from '@/widgets/network-hol-diagram/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 
 /**
  * Данные темы «Сеть и кеширование».
@@ -1179,7 +1179,7 @@ export const PITFALLS: Pitfall[] = [
 /* ────────────────────────── Раздел 8 · источники ────────────────────────── */
 
 /** §10 конспекта. Спецификации отдельно от разборов: у них разный срок годности. */
-export const SOURCES: { t: string; items: string[] }[] = [
+export const SOURCES: SourceGroup[] = [
   {
     t: 'Спецификации',
     items: [
@@ -1217,7 +1217,7 @@ export const SOURCES: { t: string; items: string[] }[] = [
  * вовремя. Остальные (свежесть, валидация, `Vary`, preflight) появляются в разделах как
  * известные, хотя каждое из них — отдельное понятие со своими правилами.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'RTT',
     d: 'Время кругового обмена: туда и обратно. Внутри города 5–20 мс, между континентами 100–200, на плохой мобильной связи 300+. Главное его свойство — **он почти не улучшается**: полоса растёт каждый год, а RTT упирается в скорость света.',
@@ -1265,7 +1265,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'RTT, кеш и приоритеты объясняются здесь с нуля. Известными считаются две вещи про устройство браузера: где живёт сеть и чем Service Worker отличается от кода страницы.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что сеть — отдельный процесс',
     d: 'Запросами занимается не ваша вкладка: есть сетевой процесс, общий на браузер, и это объясняет и разделение кешей, и то, почему занятый JS не мешает загрузке, и почему соединения считаются не по вкладкам.',

@@ -5,7 +5,6 @@ headingWidth: 24
 order: 6
 kicker: сборка и инструменты
 lead: "Ошибка из продакшена говорит «`cart.js`, строка 1, колонка 171» — а строка там одна на весь файл. Дорогу назад к `cart.ts:11` знает карта исходников: JSON, где каждому куску бандла сопоставлено место в исходнике. Как она закодирована, кто и когда её читает и почему она иногда уверенно ведёт не туда."
-leadWidth: 66
 summary: "Поля `.map`, строка `mappings` — сегменты и Base64 VLQ, поиск позиции бинарным поиском, `--enable-source-maps` и DevTools против `error.stack`, сдвиг строк в цепочке сборщиков и склейка карт, публичные и скрытые карты в продакшене."
 verifiedOn: "esbuild 0.28.2, terser 5.51.2, @jridgewell/sourcemap-codec 1.6.0, trace-mapping 0.3.31, remapping 2.3.5, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: карты и стеки сняты стендом и пересобираются tests/unit/source-maps.test.ts; функции темы сверены с библиотеками @jridgewell на всех позициях бандла"
 nav:
@@ -30,6 +29,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SourceMapLab from '@/widgets/source-map-lab/ui/SourceMapLab.vue';
@@ -87,46 +89,18 @@ import {
   из стека ошибки после этого указывают в бандл, где читать нечего. Карта — единственное,
   что связывает эту позицию с вашим файлом.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SOURCEMAP} />
+  <Plain text={PLAIN_SOURCEMAP} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Что лежит в .map"
   lead="Пример на всю тему — два файла TypeScript, которые esbuild собрал и сжал в одну строку. Карта к этой строке — обычный JSON из пяти полей, и только одно из них, `mappings`, трудно прочитать глазами."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Исходник: cart.ts" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -166,9 +140,8 @@ import {
   eyebrow="Раздел 2"
   title="`mappings`: строки, сегменты, VLQ"
   lead="Строка `mappings` повторяет форму бандла: `;` — переход на следующую строку бандла, `,` — следующий сегмент в той же строке. Каждый сегмент — четыре или пять чисел, записанных буквами, и каждое из них — не позиция, а сдвиг от предыдущего сегмента."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VLQ} />
+  <Plain text={PLAIN_VLQ} />
 
   <Card title="Разбор `mappings` — сорок строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VLQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -203,9 +176,8 @@ import {
   eyebrow="Раздел 3"
   title="Обратный путь: от стека к исходнику"
   lead="Чтобы перевести позицию из стека, карту разбирают один раз, а потом в нужной строке бандла ищут последний сегмент, который начинается не правее нужной колонки. Сегменты в строке отсортированы по колонке, так что поиск — бинарный."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOOKUP} />
+  <Plain text={PLAIN_LOOKUP} />
 
   <Card title="Поиск позиции" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LOOKUP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -243,7 +215,6 @@ import {
   eyebrow="Раздел 4"
   title="Цепочка сборщиков: почему строки съезжают"
   lead="Обычно над кодом работает не один инструмент, а несколько подряд: TypeScript или Babel, сборщик, минификатор. Каждый пишет карту только своего шага. Чтобы стек дошёл до исходника, карты нужно склеить — иначе последняя карта ведёт в файл, которого нет."
-  leadWidth={72}
 >
   <Card title="Два шага — две карты" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={700} chips={CHAIN_CHIPS} />
@@ -263,7 +234,7 @@ import {
 
   ### Склейка карт
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPOSE} />
+  <Plain text={PLAIN_COMPOSE} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Склеить после сборки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -290,7 +261,6 @@ import {
   eyebrow="Раздел 5"
   title="Карты в продакшене"
   lead="Выбор не между «с картой» и «без», а о том, кому её показывать. Пользователю карта не нужна и браузером не скачивается, сервису ошибок нужна обязательно, а любопытному в DevTools — вопрос того, насколько закрыт ваш код."
-  leadWidth={72}
 >
   <Table
     head={['режим', 'как устроено', 'кто увидит исходники']}

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { GraphNode, GraphWrite } from '@/widgets/reactive-graph/model/types';
 import type { TrapScenario } from '@/widgets/reactivity-traps/model/types';
 import type { QueuePhaseCopy, QueueScenario } from '@/widgets/scheduler-queue/model/types';
@@ -77,7 +77,7 @@ import type { QueuePhaseCopy, QueueScenario } from '@/widgets/scheduler-queue/mo
 // Вводный раздел · словарь
 // ---------------------------------------------------------------------------
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'эффект',
     d: 'Функция, которую Vue перезапускает, когда меняются прочитанные ею данные. Render-функция компонента, `watchEffect`, колбэк `watch` — всё это эффекты.',
@@ -837,7 +837,7 @@ export const SELF_CHECK: SelfCheckItem[] = [
 export const PREREQ_NOTE =
   'Реактивность Vue стоит на двух механизмах самого JavaScript. `Proxy` объясняет, **как** Vue замечает чтение. Микрозадача объясняет, **когда** наступит обновление. Без первого непонятно, что перехвачено, без второго — как работает очередь обновлений.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что `Proxy` перехватывает операции, а не свойства',
     d: 'Ловушки `get`, `set`, `has`, `deleteProperty`, `ownKeys` — это перехват **операций языка** над объектом целиком, а не подстановка геттеров на каждый ключ. Отсюда и то, почему Vue 3 видит добавление нового ключа, а Vue 2 не видел.',
@@ -861,7 +861,7 @@ export const SCOPE_NOTE =
 
 // ---- Раздел 6 · источники ----
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Vue · Reactivity in Depth',
     href: 'https://vuejs.org/guide/extras/reactivity-in-depth.html',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ColumnsStand, LineCase } from '@/widgets/canvas-lab/model/types';
 
 /**
@@ -78,7 +78,7 @@ import type { ColumnsStand, LineCase } from '@/widgets/canvas-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'битмап (буфер холста)',
     d: 'Таблица пикселей: у каждого четыре байта — красный, зелёный, синий и прозрачность (альфа, от 0 до 255). Холст — это один такой буфер. Нарисованный круг в нём не хранится как круг, только как закрашенные пиксели.',
@@ -107,7 +107,7 @@ export const PLAIN_CANVAS =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи из соседних тем. Как работает кадр и что такое передача владения, здесь не объясняется заново — только что из этого следует для холста.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Кадр браузера и `requestAnimationFrame`',
     d: 'Браузер рисует кадрами: скрипт, стили, раскладка, отрисовка, композиция. `requestAnimationFrame` зовёт ваш код перед следующим кадром — в нём и перерисовывают холст.',
@@ -858,7 +858,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'HTML Standard — The canvas element',
     href: 'https://html.spec.whatwg.org/multipage/canvas.html',

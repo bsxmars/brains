@@ -1,7 +1,7 @@
 import type { CheckpointMode } from '@/widgets/checkpoint-demo/model/types';
 import type { TurnStep } from '@/widgets/event-loop-turn/model/types';
 import type { NodePhase, NodeStep } from '@/widgets/node-loop/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные урока «Event Loop».
@@ -813,7 +813,7 @@ export const IDLE_FACTS = [
  * темах, поэтому стали фразой со ссылкой там, где читатель о них спотыкается: в разделе
  * «Таймеры» (кламп) и в разделе «Агенты» (нарезка работы).
  */
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'HTML Standard · 8.1.7 Event loops',
     href: 'https://html.spec.whatwg.org/multipage/webappapis.html#event-loops',
@@ -867,7 +867,7 @@ export { SEQ_FACTS } from '@/content/lessons/promise-internals/data';
  * в первых двух предложениях, которые читатель вообще видит. А «агент» даёт имя разделу
  * «Кто с кем делит цикл» и пункту оглавления раньше, чем тема его объясняет.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'агент',
     d: 'Отдельная среда выполнения: свой стек, свой цикл событий со своими очередями, своя память (куча). Окно — агент, каждый воркер — отдельный агент. Слово «поток» здесь подводит: оно наводит на мысль об общих объектах, а у агентов их нет.',
@@ -907,7 +907,7 @@ export const GLOSSARY = [
 /* ⚠️ Здесь стоял лид «Известными считаются три вещи. Без первой… без второй… без третьей…» — пересказ карточек. Снят 2026-09-30. */
 export const PREREQ_NOTE = '';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что промис — значение с состоянием',
     d: 'Промис меняет состояние один раз: из «ожидает» в «выполнен» или «отклонён». Его реакция (функция из `.then`) встаёт в очередь **в момент, когда промис выполнился**, а не когда на него подписались. Поэтому порядок микрозадач идёт по резолвам, а не по строкам с `.then`.',

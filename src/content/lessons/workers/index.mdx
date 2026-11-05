@@ -2,7 +2,6 @@
 title: Воркеры и параллелизм
 order: 20
 lead: "Воркер — не «ещё один поток» с общими переменными, а **отдельный агент**: у него своя память и свой цикл событий, общих объектов с окном нет. Данные через эту границу копируются, передаются или кладутся в общую память — и у каждого способа своя цена. Чаще всего её платит главный поток, когда собирает ответ воркера."
-leadWidth: 66
 summary: "Агент и его изоляция, три канала через границу — копия, передача владения и общая память — и цена каждого, снятая замером в браузере."
 verifiedOn: Chromium 153.0.8010.12 · Node 26.8.2 (вычитка 2026-10-29)
 nav:
@@ -20,7 +19,6 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CheckList from '@/shared/ui/CheckList.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
@@ -29,6 +27,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import TransferCost from '@/widgets/transfer-cost/ui/TransferCost.vue';
 import TransferDiagram from '@/widgets/workers-transfer-diagram/ui/TransferDiagram.astro';
@@ -107,45 +108,19 @@ import {
   OWNERSHIP_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Один поток на всё" lead={INTRO_NOTE} leadWidth={72}>
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+<Section variant="intro" eyebrow="Один поток на всё" lead={INTRO_NOTE}>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Агент и его изоляция"
   lead="Слово «поток» здесь сбивает с толку: оно тянет за собой привычки из C++ и Java — общая память, объекты, видимые всем, блокировки. В спецификации единица выполнения называется **агентом**, и по умолчанию у него нет с соседями ни одного общего объекта."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AGENT} />
+  <Plain text={PLAIN_AGENT} />
 
   <CardGrid min={290} gap={16} align="start">
     {AGENT_CARDS.map((item) => (
@@ -237,9 +212,8 @@ import {
   eyebrow="Раздел 2"
   title="Что можно передать"
   lead="Объект нельзя передать по ссылке: у другого агента своя память, и чужих объектов он не видит. Поэтому объект **копируют**: отправитель записывает его поле за полем, а получатель собирает заново. Делает это алгоритм structured clone (структурное клонирование). Часть данных при этом теряется **молча**, без ошибки, и код дальше работает с неполной копией."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLONE} />
+  <Plain text={PLAIN_CLONE} />
 
   <Card title="Копирование идёт в два приёма, и платят за него оба потока" titleSize={17} pad={20} gap={13}>
     <NumberedList items={CLONE_STEPS} size={15.5} />
@@ -264,13 +238,12 @@ import {
   eyebrowTone="demo"
   title="Передача владения"
   lead="Для двоичных данных копирование — пустая трата: вторая копия отправителю не нужна, данные надо просто **отдать**. Объекты, которые так умеют, называются transferable (переносимые). А то, что после передачи остаётся у отправителя, стоит увидеть своими глазами."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={TRANSFER_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSFER} />
+  <Plain text={PLAIN_TRANSFER} />
 
   <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={TRANSFER_LIST} />
@@ -346,7 +319,7 @@ import {
   </CardGrid>
   ### Третий способ: общая память
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHANNELS} />
+  <Plain text={PLAIN_CHANNELS} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={SHARED_TOPIC_NOTE} />
@@ -358,7 +331,6 @@ import {
   eyebrow="Раздел 4"
   title="Сколько на самом деле стоит сообщение"
   lead="Цена сообщения складывается из трёх частей: запись объектов у отправителя, ожидание в очереди получателя и сборка объектов у получателя. Третью часть платит получатель. А когда отвечает воркер, получатель — главный поток."
-  leadWidth={72}
 >
   <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={COST_LEAD_NOTE} />
@@ -431,7 +403,6 @@ import {
   eyebrow="Раздел 5"
   title="Пул воркеров: сколько заводить"
   lead="Число воркеров кажется арифметической задачей, но арифметикой не решается: платформа не сообщает, сколько ядер свободно на самом деле. Поэтому воркеры заводят заранее, держат в пуле и раздают им задачи через очередь с пределом."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={POOL_NOTE} />
@@ -486,7 +457,6 @@ import {
   eyebrow="Раздел 6"
   title="Холст в воркере"
   lead="Холст можно отдать воркеру (`OffscreenCanvas`), и тогда он рисует своим циклом кадров, пока главный поток занят чем угодно. Ввод при этом остаётся на странице, а размер и шрифты воркеру приходится передавать самому."
-  leadWidth={72}
 >
   ### Кадры вне окна
 
@@ -532,7 +502,6 @@ import {
   eyebrow="Раздел 7"
   title="Тонкие места"
   lead="Половина из них проходит молча: исключения нет, а данные тихо перестают быть теми, что вы отправляли."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>
@@ -543,7 +512,6 @@ import {
   eyebrow="Раздел 8"
   title="Источники"
   lead="Спецификации — чтобы проверить формулировку, статьи — чтобы понять, почему она такая."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {SOURCES.map((item) => (

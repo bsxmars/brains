@@ -5,7 +5,6 @@ headingWidth: 24
 order: 17
 kicker: сборка и инструменты
 lead: "Страница не стала медленнее за один день — она тяжелела по два килобайта в неделю, и никто не заметил. Бюджет превращает «не тяжелеть» в проверку на каждый пул-реквест. Какие байты считать, как собрать граф чанков, как ответить «почему этот модуль на странице» и как не утонуть в ложных срабатываниях — на настоящей сборке этого сайта и его стороже веса."
-leadWidth: 66
 summary: "Сырые байты против gzip и Brotli, критический путь против всех чанков, JS отдельно от CSS и шрифтов; живой бюджет сайта — weight.spec и его пороги; граф чанков из текста, из манифеста Vite и metafile esbuild; кратчайшая цепочка «кто тянет модуль»; Lighthouse CI, size-limit и RUM; порог, допуск, сравнение с базовой веткой и отчёт в пул-реквесте; хеши, общие чанки и одноимённые файлы."
 verifiedOn: "Astro 7.3.2 (Vite 8.3.0), es-module-lexer 2.3.2, acorn 8.18.0, esbuild 0.28.2, Node 24.11.0, Chromium 153 (Playwright 1.63), сборка сайта от 2 октября 2026: граф и размеры сняты с dist/ и сверяются tests/unit/performance-budgets.test.ts; функции темы сверены с weight.spec на всех страницах, с es-module-lexer и acorn на всех 313 чанках, с настоящими манифестом Vite и metafile esbuild; Lighthouse CI и size-limit — по документации"
 nav:
@@ -30,6 +29,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BudgetLab from '@/widgets/budget-lab/ui/BudgetLab.vue';
@@ -98,46 +100,18 @@ import {
   не видно: страница выглядит так же и работает так же, только грузится дольше. Бюджет
   ставит проверку туда, где правка ещё не уехала в прод, — в конвейер пул-реквеста.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUDGET} />
+  <Plain text={PLAIN_BUDGET} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Какие байты считать"
   lead="Одна и та же страница этого сайта «весит» 0, 48, 121 или 467 КБ — смотря что считать. Вот что Chromium на самом деле скачал для темы «Source maps»: окно 1280×800, локальный сервер без сжатия, прокрутка до конца."
-  leadWidth={72}
 >
   <Table
     head={['что', 'файлов', 'сырые байты', 'gzip', 'когда качается']}
@@ -150,7 +124,7 @@ import {
 
   ### Сырые или сжатые
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPRESSED} />
+  <Plain text={PLAIN_COMPRESSED} />
 
   <CardGrid min={280} gap={14} align="start">
     {MEASURE_FACTS.map((fact) => (
@@ -178,7 +152,6 @@ import {
   eyebrow="Раздел 2"
   title="Живой бюджет этого сайта"
   lead="У этого курса бюджет уже есть: e2e-проверка `tests/e2e/weight.spec.ts`. Она считает сырые байты скриптов каждой страницы — замыкание статических импортов от файлов, названных в HTML, — и сравнивает с порогом категории."
-  leadWidth={72}
 >
   <Table
     head={['порог', 'КБ', 'страницы', 'сейчас, КБ']}
@@ -207,9 +180,8 @@ import {
   eyebrow="Раздел 3"
   title="Граф чанков"
   lead="Чтобы посчитать замыкание, нужен граф: какой чанк кого импортирует. Его можно вытащить из текста готовых файлов или взять у сборщика. Первый способ работает с любым `dist/`, второй надёжнее."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GRAPH} />
+  <Plain text={PLAIN_GRAPH} />
 
   <Card title="Граф из текста чанков" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={GRAPH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -271,9 +243,8 @@ import {
   eyebrow="Раздел 4"
   title="Кто тянет этот модуль"
   lead="Бюджет покраснел — теперь нужно понять, что выросло и откуда оно взялось. Обход в ширину уже запомнил, кто к кому привёл; осталось пройти по этим записям назад от файла до входа страницы."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WHY} />
+  <Plain text={PLAIN_WHY} />
 
   <Md text={WHY_NOTE} />
 
@@ -287,7 +258,6 @@ import {
   eyebrow="Раздел 5"
   title="Байты и метрики"
   lead={METRICS_LEAD}
-  leadWidth={72}
 >
   <Table
     head={['инструмент', 'что меряет', 'шум', 'знает страницу']}
@@ -325,7 +295,6 @@ import {
   eyebrow="Раздел 6"
   title="Бюджет в CI"
   lead="Проверка в конвейере отвечает на два вопроса. Первый — не вышла ли страница за порог: от него зависит, красный ли прогон. Второй — что изменилось против базовой ветки: это текст для человека в комментарии к пул-реквесту."
-  leadWidth={72}
 >
   <Card title="Порог, база, допуск, отчёт" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CI_CODE} size={11.5} lh={1.65} pad="14px 16px" />

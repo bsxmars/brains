@@ -1,5 +1,5 @@
 import type { StampedeDiagramData } from '@/widgets/cdn-cache-stampede-diagram/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { StoreCase } from '@/widgets/cdn-stream/model/lab';
 
 /**
@@ -37,7 +37,7 @@ import type { StoreCase } from '@/widgets/cdn-stream/model/lab';
 export const PLAIN_SHARED =
   'Браузерный кеш — ваш холодильник: что положили, то и едите. Общий кеш — раздача в столовой: одну кастрюлю разливают всем. Поэтому в неё нельзя класть то, что готовили лично для вас, у одного блюда может быть несколько кастрюль (с луком и без), а когда суп кончился, очередь не должна всей толпой бежать на кухню.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'origin',
     d: 'Сервер-источник за кешем: приложение или хранилище файлов. Всё, чего нет в кеше, берут у него, и цель кеша — ходить к нему как можно реже.',
@@ -72,7 +72,7 @@ export const GLOSSARY = [
   },
 ];
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Свежесть и валидация',
     d: 'Пока ответ свеж, кеш отдаёт его без сети; когда срок вышел, спрашивает сервер с `If-None-Match` и получает `304` или новый ответ. Здесь те же две фазы, только у кеша, одного на всех.',
@@ -1006,7 +1006,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ───────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'RFC 9111 — HTTP Caching',
     href: 'https://www.rfc-editor.org/rfc/rfc9111',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DemoCase, Kind, ScaleResult, Scenario } from '@/widgets/textbuf-lab/model/types';
 
 /**
@@ -42,7 +42,7 @@ import type { DemoCase, Kind, ScaleResult, Scenario } from '@/widgets/textbuf-la
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'буфер текста',
     d: 'Структура данных, в которой редактор держит открытый документ. Снаружи у неё четыре вопроса: вставить, удалить, отдать кусок текста и найти, где начинается строка номер N.',
@@ -75,7 +75,7 @@ export const PLAIN_BUFFERS =
 export const PREREQ_NOTE =
   'Тема опирается на одну вещь, разобранную в другой теме, и на две, которых на сайте нет, — они объяснены прямо на карточках.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Строку в JS нельзя изменить',
     d: 'Любая «правка» строки создаёт новую строку. V8 умеет откладывать копирование: склейка `a + b` даёт узел-ссылку на обе части (cons-строку), а срез — окно в чужой буфер. Но первое же чтение по индексу или новый срез заставляют собрать плоскую копию.',
@@ -736,7 +736,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Peng Lyu — Text Buffer Reimplementation (VS Code blog, 2018)',
     href: 'https://code.visualstudio.com/blogs/2018/03/23/text-buffer-reimplementation',

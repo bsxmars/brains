@@ -5,7 +5,6 @@ headingWidth: 24
 order: 9
 kicker: алгоритмы во фронтенде
 lead: "Ctrl+Z кажется кнопкой «назад во времени», но времени редактор не хранит. Он хранит записи: что сделать, чтобы шагнуть назад. Как устроены две стопки, чем снимки отличаются от обратных правок, почему набранное слово отменяется целиком, что умеет история браузерного поля и почему в совместном редакторе своя отмена не вправе стереть чужое."
-leadWidth: 66
 summary: "Две стопки и почему новая правка стирает redo, снимки и общие ветки Immer, обратные правки и патчи, группировка по времени, виду и месту, выделение в записи, история `<textarea>` в Chromium — что она склеивает и где ломается, своя история через `beforeinput` и `keydown`, локальная отмена при чужих правках: пересчёт позиций и `Y.UndoManager`, дерево отмены в Vim и Emacs."
 verifiedOn: "immer 11.1.18, yjs 13.6.33, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: учебная история сверена с патчами Immer, с Y.UndoManager на 3000 случайных сценариев двух клиентов и с историей textarea в Chromium в tests/unit/undo-redo.test.ts"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import UndoLab from '@/widgets/undo-lab/ui/UndoLab.vue';
@@ -101,48 +103,20 @@ import {
   разницу. Где кончается одна запись и начинается следующая: буква, слово, пауза. Куда
   ставить каретку после отмены. И что делать с правками, которые сделал кто-то другой.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HISTORY} />
+  <Plain text={PLAIN_HISTORY} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Две стопки: undo и redo"
   lead="Отменять нужно от свежего к старому, повторять — в обратном порядке. Ровно так работают две стопки: Ctrl+Z перекладывает верхнюю запись из undo в redo, Ctrl+Shift+Z — обратно."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STACKS} />
+  <Plain text={PLAIN_STACKS} />
 
   <Table
     head={['действие', 'текст', 'записей в undo', 'в redo']}
@@ -165,9 +139,8 @@ import {
   eyebrow="Раздел 2"
   title="Снимки: хранить копию"
   lead="Самая простая история: перед каждой правкой запомнить всё состояние. Отмена возвращает прошлую копию — и не нужно знать, что именно изменилось. Вопрос только в цене копии."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+  <Plain text={PLAIN_SNAPSHOT} />
 
   <Card title="Сколько стоит снимок объекта" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SHARING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -198,9 +171,8 @@ import {
   eyebrow="Раздел 3"
   title="Обратные правки"
   lead="Вместо копии можно хранить разницу: что сделано и как это погасить. Запись становится маленькой — сколько изменили, столько и храним. Зато каждая правка обязана знать свою обратную."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INVERSE} />
+  <Plain text={PLAIN_INVERSE} />
 
   <Card title="Правка над строкой и обратная к ней" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={OPS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -255,9 +227,8 @@ import {
   eyebrow="Раздел 4"
   title="Группировка: где кончается запись"
   lead="Если каждая буква — своя запись, «Привет» отменяется шестью нажатиями. Если весь сеанс — одна запись, Ctrl+Z стирает час работы. Запись должна совпадать с тем, что человек считает одним действием."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GROUP} />
+  <Plain text={PLAIN_GROUP} />
 
   <CardGrid min={240} gap={14} align="start">
     {GROUP_RULES.map((rule) => (
@@ -274,7 +245,7 @@ import {
 
   ### Транзакции и Y.UndoManager
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSACTION} />
+  <Plain text={PLAIN_TRANSACTION} />
 
   <Card title="Своя отмена в Yjs" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={YJS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -299,7 +270,6 @@ import {
   eyebrow="Раздел 5"
   title="История браузера"
   lead="У `<textarea>`, `<input>` и `contenteditable` своя история, и Ctrl+Z в них работает без единой строки кода. Её правила группировки нигде не стандартизованы, их можно только снять — и у Chromium 153 они местами расходятся с учебной моделью."
-  leadWidth={72}
 >
   <Table
     head={['что сделали', 'Chromium', 'модель', 'что видно']}
@@ -337,9 +307,8 @@ import {
   eyebrow="Раздел 6"
   title="Отмена в совместном редакторе"
   lead="Аня набрала «Привет», через паузу «, мир». Борис в своей копии вставил «Борис: » в начало, и его правка дошла до Ани. Аня жмёт Ctrl+Z. Отменить нужно её «, мир» — где бы оно теперь ни стояло, — и не тронуть ни символа Бориса."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOCAL_UNDO} />
+  <Plain text={PLAIN_LOCAL_UNDO} />
 
   <Table
     head={['что в записи', 'Ctrl+Z', 'ещё Ctrl+Z', 'Ctrl+Shift+Z', 'почему']}
@@ -379,9 +348,8 @@ import {
   eyebrow="Раздел 7"
   title="Дерево отмены"
   lead="Линейная история теряет отменённое при первой же новой правке. Два старых редактора решили это по-разному — и ни один не выбросил ветку."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TREE} />
+  <Plain text={PLAIN_TREE} />
 
   <Table
     head={['история', 'что делает новая правка после отмены', 'что теряется']}

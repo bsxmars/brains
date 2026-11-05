@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ApiCodes, ResolverScenario, Tables } from '@/widgets/api-wire-lab/model/types';
 
 /**
@@ -46,7 +46,7 @@ import type { ApiCodes, ResolverScenario, Tables } from '@/widgets/api-wire-lab/
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'ресурс (REST)',
     d: 'Сущность со своим адресом: `/api/users/u1` — пользователь, `/api/products/p1` — товар. Сервер решает, какие поля отдать; клиент берёт запись целиком.',
@@ -91,7 +91,7 @@ export const PLAIN_STYLES =
 export const PREREQ_NOTE =
   'Тема опирается на кеш HTTP, кадры HTTP/2 и порядок задач в цикле событий — всё это разобрано в других темах. Двоичная запись числа объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Кеш HTTP и валидация',
     d: '`Cache-Control: max-age=60` разрешает браузеру отдать копию без сети. `no-cache` с `ETag` — спросить сервер «не изменилось?» и получить короткий ответ `304`.',
@@ -1290,7 +1290,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'GraphQL Specification — Execution',
     href: 'https://spec.graphql.org/October2021/#sec-Execution',

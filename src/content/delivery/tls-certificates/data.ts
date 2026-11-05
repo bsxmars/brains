@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { CertFact, StepInfo } from '@/widgets/tls-lab/model/types';
 
 /**
@@ -56,7 +56,7 @@ import type { CertFact, StepInfo } from '@/widgets/tls-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'TLS',
     d: 'Протокол поверх TCP, который делает из обычного соединения защищённое: шифрует байты и доказывает клиенту, что на том конце владелец имени из адреса. HTTPS — это HTTP внутри TLS.',
@@ -97,7 +97,7 @@ export const PLAIN_TLS =
 export const PREREQ_NOTE =
   'Тема начинается с первого байта TLS. Всё, что до него и после него, разобрано в других темах.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'TCP и цена круга',
     d: 'До TLS соединение открывает TCP — ещё один круг туда и обратно. Сколько кругов стоит первый запрос и как их убирают `preconnect` и QUIC.',
@@ -672,7 +672,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   { title: 'RFC 8446 — TLS 1.3', href: 'https://www.rfc-editor.org/rfc/rfc8446', what: 'сообщения рукопожатия, расписание ключей, билеты, 0-RTT и повтор (раздел 8)' },
   { title: 'RFC 5280 — X.509 PKI', href: 'https://www.rfc-editor.org/rfc/rfc5280', what: 'поля сертификата, basicConstraints, AKI/SKI, построение пути' },
   { title: 'RFC 6125 — проверка имени сервера', href: 'https://www.rfc-editor.org/rfc/rfc6125', what: 'SAN вместо CN, правила звёздочки' },

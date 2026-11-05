@@ -5,7 +5,6 @@ headingWidth: 24
 order: 15
 kicker: доставка
 lead: "Три одинаковых бэкенда за nginx — и три вопроса, у каждого своё неочевидное правило. Кому отдать запрос: по кругу, по весам, тому, кто свободнее, или по ключу. Как понять, что бэкенд болен, если `500` для nginx не ошибка. И можно ли повторить запрос на соседе, если первый бэкенд, возможно, его уже выполнил."
-leadWidth: 66
 summary: "L4 против L7: соединения или запросы, почему HTTP/2 и WebSocket прилипают; round-robin и плавный взвешенный круг nginx, `zone` и рабочие процессы; `least_conn`, случайный выбор и «два случайных»; `hash % N` против согласованного хеширования с виртуальными узлами, `ip_hash`, липкие сессии; активные и пассивные проверки, `max_fails`/`fail_timeout`, `no live upstreams`; `proxy_next_upstream` и идемпотентность; плавный вывод и ловушка keep-alive в `server.close()`."
 verifiedOn: "nginx 1.30.0 (nginx:1.30.0-alpine-slim) в Docker 27.4.0, бэкенды на node:http (Node 24.11.0), октябрь 2026: последовательности бэкендов, повторы и вывод из работы сняты стендом; PICK_CODE и RING_CODE воспроизводят выбор nginx побуквенно (tests/unit/load-balancing.test.ts), доля переехавших ключей сверена с 1/(N+1); DRAIN_CODE исполнен на node:http; активные проверки и sticky NGINX Plus, gRPC MAX_CONNECTION_AGE, proxy_next_upstream_tries/_timeout и Idempotency-Key — по документации"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BalancerLab from '@/widgets/lb-lab/ui/BalancerLab.vue';
@@ -119,48 +121,20 @@ import {
   «добавлять» переносит ключи, «убирать» обрывает запросы, «перезапускать» превращается
   в 502.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BALANCER} />
+  <Plain text={PLAIN_BALANCER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Соединения или запросы: L4 и L7"
   lead="Первое, что определяет поведение балансировщика, — что именно он делит. L4 выбирает бэкенд один раз на TCP-соединение, L7 — на каждый HTTP-запрос. Пока одно соединение несёт один запрос, разницы нет. Как только соединение живёт долго, разница становится главной."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_L4L7} />
+  <Plain text={PLAIN_L4L7} />
 
   <Card title="Один nginx, два уровня" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={L4L7_CONF} size={11.5} lh={1.65} pad="14px 16px" />
@@ -193,11 +167,10 @@ import {
   eyebrowTone="demo"
   title="Круг и веса"
   lead="Если бэкенды одинаковые, их обходят по кругу. Если один мощнее, ему дают вес. Задача взвешенного круга — не только отдать тяжёлому бэкенду больше запросов, но и не отдавать их пачкой подряд."
-  leadWidth={72}
 >
   <Md text={RR_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SWRR} />
+  <Plain text={PLAIN_SWRR} />
 
   <Card title="Выбор бэкенда — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PICK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -238,7 +211,6 @@ import {
   eyebrow="Раздел 3"
   title="Кто свободнее: least_conn и два случайных"
   lead="Круг не смотрит на то, чем заняты бэкенды. Если запросы разной тяжести, один бэкенд может стоять с очередью долгих запросов, а круг продолжит отдавать ему каждый третий. `least_conn` отдаёт запрос тому, у кого меньше незаконченных запросов."
-  leadWidth={72}
 >
   <Table
     head={['алгоритм', 'два долгих запроса', 'шесть коротких следом']}
@@ -253,7 +225,7 @@ import {
 
   ### Несколько балансировщиков
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_P2C} />
+  <Plain text={PLAIN_P2C} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="neutral" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={P2C_NOTE} />
@@ -270,13 +242,12 @@ import {
   eyebrowTone="demo"
   title="Хеш по ключу: остаток, кольцо и липкость"
   lead="Иногда бэкенд выбирают не по загрузке, а по тому, кто пришёл. Тогда главный вопрос — что станет с ключами, когда число бэкендов изменится."
-  leadWidth={72}
 >
   <Md text={HASH_WHY} />
 
   <Md text={MOD_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RING} />
+  <Plain text={PLAIN_RING} />
 
   <Card title="Остаток и кольцо — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -346,9 +317,8 @@ import {
   eyebrow="Раздел 5"
   title="Проверки здоровья"
   lead="Балансировщик должен перестать слать запросы больному бэкенду и вернуть его, когда тот выздоровел. Узнать о болезни можно двумя способами — спросить или заметить, — и у открытого nginx есть только второй."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HEALTH} />
+  <Plain text={PLAIN_HEALTH} />
 
   <Table
     head={['проверка', 'как', 'плюс', 'минус']}
@@ -404,9 +374,8 @@ import {
   eyebrow="Раздел 6"
   title="Повторы и идемпотентность"
   lead="Когда бэкенд не ответил, nginx может отправить тот же запрос следующему. Для пользователя это спасение: вместо 502 он получает ответ. Но балансировщик не знает, успел ли первый бэкенд выполнить запрос, — и повтор может выполнить его второй раз."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IDEMPOTENT} />
+  <Plain text={PLAIN_IDEMPOTENT} />
 
   <Table
     head={['что сделал B', '`GET`', '`POST`', 'кто выполнил запрос']}
@@ -429,7 +398,6 @@ import {
   eyebrow="Раздел 7"
   title="Плавный вывод"
   lead="Бэкенд выводят из работы при каждом выкате, масштабировании и обновлении машины. Сделать это без единой ошибки у пользователя можно, только если бэкенд и балансировщик действуют в правильном порядке."
-  leadWidth={72}
 >
   <CardGrid min={240} gap={14} align="start">
     {DRAIN_STEPS.map((step) => (

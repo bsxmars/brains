@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Буфер обмена и перетаскивание».
@@ -84,7 +84,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 // ─── Вводный раздел ────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'буфер обмена',
     d: 'Общее хранилище операционной системы: то, что скопировали в одной программе, вставляют в другой. Один на всю систему, а не на вкладку.',
@@ -117,7 +117,7 @@ export const PLAIN_CLIPBOARD =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи из соседних тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Действие по умолчанию',
     d: 'После события браузер делает своё: копирует выделение, открывает брошенный файл. `preventDefault()` этот шаг отменяет.',
@@ -513,7 +513,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Clipboard API and events',
     href: 'https://w3c.github.io/clipboard-apis/',

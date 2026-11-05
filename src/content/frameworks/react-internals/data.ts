@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { MiniScenario } from '@/widgets/mini-fiber/model/types';
 
 /**
@@ -605,7 +605,7 @@ export const NO_BAILOUT_LOG = {
 
 /* ───────────────────────────── Текст темы ───────────────────────────── */
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'элемент',
     d: 'Объект `{ type, key, props }` — результат JSX. Описание «здесь должен быть такой-то компонент с такими-то пропсами», а не узел документа. Каждый рендер создаёт элементы заново.',
@@ -635,7 +635,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Мини-версия повторяет поведение React, а не выводит его заново. Каким это поведение бывает — сколько раз зовётся функция компонента, что делает ключ, почему три `setState` дают один рендер, — здесь считается известным; ответ тут на другой вопрос: каким кодом оно получается.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что такое ре-рендер и две фазы',
     d: '`setState` помечает компонент, React вызывает функцию заново, сравнивает результат и правит DOM только там, где есть разница. Здесь этот абзац превращается в код — полезно знать, как он выглядит снаружи.',
@@ -921,7 +921,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ───────────────────────────── Источники ───────────────────────────── */
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Build your own React — Rodrigo Pombo',
     href: 'https://pomb.us/build-your-own-react/',

@@ -5,7 +5,6 @@ headingWidth: 24
 order: 17
 kicker: сеть и безопасность
 lead: "Строгая CSP пишется в одну строку: `script-src 'nonce-…' 'strict-dynamic'`. Дальше начинается работа: какие ваши скрипты она заблокирует, почему `'unsafe-inline'` рядом с nonce ничего не разрешает, где кнопки перестанут нажиматься, как узнать об этом из отчётов раньше пользователей — и что Trusted Types делают с `innerHTML`, `v-html` и `dangerouslySetInnerHTML`."
-leadWidth: 66
 summary: "Как браузер решает, выполнить ли скрипт: цепочка директив, nonce, хеш, `'strict-dynamic'`, обработчики и `javascript:`, `'unsafe-hashes'`. Отчёты `report-uri` и `report-to`, режим report-only и поэтапное внедрение, заголовок против `<meta>`. Trusted Types: места вставки, политики, `default`, и как с ними живут Vue и React."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, Vue 3.5.42, React 19.3.0, esbuild 0.28.2, октябрь 2026: журнал «31 политика × 15 проб», тексты консоли, тела отчётов, <meta>, Trusted Types и поведение Vue и React снимаются заново tests/unit/csp.test.ts, функция темы сверена с журналом на всех 465 парах. Доставка report-to на сервер на стенде не наблюдалась — её вид по спецификации Reporting API; другие движки не проверялись"
 nav:
@@ -32,6 +31,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CspLab from '@/widgets/csp-lab/ui/CspLab.vue';
@@ -116,39 +118,12 @@ import {
   без nonce, `onclick` в разметке, `'self'` рядом со `'strict-dynamic'`, `<meta>` вместо
   заголовка. Всё это видно заранее — в консоли и в отчётах браузера, если знать, где смотреть.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CSP} />
+  <Plain text={PLAIN_CSP} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -156,7 +131,6 @@ import {
   eyebrowTone="demo"
   title="Как браузер решает, выполнить ли скрипт"
   lead="Пример на всю тему — одна страница с пятнадцатью способами запустить код: внешние и инлайн-скрипты, с nonce и без, обработчики, `javascript:`-ссылка, `eval`. Каждая проба, выполнившись, вызывает `mark('её-id')`. Меняется только заголовок CSP."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Страница: двенадцать проб в разметке" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -173,7 +147,7 @@ import {
   Скрипты разного рода проверяют разные директивы. Если нужной в заголовке нет, браузер
   берёт следующую по цепочке; если нет ни одной — этот род скриптов CSP не ограничивает вовсе.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FALLBACK} />
+  <Plain text={PLAIN_FALLBACK} />
 
   <Table
     head={['что выполняется', 'своя директива', 'если её нет']}
@@ -204,7 +178,6 @@ import {
   eyebrow="Раздел 2"
   title="Nonce, хеш и 'strict-dynamic'"
   lead="Строгая политика держится на двух входах доверия — nonce и хеше — и на правиле, что доверенный скрипт может звать других. Всё остальное в ней либо вычеркнуто браузером, либо оставлено для старых браузеров."
-  leadWidth={72}
 >
   <Md text={ALLOWLIST_NOTE} />
 
@@ -264,7 +237,6 @@ import {
   eyebrow="Раздел 3"
   title="Обработчики в атрибутах и javascript:-ссылки"
   lead="Самая частая поломка при переходе на nonce — не скрипты, а `onclick` в разметке. Nonce у атрибута поставить некуда, хеш к атрибутам по умолчанию не применяется, а `javascript:`-ссылку проверяет вообще другая директива."
-  leadWidth={72}
 >
   <Table
     head={['политика', 'onclick', 'javascript:-ссылка']}
@@ -301,7 +273,6 @@ import {
   eyebrow="Раздел 4"
   title="Отчёты и поэтапное внедрение"
   lead="Report-only — способ узнать, что сломает политика, не ломая ничего. Браузер выполняет всё как раньше и присылает отчёт о каждом скрипте, который заблокировал бы."
-  leadWidth={72}
 >
   <CodeBlock code={REPORT_HEADERS_CODE} size={11} lh={1.65} pad="14px 16px" />
 
@@ -344,7 +315,6 @@ import {
   eyebrow="Раздел 5"
   title="Заголовок или <meta>"
   lead='Политику можно положить и в разметку: `<meta http-equiv="Content-Security-Policy">`. Скрипты она ограничивает так же, но часть директив в ней не работает, а действует она только с того места, где браузер её прочитал.'
-  leadWidth={72}
 >
   <CodeBlock code={META_PAGE_HTML} size={11} lh={1.65} pad="14px 16px" />
 
@@ -367,9 +337,8 @@ import {
   eyebrow="Раздел 6"
   title="Trusted Types"
   lead="CSP решает, какие скрипты выполнить. Trusted Types — какие строки пустить туда, где строка становится разметкой или кодом. С `require-trusted-types-for 'script'` голая строка в `innerHTML` — исключение: принимается только объект, который выдала ваша политика."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TT} />
+  <Plain text={PLAIN_TT} />
 
   <CodeBlock code={TT_HEADER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -422,7 +391,6 @@ import {
   eyebrow="Раздел 7"
   title="Vue и React под Trusted Types"
   lead="Фреймворк пишет в DOM сам, и под Trusted Types важно, как именно. React 19 отдаёт `__html` в `innerHTML` как есть. Vue 3 заводит собственную политику — и от этого зависит, увидят ли Trusted Types ваш `v-html`."
-  leadWidth={72}
 >
   <Table
     head={['', 'без TT', `\`${FW_HEADERS.any}\``, '`… trusted-types app`', '`… trusted-types app vue`']}

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Процессы и потоки в Node».
@@ -36,7 +36,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 // ─── Вводный раздел ────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'процесс',
     d: 'Запущенная программа со своей памятью, своим номером `pid` и своими открытыми файлами. Два процесса не видят память друг друга — так их разделяет операционная система.',
@@ -73,7 +73,7 @@ export const PLAIN_PROCESS =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из соседних тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Цикл событий Node',
     d: 'Один поток выполняет колбэки по одному. Пока колбэк считает, ни один запрос, таймер или ответ сети не будет обработан.',
@@ -430,7 +430,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Node.js API — Worker threads',
     href: 'https://nodejs.org/api/worker_threads.html',

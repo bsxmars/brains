@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Status, TreeNode } from '@/widgets/boundary-lab/model/types';
 
 /**
@@ -43,7 +43,7 @@ import type { Status, TreeNode } from '@/widgets/boundary-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'рендер',
     d: 'Вызов функции компонента: React или Vue спрашивают, что нарисовать. Результат — описание разметки, а не сама разметка. Рендер можно повторить и выбросить, на экран он попадает только после **коммита**.',
@@ -80,7 +80,7 @@ export const PLAIN_THROW =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи, разобранные в других темах.';
 
-export const PREREQ: { t: string; d: string; href: string; hrefLabel: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Рендер и коммит — разные шаги',
     d: 'React сначала считает новое дерево и только потом одним заходом меняет DOM. Посчитанное можно выбросить без следа — на этом стоит весь Suspense.',
@@ -733,7 +733,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'React — `<Suspense>`',
     href: 'https://react.dev/reference/react/Suspense',

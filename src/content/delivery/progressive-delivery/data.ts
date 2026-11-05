@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Прогрессивная доставка: сине-зелёный выкат, канарейка и флаги».
@@ -378,7 +378,7 @@ export const INTRO_NOTE =
 export const PLAIN_CANARY =
   'Шахтёры брали в забой канарейку: птица чувствительнее к газу и замолкает раньше, чем людям становится плохо. Канареечный выкат устроен так же. Новую версию сначала получает малая доля пользователей, и если что-то не так, это видно по их числам, пока остальные ничего не заметили.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'выкат',
     d: 'Доставка новой версии кода на серверы. Не то же самое, что включение функции: с флагами код может приехать ко всем, а функция — остаться выключенной.',
@@ -432,7 +432,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема управляет тем, кто и когда видит новую версию. Как Kubernetes заменяет поды и как запрос входит в кластер, разобрано отдельно.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Rolling update заменяет поды порциями',
     d: 'Deployment по умолчанию уже выкатывает постепенно: гасит старые поды и заводит новые, соблюдая `maxSurge` и `maxUnavailable`. Здесь это не пересказывается — тема начинается там, где этого мало.',
@@ -1063,7 +1063,7 @@ export const PITFALLS: Pitfall[] = [
 // Источники
 // ─────────────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Argo Rollouts: Canary',
     href: 'https://argo-rollouts.readthedocs.io/en/stable/features/canary/',

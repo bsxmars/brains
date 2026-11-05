@@ -2,7 +2,6 @@
 title: Строки в V8
 order: 32
 lead: "Строку в JS нельзя изменить. Поэтому несколько строк могут безопасно пользоваться одними и теми же байтами, а склейка и вырезание подстроки делаются за O(1): копирование откладывается на потом, а иногда не происходит вовсе."
-leadWidth: 64
 summary: "Пять представлений строки, отложенный flatten, срез, который держит мегабайты, и Юникод, где «символ» — четыре разных числа."
 verifiedOn: "Node 24.11, 24.22 и 26.8.2 (V8 13.6 и 14.6), Chrome for Testing 153, октябрь 2026: типы представлений сняты `%DebugPrint`, удержание — `heapUsed` под `--expose-gc` и пересобираются tests/unit/v8-strings.test.ts; порядок обхода при расплющивании и устройство `repeat` — по исходникам V8"
 nav:
@@ -25,6 +24,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import CopyCost from '@/widgets/copy-cost/ui/CopyCost.astro';
 import FlattenSteps from '@/widgets/flatten-steps/ui/FlattenSteps.vue';
 import LogBars from '@/widgets/log-bars/ui/LogBars.astro';
@@ -84,10 +85,9 @@ import {
   variant="intro"
   eyebrow="Точка, из которой выводится всё остальное"
   lead="Строку привычно представлять рядом символов подряд. В V8 строка — скорее **узел дерева**: он умеет по требованию выдать символы, но сами символы могут лежать в других объектах. Настоящие буферы с символами есть только в листьях этого дерева."
-  leadWidth={70}
   gap={24}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROPE} />
+  <Plain text={PLAIN_ROPE} />
 
   <Callout size={19} pad="22px 24px">
 
@@ -128,13 +128,7 @@ import {
 
   </Card>
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
 <Section
@@ -142,7 +136,6 @@ import {
   eyebrow="Перед началом"
   title="Граница наблюдаемого"
   lead="По самой строке почти ничего из этой темы **не видно** — ни в браузере, ни в Node. Видно следствия: время, память и снимок кучи."
-  leadWidth={70}
 >
   <CardGrid min={290} gap={16} align="start">
     <Card tone="err" title="Не видно по самой строке" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
@@ -204,9 +197,8 @@ import {
   eyebrow="Раздел 1"
   title="Таблица строк: одинаковые имена — один объект"
   lead="Чтение свойства — самая частая операция в языке, и каждое начинается со сравнения имён. Чтобы это сравнение не было циклом по буквам, движок держит **таблицу строк**: по одному экземпляру каждой различной строки. Занести строку в эту таблицу называется **интернировать**."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTERN} />
+  <Plain text={PLAIN_INTERN} />
 
   <Card title="Как таблица превращает сравнение имён в сравнение адресов" titleSize={18} pad={22} gap={16} size={16} lh={1.6}>
 
@@ -297,9 +289,8 @@ import {
   eyebrowTone="demo"
   title="Пять представлений: что возникает и когда"
   lead="От того, как устроена строка, зависит, сколько она стоит: склейка может оказаться деревом, а короткий срез — окном в чужой огромный буфер. Одна и та же по смыслу строка бывает устроена пятью способами. Какой выбрать, решает движок: он смотрит на длину результата и на операцию, которая его создала."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SLICE} />
+  <Plain text={PLAIN_SLICE} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={XRAY_DEMO_NOTE} />
@@ -358,9 +349,8 @@ import {
   eyebrowTone="demo"
   title="Расплющивание (flatten): когда дерево превращается в один буфер"
   lead="Склейка ничего не копирует, но и не отменяет копирования, а откладывает его. Когда кому-то впервые понадобятся символы подряд, движок выделит буфер на всю длину строки, скопирует в него все листья и переделает сам узел — объект останется тем же и того же типа."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLATTEN} />
+  <Plain text={PLAIN_FLATTEN} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={FLATTEN_DEMO_NOTE} />
@@ -460,7 +450,6 @@ import {
   eyebrowTone="demo"
   title="Способы скопировать строку — половина не работает"
   lead="Из ответа на 50 МБ вырезали сто символов и положили в кеш — и кеш теперь держит все 50 МБ: срез длиннее порога ссылается на родителя. Лечится это копией, но половина привычных способов её не делает, а возвращает тот же самый срез."
-  leadWidth={72}
 >
   Родитель во всех замерах ниже — 50 МБ текста:
 
@@ -562,9 +551,8 @@ import {
   eyebrowTone="demo"
   title="«Символ» — это четыре разных числа"
   lead="`'😀'.length` равно 2, а `'é'.length` бывает и 1, и 2 — смотря как букву записали. «Длина строки» в JS считает не то, что видит человек. V8 тут ни при чём: так устроена спецификация, и так было с 1995 года. Тогда Юникод помещался в 16 бит, потом вырос до 21, а ломать совместимость было нельзя."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_UNITS} />
+  <Plain text={PLAIN_UNITS} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={UNICODE_DEMO_NOTE} />

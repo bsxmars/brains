@@ -4,7 +4,6 @@ heading: "Генераторы и асинхронные итераторы: п�
 headingWidth: 24
 order: 10
 lead: "Генератор умеет остановиться на `yield` и продолжить с того же места, когда его попросят. Если просить, когда выполнился промис, получится `async/await` — и пара десятков строк кода показывает, как именно. Асинхронный генератор соединяет оба механизма и добавляет то, чего нет ни у одного: очередь вызовов."
-leadWidth: 66
 summary: "Пауза генератора и во что он превращается без движка; `async/await` как генератор плюс `spawn`, пошагово и против настоящего движка; `__awaiter` TypeScript; асинхронные итераторы и `for await`; очередь `next()` у асинхронного генератора; `break`, `return()` и закрытие ресурса, которое не прерывает ожидание."
 verifiedOn: "Node 24.11.0 (V8 13.6), TypeScript 6.0.3, октябрь 2026: порядок событий учебной spawn, __awaiter и настоящего async/await совпадает на всех сценариях темы; примеры асинхронных генераторов исполняются tests/unit/generators.test.ts. Без таймерных замеров"
 nav:
@@ -28,6 +27,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SpawnLab from '@/widgets/spawn-lab/ui/SpawnLab.vue';
@@ -98,44 +100,18 @@ import {
   браузер короче, почему самодельный асинхронный итератор ломается под `Promise.all`,
   почему `return()` не может остановить генератор, который ждёт ответа сервера.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PAUSE} />
+  <Plain text={PLAIN_PAUSE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Пауза генератора: что она хранит"
   lead="Состояния генератора и методы `next`, `return`, `throw` разобраны в «Объектной модели». Здесь важно одно их свойство: значение выражения `yield` выбирает не генератор, а тот, кто его продолжает."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="«Запросы» для всей темы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -156,7 +132,7 @@ import {
   старых браузеров, где генераторов нет. Ниже — тот же `loadSteps`, собранный
   с `target: ES5`.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STATE} />
+  <Plain text={PLAIN_STATE} />
 
   <Card title="loadSteps после TypeScript с target: ES5" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TS_ES5_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -192,9 +168,8 @@ import {
   eyebrow="Раздел 2"
   title="async/await из генератора и промисов"
   lead="Продолжайте генератор, когда выполнится промис, который он отдал через `yield`, и передавайте результат этого промиса в `next` — и генератор начнёт вести себя как async-функция. Функцию, которая так продолжает генератор, по традиции называют `spawn` или `co`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPAWN} />
+  <Plain text={PLAIN_SPAWN} />
 
   <Card title="spawn — пара десятков строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SPAWN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -271,9 +246,8 @@ import {
   eyebrow="Раздел 3"
   title="Асинхронные итераторы и for await"
   lead="Асинхронный итератор устроен как обычный, только `next()` возвращает не результат, а промис результата. Так можно обходить то, что приходит по частям и не сразу: страницы API, куски файла, сообщения из сокета."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ASYNC_ITER} />
+  <Plain text={PLAIN_ASYNC_ITER} />
 
   <Table
     head={['', 'обычный', 'асинхронный']}
@@ -307,9 +281,8 @@ import {
   eyebrow="Раздел 4"
   title="Очередь next() у асинхронного генератора"
   lead="Обычный генератор работает, только пока его зовут, и никогда — дважды одновременно. Асинхронный может получить новый `next()`, когда ещё не ответил на предыдущий: в это время он ждёт на `await`. На этот случай у него есть очередь."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE} />
+  <Plain text={PLAIN_QUEUE} />
 
   <Card title="Три next() разом — продолжение примера со страницами" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={QUEUE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -339,7 +312,6 @@ import {
   eyebrow="Раздел 5"
   title="Ранний выход: break и закрытие ресурса"
   lead="Генератор, который открыл файл или соединение, закрывает его в `finally`. Цикл, вышедший раньше конца, зовёт у генератора `return()` — и у асинхронного генератора этот вызов тоже возвращает промис, который цикл ждёт."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="break и асинхронный finally" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

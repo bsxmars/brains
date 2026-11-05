@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { FieldRun, InputScenario } from '@/widgets/input-lab/model/types';
 
 /**
@@ -51,7 +51,7 @@ import type { FieldRun, InputScenario } from '@/widgets/input-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`beforeinput` и `input`',
     d: 'Два события вокруг каждой правки поля. `beforeinput` приходит до неё: значение ещё старое, правку можно отменить. `input` — после: значение уже новое, отменять поздно.',
@@ -88,7 +88,7 @@ export const PLAIN_INPUT =
 export const PREREQ_NOTE =
   'Тема спускается ниже фреймворков, к самому полю. Три вещи она берёт из других тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Действие по умолчанию и `preventDefault()`',
     d: 'После слушателей браузер делает свою работу: печатает букву, вставляет текст. `preventDefault()` в слушателе отменяет этот шаг, если событие отменяемое (`cancelable: true`).',
@@ -1010,7 +1010,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — UI Events',
     href: 'https://www.w3.org/TR/uievents/',

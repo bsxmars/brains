@@ -4,7 +4,6 @@ heading: "Регулярные выражения изнутри: откаты �
 headingWidth: 24
 order: 7
 lead: "Движок регулярных выражений в JavaScript не видит шаблон целиком — он перебирает варианты: пробует, упирается, возвращается к последней развилке. Почти всегда это быстро. Но у шаблона вроде `/^(\\w+\\s?)*$/` на почти подходящей строке вариантов 2ⁿ, и сорок символов из поля формы занимают сервер Node на часы."
-leadWidth: 66
 summary: "Как движок с откатами сопоставляет шаблон — учебная реализация с журналом шагов, сверенная с V8; жадные и ленивые повторы; откуда берётся 2ⁿ у `(a+)+`, `(a|a)*`, `(\\w+\\s?)*` и n² у `\\s+$`; ReDoS — одна строка вешает сервер; лечение: шаблон без вложенных повторов, атомарная группа через просмотр вперёд и `\\1`, лимит длины, линейный движок V8 и RE2; флаги `g`, `y`, `u`, `v`, `lastIndex`, именованные группы и просмотр назад."
 verifiedOn: "Node 24.11.0 (V8 13.6.233.10) и 26.8.2 (V8 14.6.202.34), октябрь 2026: учебный движок сверен с RegExp V8 почти на 30 000 парах «шаблон × строка» без расхождений; числа шагов пересчитываются тем же движком; настоящий V8 проверен порогом в отдельном процессе (8 с): плохой шаблон на длине 40 не укладывается, исправленный на длине 100 000 укладывается; сервер node:http с плохим шаблоном перестаёт отвечать. Флаг l и подмена при лишних откатах — тем же способом. Всё повторяет tests/unit/regex.test.ts. Без таймерных замеров"
 nav:
@@ -29,6 +28,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import RegexLab from '@/widgets/regex-lab/ui/RegexLab.vue';
@@ -103,46 +105,18 @@ import {
   движок обязан доказать, что ни один способ не годится. Число способов зависит от шаблона —
   и бывает, что оно удваивается с каждой буквой.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BACKTRACK} />
+  <Plain text={PLAIN_BACKTRACK} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Как движок ищет совпадение"
   lead="Движок с откатами (backtracking) — это рекурсивный обход: для каждого куска шаблона «проверь здесь и, если вышло, передай остаток дальше». Учебная версия умеет литералы, `.`, классы, `\w` `\d` `\s`, ветки, группы, повторы — жадные и ленивые, — якоря, просмотр вперёд и обратные ссылки. На этом подмножестве она отвечает так же, как V8: те же индексы и те же группы."
-  leadWidth={72}
 >
   <Card title="Сопоставление с откатами" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MATCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -178,9 +152,8 @@ import {
   eyebrow="Раздел 2"
   title="Жадные и ленивые повторы"
   lead="Повтор — тоже развилка: «взять ещё один знак или идти дальше». Жадный `+` сперва берёт, ленивый `+?` сперва идёт дальше. Когда совпадение есть, от порядка зависит, какое найдётся первым. Когда его нет, порядок не важен: проверены будут все варианты."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GREEDY} />
+  <Plain text={PLAIN_GREEDY} />
 
   <Card title="Один текст — три шаблона" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={GREEDY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -203,7 +176,6 @@ import {
   eyebrow="Раздел 3"
   title="Катастрофический откат"
   lead="Катастрофическим откат становится, когда один и тот же кусок строки шаблон может описать многими способами. На подходящей строке движок берёт первый способ и не замечает остальных. На почти подходящей он перебирает их все — и их число растёт как 2ⁿ."
-  leadWidth={72}
 >
   <Md text={SPLITS_NOTE} />
 
@@ -240,9 +212,8 @@ import {
   eyebrow="Раздел 4"
   title="ReDoS: одна строка вешает сервер"
   lead="ReDoS (regular expression denial of service) — отказ в обслуживании через регулярку. Злоумышленнику не нужен поток запросов: хватает одной строки, на которой шаблон уходит в перебор. Node исполняет JavaScript в одном потоке, и пока `test` перебирает, сервер не делает ничего другого."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REDOS} />
+  <Plain text={PLAIN_REDOS} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сервер с проверкой имени" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -284,7 +255,6 @@ import {
   eyebrow="Раздел 5"
   title="Как лечить"
   lead="Лечений четыре, и они не равноценны. Главное — переписать шаблон так, чтобы у строки был один путь через него. Остальное страхует: атомарная группа, лимит длины, линейный движок."
-  leadWidth={72}
 >
   ### Переписать шаблон
 
@@ -300,7 +270,7 @@ import {
 
   ### Атомарная группа из подручных средств
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ATOMIC} />
+  <Plain text={PLAIN_ATOMIC} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Просмотр вперёд и обратная ссылка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -316,7 +286,7 @@ import {
 
   ### Линейный движок
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LINEAR} />
+  <Plain text={PLAIN_LINEAR} />
 
   <Md text={LINEAR_NOTE} />
 
@@ -365,7 +335,6 @@ import {
   eyebrow="Раздел 6"
   title="Флаги и ловушки"
   lead="Флаги меняют не только то, что совпадает, но и поведение объекта шаблона. Два из них — `g` и `y` — делают его объектом с состоянием, и это самая частая ловушка с регулярками вовсе без всякого перебора."
-  leadWidth={72}
 >
   <Table
     head={['флаг', 'что делает', 'на чём ловятся']}

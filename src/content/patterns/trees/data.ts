@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Деревья и обход: компоновщик и итератор».
@@ -50,7 +50,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 export const PLAIN_TREE =
   'Дерево — как папки на диске. В папке лежат файлы и другие папки, в тех — снова файлы и папки, и сколько этажей вниз, заранее не знает никто. Чтобы узнать размер папки, не нужен отдельный код на каждый этаж: «размер папки — это сумма размеров всего, что в ней лежит», и тот же вопрос задаётся каждой вложенной папке. Компоновщик — это правило «спроси у содержимого». Итератор — это способ пройти по всем файлам по одному, не думая, как они разложены.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'дерево',
     d: 'Набор узлов, где у каждого узла, кроме одного, есть ровно один родитель. Узел без родителя — **корень**, узел без детей — **лист**, узел со всем, что под ним, — **поддерево**. DOM, дерево компонентов, меню, файловая система, ветка комментариев — всё деревья.',
@@ -85,7 +85,7 @@ export const GLOSSARY = [
 
 export const PREREQ_NOTE = 'Тема опирается на четыре вещи, и все четыре разобраны на сайте.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Протокол итератора',
     d: 'Iterable — объект с `[Symbol.iterator]()`, то есть фабрика итераторов; iterator — объект с `next()`, то есть состояние одного обхода. Отсюда одноразовость итератора, `return()` при `break` и помощники `map`/`filter`/`take` на всех встроенных итераторах.',
@@ -649,7 +649,7 @@ export const PITFALLS: Pitfall[] = [
 /* ──────────────────── Раздел 7 · источники ──────────────────── */
 
 /** ⚠️ Без разметки: `SourceList` печатает `title` и `what` как есть. */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Refactoring Guru — Компоновщик',
     href: 'https://refactoring.guru/ru/design-patterns/composite',

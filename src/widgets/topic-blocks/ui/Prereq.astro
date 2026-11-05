@@ -1,0 +1,45 @@
+---
+/**
+ * Раздел `s0` «Перед началом»: что тема считает известным и где это разобрано.
+ *
+ * Первым пунктом `nav` темы обязан стоять `{ id: s0, … }` — это сверяет `topic-anatomy.test.ts`.
+ * Свой текст раздела — в слоты: `before` печатается над карточками, основной слот — под ними.
+ */
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import type { Prereq } from '@/entities/lesson';
+
+interface Props {
+  items: Prereq[];
+  /** Лид раздела, обычно `PREREQ_NOTE`. */
+  lead?: string;
+  /** «Граница наблюдаемого» — у тем, чей предмет из JS не виден. */
+  title?: string;
+  /** Минимальная ширина колонки сетки. */
+  min?: number;
+  /** `intro` — когда «Перед началом» совмещено с вводным разделом. */
+  variant?: 'intro' | 'section';
+}
+
+const { items, lead, title = 'Что тема считает известным', min = 290, variant } = Astro.props;
+---
+
+<Section variant={variant} id="s0" eyebrow="Перед началом" title={title} lead={lead}>
+  <slot name="before" />
+  <CardGrid min={min} gap={16} align="start">
+    {items.map((item) => (
+      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+        <Md text={item.d} />
+        {item.href && (
+          <CardNote tone={item.tone}>
+            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
+          </CardNote>
+        )}
+      </Card>
+    ))}
+  </CardGrid>
+  <slot />
+</Section>

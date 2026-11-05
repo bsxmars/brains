@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LensPreset, PngVariant } from '@/widgets/bytes-lab/model/types';
 
 /**
@@ -54,7 +54,7 @@ import type { LensPreset, PngVariant } from '@/widgets/bytes-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`ArrayBuffer`',
     d: 'Кусок памяти фиксированного размера в байтах. Сам по себе ничего не умеет: ни прочитать байт, ни записать. Это просто место.',
@@ -87,7 +87,7 @@ export const PLAIN_BUFFER =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи. Каждую хватит знать на уровне карточки; подробности — по ссылке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Байт, бит и шестнадцатеричная запись',
     d: 'Байт — 8 бит, число от 0 до 255. В шестнадцатеричной записи байт — ровно две цифры: `0x00`…`0xff`. Поэтому байты почти всегда печатают так: `89 50 4e 47`.',
@@ -645,7 +645,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 — ArrayBuffer Objects',
     href: 'https://tc39.es/ecma262/#sec-arraybuffer-objects',

@@ -5,7 +5,6 @@ headingWidth: 24
 order: 18
 kicker: сеть и безопасность
 lead: "Сайт закрыт, браузер свёрнут — а уведомление «Заказ 1042 собран» всё равно появляется. Ваш сервер при этом не знает, где телефон, и не держит с ним соединения. Сообщение идёт через push-сервис производителя браузера, подписанное ключом вашего сервера и зашифрованное так, что посредник его не прочтёт."
-leadWidth: 66
 summary: "Три участника — ваш сервер, push-сервис (FCM, autopush) и Service Worker; подписка `pushManager.subscribe` и что лежит в `PushSubscription`; VAPID — JWT ES256 для push-сервиса; шифрование тела по RFC 8291: ECDH, HKDF с `auth`, AES-128-GCM и заголовок aes128gcm по байтам; `TTL`, `Urgency`, `Topic` и ответы 201, 403, 410; событие `push`, `showNotification` и `tag`; где push не дойдёт."
 verifiedOn: "web-push 3.6.7, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63, постоянный профиль, настоящая подписка FCM), октябрь 2026: доставка, ответы push-сервиса и замена по Topic сняты стендом; шифрование темы сверено с примером RFC 8291 байт в байт и с web-push в tests/unit/web-push.test.ts"
 nav:
@@ -32,6 +31,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PushLab from '@/widgets/push-lab/ui/PushLab.vue';
@@ -100,52 +102,24 @@ import {
   страница отправляет её на ваш сервер. Дальше сервер может будить браузер когда угодно:
   через минуту или через месяц.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUSH} />
+  <Plain text={PLAIN_PUSH} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Три участника"
   lead="Сообщение проходит три руки. Ваш сервер его пишет и шифрует. Push-сервис принимает и хранит, пока устройство не в сети. Браузер расшифровывает и будит Service Worker сайта, а тот показывает уведомление."
-  leadWidth={72}
 >
   <Card title="Путь одного сообщения" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={760} chips={FLOW_CHIPS} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SERVICE} />
+  <Plain text={PLAIN_SERVICE} />
 
   <Table
     head={['кто', 'что хранит', 'что видит']}
@@ -165,7 +139,6 @@ import {
   eyebrow="Раздел 2"
   title="Подписка: `pushManager.subscribe`"
   lead="Сквозной пример на всю тему — интернет-магазин, который сообщает о статусе заказа 1042. Страница регистрирует Service Worker, спрашивает разрешение, получает подписку у браузера и отдаёт её своему серверу. Это весь клиентский код push."
-  leadWidth={72}
 >
   <Card title="Страница магазина" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CLIENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -210,9 +183,8 @@ import {
   eyebrow="Раздел 3"
   title="VAPID: как push-сервис узнаёт отправителя"
   lead="Знать `endpoint` мало: подписка, созданная с `applicationServerKey`, принимает только сообщения, подписанные парным закрытым ключом. Подпись — короткий JWT в заголовке `Authorization`, его сервер собирает заново для каждого push-сервиса."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VAPID} />
+  <Plain text={PLAIN_VAPID} />
 
   <Card title="Подпись сервера и проверка push-сервиса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VAPID_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -249,9 +221,8 @@ import {
   eyebrow="Раздел 4"
   title="Шифрование тела: RFC 8291"
   lead="Push-сервис принадлежит не вам, и текст ему видеть незачем. Поэтому сервер шифрует тело для одного браузера: ключ шифрования выводится из общего секрета ECDH и из `auth`, а знают их только сервер и этот браузер."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ECDH} />
+  <Plain text={PLAIN_ECDH} />
 
   <CardGrid min={260} gap={14} align="start">
     {DERIVE_STEPS.map((step) => (
@@ -290,7 +261,6 @@ import {
   eyebrow="Раздел 5"
   title="Доставка: `TTL`, `Urgency`, `Topic`"
   lead="Отправка — один POST на `endpoint`. Кроме подписи и тела в нём три заголовка, которыми сервер говорит push-сервису, сколько хранить сообщение, насколько оно срочное и что оно заменяет."
-  leadWidth={72}
 >
   <Card title="Сервер магазина" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SERVER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -347,7 +317,6 @@ import {
   eyebrow="Раздел 6"
   title="Service Worker: событие `push`"
   lead="Браузер получил сообщение, расшифровал его и будит Service Worker сайта событием `push`. Вкладок может не быть ни одной. Задача обработчика — показать уведомление, а по клику открыть нужную страницу."
-  leadWidth={72}
 >
   <Card title="sw.js магазина" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -370,7 +339,6 @@ import {
   eyebrow="Раздел 7"
   title="Где push не дойдёт"
   lead="Push работает почти везде, но «почти» здесь важно. Подписку можно не получить, сообщение — не доставить, а сервер в обоих случаях узнает об этом поздно или никогда."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {LIMITS.map((fact) => (

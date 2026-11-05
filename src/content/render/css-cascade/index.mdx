@@ -3,7 +3,6 @@ title: Каскад и вычисление стилей
 order: 2
 kicker: браузер и рендеринг
 lead: "Когда несколько правил задают элементу один и тот же `color`, браузер выбирает победителя не по принципу «кто конкретнее». Он сравнивает правила по **шести признакам по очереди**, и специфичность среди них только пятая. Поэтому правило так часто проигрывает «необъяснимо»: спор решился раньше, чем дошло до специфичности."
-leadWidth: 66
 summary: "Как браузер выбирает одно значение свойства из многих: шесть критериев каскада вживую, специфичность как тройка чисел, `inherit`/`initial`/`unset`/`revert` на настоящих элементах и цена чтения через `getComputedStyle`."
 verifiedOn: Chromium 153 (headless, Playwright 1.63), сентябрь 2026
 nav:
@@ -28,6 +27,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CascadeReferee from '@/widgets/cascade-referee/ui/CascadeReferee.vue';
@@ -137,7 +139,7 @@ import {
   STAGE_SCENE_STEPS,
 } from './data';
 
-<Section variant="intro" eyebrow="Каскад и шаг style" lead={INTRO_NOTE} leadWidth={74} gap={24}>
+<Section variant="intro" eyebrow="Каскад и шаг style" lead={INTRO_NOTE} gap={24}>
   <Callout size={19} pad="24px 26px">
 
     От строки `color: red` в таблице стилей до значения `rgb(255, 0, 0)` у элемента браузер
@@ -156,17 +158,11 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CASCADE} />
+  <Plain text={PLAIN_CASCADE} />
 
   ### Слова, которые встретятся раньше объяснения
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 
   <Card title="Путь значения: шесть стадий от строки в CSS до экрана" titleSize={18} pad={22} gap={14}>
     <FlowChips
@@ -195,26 +191,7 @@ import {
   </Card>
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={74}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -222,7 +199,6 @@ import {
   eyebrowTone="demo"
   title="Почему победило именно это правило"
   lead="Восемь объявлений `color` спорят за одну живую кнопку. Правила по-настоящему вставлены в документ, а цвет прочитан у браузера."
-  leadWidth={74}
 >
   Каждое объявление проходит шесть проверок по очереди — седьмая, близость `@scope`, разобрана
   в конце раздела. Следующая проверка включается, только если предыдущая дала ничью:
@@ -308,7 +284,7 @@ import {
   что она отвечает сразу за **две вещи**: насколько точно селектор описывает элемент и насколько
   правило важно. Слои забирают вторую.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYERS} />
+  <Plain text={PLAIN_LAYERS} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Две формы и четыре правила порядка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -344,7 +320,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYERS_IMPORTANT} />
+  <Plain text={PLAIN_LAYERS_IMPORTANT} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="`revert-layer` — исключение внутри своего слоя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
@@ -409,7 +385,7 @@ import {
   принимает список. Если два трека меняют одно свойство, спор между ними решается не каскадом,
   а порядком в списке и свойством `animation-composition`.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPOSITION} />
+  <Plain text={PLAIN_COMPOSITION} />
 
   <Card title="Два трека и значение из каскада" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={ANIM_COMPOSE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -474,9 +450,8 @@ import {
   eyebrowTone="demo"
   title="Специфичность — тройка чисел, а не «вес»"
   lead="Специфичность решает спор, только когда первые четыре проверки дали ничью. Соперник в демо — правило `.prose .link` со специфичностью `(0,2,0)`. Оно написано **позже**, поэтому ничья достаётся ему. Оба правила по-настоящему лежат в документе."
-  leadWidth={74}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPECIFICITY} />
+  <Plain text={PLAIN_SPECIFICITY} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SPEC_DEMO_NOTE} />
 
@@ -563,7 +538,6 @@ import {
   eyebrowTone="demo"
   title="Когда каскад ничего не выбрал: наследование и значения по умолчанию"
   lead="Бывает, что элементу не подошло ни одно объявление свойства. Тогда значение берётся по умолчанию. Наследуемое свойство, например `color`, получает вычисленное значение родителя. Ненаследуемое, например `padding`, — начальное значение из спецификации (initial value). Пять ключевых слов позволяют выбрать источник вручную, и отличаются они тем, откуда берут значение."
-  leadWidth={74}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEFAULTING_DEMO_NOTE} />
 
@@ -638,9 +612,8 @@ import {
   eyebrowTone="demo"
   title="Стадии значения и цена чтения из JS"
   lead="`getComputedStyle(el).color` почти ничего не стоит, а `.width` сразу после правки стилей заставляет браузер посчитать раскладку посреди вашего кода. Причина в том, что, несмотря на название, `getComputedStyle` возвращает не computed value, а **resolved value** — значение «для ответа». Что это такое, спецификация решает отдельно для каждого свойства. Для `color` это вычисленное значение, а для `width` — число, которое известно только после раскладки."
-  leadWidth={74}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VALUE_PATH} />
+  <Plain text={PLAIN_VALUE_PATH} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={RESOLVED_DEMO_NOTE} />
 
@@ -691,7 +664,6 @@ import {
   eyebrow="Раздел 5"
   title="Переменные, `:has()` и цена инвалидации"
   lead="Пользовательское свойство участвует в каскаде как любое другое, а подставляется в значение уже после каскада. Отсюда главная ловушка переменных — и отсюда же их цена: смена одной переменной или одного класса может заставить браузер пересчитать стиль у тысяч элементов."
-  leadWidth={74}
 >
 
   ### Переменная — обычное свойство, которое подставляют после каскада
@@ -706,7 +678,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IACVT} />
+  <Plain text={PLAIN_IACVT} />
 
   <Card tone="err" title="Неподходящее значение в `var()` обнуляет свойство (IACVT)" titleSize={18} pad={22} gap={14}>
     <CodeBlock code={IACVT_CODE} size={11.5} lh={1.7} pad="15px 17px" />
@@ -873,7 +845,6 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
   lead="Каскад — редкий случай, когда спецификация читается легче статей: она перечисляет критерии по порядку и ничего не подразумевает. Статьи нужны там, где речь о ценах, которых в спецификации нет."
-  leadWidth={74}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

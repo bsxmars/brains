@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { MiniPreset } from '@/widgets/fc-mini-compiler';
 
 /**
@@ -43,7 +43,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Представьте два способа проверять квартиру после ремонта. Первый: каждый раз обходить все комнаты и сравнивать с фотографией «как было». Второй: ещё при ремонте записать, что в комнате 3 от выключателя зависит только лампа, — и после щелчка смотреть только на неё. Первый способ ничего не знает заранее и потому надёжен для любой квартиры; второй быстрее, но работает, только пока записи верны. Компилятор фреймворка — это тот, кто делает записи.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'Компилятор фреймворка',
     d: 'Программа, которая при сборке переписывает ваш компонент в другой JS. Результат делает то же самое, но рантайму остаётся меньше работы: часть решений принята заранее.',
@@ -78,7 +78,7 @@ export const GLOSSARY = [
   },
 ];
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как React перерисовывает компонент и что такое ручная мемоизация',
     d: 'Изменение состояния вызывает функцию компонента заново вместе со всеми детьми; `memo`, `useMemo` и `useCallback` позволяют пропустить часть работы. React Compiler расставляет их за вас — и понять его вывод без этого нельзя.',
@@ -1036,7 +1036,7 @@ export const PITFALLS: Pitfall[] = [
 // Источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'React · React Compiler',
     href: 'https://react.dev/learn/react-compiler',

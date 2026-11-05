@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { FeedGroup } from '@/widgets/scroll-lab/model/types';
 
 /**
@@ -52,7 +52,7 @@ import type { FeedGroup } from '@/widgets/scroll-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'контейнер прокрутки',
     d: 'Элемент, у которого `overflow` равен `auto`, `scroll` или `hidden`. У него есть своя позиция прокрутки — `scrollTop`. Главный контейнер страницы — сам документ.',
@@ -92,7 +92,7 @@ export const PLAIN_STICKY =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Прокрутку ведёт композитор',
     d: 'Браузер рисует страницу слоями, а прокрутка — это сдвиг слоя. Сдвигает его отдельный поток, поэтому страница прокручивается, даже когда JS завис.',
@@ -587,7 +587,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'CSS Positioned Layout Module Level 3',
     href: 'https://drafts.csswg.org/css-position-3/',

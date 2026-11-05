@@ -4,7 +4,6 @@ heading: "Ошибки и стеки: от throw до отчёта"
 headingWidth: 22
 order: 9
 lead: "В отчёте об ошибке из продакшена пусто: `{}`. В стеке нет функции, которая бросила, зато есть та, что ошибку создала. После `await` половина вызовов на месте, после `.then` — пропала. А ошибка из скрипта с CDN пришла как «Script error.» без единой подробности. Всё это — не баги, а устройство объекта ошибки, стека V8 и глобальных обработчиков."
-leadWidth: 66
 summary: "Что лежит в объекте ошибки и почему `JSON.stringify` даёт `{}`; `cause`, `AggregateError` и брошенные не-ошибки; стек снимается в `new Error`, а печатается при первом чтении; `captureStackTrace`, `stackTraceLimit` и CallSite API; какие кадры V8 восстанавливает после `await`; `onerror`, `unhandledrejection` и «Script error.» в браузере, `uncaughtException` и коды выхода в Node; `finally`, `using` и `SuppressedError`; сборка отчёта с цепочкой причин и разбор стека на кадры."
 verifiedOn: "Node 24.11.0 (V8 13.6) и 26.8.2 (V8 14.6), Chromium 153.0.8010.12 (Playwright 1.63, headless), октябрь 2026: примеры исполнены отдельными процессами Node, асинхронные стеки и глобальные обработчики — в Chromium со своего node:http на двух источниках. Разбор стека сверен с CallSite API V8, сборка отчёта — со structuredClone. Всё повторяет tests/unit/errors.test.ts"
 nav:
@@ -29,6 +28,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import StackLab from '@/widgets/error-lab/ui/StackLab.vue';
@@ -117,44 +119,18 @@ import {
   надо знать, что в объекте есть, что движок туда записал, а что потерял по дороге:
   на `await`, на чужом домене, в `finally` или при отправке на сервер.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ERROR} />
+  <Plain text={PLAIN_ERROR} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Что лежит в объекте ошибки"
   lead="Сквозной пример темы — сохранение заказа: база не ответила, и эту ошибку завернули в свою, понятную пользователю. Видно сразу три вещи: имя живёт в прототипе, своих полей у ошибки три, а `JSON.stringify` не видит ни одного из них."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="anatomy.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -212,9 +188,8 @@ import {
   eyebrow="Раздел 2"
   title="Когда снимается стек и когда он становится строкой"
   lead="Два разных момента. Кадры V8 записывает в конструкторе ошибки — какие функции на стеке прямо сейчас. Строку `stack` с заголовком `Error: текст` он собирает позже, когда её впервые прочтут. Почти все странности стека — из-за этой разницы."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+  <Plain text={PLAIN_SNAPSHOT} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="where.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -290,9 +265,8 @@ import {
   eyebrow="Раздел 3"
   title="Асинхронный стек: что остаётся после await"
   lead="После `await` функция продолжает работу в новой микрозадаче, и на настоящем стеке под ней пусто: тех, кто её вызвал, там давно нет. Тем не менее Node и Chromium показывают их кадрами `at async …`. Эти кадры V8 достраивает сам — и только там, где есть за что зацепиться."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ASYNC} />
+  <Plain text={PLAIN_ASYNC} />
 
   <Md text={ASYNC_HOW} />
 
@@ -317,7 +291,6 @@ import {
   eyebrow="Раздел 4"
   title="Необработанные ошибки: браузер и Node"
   lead="Ошибку, которую никто не поймал, получает среда. Браузер сообщает о ней событием и живёт дальше. Node по умолчанию печатает стек и завершает процесс. Куда попадает бросок из колбэка, разобрано в [«Колбэках»](/js/callbacks/#s5); здесь — что именно приходит в обработчик и что из этого можно отправить."
-  leadWidth={72}
 >
   ### В браузере
 
@@ -336,7 +309,7 @@ import {
 
   ### Чужой источник и «Script error.»
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MUTED} />
+  <Plain text={PLAIN_MUTED} />
 
   Опыт: страница на `localhost:53011` с этими обработчиками подключает скрипты с себя самой
   и с `127.0.0.1:53012` — это уже другой источник. Что получил каждый обработчик в Chromium 153:
@@ -406,7 +379,6 @@ import {
   eyebrow="Раздел 5"
   title="finally и порядок: где теряется исходная ошибка"
   lead="`finally` выполняется всегда — после `return`, после `throw`, после `await`. Именно поэтому он может перехватить выход из функции: подменить возвращаемое значение или летящую ошибку. В отчёт тогда уходит не то, что случилось первым."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="order.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -457,7 +429,6 @@ import {
   eyebrow="Раздел 6"
   title="Отчёт об ошибке"
   lead="Отчёт — то, что от ошибки доедет до сервера. Объект ошибки туда не отправить: по сети идёт строка, и при переводе в строку теряется почти всё. Поэтому отчёт собирают явно — поле за полем, с цепочкой причин и обрезанным стеком."
-  leadWidth={72}
 >
   <CardGrid min={260} gap={14} align="start">
     {REPORT_FIELDS.map((f) => (

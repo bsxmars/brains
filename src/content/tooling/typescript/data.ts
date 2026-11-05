@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «TypeScript на уровне типов».
@@ -1998,7 +1998,7 @@ export const VERIFIED: { k: string; v: string; code: string }[] = [
  * без `inlineMd`. Обратные кавычки доехали бы до читателя, и ловит это `markup.spec` —
  * поймал, когда этот список писали в первый раз.
  */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'TypeScript Handbook — Conditional Types',
     href: 'https://www.typescriptlang.org/docs/handbook/2/conditional-types.html',
@@ -2085,7 +2085,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
  * знакомо (`extends`, `keyof`, «тип») и значат в этом слое другое: `extends` здесь не
  * наследование, а вопрос, а «тип» — не аннотация, а вычисление.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'слой типов',
     d: 'Всё, что в TypeScript написано про типы: аннотации, `type`, `interface`, дженерики. Это отдельный маленький язык, который выполняется **только внутри компилятора** и исчезает при сборке.',
@@ -2133,7 +2133,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Нужны две вещи: как типы попадают в проект и как устроен объект, который они описывают.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как типы попадают в проект',
     d: 'Теми же путями, что и код: через модули, `exports` и `moduleResolution`. Половина вопросов «почему тип не виден» — про то, как компилятор ищет файл, а не про сами типы.',

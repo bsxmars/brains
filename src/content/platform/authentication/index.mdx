@@ -5,7 +5,6 @@ headingWidth: 24
 order: 11
 kicker: сеть и безопасность
 lead: "Сервер должен узнать пользователя на каждом запросе. Либо он помнит его сам — сессия и кука с номером, — либо пользователь приносит подписанное утверждение о себе — токен. Как считается и проверяется подпись JWT, почему его нельзя отозвать, и как вход через чужой сервис — OAuth с PKCE и OpenID Connect — доставляет токен в браузер так, чтобы по дороге его не перехватили."
-leadWidth: 66
 summary: "Сессия на сервере против самодостаточного токена; подпись JWT HS256 на Web Crypto, почему подпись ≠ шифрование, `alg: none` и отзыв до `exp`; BFF и клиент только в браузере; OAuth 2.0 authorization code + PKCE по шагам — verifier, challenge, `state`; OpenID Connect — id_token, `nonce` и проверки. Вход снят стендом в Chromium, функции темы сверены с векторами RFC."
 verifiedOn: "Node 24.11.0 (Web Crypto, node:crypto), Chromium 153.0.8010.12 (Playwright 1.63.0), октябрь 2026: вход authorization code + PKCE + OIDC через свой сервер авторизации на node:http снят стендом; функции темы сверены tests/unit/authentication.test.ts с RFC 7515 A.1, RFC 7636 B и node:crypto. RFC 6749, 7636, 7519, 7515, 7518, 8725, 9700 и OpenID Connect Core 1.0 — по текстам стандартов"
 nav:
@@ -31,6 +30,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import JwtLab from '@/widgets/auth-lab/ui/JwtLab.vue';
@@ -98,46 +100,18 @@ import {
   вопросы темы — где это «что-то» лежит, как его проверяют, как не дать его украсть по дороге
   и как забрать обратно.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AUTH} />
+  <Plain text={PLAIN_AUTH} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Сессия или токен"
   lead="Сессия: сервер хранит запись о входе, а браузер носит только её случайный номер. Токен: сервер записывает всё нужное в саму строку, подписывает её и больше ничего не хранит. Разница видна на трёх моментах — входе, обычном запросе и выходе."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сессия на сервере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -165,9 +139,8 @@ import {
   eyebrow="Раздел 2"
   title="Подпись JWT: как её считают и проверяют"
   lead="HS256 — самый простой алгоритм подписи JWT: HMAC с хешем SHA-256 и одним общим секретом. Вся подпись и вся проверка умещаются в полсотни строк на Web Crypto, который есть и в браузере, и в Node. Библиотеки делают то же самое, только с большим числом алгоритмов и проверок."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SIGNATURE} />
+  <Plain text={PLAIN_SIGNATURE} />
 
   <Card title="Подпись и проверка HS256" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={JWT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -196,11 +169,10 @@ import {
   eyebrow="Раздел 3"
   title="Где держать вход в браузере"
   lead="Вопрос не «кука или `localStorage`», а «что окажется у чужого скрипта, если он выполнится на странице». Ответ зависит от того, кто проходит вход: браузер сам или сервер вашего сайта."
-  leadWidth={72}
 >
   <Md text={STORAGE_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BFF} />
+  <Plain text={PLAIN_BFF} />
 
   <Table
     head={['схема', 'как устроено', 'что достанется XSS']}
@@ -219,9 +191,8 @@ import {
   eyebrow="Раздел 4"
   title="OAuth 2.0: код и PKCE"
   lead="OAuth — способ получить токен от чужого сервиса, не узнавая пароль пользователя. Браузер уходит на сайт провайдера, пользователь входит там, а приложение получает код и меняет его на токены. PKCE делает перехваченный по дороге код бесполезным."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OAUTH} />
+  <Plain text={PLAIN_OAUTH} />
 
   <Card title="Вход за шесть шагов" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={720} chips={OAUTH_CHIPS} />
@@ -231,7 +202,7 @@ import {
 
   ### PKCE: доказать, что код ваш
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PKCE} />
+  <Plain text={PLAIN_PKCE} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Verifier и challenge" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -250,7 +221,7 @@ import {
 
   ### `state`: ответ на ваш запрос
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STATE} />
+  <Plain text={PLAIN_STATE} />
 
   <Md text={STATE_NOTE} />
 
@@ -283,9 +254,8 @@ import {
   eyebrow="Раздел 5"
   title="OpenID Connect: кто вошёл"
   lead={OIDC_INTRO}
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OIDC} />
+  <Plain text={PLAIN_OIDC} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="id_token со стенда: нагрузка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

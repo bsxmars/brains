@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { IterScenario } from '@/widgets/map-iteration/model/types';
 
 /**
@@ -31,7 +31,7 @@ import type { IterScenario } from '@/widgets/map-iteration/model/types';
 export const PLAIN_COLLECTIONS =
   'Объект — анкета с заранее отпечатанными графами: «имя», «возраст», и бланк у всех одинаковый. `Map` — картотека: карточку можно завести на что угодно, хоть на другую карточку, и ящики стоят в том порядке, в каком их завели. Записывать в анкету данные со стороны можно, но там уже есть отпечатанные графы — `toString`, `constructor`, — и чужое имя может совпасть с одной из них.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'словарь',
     d: 'Структура «ключ → значение», где ключи заранее не известны: приходят из данных — имена пользователей, id, заголовки. В отличие от **записи**, у которой набор полей задан кодом (`{ name, age }`).',
@@ -53,7 +53,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема сравнивает `Map` с обычным объектом, поэтому опирается на то, как объект хранит ключи и где их ищет.';
 
-export const PREREQ: { t: string; d: string; href: string; hrefLabel: string; tone: 'info' | 'warn' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Цепочка прототипов',
     d: 'Чтение `obj[k]` ищет ключ не только в самом объекте, но и по цепочке: у пустого `{}` найдутся `toString` и `constructor` из `Object.prototype`. Ровно это делает обычный объект ненадёжным словарём.',
@@ -558,7 +558,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 · Keyed Collections',
     href: 'https://tc39.es/ecma262/#sec-keyed-collections',

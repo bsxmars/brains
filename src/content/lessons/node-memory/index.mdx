@@ -3,7 +3,6 @@ title: "Память в Node"
 order: 37
 headingWidth: 18
 lead: "Процесс на Node, который съел слишком много памяти, убивает не V8, а ядро операционной системы. Смотрит оно на `rss` — всю память процесса. Поэтому при разборе сначала выясняют, **что растёт: куча JS или всё остальное**. Если течёт вне кучи, снимок кучи ничего не покажет."
-leadWidth: 66
 summary: "Что значат пять полей memoryUsage, как читать лог --trace-gc, как снять снимок с работающего процесса и как подогнать потолок кучи под лимит контейнера."
 verifiedOn: "Node 24.11 и 26.8 · V8 13.6 и 14.6 · плюс контейнеры node:18/20/24-alpine с cgroup-лимитом"
 nav:
@@ -19,13 +18,15 @@ nav:
 import Md from '@/shared/ui/Md.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkCard from '@/shared/ui/DarkCard.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import FlagSheet from '@/widgets/flag-sheet/ui/FlagSheet.astro';
 import GcLine from '@/widgets/gc-line/ui/GcLine.vue';
 import GrowthTriage from '@/widgets/growth-triage/ui/GrowthTriage.vue';
@@ -95,40 +96,14 @@ import {
   variant="intro"
   eyebrow="Что входит в память процесса"
   lead="В браузере «память вкладки» и куча JS (JS heap) — почти одно и то же. В Node это разные числа, и расходятся они в разы: только что запущенный процесс занимает около 40 МБ, а куча JS из них — около пяти (Node 24.11, macOS arm64)."
-  leadWidth={72}
   gap={24}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RSS} />
+  <Plain text={PLAIN_RSS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -136,7 +111,6 @@ import {
   eyebrowTone="demo"
   title="Пять полей `process.memoryUsage()`"
   lead="Под убит с `OOMKilled`, а `heapUsed` в логах всё это время показывал скромные числа — значит, смотрели не на то поле. Поля идут не по важности, а по вложенности: `rss` охватывает всё, `heapTotal` включает `heapUsed`, `external` включает `arrayBuffers`."
-  leadWidth={70}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={FIELDS_DEMO_NOTE} />
@@ -180,7 +154,6 @@ import {
   eyebrowTone="demo"
   title="Развилка: какая часть памяти растёт"
   lead="Разбор утечки начинается с вопроса: какая часть памяти растёт **быстрее остальных**? От ответа зависит, какой инструмент вообще поможет: снимок кучи найдёт забытые объекты, но не покажет буфер, выделенный мимо неё. Поэтому в лог пишут все пять полей сразу, а не одно."
-  leadWidth={70}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={TRIAGE_DEMO_NOTE} />
@@ -190,7 +163,7 @@ import {
 
   ### Четыре поля из пяти считаются по потоку, а не по процессу
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ISOLATE} />
+  <Plain text={PLAIN_ISOLATE} />
 
   <CodeBlock code={THREAD_PROBE} size={11.5} />
   <CodeBlock code={THREAD_PROBE_OUT} size={11.5} tone="ok" />
@@ -208,7 +181,7 @@ import {
   запрос, и тогда `rss` не падает, хотя живых данных стало меньше. Это и есть фрагментация:
   плато, а не бесконечный рост.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ARENA} />
+  <Plain text={PLAIN_ARENA} />
 
   Отсюда рецепт `MALLOC_ARENA_MAX=2`: не больше двух арен на весь процесс. Но аллокатор —
   не часть Node, он приходит с образом: в Debian-образах это glibc, в Alpine — musl, и арены
@@ -264,9 +237,8 @@ import {
   eyebrowTone="demo"
   title="Как читать `--trace-gc`"
   lead="Флаг `--trace-gc` печатает по строке на каждую сборку мусора. Это самый дешёвый источник данных о памяти: накладные расходы почти нулевые, и флаг можно держать включённым на боевом сервере постоянно."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AFTER_ARROW} />
+  <Plain text={PLAIN_AFTER_ARROW} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={GCLINE_DEMO_NOTE} />
@@ -306,9 +278,8 @@ import {
   eyebrowTone="demo"
   title="Лимиты и контейнеры"
   lead="Потолок кучи задаёт V8, лимит контейнера — ядро. Эти два числа друг о друге не знают, и подогнать одно под другое можете только вы."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_CEILINGS} />
+  <Plain text={PLAIN_TWO_CEILINGS} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={BUDGET_DEMO_NOTE} />
@@ -332,7 +303,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CEILINGS_ORDER} />
+  <Plain text={PLAIN_CEILINGS_ORDER} />
 
   ### Потолок надо спрашивать у процесса, а не выводить из версии
 
@@ -418,7 +389,6 @@ import {
   eyebrow="Раздел 5"
   title="Снимок с живого процесса"
   lead="Снимок кучи (heap snapshot) — файл со всеми объектами кучи и связями между ними. Снимают его с того самого процесса, который расследуют. Пока снимок пишется, процесс не отвечает на запросы, а его память на пике вырастает в разы."
-  leadWidth={70}
 >
   ### По сигналу изнутри процесса
 

@@ -5,7 +5,6 @@ headingWidth: 24
 order: 15
 kicker: сеть и безопасность
 lead: "Куки, `localStorage`, `sessionStorage`, IndexedDB, Cache API и OPFS отличаются не столько объёмом, сколько правилами: кто видит запись, ждёт ли страница ответа, когда данные пропадут. Что где хранить, сколько влезает, почему `await fetch` внутри транзакции IndexedDB ломает запись и что браузер удаляет первым, когда кончается место."
-leadWidth: 66
 summary: "Шесть хранилищ браузера и что где хранить; `localStorage` и `sessionStorage`: только строки, предел в символах UTF-16, событие `storage` в соседних вкладках; IndexedDB: версии, `onupgradeneeded` и `blocked`, индексы и курсоры; жизнь транзакции — активность, автокоммит и `TransactionInactiveError` после `await fetch`, с моделью, сверенной с Chromium и fake-indexeddb; Cache API; OPFS и синхронный доступ из воркера; `estimate()`, `persist()`, вытеснение и инкогнито."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63.0) на своём сервере node:http, Node 24.11.0, fake-indexeddb 6.2.5, октябрь 2026: предел localStorage, события storage между вкладками, sessionStorage при открытии окон, девять сценариев транзакции, versionchange и blocked, индексы и курсоры, Cache API, OPFS в воркере, estimate() и persist() в профиле на диске и без профиля сняты стендом; модель транзакции сверена tests/unit/browser-storage.test.ts с fake-indexeddb и журналами Chromium. Порядок вытеснения, выдача persist() и поведение Firefox и Safari — по документации"
 nav:
@@ -30,6 +29,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TxLab from '@/widgets/tx-lab/ui/TxLab.vue';
@@ -101,46 +103,18 @@ import {
   может однажды оказаться пустым: пользователь почистил данные, браузеру не хватило места,
   окно было приватным.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STORAGE} />
+  <Plain text={PLAIN_STORAGE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Что где хранить"
   lead="Шесть хранилищ различаются по четырём вопросам: что в них можно положить, ждёт ли страница ответа, кто ещё видит запись и есть ли хранилище в воркере. Объёмы в таблице сняты в Chromium."
-  leadWidth={72}
 >
   <Table
     head={['', 'что хранит', 'как читать', 'объём', 'кто видит', 'в воркере']}
@@ -169,9 +143,8 @@ import {
   eyebrow="Раздел 2"
   title="`localStorage` и `sessionStorage`"
   lead="Два самых простых хранилища: пары «строка-ключ → строка-значение» и пять методов. Оба синхронные — вызов возвращает ответ сразу, и страница на это время стоит."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYNC} />
+  <Plain text={PLAIN_SYNC} />
 
   ### Только строки
 
@@ -247,9 +220,8 @@ import {
   eyebrow="Раздел 3"
   title="IndexedDB: версии, индексы, курсоры"
   lead="IndexedDB — база данных внутри браузера: объектные хранилища с ключами, индексы, транзакции. Всё асинхронно: каждый вызов возвращает запрос, а результат приходит потом событием `success` или `error`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IDB} />
+  <Plain text={PLAIN_IDB} />
 
   ### Версия базы и две вкладки
 
@@ -303,9 +275,8 @@ import {
   eyebrow="Раздел 4"
   title="Жизнь транзакции"
   lead="Транзакцию IndexedDB не закрывают вручную: она фиксируется сама, когда у неё кончилась работа. «Кончилась» значит две вещи сразу: в очереди нет запросов, и добавить новый уже нельзя. Где проходит эта граница — вопрос задач и микрозадач."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TX} />
+  <Plain text={PLAIN_TX} />
 
   <CardGrid min={260} gap={14} align="start">
     {TX_RULES.map((rule) => (
@@ -358,7 +329,6 @@ import {
   eyebrow="Раздел 5"
   title="Cache API и OPFS"
   lead="Два хранилища для того, что не похоже на записи в базе. Cache API хранит ответы сервера целиком — со статусом и заголовками. OPFS хранит файлы и позволяет переписывать их кусками."
-  leadWidth={72}
 >
   ### Cache API: ответ по запросу
 
@@ -382,7 +352,7 @@ import {
 
   ### OPFS: файлы сайта
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OPFS} />
+  <Plain text={PLAIN_OPFS} />
 
   Корень OPFS выдаёт `navigator.storage.getDirectory()`. Дальше — обычная работа с файлами:
   папки, файлы, запись и чтение. Самое быстрое — синхронный дескриптор
@@ -419,7 +389,6 @@ import {
   eyebrow="Раздел 6"
   title="Квота, вытеснение, инкогнито"
   lead="IndexedDB, Cache API и OPFS делят одну квоту сайта. Сколько её осталось, говорит `navigator.storage.estimate()`; попросить браузер не удалять данные — `navigator.storage.persist()`. Оба вызова сняты в двух профилях Chromium: на диске и «вне записи», как у окна инкогнито."
-  leadWidth={72}
 >
   <Card title="Мегабайт в каждое хранилище" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ESTIMATE_CODE} size={11} lh={1.65} pad="14px 16px" />

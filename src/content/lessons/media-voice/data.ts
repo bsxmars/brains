@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Голос: запись с микрофона и речь».
@@ -80,7 +80,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 // ─── Вводный раздел ────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`MediaStream`',
     d: 'Живой поток звука или видео: с микрофона, камеры, экрана. Его не хранят и не читают по байтам — его подключают туда, где он нужен: к записи, к динамику, к звонку.',
@@ -112,7 +112,7 @@ export const PLAIN_STREAM =
 
 export const PREREQ_NOTE = 'Запись приходит байтами и событиями, поэтому опора — две вещи из соседних тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Blob — байты, которые где-то лежат',
     d: 'Узнать размер и отрезать кусок можно сразу, а прочитать байты — только асинхронно: `await blob.arrayBuffer()`. Запись с микрофона приходит именно так.',
@@ -439,7 +439,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Media Capture and Streams',
     href: 'https://w3c.github.io/mediacapture-main/',

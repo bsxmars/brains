@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Общая память и Atomics».
@@ -30,7 +30,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 // ─── Вводный раздел ────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`SharedArrayBuffer`',
     d: 'Буфер байтов, который можно отдать нескольким потокам сразу. Каждый работает с **одним и тем же** участком памяти, а не с копией. Читают и пишут его через типизированный массив поверх: `new Int32Array(sab)`.',
@@ -63,7 +63,7 @@ export const PLAIN_SHARED =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из соседних тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Воркер — отдельный агент',
     d: 'Своя память и свой цикл событий; общих объектов с главным потоком нет, есть только сообщения.',
@@ -394,7 +394,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMAScript — The Atomics Object',
     href: 'https://tc39.es/ecma262/#sec-atomics-object',

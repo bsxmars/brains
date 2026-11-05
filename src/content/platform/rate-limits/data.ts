@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { HerdPreset, PolicyOptions, RetryAfterMode, RetryCode, Strategy } from '@/widgets/retry-lab/model/types';
 
 /**
@@ -212,7 +212,7 @@ export const RETRY_CODE: RetryCode = {
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '429 Too Many Requests',
     d: 'Код ответа «вы прислали слишком много запросов за отрезок времени». Лимит лично ваш: вашего токена, пользователя или адреса. Другие клиенты в ту же секунду получают ответы как обычно.',
@@ -253,7 +253,7 @@ export const PLAIN_RATELIMIT =
 export const PREREQ_NOTE =
   'Тема начинается там, где кончается устройство самого ограничителя, и опирается на три вещи из других тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как ограничитель считает запросы',
     d: 'Ведро жетонов, дырявое ведро, фиксированное и скользящее окно — алгоритмы, которые решают, пропустить запрос или отказать. Здесь они не разбираются: тема о том, как отказ выглядит в HTTP и что с ним делает клиент.',
@@ -814,7 +814,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   { title: 'RFC 6585 — Additional HTTP Status Codes, §4: 429', href: 'https://www.rfc-editor.org/rfc/rfc6585#section-4', what: 'определение 429, `Retry-After` необязателен, кешировать запрещено' },
   { title: 'RFC 9110 — HTTP Semantics, §10.2.3: Retry-After', href: 'https://www.rfc-editor.org/rfc/rfc9110#section-10.2.3', what: 'две формы: HTTP-дата и `delay-seconds` из одних цифр' },
   { title: 'RFC 9110, §15.6.4: 503 Service Unavailable', href: 'https://www.rfc-editor.org/rfc/rfc9110#section-15.6.4', what: 'временная перегрузка или обслуживание' },

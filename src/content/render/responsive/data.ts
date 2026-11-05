@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { FontChoice } from '@/widgets/responsive-lab/model/types';
 
 /**
@@ -56,7 +56,7 @@ import type { FontChoice } from '@/widgets/responsive-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'вьюпорт (viewport)',
     d: 'Прямоугольник, через который видно страницу. Его ширину в CSS-пикселях браузер подставляет в `100vw` и сравнивает с `@media (width …)`.',
@@ -97,7 +97,7 @@ export const PLAIN_RESPONSIVE =
 export const PREREQ_NOTE =
   'Тема опирается на каскад, на то, как раскладка спрашивает размеры у содержимого, и на свойство `contain`. Всё это разобрано отдельно.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Каскад: кто побеждает при споре',
     d: 'Когда два правила задают одно свойство одному элементу, решают происхождение, слои, специфичность и порядок. Обёртки `@media` и `@container` специфичности не добавляют: из двух подошедших правил побеждает то, что ниже в файле.',
@@ -657,7 +657,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'CSS Values and Units 4 — Viewport-percentage lengths',
     href: 'https://drafts.csswg.org/css-values-4/#viewport-relative-lengths',

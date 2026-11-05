@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { SpawnFixture, SpawnScenario } from '@/widgets/spawn-lab/model/types';
 
 /**
@@ -34,7 +34,7 @@ import type { SpawnFixture, SpawnScenario } from '@/widgets/spawn-lab/model/type
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'итератор и `{ value, done }`',
     d: 'Объект с методом `next()`. Каждый вызов возвращает очередной результат в виде `{ value, done }`: `value` — значение, `done: true` — значений больше нет.',
@@ -67,7 +67,7 @@ export const PLAIN_PAUSE =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи, разобранные в других темах. Если какая-то из них незнакома, начните со ссылки на карточке.';
 
-export const PREREQ: { t: string; d: string; href: string; hrefLabel: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Протокол итератора и обычный генератор',
     d: '`for…of` берёт у объекта итератор и зовёт `next()`, пока не придёт `done: true`. Генератор — итератор, который пишет язык: `next(v)` продолжает функцию, `return()` закрывает её и выполняет `finally`.',
@@ -706,7 +706,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 — Generator Objects',
     href: 'https://tc39.es/ecma262/#sec-generator-objects',

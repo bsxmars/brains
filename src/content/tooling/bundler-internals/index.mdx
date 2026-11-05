@@ -5,7 +5,6 @@ headingWidth: 24
 order: 7
 kicker: сборка и инструменты
 lead: "Сборщик не «сжимает файлы». Он обходит импорты и строит граф модулей, отбирает операторы, которые что-то делают или кому-то нужны, укладывает уцелевшее в одну область видимости и раздаёт файлам имена с хешами. Каждый шаг помещается в несколько десятков строк — и по ним видно, почему ваш код в бандле остался, исчез или стал `label$1`."
-leadWidth: 66
 summary: "Обход графа и порядок модулей, отбор операторов от эффектов по ссылкам, механика `sideEffects: false` и `/*#__PURE__*/`, что rolldown и esbuild считают эффектом, переименование при склейке и обёртки для CommonJS, импорты и экспорты между чанками, заглушки вместо имён и каскад хешей."
 verifiedOn: "rolldown 1.2.8, esbuild 0.28.2, Node 24.11.0, октябрь 2026: бандлы, порядок модулей, таблица эффектов, обёртки и каскад хешей сняты стендом и пересобираются tests/unit/bundler-internals.test.ts; учебный сборщик темы совпадает с выводом rolldown посимвольно на шести проектах, учебный хеш — по набору переименованных файлов на пяти правках"
 nav:
@@ -31,6 +30,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BundlerLab from '@/widgets/bundler-lab/ui/BundlerLab.vue';
@@ -99,46 +101,18 @@ import {
   и подписать каждый хешем. Правила у каждого шага простые, и почти любое «почему
   в бандле так» сводится к одному из них.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUNDLER} />
+  <Plain text={PLAIN_BUNDLER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Граф модулей"
   lead="Сборщик начинает с точки входа: читает файл, находит импорты, превращает каждый путь в файл и идёт по ним вглубь. Ни одна строка кода при этом не выполняется. Из обхода получается не только список модулей, но и порядок, в котором их код встанет в бандл."
-  leadWidth={72}
 >
   Пример на всю тему — маленький магазин из четырёх модулей. В нём есть всё, на чём
   сборщик принимает решения: функция, которую никто не вызывает, две функции с одним
@@ -202,13 +176,12 @@ import {
   eyebrow="Раздел 2"
   title="Что выживает: отбор операторов"
   lead="Tree shaking внутри сборщика — не удаление, а отбор. Сначала берутся операторы, которые что-то делают сами по себе: вызов, запись в глобальную переменную. Потом — всё, на что ссылается уже взятое. И так, пока список растёт. Что не взято, в бандл не попадает."
-  leadWidth={72}
 >
   Что сборщик называет побочным эффектом, что обещают `"sideEffects": false`
   и `/*#__PURE__*/` и сколько байт стоит каждый способ помешать отбору — в «Модулях
   и сборке», раздел [«Tree shaking»](/tooling/modules/#s4).
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MARK} />
+  <Plain text={PLAIN_MARK} />
 
   <Card title="Шаг 2: отбор" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SHAKE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -255,9 +228,8 @@ import {
   eyebrowTone="demo"
   title="Склейка: одна область видимости на всех"
   lead="Отобранные операторы ложатся в один файл подряд, модуль за модулем, в порядке графа. Импорты исчезают: в общей области видимости `formatPrice` из `format.js` — та же самая функция, и ссылка на неё — просто имя. Работы остаётся одна: развести одинаковые имена."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOIST} />
+  <Plain text={PLAIN_HOIST} />
 
   <Card title="Шаг 3: имена и вывод" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={HOIST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -338,7 +310,6 @@ import {
   eyebrow="Раздел 4"
   title="Чанки: склейка в нескольких файлах"
   lead="С `import()` выходных файлов становится несколько, и склейка идёт в каждом отдельно. То, что внутри одного файла было просто именем, между файлами снова становится импортом и экспортом — только написанными сборщиком."
-  leadWidth={72}
 >
   Как сборщик решает, какой модуль в какой файл положить, — в «Модулях и сборке»,
   раздел [«Чанки и кеш»](/tooling/modules/#s5). Граф тот же, что там: вход,
@@ -388,9 +359,8 @@ import {
   eyebrow="Раздел 5"
   title="Хеши в именах файлов"
   lead="Хеш в имени считают по готовому коду чанка. Но в коде чанка записаны имена других чанков, а их хеши ещё не посчитаны. Сборщик выходит из этого заглушками: сначала пишет код с метками вместо имён, потом считает хеши от листьев графа к входу и только в конце подставляет настоящие имена."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HASH} />
+  <Plain text={PLAIN_HASH} />
 
   <Card title="Код чанков до подстановки имён (хук renderChunk)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={PLACEHOLDER_LINES} size={11.5} lh={1.65} pad="14px 16px" />

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { BtreeScenario, PlanColumn } from '@/widgets/index-lab/model/types';
 
 /**
@@ -53,7 +53,7 @@ import type { BtreeScenario, PlanColumn } from '@/widgets/index-lab/model/types'
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'страница',
     d: 'Кусок файла в 8 КБ. Postgres читает и пишет таблицы и индексы только целыми страницами. Строки таблицы лежат на страницах по сотне, в порядке вставки.',
@@ -86,7 +86,7 @@ export const PLAIN_HEAP =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи. Две разобраны на сайте, третья объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'SQL: SELECT, WHERE, JOIN',
     d: 'Достаточно читать простые запросы. `JOIN … ON o.user_id = u.id` соединяет строки двух таблиц, у которых совпали значения; `CREATE INDEX имя ON таблица (столбец)` строит индекс.',
@@ -904,7 +904,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники и смежное ───────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'PostgreSQL — Using EXPLAIN',
     href: 'https://www.postgresql.org/docs/current/using-explain.html',

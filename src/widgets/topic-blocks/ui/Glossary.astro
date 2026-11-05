@@ -1,0 +1,24 @@
+---
+/**
+ * Словарь темы: слова, которые тема употребляет раньше, чем объясняет. Стоит во вводном разделе.
+ */
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import type { GlossaryTerm } from '@/entities/lesson';
+
+interface Props {
+  items: GlossaryTerm[];
+  /** Минимальная ширина колонки сетки. */
+  min?: number;
+  gap?: number;
+  pad?: number;
+}
+
+const { items, min = 250, gap = 12, pad = 16 } = Astro.props;
+---
+
+<CardGrid min={min} gap={gap}>
+  {items.map((term) => (
+    <Card label={term.k} labelSize={12.5} pad={pad} radius={4} gap={8} size={15} text={term.d} />
+  ))}
+</CardGrid>

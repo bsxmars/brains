@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { PasskeyScenario } from '@/widgets/passkey-lab/model/types';
 
 /**
@@ -62,7 +62,7 @@ import type { PasskeyScenario } from '@/widgets/passkey-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'passkey',
     d: 'Ключ входа на сайт, сделанный по стандарту WebAuthn. Пара ключей: закрытый хранит устройство пользователя, открытый — сервер. Обычно синхронизируется между устройствами через менеджер паролей.',
@@ -103,7 +103,7 @@ export const PLAIN_PASSKEY =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем и на одну, которая объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Origin',
     d: 'Источник страницы — три части вместе: протокол, домен и порт. `http://bank.localhost:50400` и `http://bank.localhost:50401` — разные источники, хотя домен один.',
@@ -853,7 +853,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Web Authentication Level 3',
     href: 'https://www.w3.org/TR/webauthn-3/',

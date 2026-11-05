@@ -5,7 +5,6 @@ headingWidth: 24
 order: 13
 kicker: сеть и безопасность
 lead: "WebRTC соединяет два браузера напрямую — но найти друг друга сами они не могут. Описания сеанса передаёт ваш сервер, адреса подбирает ICE, а за двумя строгими NAT пакеты пойдут только через TURN. Что лежит в offer и answer, как считается приоритет кандидата, почему звонок молча не соединяется и что показывает `getStats`."
-leadWidth: 66
 summary: "Сигнальный сервер и почему он ваш; offer, answer и SDP по строкам — секции, кодеки, `ice-ufrag`, `fingerprint`, `setup`; кандидаты host, srflx, prflx и relay, имена mDNS вместо локальных IP; приоритет кандидата и пары по RFC 8445; проверки связности и симметричный NAT; trickle ICE; DTLS 1.3 и SRTP; каналы данных на SCTP — `ordered` и `maxRetransmits`; `getStats`. Всё снято стендом: два Chromium, свой сервер сигнализации на WebSocket и свои STUN и TURN."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63.0), Node 24.11.0, ws 8.22.0, октябрь 2026: два браузера и сервер сигнализации на node:http + ws, свои STUN и TURN на node:dgram, семь сценариев — от одной сети до изображённого симметричного NAT и подменённого отпечатка; разбор кандидатов и приоритеты пар сверены tests/unit/webrtc.test.ts с RTCIceCandidate и getStats Chromium. Настоящий NAT, TURN по TCP/TLS и серверы в интернете не проверялись — это помечено в тексте"
 nav:
@@ -32,6 +31,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import IceLab from '@/widgets/ice-lab/ui/IceLab.vue';
@@ -109,48 +111,20 @@ import {
   к ним не постучаться. Чтобы соединиться, им нужно узнать, как каждый виден снаружи, обменяться
   этим через третью сторону и одновременно «пробить» свои роутеры навстречу друг другу.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WEBRTC} />
+  <Plain text={PLAIN_WEBRTC} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Сигнализация: почему сервер всё-таки нужен"
   lead="`RTCPeerConnection` умеет создать описание сеанса и принять чужое. Доставить его собеседнику он не умеет: адреса собеседника у него нет — ради этого всё и затевается. Обмен описаниями и кандидатами называется сигнализацией, и это ваш код и ваш сервер."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SIGNALING} />
+  <Plain text={PLAIN_SIGNALING} />
 
   <Card title="Кто что передаёт" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={760} chips={SIGNAL_CHIPS} />
@@ -196,9 +170,8 @@ import {
   eyebrow="Раздел 2"
   title="Offer, answer и SDP"
   lead="Offer и answer — два текста в формате SDP. Звонящий пишет, что он хочет и умеет, отвечающий — что из этого принимает. После обмена у обеих сторон одинаковое понимание: какие потоки, какие кодеки, как проверять адреса и чей сертификат ждать."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SDP} />
+  <Plain text={PLAIN_SDP} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Offer звонящего — как он ушёл на сервер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -234,9 +207,8 @@ import {
   eyebrow="Раздел 3"
   title="Кандидаты ICE"
   lead="Кандидат — один возможный адрес, по которому до вас можно достучаться. Браузер собирает их сам: адреса своих сетевых карт, внешний адрес от STUN, адрес на TURN-сервере. Каждый уходит собеседнику строкой `candidate:…`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NAT} />
+  <Plain text={PLAIN_NAT} />
 
   <Table
     head={['тип', 'что это', 'на стенде']}
@@ -281,7 +253,7 @@ import {
 
   ### `.local` вместо адреса
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MDNS} />
+  <Plain text={PLAIN_MDNS} />
 
   <Table
     head={['Chromium', 'кандидаты host и srflx']}
@@ -311,7 +283,6 @@ import {
   eyebrow="Раздел 4"
   title="Проверки связности и NAT"
   lead="Кандидат — только предположение. Сработает ли он, зависит от роутеров на обоих концах, и узнать это можно лишь одним способом: отправить пакет и дождаться ответа. Этим ICE и занят."
-  leadWidth={72}
 >
   <Md text={CHECKS_NOTE} />
 
@@ -319,7 +290,7 @@ import {
 
   ### Почему не соединяется
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYMMETRIC} />
+  <Plain text={PLAIN_SYMMETRIC} />
 
   <Table
     head={['NAT', 'что происходит', 'что сработает']}
@@ -348,9 +319,8 @@ import {
   eyebrow="Раздел 5"
   title="DTLS и SRTP: шифрование обязательно"
   lead="Когда ICE нашёл пару, по ней проходит рукопожатие DTLS — TLS для UDP. Ни у кого из участников нет сертификата от удостоверяющего центра, и доверие держится на другом: отпечатке сертификата, который уже пришёл в SDP."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FINGERPRINT} />
+  <Plain text={PLAIN_FINGERPRINT} />
 
   <Table
     head={['что', 'на стенде', 'зачем']}
@@ -370,7 +340,6 @@ import {
   eyebrow="Раздел 6"
   title="Каналы данных и медиа"
   lead="По одной паре адресов едут два разных груза. Каналы данных — сообщения вашего кода, медиа — звук и видео. Устроены они по-разному, потому что терять им можно разное."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Канал данных" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -415,7 +384,6 @@ import {
   eyebrow="Раздел 7"
   title="`getStats`: что соединилось на самом деле"
   lead={STATS_INTRO}
-  leadWidth={72}
 >
   <Card title="Сводка по отчёту" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={STATS_CODE} size={11.5} lh={1.65} pad="14px 16px" />

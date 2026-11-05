@@ -3,7 +3,6 @@ title: Ре-рендеринг в React
 order: 2
 kicker: фреймворки изнутри
 lead: "Ре-рендер в React — это повторный вызов функции компонента, а не перерисовка страницы. Между «React пересчитал» и «браузер перерисовал» стоит сравнение старого результата с новым. Почти вся работа над скоростью React-приложения — это работа с этим сравнением, а не с числом вызовов."
-leadWidth: 66
 summary: "Почему ре-рендер не равен обновлению DOM, когда React пропускает компонент целиком (bailout) и что на самом деле делают `memo`, `key` и батчинг."
 verifiedOn: React 19.3 · Node 24.11
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import Batching from '@/widgets/react-rerender/ui/Batching.tsx';
@@ -97,46 +99,19 @@ import {
   variant="intro"
   eyebrow="Ре-рендер и правка DOM"
   lead="«Компонент перерисовался» и «страница перерисовалась» — разные события, и путают их постоянно. Отсюда обе крайности: паника при виде мигающих рамок в профайлере и `memo` на каждом компоненте «на всякий случай». Оба лечения дороже болезни, потому что лечат не то."
-  leadWidth={70}
 >
-  <CardGrid min={240} gap={14}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={70}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="`UI = f(state)` — это не метафора"
 lead="**React отвечает на вопрос «что теперь должно быть»**, а не «что изменилось». Карты «какой компонент читает какие данные» у него нет. `setState` сообщает одно: «вот этот компонент устарел» — точнее, его фибер. Всё остальное React выясняет пересчётом и сравнением."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FIBER} />
+  <Plain text={PLAIN_FIBER} />
 
   <CardGrid min={290} gap={16} align="start">
     <Card title="Что делает React после `setState`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
@@ -239,7 +214,6 @@ lead="**React отвечает на вопрос «что теперь долж�
   eyebrowTone="demo"
   title="Какое поддерево перерисовалось и почему"
   lead="Ре-рендер — это **вызов функции компонента**, а правка документа — отдельное событие. В демо их считают разные приборы: вызовы — счётчик в теле функции, правки — `MutationObserver`. Сколько функций вызовет одно нажатие, зависит от того, в каком компоненте лежит состояние."
-  leadWidth={70}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={TREE_DEMO_NOTE} />
@@ -281,7 +255,7 @@ lead="**React отвечает на вопрос «что теперь долж�
 
   ### Bailout — пропуск компонента: три условия, все обязательны
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BAILOUT} />
+  <Plain text={PLAIN_BAILOUT} />
 
   <Card title="Что React проверяет в начале `beginWork` — обработки фибера" titleSize={17} pad={20} gap={14}>
     <CodeBlock code={BAILOUT_CODE} />
@@ -445,9 +419,8 @@ lead="**React отвечает на вопрос «что теперь долж�
   eyebrowTone="demo"
   title="`key={index}` против стабильного ключа"
   lead="Удалили из списка первую задачу — а набранный в ней текст остался на месте и теперь стоит у следующей. Виноват ключ. Ключ — это обещание React'у: «элемент с этим ключом в этом списке — та же сущность, что и в прошлый раз». Индекс нарушает обещание при любой операции, меняющей порядок."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEY} />
+  <Plain text={PLAIN_KEY} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={KEYS_DEMO_NOTE} />
@@ -539,9 +512,8 @@ lead="**React отвечает на вопрос «что теперь долж�
   eyebrowTone="demo"
   title="Батчинг: три `setState` — сколько ре-рендеров"
   lead="Батчинг — объединение нескольких обновлений состояния в один рендер. В демо три поля меняются в любом режиме, а вот число рендеров, которыми за это платят, от режима зависит."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BATCH} />
+  <Plain text={PLAIN_BATCH} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={BATCH_DEMO_NOTE} />
@@ -587,7 +559,7 @@ lead="**React отвечает на вопрос «что теперь долж�
 
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+  <Plain text={PLAIN_SNAPSHOT} />
 
   <Card title="Очередь обновлений хука" titleSize={17} pad={20} gap={13}>
     <CodeBlock code={QUEUE_CODE} />
@@ -660,7 +632,6 @@ lead="**React отвечает на вопрос «что теперь долж�
   eyebrowTone="demo"
   title="`useMemo` и `useCallback`: когда они действительно помогают"
   lead="Знакомая картина: после жалобы на тормоза компонент обвешан `useCallback`, а профайлер показывает те же вызовы, что и раньше. Дело в том, что `useMemo` и `useCallback` сами ничего не пропускают: они только возвращают тот же объект или ту же функцию, что и в прошлый рендер. Пользу из этого извлекает `memo` — и только когда не изменился ни один проп."
-  leadWidth={70}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={MEMO_DEMO_NOTE} />
@@ -775,7 +746,6 @@ lead="**React отвечает на вопрос «что теперь долж�
   eyebrow="Раздел 7"
   title="Источники"
   lead="У React нет спецификации — есть документация и исходники. Поэтому там, где речь о внутренностях, ссылка ведёт прямо в код: он единственный отвечает на вопрос «а как на самом деле»."
-  leadWidth={70}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

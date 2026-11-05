@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { StandProfile } from '@/widgets/pp-flame/model/types';
 
 /**
@@ -579,7 +579,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Источники ──────────────────── */
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Chrome DevTools Protocol · HeapProfiler',
     href: 'https://chromedevtools.github.io/devtools-protocol/tot/HeapProfiler/',
@@ -649,7 +649,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
 
 /* ──────────────────── Вводный раздел · словарь ──────────────────── */
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'выборочный профиль',
     d: 'Профиль, который записывает не каждое событие, а случайную долю: здесь — одно выделение памяти примерно на каждые `N` байт. Отсюда и дешевизна, и погрешность.',
@@ -710,7 +710,7 @@ export const GLOSSARY = [
 
 /* ──────────────────── Перед началом ──────────────────── */
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Снимок кучи и «кто держит»',
     d: 'Снимок — граф всех живых объектов; retainers отвечают, кто удерживает объект. Здесь снимок — то, что **нельзя** снять, и понадобится понимать, чего без него не узнать.',

@@ -3,7 +3,6 @@ title: "Общая память и Atomics"
 headingWidth: 24
 order: 21
 lead: "`SharedArrayBuffer` — участок памяти, который видят несколько потоков сразу, без пересылки. Без правил это гонки: прибавки теряются, флажок «готово» виден раньше данных. `Atomics` — эти правила. Одно число меняют атомарной операцией, пачку данных публикуют одним атомарным флажком, несколько полей меняют под замком, а ждут на `wait`."
-leadWidth: 66
 summary: "Что такое общий буфер и когда он нужен; гонка на общем счётчике и `Atomics.add`; что возвращают атомарные операции и как собрать свою на `compareExchange`; почему флажок без `Atomics` бывает виден раньше данных — замер на ARM; `wait`, `notify`, `waitAsync` и запрет ждать на главном потоке браузера; замок из двух состояний."
 verifiedOn: "Node 26.8.2 на arm64, ноябрь 2026: каждый пример исполняет tests/unit/atomics.test.ts в настоящих воркерах; частоты гонок и перестановок — несколько серий на ноутбуке"
 nav:
@@ -21,7 +20,6 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
@@ -29,6 +27,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -87,46 +88,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHARED} />
+  <Plain text={PLAIN_SHARED} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Общий буфер: одна память на несколько потоков"
   lead="Копия и перенос пересылают данные из одной памяти в другую. `SharedArrayBuffer` устроен иначе: это один участок памяти, который несколько потоков видят одновременно."
-  leadWidth={72}
 >
   <CodeBlock code={SHARED_CODE} />
 
@@ -150,7 +123,6 @@ import {
   eyebrow="Раздел 2"
   title="Первый общий счётчик"
   lead="Четыре воркера получают один общий буфер и прибавляют единицу к одной ячейке. Сначала обычным `++`, потом через `Atomics.add`."
-  leadWidth={72}
 >
   <CodeBlock code={RACE_MAIN_CODE} />
 
@@ -162,7 +134,7 @@ import {
     <Md text={RACE_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RACE} />
+  <Plain text={PLAIN_RACE} />
 </Section>
 
 <Section
@@ -170,7 +142,6 @@ import {
   eyebrow="Раздел 3"
   title="Какие бывают атомарные операции"
   lead="Каждая операция `Atomics` берёт типизированный массив и номер ячейки. Почти все возвращают значение, которое было в ячейке **до** операции, — на этом строится всё остальное."
-  leadWidth={72}
 >
   <Table
     head={['операция', 'что возвращает']}
@@ -196,7 +167,6 @@ import {
   eyebrow="Раздел 4"
   title="Порядок: один флажок публикует данные"
   lead="Поток посчитал результат и хочет сказать другому «готово». Самое естественное — записать данные, потом поднять флажок. Без `Atomics` другой поток может увидеть флажок раньше данных."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={ATOMICS_WHY} />
@@ -206,7 +176,7 @@ import {
     <Md text={REORDER_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUBLISH} />
+  <Plain text={PLAIN_PUBLISH} />
 
   <CodeBlock code={PUBLISH_CODE} />
 
@@ -232,7 +202,6 @@ import {
   eyebrow="Раздел 5"
   title="Ждать и будить: wait, notify, waitAsync"
   lead="Ждать флажка можно в цикле, но тогда поток занимает ядро и ничего не делает. `Atomics.wait` усыпляет поток, пока в ячейке не изменится значение, а `Atomics.notify` его будит."
-  leadWidth={72}
 >
   <CodeBlock code={WAIT_CODE} />
 
@@ -256,7 +225,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WAIT} />
+  <Plain text={PLAIN_WAIT} />
 
   ### Главный поток браузера спать не может
 
@@ -274,7 +243,6 @@ import {
   eyebrow="Раздел 6"
   title="Замок из Atomics"
   lead="Когда вместе должны измениться несколько полей, одной атомарной операции мало. Нужен замок: пока он занят, к данным подходит только один поток."
-  leadWidth={72}
 >
   <CodeBlock code={MUTEX_CODE} />
 

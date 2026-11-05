@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { PatchScenario } from '@/widgets/mini-patch/model/types';
 
 /**
@@ -574,7 +574,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Ремонт по чертежу. Прораб не сносит квартиру, когда заказчик приносит новый план, — он кладёт старый чертёж рядом с новым и составляет список работ: эту стену не трогать, эту дверь перенести, здесь добавить розетку. Виртуальное дерево — чертёж, `patch` — сравнение чертежей, а журнал операций хоста — тот самый список работ. Чем короче список, тем дешевле ремонт.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'VNode · виртуальный узел',
     d: 'Обычный объект, описывающий один узел будущего дерева: тип, пропсы, дети, ключ. Дёшев в создании и выбрасывается после сравнения; ссылку на настоящий узел держит его поле `el`.',
@@ -616,7 +616,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема начинается там, где реактивность заканчивается: эффект компонента проснулся и вызвал рендер. Как он проснулся и почему один раз на три записи — известно; здесь — что рендер делает с деревом.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что рендер компонента — это эффект, а обновление идёт через очередь',
     d: 'Эффект записывает прочитанное и перезапускается от записи; `scheduler` ставит задание в очередь, которая разбирается в микрозадаче.',
@@ -1163,7 +1163,7 @@ export const PITFALLS: Pitfall[] = [
 // Раздел 10 · источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: '`runtime-core` · `renderer.ts`',
     href: 'https://github.com/vuejs/core/blob/main/packages/runtime-core/src/renderer.ts',

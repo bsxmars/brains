@@ -3,7 +3,6 @@ title: Расширения браузера и изолированные ми�
 order: 10
 kicker: браузер и рендеринг
 lead: "Расширение исполняет свой код на вашей странице: в её процессе, с её DOM, на её главном потоке. Но переменные и прототипы у него свои — это изолированный мир. Что через его границу проходит, а что нет, решает, чем расширение может помешать сайту."
-leadWidth: 66
 summary: "Из чего состоит расширение Manifest V3, что видит контент-скрипт и чего не видит, чем опасен world: 'MAIN', почему фон теряет переменные, почему CSP страницы не действует на расширение и как сайту заметить чужие узлы."
 verifiedOn: "Chromium 153.0.8010.12 (Chrome for Testing из Playwright 1.63, headless), учебное расширение MV3, загруженное распакованным, и два локальных сервера на node:http, сентябрь 2026. Сон фона снят без DevTools — Chrome запущен процессом. Порог в 30 секунд, лимиты declarativeNetRequest, externally_connectable и поведение Firefox взяты из документации и стендом не проверялись."
 nav:
@@ -25,6 +24,9 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import ExtDomAudit from '@/widgets/ext-dom-audit/ui/ExtDomAudit.vue';
 import ExtWorlds from '@/widgets/ext-worlds/ui/ExtWorlds.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
@@ -76,43 +78,17 @@ import {
   DNR_WAYS,
 } from './data';
 
-<Section variant="intro" eyebrow="Чужой код на вашей странице" lead={INTRO_NOTE} leadWidth={72}>
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+<Section variant="intro" eyebrow="Чужой код на вашей странице" lead={INTRO_NOTE}>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={260} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} min={260} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Из чего состоит расширение Manifest V3"
   lead="В DOM вашей страницы висит чужой `<div>`, которого сервер не присылал. Его вставил контент-скрипт — та часть расширения, что исполняется внутри чужой страницы. Само расширение — папка файлов с `manifest.json` в корне. Манифест перечисляет части, и у каждой части своё место: одни исполняются в процессе расширения, другие — внутри чужой страницы."
-  leadWidth={72}
 >
   <Card title="Манифест учебного расширения" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
 
@@ -151,9 +127,8 @@ import {
   eyebrow="Раздел 2"
   title="Изолированный мир: DOM общий, глобальные объекты — нет"
   lead="Контент-скрипт исполняется в том же документе, но в отдельном контексте движка: у него свой `window`, свой `Array.prototype`, свой `fetch`. Общими остаются узлы DOM, их атрибуты и события."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WORLD} />
+  <Plain text={PLAIN_WORLD} />
 
   <ExtWorlds
     head={WORLD_HEAD}
@@ -194,9 +169,8 @@ import {
   eyebrow="Раздел 3"
   title="Обмен: страница ↔ контент-скрипт ↔ фон"
   lead="Между страницей и контент-скриптом есть только общие DOM и `window`: `postMessage` и события. Между контент-скриптом и фоном — `chrome.runtime`: сообщения идут через браузер, и конверт заполняет он."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POST} />
+  <Plain text={PLAIN_POST} />
 
   <Table
     head={['кто отправил', '`event.origin`', '`source === window`', 'кто получил']}
@@ -244,7 +218,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RELAY} />
+  <Plain text={PLAIN_RELAY} />
 </Section>
 
 <Section
@@ -252,9 +226,8 @@ import {
   eyebrow="Раздел 4"
   title="Фон — воркер, который засыпает, и CSP, которую не ослабить"
   lead="Фон MV3 — сервис-воркер: без `window`, без DOM, без `XMLHttpRequest` и `localStorage`. Браузер запускает его на событие и останавливает, когда событий нет. Отсюда самая частая ошибка авторов расширений: счётчик в глобальной переменной фона «сам собой» обнуляется через полминуты тишины."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SLEEP} />
+  <Plain text={PLAIN_SLEEP} />
 
   <Table
     head={['тишина', '`bootId` до → после', 'счётчик', 'глобальная строка', '`storage.session`', '`storage.local`']}
@@ -306,9 +279,8 @@ import {
   eyebrow="Раздел 5"
   title="Сеть: правила `declarativeNetRequest` вместо блокирующего `webRequest`"
   lead="В MV2 блокировщик решал судьбу каждого запроса своей функцией, и браузер ждал её ответа. В MV3 обычное расширение описывает правила заранее, а применяет их браузер."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DNR} />
+  <Plain text={PLAIN_DNR} />
 
   <CodeBlock code={DNR_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
@@ -344,7 +316,6 @@ import {
   eyebrowTone="demo"
   title="Как расширения мешают сайту — и что сайт может с этим сделать"
   lead="Три пути: узлы в DOM, подмена глобальных функций из мира страницы и работа на главном потоке страницы. Защиты страницы — CSP и Trusted Types — на изолированный мир не действуют."
-  leadWidth={72}
 >
   <Card title="Проба: что CSP страницы сделала с контент-скриптом" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
     <CodeBlock code={CSP_HEADER} size={11.5} />

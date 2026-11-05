@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { FlowStep, JwtVariant } from '@/widgets/auth-lab/model/types';
 
 /**
@@ -50,7 +50,7 @@ import type { FlowStep, JwtVariant } from '@/widgets/auth-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'аутентификация и авторизация',
     d: 'Аутентификация отвечает на вопрос «кто это?», авторизация — «что ему можно?». Вход по паролю — первое; проверка, что этот пользователь может читать этот заказ, — второе.',
@@ -91,7 +91,7 @@ export const PLAIN_AUTH =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи из других тем. Повторять их здесь не нужно — достаточно помнить вывод из каждой.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Кука и её атрибуты',
     d: 'Браузер сам прикладывает куку к запросам на её сайт. `HttpOnly` прячет её от JS, `Secure` — от `http:`, `SameSite` решает, уйдёт ли она с запросом, начатым на чужом сайте.',
@@ -631,7 +631,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'RFC 6749 — The OAuth 2.0 Authorization Framework',
     href: 'https://www.rfc-editor.org/rfc/rfc6749',

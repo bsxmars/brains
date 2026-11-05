@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LbScenario } from '@/widgets/lb-lab/model/types';
 
 /**
@@ -61,7 +61,7 @@ import type { LbScenario } from '@/widgets/lb-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'балансировщик',
     d: 'Прокси перед несколькими одинаковыми копиями приложения. Для каждого запроса (или соединения) он решает, какая копия его получит. nginx, HAProxy, Envoy, облачный балансировщик — всё это он.',
@@ -102,7 +102,7 @@ export const PLAIN_BALANCER =
 export const PREREQ_NOTE =
   'Тема опирается на устройство nginx как прокси, на то, как соединение несёт много запросов, и на остановку процесса по сигналу. Всё это разобрано в других темах.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'nginx как обратный прокси',
     d: 'nginx принимает запрос и пересылает его бэкенду через `proxy_pass`. Если бэкенд не ответил, клиент получает 502 (соединение не удалось или оборвалось) или 504 (ответ не пришёл вовремя).',
@@ -683,7 +683,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'nginx — ngx_http_upstream_module',
     href: 'https://nginx.org/en/docs/http/ngx_http_upstream_module.html',

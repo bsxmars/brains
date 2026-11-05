@@ -2,7 +2,6 @@
 title: Планирование задач
 order: 17
 lead: "Если разрезать работу на куски, быстрее она не станет — зато страница продолжит откликаться. Задача на 500 мс, нарезанная на десять кусков по 50 мс, занимает главный поток столько же. Выигрыш в другом: между кусками браузер успевает нарисовать кадр и обработать клик."
-leadWidth: 66
 summary: "Чем возвращать управление циклу, как расставить приоритеты и что делается с очередями, когда вкладка уходит в фон."
 verifiedOn: Node 24.11 и 26.8
 nav:
@@ -26,6 +25,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import InpAnatomy from '@/widgets/inp-anatomy/ui/InpAnatomy.astro';
 import PageLifecycle from '@/widgets/page-lifecycle/ui/PageLifecycle.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
@@ -99,18 +101,11 @@ import {
   variant="intro"
   eyebrow="Зачем тема отдельно"
   lead="Допустим, обработчик клика считает 400 мс. Все эти 400 мс страница не реагирует на клики, анимация стоит, новые кадры не рисуются. Помогают против этого два хода. Первый — **вынести работу в [воркер](/js/workers/)**: отдельный поток со своим циклом событий. Второй — **разрезать работу на куски и между кусками возвращать управление браузеру**. Эта тема про второй."
-  leadWidth={70}
   gap={24}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_YIELD} />
+  <Plain text={PLAIN_YIELD} />
 
-  <CardGrid min={240} gap={14}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={TIMELINE_DEMO_NOTE} />
@@ -162,25 +157,7 @@ import {
   </Card>
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={70}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
+<Prereq items={PREREQ} lead={PREREQ_NOTE}>
 
   <Card tone="warn" color="tone" pad={20} radius={5} size={16.5} lh={1.6}>
 
@@ -190,8 +167,8 @@ import {
 
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MICROTASK} />
-</Section>
+  <Plain text={PLAIN_MICROTASK} />
+</Prereq>
 
 <Section
   id="s1"
@@ -199,7 +176,7 @@ import {
   title="Чем возвращать управление циклу"
   lead="Работа нарезана на куски, и между кусками нужно отдать поток браузеру. Отложить продолжение умеют семь инструментов, и все, кроме микрозадачи, поток отпускают. Различаются они тем, когда вернут управление — сразу, в конце общей очереди, перед кадром или в простое, — и можно ли сказать браузеру, какая работа важнее."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCHEDULER} />
+  <Plain text={PLAIN_SCHEDULER} />
 
   ### Один момент — семь инструментов
 
@@ -230,7 +207,7 @@ import {
     minWidth={700}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE_TAIL} />
+  <Plain text={PLAIN_QUEUE_TAIL} />
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
 
@@ -372,7 +349,7 @@ import {
 
   ### Чем приоритеты не управляют
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SOURCES} />
+  <Plain text={PLAIN_SOURCES} />
 
   Над очередями задач есть ещё один слой планирования, до которого из JS не дотянуться:
   его ведёт сам браузер. Он может поставить событие ввода раньше таймера и склеивает частые
@@ -538,11 +515,10 @@ import {
   eyebrow="Раздел 3"
   title="Long Task, INP и когда отдавать поток"
   lead="Почему длинной считают задачу больше 50 мс? Если клик пришёл в начале такой задачи, его обработают не раньше чем через ~50 мс — плюс время самой обработки. А мгновенной человек считает реакцию примерно до 100 мс. Как INP считают и чем меряют — в [теме про критический путь и Web Vitals](/render/rendering-crp/)."
-  leadWidth={70}
 >
   <InpAnatomy parts={INP_PARTS} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INP} />
+  <Plain text={PLAIN_INP} />
 
   ### Три слагаемых на одном обработчике
 
@@ -632,7 +608,7 @@ import {
   title="Фоновая вкладка, заморозка и bfcache"
   lead="Пользователь ушёл на соседнюю вкладку — и страница перестала работать в полную силу: анимация не рисует ни кадра, таймеры срабатывают реже и пачками. Браузер может спрятать страницу, заморозить или выгрузить — и из всего, кроме выгрузки, она потом продолжает с того же места."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIFECYCLE} />
+  <Plain text={PLAIN_LIFECYCLE} />
 
   <PageLifecycle nodes={LIFECYCLE_NODES} edges={LIFECYCLE_EDGES} />
 

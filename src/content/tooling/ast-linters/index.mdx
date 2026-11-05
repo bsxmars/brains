@@ -5,7 +5,6 @@ headingWidth: 24
 order: 11
 kicker: сборка и инструменты
 lead: "ESLint не ищет `==` поиском по тексту. Он разбирает файл в дерево, обходит его один раз и на каждом узле зовёт правила, которые на этот узел подписались. Исправление — правка текста по смещениям из дерева, а пересекающиеся правки ждут следующего прохода. Как это устроено, как написать своё правило и чем codemod и Prettier отличаются от линтера."
-leadWidth: 66
 summary: "Токены и ESTree с `range` и `loc`, обход с входом и выходом, селекторы, области видимости и `no-unused-vars`, своё правило с `fix`, проходы автоисправления и потолок в десять, слияние плоского конфига, codemod правками по `range` против перепечатки дерева, Prettier как принтер."
 verifiedOn: "ESLint 10.10.0 (espree 11.2.0, eslint-scope 9.1.2, eslint-visitor-keys 5.0.1, esquery 1.7.0), typescript-eslint 8.70.0, Babel 7.29.8, Prettier 3.9.6, rolldown 1.2.8, Node 24.11.0, октябрь 2026: деревья, порядок обхода, области видимости, сообщения, проходы и конфиги сняты стендом через Linter и ESLint API и пересобираются tests/unit/ast-linters.test.ts; учебные обход, правила и автоисправление сверены с ESLint"
 nav:
@@ -32,6 +31,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AstLab from '@/widgets/ast-lab/ui/AstLab.vue';
@@ -119,46 +121,18 @@ import {
   у которого есть левая и правая части, и у каждой известен тип. На этом устроены
   ESLint, Babel, codemod и Prettier — разница только в том, что они делают с деревом потом.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AST} />
+  <Plain text={PLAIN_AST} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="От текста к дереву"
   lead="Пример на всю тему — функция скидки по промокоду. В ней неиспользуемая переменная и два сравнения, где строка стоит слева от `==`. Парсер сначала режет текст на токены, потом собирает из них дерево."
-  leadWidth={72}
 >
   <Card title="Сквозной пример: discount.js" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={DISCOUNT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -212,9 +186,8 @@ import {
   eyebrow="Раздел 2"
   title="Обход: вход, выход, селекторы"
   lead="ESLint идёт по дереву в глубину. В каждый узел он входит, обходит всех детей по порядку и выходит. Правило может подписаться и на вход, и на выход: на входе удобно проверять узел, на выходе — подводить итог всему, что было внутри."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRAVERSE} />
+  <Plain text={PLAIN_TRAVERSE} />
 
   <Card title="Обход — двадцать строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={WALK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -264,9 +237,8 @@ import {
   eyebrow="Раздел 3"
   title="Области видимости: откуда no-unused-vars знает про unused"
   lead="Дерево говорит, что в коде есть имя `price`. Но какое именно `price` — параметр функции или глобальная переменная — дерево не знает. Это отвечает второй анализ, который ESLint делает до правил: он раскладывает имена по областям видимости и связывает каждое употребление с объявлением."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCOPE} />
+  <Plain text={PLAIN_SCOPE} />
 
   <Table
     head={['область', 'чей узел', 'переменные', 'ссылки']}
@@ -307,7 +279,6 @@ import {
   eyebrow="Раздел 4"
   title="Своё правило"
   lead="Правило ESLint — объект с паспортом и функцией `create`, которая возвращает обработчики для обхода. Два учебных правила ниже — про сравнения: одно требует `===`, другое запрещает «йода-условия» вроде `'SALE' == code`, где литерал стоит слева. Оба умеют исправлять."
-  leadWidth={72}
 >
   <Card title="noLooseEq и yoda" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RULES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -344,9 +315,8 @@ import {
   eyebrow="Раздел 5"
   title="Автоисправления: правки по range и проходы"
   lead="`eslint --fix` не перестраивает дерево. Он собирает правки из сообщений, вносит в текст те, что не задевают друг друга, и запускает проверку заново — на новом тексте, с новым деревом. Так до тех пор, пока правки не кончатся, но не больше десяти раз."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FIX} />
+  <Plain text={PLAIN_FIX} />
 
   <Card title="verify, applyFixes, verifyAndFix" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -387,9 +357,8 @@ import {
   eyebrow="Раздел 6"
   title="Плоский конфиг: кто кого перекрывает"
   lead="`eslint.config.js` — массив блоков. Для каждого файла ESLint отбирает блоки, которые к нему подходят, и накладывает их сверху вниз: следующий перекрывает предыдущий, но только в тех правилах, которые называет сам."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLAT} />
+  <Plain text={PLAIN_FLAT} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Конфиг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -419,9 +388,8 @@ import {
   eyebrow="Раздел 7"
   title="Codemod и Prettier: что делать с деревом потом"
   lead="Найти узлы умеют все. Разница — в том, как изменения попадают обратно в файл: точечными правками по `range`, перепечаткой изменённых узлов или печатью всего дерева с нуля. От этого зависит, увидит ли ревьюер три строки или весь файл."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CODEMOD} />
+  <Plain text={PLAIN_CODEMOD} />
 
   <Card title="Исходник: функцию formatPrice переименовали в formatMoney, валюта стала полем" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MONEY_CODE} size={11.5} lh={1.65} pad="14px 16px" />

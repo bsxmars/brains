@@ -504,7 +504,7 @@ describe('текст держит только то, что проверено',
 
   it('ссылки внутри сайта ведут в существующие темы', () => {
     const md = [...text.matchAll(/\]\((\/[a-z-]+\/[a-z-]+\/)(#s\d+)?\)/g)].map((m) => m[1]);
-    const hrefs = t.PREREQ.map((p) => p.href.replace(/#.*$/, ''));
+    const hrefs = t.PREREQ.map((p) => (p.href ?? '').replace(/#.*$/, ''));
     const links = [...md, ...hrefs];
     expect(links.length).toBeGreaterThan(5);
     for (const href of new Set(links)) {

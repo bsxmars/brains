@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ModuleFile, TwFile } from '@/widgets/css-tooling-lab/model/types';
 
 /**
@@ -47,7 +47,7 @@ import type { ModuleFile, TwFile } from '@/widgets/css-tooling-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'PostCSS',
     d: 'Программа, которая разбирает CSS в дерево, отдаёт дерево плагинам и печатает результат обратно в текст. Сама она стили не меняет — меняют плагины.',
@@ -88,7 +88,7 @@ export const PLAIN_PIPELINE =
 export const PREREQ_NOTE =
   'Тема собирает в одном месте то, что на сайте разобрано по частям: каскад, дерево разбора, цели сборки и блокировку рендеринга. Каждая часть здесь — одной фразой и ссылкой.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Каскад и слои',
     d: 'Когда два правила задают одно свойство, браузер решает спор по порядку проверок: происхождение и `!important`, слой, специфичность, порядок в файле. Слой сильнее специфичности, порядок слабее всего.',
@@ -872,7 +872,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'PostCSS — Writing a PostCSS Plugin',
     href: 'https://postcss.org/docs/writing-a-postcss-plugin',

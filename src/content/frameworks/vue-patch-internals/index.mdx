@@ -3,7 +3,6 @@ title: "Vue 3 изнутри: рендерер и patch"
 order: 12
 kicker: фреймворки изнутри
 lead: "Рендерер Vue помещается в несколько сотен строк: `patch` сравнивает два дерева обычных объектов и отдаёт хосту список работ, для списков с ключами ищет наибольшую возрастающую подпоследовательность, а флаги компилятора позволяют не смотреть на статику. Мини-версия ниже исполняется на странице, а тест сверяет её журнал операций с настоящим рендерером Vue 3.5."
-leadWidth: 66
 summary: "Свой `createRenderer` — VNode, `patch`, дети без ключей и с ключами, LIS, флаги патча и блоки, компонент как эффект — на журналирующем хосте, сверенный по операциям с `@vue/runtime-core` 3.5 в обеих сборках."
 verifiedOn: Vue 3.5.42 · Node 26.8.2
 nav:
@@ -23,10 +22,12 @@ nav:
 import Md from '@/shared/ui/Md.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniPatch from '@/widgets/mini-patch/ui/MiniPatch.vue';
@@ -52,48 +53,21 @@ import {
   variant="intro"
   eyebrow="Идея"
   lead={INTRO_NOTE}
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+  <Plain text={PLAIN_INTRO} />
 
-  <CardGrid min={240} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={270} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} min={270} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="VNode: объект, описывающий узел"
   lead="Рендер компонента возвращает не DOM, а дерево обычных объектов. У каждого — тип, пропсы, дети и ключ, плюс два поля, которые считаются один раз при создании: `shapeFlag` — что это за узел, и `patchFlag` — что в нём может меняться."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VNODE} />
+  <Plain text={PLAIN_VNODE} />
 
   <CodeBlock code={STEP_VNODE} />
 
@@ -119,9 +93,8 @@ import {
   eyebrow="Раздел 2"
   title="Хост, `mount` и `patch`"
   lead="Рендерер не знает, куда пишет: всё, что он умеет делать с настоящими узлами, приходит в `createRenderer` десятком функций. Здесь это хост, который вместо DOM ведёт журнал, — и тот же хост тест отдаёт настоящему рендереру Vue."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOST} />
+  <Plain text={PLAIN_HOST} />
 
   <CodeBlock code={STEP_HOST} />
 
@@ -153,11 +126,10 @@ import {
   eyebrow="Раздел 3"
   title="Дети без ключей: сверка по позиции"
   lead="`patchChildren` решает, как сравнивать детей: текст с текстом, массив с массивом, одно на другое. Для массивов без ключей всё просто — общая длина патчится попарно, лишние старые удаляются, лишние новые добавляются."
-  leadWidth={72}
 >
   <CodeBlock code={STEP_CHILDREN} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEY} />
+  <Plain text={PLAIN_KEY} />
 
   <Card title="`[A, B, C] → [C, A, B]` без ключей" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={UNKEYED_CODE} />
@@ -177,7 +149,6 @@ import {
   eyebrow="Раздел 4"
   title="Дети с ключами: края, карта, LIS"
   lead="С ключами узел узнаётся где угодно, и задача меняется: не «что поменялось на позиции», а «как переставить старые узлы в новый порядок за наименьшее число операций». Vue решает её в пять шагов, и три из них — дешёвые проходы с краёв."
-  leadWidth={72}
 >
   <CodeBlock code={STEP_KEYED} />
 
@@ -197,7 +168,7 @@ import {
 
   ### LIS: кого не двигать
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIS} />
+  <Plain text={PLAIN_LIS} />
 
   <CodeBlock code={STEP_LIS} />
 
@@ -233,7 +204,7 @@ import {
     <Md text={LIS_TRACE_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIS_STRATEGIES} />
+  <Plain text={PLAIN_LIS_STRATEGIES} />
 
   ### Сколько это экономит
 
@@ -256,7 +227,6 @@ import {
   eyebrowTone="demo"
   title="`patchKeyedChildren` по шагам"
   lead="Выберите сценарий и идите по шагам: края, карта ключей, `newIndexToOldIndex`, LIS и проход справа налево. Внизу — операции, которые рендерер отдал хосту, и ряд «хост сейчас» — порядок узлов после шага."
-  leadWidth={72}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEMO_NOTE} />
 
@@ -268,9 +238,8 @@ import {
   eyebrow="Раздел 6"
   title="Флаги патча и блоки: не сравнивать статику"
   lead="Функция рендера, написанная руками через `h`, может вернуть что угодно, и `patch` вынужден сравнивать всё. Шаблон — нет: компилятор видит, где выражения, а где буквы, и оставляет рендереру две подсказки — флаг на узле и плоский список динамических узлов на блоке."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLAGS} />
+  <Plain text={PLAIN_FLAGS} />
 
   <Card title="Что выдаёт компилятор 3.5.42" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TEMPLATE_SAMPLE} />
@@ -296,7 +265,7 @@ import {
 
   ### Блок: плоский список динамики
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BLOCK} />
+  <Plain text={PLAIN_BLOCK} />
 
   <Card title="Статика внутри блока не сравнивается" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={BLOCK_CODE} />
@@ -322,7 +291,6 @@ import {
   eyebrow="Раздел 7"
   title="Компонент: эффект, который патчит своё поддерево"
   lead={COMPONENT_LEAD}
-  leadWidth={72}
 >
   <CodeBlock code={STEP_QUEUE} />
 
@@ -350,7 +318,6 @@ import {
   eyebrow="Раздел 8"
   title="Что в Vue 3.5 иначе"
   lead="Мини-версия повторяет форму рендерера 3.5 и его журнал операций на всём, что умеет. Отличаются охват и страховки настоящей реализации."
-  leadWidth={72}
 >
   <Table
     head={REAL_HEAD}
@@ -368,7 +335,6 @@ import {
   eyebrow="Раздел 9"
   title="Тонкие места"
   lead="Места, где рендерер ошибается молча: дерево собирается, исключений нет, а в DOM лишний узел, старый класс или чужое состояние."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>
@@ -378,7 +344,6 @@ import {
   eyebrow="Раздел 10"
   title="Источники"
   lead="Каждая функция мини-версии названа так же, как в исходниках Vue, — по имени её и искать."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

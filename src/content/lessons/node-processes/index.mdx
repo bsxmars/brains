@@ -3,7 +3,6 @@ title: "Процессы и потоки в Node"
 headingWidth: 24
 order: 36
 lead: "В Node работу уносят из главного потока тремя руками: воркер — ваш JS в другом потоке того же процесса, дочерний процесс — любая программа рядом, `cluster` — несколько копий сервера на одном порту. Они различаются тем, что делят с главным потоком, и по-разному теряют данные в канале между собой."
-leadWidth: 66
 summary: "Первый воркер на `worker_threads`; что воркер делит с процессом, а что нет; ошибки и выход воркера; `spawn`, `exec`, `execFile` и `fork` — оболочка, вывод, канал; JSON в канале между процессами; как `cluster` раздаёт соединения и почему не раздаёт запросы."
 verifiedOn: "Node 26.8.2, ноябрь 2026: каждый пример с выводом исполняет tests/unit/node-processes.test.ts в отдельном процессе Node; время старта воркера и процесса — медиана семи запусков на ноутбуке"
 nav:
@@ -19,13 +18,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -87,46 +88,18 @@ import {
   вопрос: где выполнить долгий расчёт, как запустить чужую программу и как раздать
   соединения одного порта по ядрам.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROCESS} />
+  <Plain text={PLAIN_PROCESS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Первый воркер и четыре способа"
   lead="Воркер в Node — это два файла: главный создаёт `Worker` и слушает события, воркер получает стартовые данные и отправляет результат. Главный поток в это время свободен."
-  leadWidth={72}
 >
   <CodeBlock code={FIRST_MAIN_CODE} />
 
@@ -140,7 +113,7 @@ import {
 
   ### Четыре способа убрать работу из главного потока
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FOUR} />
+  <Plain text={PLAIN_FOUR} />
 
   <Table
     head={FOUR_WAYS.head}
@@ -160,7 +133,6 @@ import {
   eyebrow="Раздел 2"
   title="worker_threads: поток внутри процесса"
   lead="Воркер — отдельный агент: своя куча, свой цикл событий, свои глобальные переменные. Но процесс у него общий с главным потоком, и от этого зависит, что в воркере работает, а что нет."
-  leadWidth={72}
 >
   <Table
     head={['что', 'у воркера']}
@@ -212,7 +184,6 @@ import {
   eyebrow="Раздел 3"
   title="child_process: программа рядом"
   lead="Дочерний процесс — отдельная программа со своей памятью и своим `pid`. Node умеет запустить её четырьмя функциями, и они различаются тремя вещами: идёт ли команда через оболочку, как приходит вывод и есть ли канал для сообщений."
-  leadWidth={72}
 >
   <Table
     head={CP_FUNCS.head}
@@ -261,9 +232,8 @@ import {
   eyebrow="Раздел 4"
   title="cluster: копии сервера на одном порту"
   lead="`cluster` запускает несколько копий приложения через `fork`, а главный процесс принимает соединения и раздаёт их копиям по кругу. Так один порт обслуживают все ядра."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLUSTER} />
+  <Plain text={PLAIN_CLUSTER} />
 
   <CodeBlock code={CLUSTER_RR_CODE} />
 

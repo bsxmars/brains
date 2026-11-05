@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Git изнутри: объекты, ссылки, слияние».
@@ -49,7 +49,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'объект',
     d: 'Единица хранения git. Видов четыре: blob — содержимое файла, tree — папка, commit — снимок с автором и родителями, tag — аннотированная метка. Объект не меняется никогда: другое содержимое — это другой объект.',
@@ -90,7 +90,7 @@ export const PLAIN_GIT =
 export const PREREQ_NOTE =
   'Тема разбирает, что git делает внутри, когда вы набираете привычные команды. Нужны сами команды и несколько понятий; два из них объяснены прямо на карточках.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Git снаружи',
     d: 'Вы делали `git add`, `git commit`, `git switch`, `git merge` и видели `git log`. Тема не учит командам — она показывает, какие файлы они пишут в `.git` и почему ведут себя именно так.',
@@ -614,7 +614,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Pro Git — Git Internals: Git Objects',
     href: 'https://git-scm.com/book/en/v2/Git-Internals-Git-Objects',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { BoundaryRow, SdBase, SdRule } from '@/widgets/shadow-lab/model/types';
 
 /**
@@ -74,7 +74,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Компонент — квартира в чужом доме. Управляющая компания (страница) не может зайти и перекрасить кухню: её приказы «все кухни — синие» до квартиры не доходят. Но отопление и вода общие: если дом тёплый, в квартире тоже тепло, — это наследование. А если хозяин квартиры сам вывел на фасад балкон и разрешил красить его в цвет дома, — это `::part()`.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'теневое дерево (shadow tree)',
     d: 'Отдельное DOM-дерево, прикреплённое к элементу через `attachShadow()`. Его корень — объект `ShadowRoot`. Снаружи его содержимое не видно ни селекторам CSS, ни `document.querySelector`.',
@@ -113,7 +113,7 @@ export const GLOSSARY = [
   },
 ];
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'В каком порядке каскад сравнивает правила',
     d: 'Источник и важность, контекст, атрибут `style`, слои, специфичность, порядок. Граница теневого дерева — это второй критерий, «контекст», и он решает спор **раньше** слоёв и специфичности.',
@@ -755,7 +755,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Источники ──────────────────── */
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'CSS Scoping Module Level 1',
     href: 'https://drafts.csswg.org/css-scoping-1/',

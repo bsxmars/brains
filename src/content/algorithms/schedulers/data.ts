@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { HeapScenario, Job, SchedScenario } from '@/widgets/sched-lab/model/types';
 
 /**
@@ -53,7 +53,7 @@ import type { HeapScenario, Job, SchedScenario } from '@/widgets/sched-lab/model
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'очередь с приоритетом',
     d: 'Хранилище, из которого всегда достают самый срочный элемент, а не тот, что пришёл первым. Три операции: положить (`push`), посмотреть верхний (`peek`), достать верхний (`pop`).',
@@ -94,7 +94,7 @@ export const PLAIN_PQ =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем и на одну школьную — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Задача и цикл событий',
     d: 'Браузер выполняет JS по одной задаче за раз, и пока задача идёт, страница не рисуется и не отвечает на клики. Между задачами браузер успевает и то и другое.',
@@ -705,7 +705,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'React — packages/scheduler/src/forks/Scheduler.js',
     href: 'https://github.com/facebook/react/blob/main/packages/scheduler/src/forks/Scheduler.js',

@@ -2,7 +2,7 @@ import type { ContextSlot } from '@/widgets/context-slots/model/types';
 import type { EphemeronScenario } from '@/widgets/ephemeron-sim/model/types';
 import type { GcStep } from '@/widgets/generation-copy/model/types';
 import type { LeakCase } from '@/widgets/leak-anatomy/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Source } from '@/entities/lesson';
 
 /**
  * Данные урока «Память и GC». Перенесены из `legacy/extracted/memory-gc/logic.js`.
@@ -1360,7 +1360,7 @@ export const BARRIER_ROWS: string[][] = [
  * сверен по живой спецификации. MDN про FinalizationRegistry: «avoid where possible»,
  * без оговорки про WeakMap.
  */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'V8 · Trash talk: the Orinoco garbage collector',
     href: 'https://v8.dev/blog/trash-talk',
@@ -1437,7 +1437,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
  * и pointer compression — за целый раздел до того, как раздел 1 их введёт. `MinorMS` при этом
  * не расшифрован нигде, а «эфемерон» не звучит даже в лиде своего собственного раздела.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'достижимость',
     d: 'Единственное, по чему сборщик решает, жить ли объекту: есть ли до него путь по ссылкам **от корней**.',

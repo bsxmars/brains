@@ -3,7 +3,6 @@ title: "Три движка: чем браузеры отличаются на �
 order: 9
 kicker: браузер и рендеринг
 lead: "Браузеров десятки, а движков три — Blink, Gecko и WebKit. Язык у них один и сходится быстро, а расходится всё, что стандарт оставил движку: тексты ошибок, стеки, разбор дат, точность таймера — и платформа, где каждый движок идёт своей дорогой."
-leadWidth: 66
 summary: "Какие браузеры на каком движке и почему все браузеры на iPhone — WebKit; что в языке на усмотрение движка — тексты ошибок, формат стека, разбор дат, глубина рекурсии; где расходится платформа — CSS, API, наблюдатели производительности; почему точность таймера зависит от движка и изоляции; как проверять возможность вместо имени браузера и тестировать в трёх движках."
 verifiedOn: "Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 — Playwright 1.63, macOS 26.6 (arm64); октябрь 2026"
 nav:
@@ -20,11 +19,13 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import EngineProbe from '@/widgets/engine-probe/ui/EngineProbe.vue';
@@ -70,43 +71,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENGINES} />
+  <Plain text={PLAIN_ENGINES} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Три движка, а не десять браузеров"
   lead="Браузер — это интерфейс вокруг движка. Меняется интерфейс — вкладки, закладки, синхронизация, — а то, как страница разбирается, рисуется и исполняется, решает движок, и движков три."
-  leadWidth={72}
 >
   <Table
     head={WHO_ROWS.head}
@@ -126,7 +102,6 @@ import {
   eyebrow="Раздел 2"
   title="Язык один — тексты, стеки и даты разные"
   lead="ECMAScript описывает язык строго, но кое-где сознательно оставляет решение движку. Именно там три движка и расходятся — в сообщениях об ошибках, в формате стека, в разборе дат и в глубине рекурсии."
-  leadWidth={72}
 >
   ### Сообщение об ошибке
 
@@ -184,7 +159,6 @@ import {
   eyebrow="Раздел 3 · демо"
   title="Платформа: где движки идут своей дорогой"
   lead="Новое в языке приходит во все три движка быстро, а платформа — CSS, API браузера, метрики — расходится надолго: каждый движок решает сам, что делать первым, а что не делать вовсе. Планировщик задач есть в Chromium с 2021 года, а в WebKit его нет и сегодня."
-  leadWidth={72}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={DEMO_NOTE} />
 
@@ -204,7 +178,6 @@ import {
   eyebrow="Раздел 4"
   title="Одно API — разное поведение"
   lead="Иногда API есть у всех, а ведёт себя по-разному: точность таймера, порядок прокрутки и кадра, наличие видеокарты за тем же объектом."
-  leadWidth={72}
 >
   ### Точность `performance.now()`
 
@@ -232,7 +205,6 @@ import {
   eyebrow="Раздел 5"
   title="Как с этим жить"
   lead="Спрашивать браузер о возможности, а не о его имени; знать, по какой аудитории сняты метрики; гонять то, что зависит от движка, во всех трёх."
-  leadWidth={72}
 >
   ### Проверять возможность, а не браузер
 
@@ -266,7 +238,6 @@ import {
   eyebrow="Раздел 6"
   title="Тонкие места"
   lead="Почти все они молчат: код не падает, а просто делает в другом браузере не то."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>
@@ -276,7 +247,6 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
   lead="Спецификации — чтобы понять, где стандарт отпускает движок; документация движков — чтобы понять, как каждый этой свободой распорядился."
-  leadWidth={72}
 >
   <SourceList items={SOURCES} />
 

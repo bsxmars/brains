@@ -5,7 +5,6 @@ headingWidth: 22
 order: 2
 kicker: сеть и безопасность
 lead: "Браузерный кеш хранит ответ для одного человека. CDN, обратный прокси и Redis перед базой хранят его для всех — и от этого меняется всё: кто вправе положить ответ в общий кеш, из чего сложить ключ, что делать, когда срок вышел у тысячи читателей разом, и как убрать ответ, уже разошедшийся по сотне серверов."
-leadWidth: 66
 summary: "Что общий кеш вправе хранить по RFC 9111, ключ и `Vary`, `stale-while-revalidate`, коллапс запросов и толпа при истечении, XFetch, purge по тегам, PoP и щит, `Age` и `Cache-Status`; кеш в процессе и в Redis, cache-aside и его гонка, TTL с джиттером."
 verifiedOn: "Node 26.8.2, сентябрь 2026: учебная прослойка на node:http прогнана против своего origin на локальной петле — счётчик запросов к origin, заголовки Age и Cache-Status; время — виртуальные часы, без таймерных замеров; закреплено tests/unit/cdn-cache.test.ts. Поведение настоящих CDN (anycast, скорость purge, трактовка s-maxage рядом со stale-while-revalidate) и Redis запуском не проверялось — описано по RFC и документации"
 nav:
@@ -30,6 +29,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import StampedeDiagram from '@/widgets/cdn-cache-stampede-diagram/ui/StampedeDiagram.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -108,43 +110,18 @@ import {
   HTTP-кеши читают заголовки ответа, кеши внутри приложения — ваш код, но толпа при истечении
   и гонка при инвалидации случаются в обоих.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHARED} />
+  <Plain text={PLAIN_SHARED} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Кто вправе хранить"
   lead="Браузер может хранить почти всё: ответ всё равно достанется тому же человеку. Общий кеш отдаст ответ следующему: страница «Мой профиль», положенная в CDN, покажет второму читателю имя первого. Поэтому RFC 9111 задаёт ему отдельные правила: что запрещено хранить, что разрешено только явно и какой срок читать."
-  leadWidth={72}
 >
   <Card title="Правила общего кеша" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RULES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -175,9 +152,8 @@ import {
   eyebrow="Раздел 2"
   title="Ключ и Vary"
   lead="Кеш находит копию по ключу: метод и адрес, плюс значения заголовков из `Vary`. Всё, что делает ключ длиннее, умножает число копий одной страницы и делит между ними попадания; всё, что делает его короче, рискует отдать одну страницу вместо другой."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KEY} />
+  <Plain text={PLAIN_KEY} />
 
   <CardGrid min={280} gap={14} align="start">
     {KEY_FACTS.map((fact) => (
@@ -224,9 +200,8 @@ import {
   eyebrowTone="demo"
   title="Срок вышел: устаревшее и толпа"
   lead="Истечение у общего кеша — событие не для одного читателя, а для всех, кто пришёл, пока кеш ходит к origin. Три механизма решают, сколько из них пойдут туда сами: коллапс запросов, разрешение отдать устаревшее и пересчёт заранее."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STAMPEDE} />
+  <Plain text={PLAIN_STAMPEDE} />
 
   ### Полторы секунды после истечения
 
@@ -320,7 +295,6 @@ import {
   eyebrow="Раздел 4"
   title="Purge, теги и версии в адресе"
   lead="Сбросить копию до срока можно двумя способами: сменить адрес, чтобы старая копия стала никому не нужна, или приказать кешу её выбросить. Первый работает везде и без гонок, но годится не для всех адресов; второй — только там, где у кеша есть API."
-  leadWidth={72}
 >
   <Card title="Теги в ответе и purge по тегу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PURGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -353,7 +327,6 @@ import {
   eyebrow="Раздел 5"
   title="CDN изнутри"
   lead="CDN — это много общих кешей в разных городах, маршрутизация, которая приводит читателя к ближайшему, и уровни, которые не дают ста PoP одновременно пойти к одному origin. Всё, что происходило с копией по дороге, остаётся в двух заголовках ответа: `Age` и `Cache-Status`."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {CDN_FACTS.map((fact) => (
@@ -401,7 +374,6 @@ import {
   eyebrow="Раздел 6"
   title="Кеш в приложении: память процесса и Redis"
   lead="Внутри приложения заголовков нет — ключ, срок и сброс пишет ваш код. Законы те же: копия расходится с источником, истечение собирает толпу, а инвалидация соревнуется с чтением."
-  leadWidth={72}
 >
   <Table
     head={['', 'в процессе', 'Redis']}
@@ -433,7 +405,7 @@ import {
 
   ### Гонка cache-aside
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RACE} />
+  <Plain text={PLAIN_RACE} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Чтение, запись и джиттер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Видео в браузере».
@@ -67,7 +67,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 // ─── Вводный раздел ────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`HTMLMediaElement`',
     d: 'Общий интерфейс `<video>` и `<audio>`: методы `play()` и `pause()`, свойства `currentTime`, `duration`, `muted`, `readyState`, события загрузки и показа. Всё из этой темы, кроме размера кадра, работает и для звука.',
@@ -107,7 +107,7 @@ export const PLAIN_VIDEO =
 
 export const PREREQ_NOTE = 'Тема опирается на три вещи из соседних тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Промис и await',
     d: 'Промис либо выполнится, либо отклонится с ошибкой. `await` ждёт результата, `try`/`catch` ловит отказ. Отказ без обработчика попадает в консоль красной ошибкой.',
@@ -620,7 +620,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'HTML Standard — Media elements',
     href: 'https://html.spec.whatwg.org/multipage/media.html',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Scenario, ServiceRow } from '@/widgets/service-startup/model/types';
 
 /**
@@ -780,7 +780,7 @@ export const MEASURED = [
 // Раздел 8. Источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Compose file reference — `depends_on`',
     href: 'https://docs.docker.com/reference/compose-file/services/#depends_on',
@@ -1006,7 +1006,7 @@ export const WATCH_NOTE =
  * стоят уже в первом экране. Каждое объясняется одной фразой — но до объяснения читатель,
  * пришедший из поиска, доходит через два раздела.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'сервис',
     d: 'Описание, из которого получается **один контейнер или несколько** (`--scale api=3` даёт три). Имя сервиса при этом одно — и по нему сервис находят в сети. Кто путает сервис с контейнером, тот потом не понимает, что происходит при масштабировании.',
@@ -1068,7 +1068,7 @@ export const STARTUP_DEMO_NOTE =
 export const PREREQ_NOTE =
   'Compose работает с готовыми образами и обычной сетью — ни то, ни другое он не придумывает сам.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что такое образ и из чего он состоит',
     d: 'Compose не собирает образы заново, а берёт готовые. Образ — шаблон, из которого запускают контейнер. Что внутри образа, почему он столько весит и что такое ступень сборки, разобрано отдельно. Здесь все сервисы берут готовые образы: иначе в замеры старта попала бы ещё и сборка.',

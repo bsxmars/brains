@@ -208,7 +208,7 @@ describe('ссылки темы ведут в существующие разд�
   const COLLECTION: Record<string, string> = { render: 'render', frameworks: 'frameworks', js: 'lessons', platform: 'platform', tooling: 'tooling', delivery: 'delivery', algorithms: 'algorithms', data: 'data', patterns: 'patterns' };
 
   const links = [
-    ...PREREQ.map((p) => p.href),
+    ...PREREQ.map((p) => p.href ?? ''),
     ...[...RELATED.matchAll(/\]\((\/[^)]+)\)/g)].map((m) => m[1]),
   ];
 

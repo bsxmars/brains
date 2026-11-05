@@ -5,7 +5,6 @@ headingWidth: 24
 order: 3
 kicker: сеть и безопасность
 lead: "Самая быстрая загрузка страницы — та, которой не было. Кнопка «назад» может вернуть страницу из памяти целиком, со всеми переменными, а переход по ссылке — показать страницу, которую браузер уже открыл заранее в невидимой вкладке. Оба механизма включаются почти даром, и оба молча выключаются одной строкой кода."
-leadWidth: 66
 summary: "Кеш «назад-вперёд»: что в нём хранится, что его ломает и как это узнать; Speculation Rules: prefetch и prerender следующей страницы, что успевает выполниться до клика и как не посчитать просмотр, которого не было."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63; bfcache — полный Chromium в новом headless-режиме без --disable-back-forward-cache; предрендер — бинарь без DevTools, отчёт маячками) против своего сервера на Node 26.8.2, сентябрь 2026. Firefox 155 и WebKit 26.6 проверены только на наличие API: восстановление из bfcache под Playwright в них не воспроизводится"
 nav:
@@ -32,6 +31,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import PrerenderDiagram from '@/widgets/instant-navigation-prerender-diagram/ui/PrerenderDiagram.astro';
 import {
@@ -108,44 +110,18 @@ import {
   **Speculation Rules** разрешают браузеру по таким признакам скачать следующую страницу
   (prefetch) или открыть её целиком в невидимой вкладке (prerender).
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BFCACHE} />
+  <Plain text={PLAIN_BFCACHE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Кеш «назад-вперёд»: страница, которую не выгрузили"
   lead="Уходя со страницы, браузер может не уничтожать её, а поставить на паузу целиком: с DOM, переменными JS и таймерами. По кнопке «назад» пауза снимается, и страница продолжает с того места, где её оставили, — без запроса к серверу и без единой строчки кода инициализации."
-  leadWidth={72}
 >
   <Card title="Что приходит странице при уходе в кеш и при возврате" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={640} chips={BFCACHE_LEAVE_CHIPS} />
@@ -187,7 +163,6 @@ import {
   eyebrow="Раздел 2"
   title="Почему страницу не взяли"
   lead="Браузер кладёт страницу в bfcache, только если уверен, что её можно безопасно заморозить и разморозить. Всё, что связывает страницу с внешним миром — обработчик ухода, открытое окно, чужие сообщения, — может стать причиной отказа. Отказ ничем не виден: «назад» просто работает медленнее."
-  leadWidth={72}
 >
   ### Одна страница, три привычки
 
@@ -207,7 +182,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BFCACHE_HABITS} />
+  <Plain text={PLAIN_BFCACHE_HABITS} />
 
   ### Все случаи из замера
 
@@ -265,7 +240,6 @@ import {
   eyebrow="Раздел 3"
   title="Возврат из кеша: что обновить"
   lead="Страница, пролежавшая в кеше минуту, вернётся с минутными данными: корзиной, счётчиком уведомлений, именем пользователя, который, может быть, уже вышел. Браузер восстанавливает состояние, но не знает, что из него устарело. Это знает только код страницы."
-  leadWidth={72}
 >
   <Card title="Две точки вместо load и unload" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PAGESHOW_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -308,9 +282,8 @@ import {
   eyebrow="Раздел 4"
   title="Speculation Rules: prefetch и prerender"
   lead="Правила — это JSON, которым страница говорит браузеру, куда пользователь, скорее всего, пойдёт дальше и насколько рано начинать готовиться. Это подсказка, а не приказ: браузер вправе правило проигнорировать — например, в режиме экономии трафика или при нехватке памяти."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PRERENDER} />
+  <Plain text={PLAIN_PRERENDER} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Правило в разметке" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -342,7 +315,7 @@ import {
 
   ### `eagerness`: когда браузер начинает
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EAGERNESS} />
+  <Plain text={PLAIN_EAGERNESS} />
 
   <Table
     head={['`eagerness`', 'когда срабатывает', 'когда запрос пришёл на сервер']}
@@ -388,9 +361,8 @@ import {
   eyebrow="Раздел 5"
   title="Предрендеренная страница до активации"
   lead="Предрендер — это настоящая загрузка страницы, только невидимая. Код страницы выполняется целиком, до клика и независимо от того, будет ли клик вообще. Браузер придерживает лишь то, что требует внимания человека, а всё остальное случается заранее — и за это отвечает автор страницы."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIVATION} />
+  <Plain text={PLAIN_ACTIVATION} />
 
   ### Одна страница товара — от наведения до клика
 
@@ -460,7 +432,6 @@ import {
   eyebrow="Раздел 6"
   title="Старые подсказки, SPA и метрики"
   lead="Заготовить следующую страницу пытались и раньше — подсказками в `<link>`. От них осталось меньше, чем обещают их имена. А метрики загрузки для предрендеренной страницы без поправки врут в худшую сторону: самые быстрые визиты выглядят самыми медленными."
-  leadWidth={72}
 >
   <Table
     head={['способ', 'задумывался как', 'что делает в Chromium 153']}
@@ -514,7 +485,6 @@ import {
   eyebrow="Раздел 8"
   title="Источники"
   lead="Кеш «назад-вперёд» описан в самом HTML Standard, а Speculation Rules, предрендер и причины отказа кеша — предложения WICG (группы, где браузеры обкатывают будущие стандарты), частично перенесённые в HTML Standard; живут они в первую очередь в Chromium. Поэтому документация Chrome здесь не вторичный пересказ, а основной источник, и устаревает она быстрее спецификаций."
-  leadWidth={72}
 >
   <CardGrid min={320} gap={16} align="start">
     {SOURCES.map((group) => (

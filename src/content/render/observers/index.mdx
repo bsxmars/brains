@@ -5,7 +5,6 @@ headingWidth: 24
 order: 23
 kicker: браузер и рендеринг
 lead: "Три API с одинаковым словом в имени живут в трёх разных местах цикла событий. `MutationObserver` — микрозадача ещё до кадра, `ResizeObserver` — внутри кадра после раскладки, `IntersectionObserver` — отдельная задача уже после кадра. Отсюда — какие размеры видит колбэк, почему первая запись приходит сразу, откуда берётся `ResizeObserver loop completed` и почему видимая цель бывает «не пересекается»."
-leadWidth: 66
 summary: "Порядок наблюдателей относительно задач, микрозадач и `rAF`, снятый в Chromium; IntersectionObserver: `root`, `rootMargin`, пороги, `intersectionRatio`, первый вызов и `isIntersecting` ниже первого порога, v2 кратко; ResizeObserver: три коробки, `transform`, цикл по глубине и ошибка; MutationObserver: виды записей, `subtree`, `oldValue`, `takeRecords`, почему стили не видны; ленивая загрузка, лента со сторожем, `@container` против ResizeObserver."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026; порог и isIntersecting — ещё Firefox 155.0 и WebKit 26.6. Порядок вызовов, записи MutationObserver и примеры кода снимаются заново в tests/unit/observers.test.ts; модель IntersectionObserver сверена с Chromium на сетке случайных геометрий, модель кругов ResizeObserver — на случайных деревьях"
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ObserverLab from '@/widgets/observer-lab/ui/ObserverLab.vue';
@@ -107,46 +109,18 @@ import {
   мутаций, которые срабатывали на каждую вставку по отдельности. Наблюдатели сводят
   всё это к одному вызову с пачкой записей в момент, когда браузер ответ уже знает.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OBSERVER} />
+  <Plain text={PLAIN_OBSERVER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Место в кадре"
   lead="Проще всего увидеть порядок, поставив всех в одну задачу: поменять размер блока, сдвинуть цель в окно и параллельно поставить микрозадачу, таймер и `requestAnimationFrame`. Каждый колбэк пишет в журнал номер кадра."
-  leadWidth={72}
 >
   <Card title="Разметка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={ORDER_HTML} size={11.5} lh={1.65} pad="14px 16px" />
@@ -175,7 +149,7 @@ import {
 
   ### Колбэк после кадра
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TASK_AFTER} />
+  <Plain text={PLAIN_TASK_AFTER} />
 
   <Md text={FRAME_NOTE} />
 </Section>
@@ -185,7 +159,6 @@ import {
   eyebrow="Раздел 2"
   title="Пересечения: корень и пороги"
   lead="IntersectionObserver отвечает на вопрос «какая доля цели попала в прямоугольник корня». Корень — окно или прокручиваемый блок, раздвинутый на `rootMargin`; доля — площадь общей части, делённая на площадь цели."
-  leadWidth={72}
 >
   <Card title="Как его заводят" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={IO_USAGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -199,11 +172,11 @@ import {
     minWidth={640}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROOT_MARGIN} />
+  <Plain text={PLAIN_ROOT_MARGIN} />
 
   ### Как считается запись
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RATIO} />
+  <Plain text={PLAIN_RATIO} />
 
   <Card title="Запись IntersectionObserver" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={IO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -247,7 +220,7 @@ import {
 
   ### Версия 2: видно ли цель человеку
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VISIBILITY} />
+  <Plain text={PLAIN_VISIBILITY} />
 
   <Md text={IO_V2_NOTE} />
 </Section>
@@ -257,7 +230,6 @@ import {
   eyebrow="Раздел 3"
   title="Размеры и глубина"
   lead="ResizeObserver сообщает размер коробки после раскладки. Размер в записи уже посчитан — читать его бесплатно. Платить приходится, если в ответ на размер поменять другой размер: тогда раскладка считается ещё раз, и браузер решает, успеет ли новый круг в этот кадр."
-  leadWidth={72}
 >
   <Card title="Как его заводят" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={RO_USAGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -282,7 +254,7 @@ import {
 
   ### Цикл и правило глубины
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEPTH} />
+  <Plain text={PLAIN_DEPTH} />
 
   Глубина узла — насколько он вложен в дерево: у ребёнка она на единицу больше, чем у родителя,
   у соседей одинаковая. Внутри одного кадра ResizeObserver ходит кругами, и каждый круг берёт только тех, кто
@@ -327,7 +299,6 @@ import {
   eyebrow="Раздел 4"
   title="Изменения DOM"
   lead="MutationObserver сообщает о правках дерева: узлы, атрибуты, текст. Колбэк — микрозадача: он выполнится, когда закончится текущий код, ещё до любого таймера и до кадра, и получит все записи разом."
-  leadWidth={72}
 >
   <Card title="Разметка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={MO_HTML} size={11.5} lh={1.65} pad="14px 16px" />
@@ -357,7 +328,7 @@ import {
 
   ### Почему не видно стилей
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STYLE} />
+  <Plain text={PLAIN_STYLE} />
 
   <Table
     head={['что поменяли', 'что пришло']}
@@ -376,7 +347,6 @@ import {
   eyebrow="Раздел 5"
   title="Где что применять"
   lead="У каждой из типичных задач есть инструмент проще наблюдателя — или наблюдатель с одной поправкой, без которой он ломается на краю."
-  leadWidth={72}
 >
   ### Ленивая загрузка
 

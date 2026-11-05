@@ -5,7 +5,6 @@ headingWidth: 24
 order: 6
 kicker: алгоритмы во фронтенде
 lead: "Поле поиска шлёт событие на каждую букву, прокрутка — десятки в секунду, кнопка «повторить» — сколько успеет нажать палец. Debounce, throttle, ведро жетонов и окна решают одну задачу: сколько событий пропустить за отрезок времени и что сделать с остальными. Здесь все они написаны на виртуальных часах, а debounce и throttle сверены с lodash."
-leadWidth: 66
 summary: "Чем debounce отличается от throttle, debounce с `leading`, `trailing` и `maxWait`, почему throttle в lodash — это debounce с `maxWait = wait`, обёртка на `requestAnimationFrame`, ведро жетонов и дырявое ведро, фиксированное окно с всплеском вдвое на границе, скользящий журнал и скользящий счётчик — как один бюджет событий во времени."
 verifiedOn: "lodash-es 4.18.1, vitest 5.0.0 (vi.useFakeTimers), Node 24.11.0, октябрь 2026: debounce и throttle темы на виртуальных часах сверены с lodash-es на фальшивых таймерах — одни и те же ленты, одинаковые вызовы; ограничители проверены на свойствах в tests/unit/rate-limiting.test.ts"
 nav:
@@ -33,6 +32,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DebounceThrottle from '@/widgets/debounce-throttle/ui/DebounceThrottle.vue';
@@ -110,39 +112,12 @@ import {
   пиксель прокрутки. Нужен посредник, который принимает все события, а работу делает реже.
   Как именно реже — и есть выбор алгоритма.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUDGET} />
+  <Plain text={PLAIN_BUDGET} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -208,9 +183,8 @@ import {
   eyebrow="Раздел 2"
   title="Виртуальные часы"
   lead="Чтобы сравнивать алгоритмы, время должно идти одинаково при каждом запуске. Настоящие таймеры этого не дают: машина занята, таймер опаздывает на пару миллисекунд, и вызовы съезжают. Поэтому весь код темы работает на часах, которые двигает сам код."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLOCK} />
+  <Plain text={PLAIN_CLOCK} />
 
   <Card title="Часы с таймерами и кадрами" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CLOCK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -230,7 +204,6 @@ import {
   eyebrow="Раздел 3"
   title="Debounce: leading, trailing, maxWait"
   lead="Базовый debounce ждёт тишины длиной `wait` и зовёт функцию один раз в конце серии. У lodash к этому три настройки, и каждая заметно меняет поведение на одной и той же ленте."
-  leadWidth={72}
 >
   <Card title="Debounce целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={DEBOUNCE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -255,7 +228,7 @@ import {
 
   ### Поток без пауз
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MAXWAIT} />
+  <Plain text={PLAIN_MAXWAIT} />
 
   Сорок событий подряд раз в 100 мс — так выглядит прокрутка или долгий набор текста.
 
@@ -276,7 +249,6 @@ import {
   eyebrow="Раздел 4"
   title="Throttle — это debounce с потолком"
   lead="Throttle обещает «не чаще раза в `wait`». В lodash он не написан отдельно: это вызов debounce, где `maxWait` равен самому `wait`."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="lodash-es/throttle.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -309,7 +281,6 @@ import {
   eyebrow="Раздел 5"
   title="Раз в кадр: rAF"
   lead="Для всего, что двигает картинку, удобный шаг задаёт сам экран. Обёртка на `requestAnimationFrame` копит события до ближайшего кадра и зовёт функцию один раз — с последними данными."
-  leadWidth={72}
 >
   <Card title="rAF-throttle" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RAF_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -334,9 +305,8 @@ import {
   eyebrow="Раздел 6"
   title="Ведро жетонов"
   lead="Обёртки сливают лишние события в один вызов. Ограничитель поступает иначе: каждое событие либо проходит, либо получает отказ. Самый распространённый из них — ведро жетонов: запас на всплеск и постоянная скорость пополнения."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOKEN} />
+  <Plain text={PLAIN_TOKEN} />
 
   <Card title="Ведро жетонов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TOKEN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -359,9 +329,8 @@ import {
   eyebrow="Раздел 7"
   title="Дырявое ведро"
   lead="Ведро жетонов пропускает всплеск сразу. Дырявое ведро всплесков не пропускает вовсе: запросы встают в очередь и выходят из неё с постоянной скоростью."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LEAKY} />
+  <Plain text={PLAIN_LEAKY} />
 
   <Card title="Ведро-очередь" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LEAKY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -382,9 +351,8 @@ import {
   eyebrow="Раздел 8"
   title="Окна: фиксированное и скользящее"
   lead="Самый простой лимит — счётчик: «не больше пяти за секунду». Весь вопрос в том, что считать секундой: отрезок по часам или последние 1000 мс от текущего момента."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WINDOW} />
+  <Plain text={PLAIN_WINDOW} />
 
   <Card title="Фиксированное окно" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FIXED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -436,7 +404,6 @@ import {
   eyebrow="Раздел 9"
   title="Один бюджет"
   lead="Семь алгоритмов — семь ответов на один вопрос. Различаются они размером бюджета и тем, что происходит с событием, которому бюджета не хватило."
-  leadWidth={72}
 >
   <Table
     head={['алгоритм', 'бюджет', 'лишнее событие', 'где во фронтенде']}

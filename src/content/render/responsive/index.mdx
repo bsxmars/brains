@@ -5,7 +5,6 @@ headingWidth: 24
 order: 22
 kicker: браузер и рендеринг
 lead: "Почему без одной строки в `<head>` телефон притворяется ноутбуком шириной 980px, почему `100vh` уходит под адресную строку, а `100vw` даёт горизонтальную прокрутку. От чего считается `em` в медиазапросе и в контейнерном запросе — и почему это разные вещи. Что ломает `container-type` и почему текст на `vw` не растёт при масштабе."
-leadWidth: 66
 summary: "`<meta viewport>` и 980px, layout и visual viewport, `visualViewport` при щипке и клавиатуре; `vh`/`svh`/`lvh`/`dvh` и `100vw` с полосой прокрутки; диапазоны в `@media`, `em` от шрифта браузера, `prefers-*` и `hover`; `container-type`, изоляция размера и что схлопывается, выбор контейнера по имени, `cqi`, style-запросы; вычислитель сработавших правил; `clamp()` и масштаб страницы по WCAG 1.4.4."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless; эмуляция Pixel 7), Node 24, октябрь 2026: вьюпорт, щипок, единицы, полоса прокрутки, медиазапросы, контейнеры и масштаб сняты стендом и снимаются заново в tests/unit/responsive.test.ts; учебный вычислитель правил сверен с getComputedStyle на сетке ширин окна и контейнеров. Разница svh/lvh/dvh и экранная клавиатура в эмуляции не воспроизводятся — взяты из CSS Values 4 и документации Chrome"
 nav:
@@ -30,6 +29,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ResponsiveLab from '@/widgets/responsive-lab/ui/ResponsiveLab.vue';
@@ -102,48 +104,20 @@ import {
   человек увеличил её пальцами. Ширина окна может включать полосу прокрутки или не включать.
   А `40em` в медиазапросе и в контейнерном запросе может оказаться разным числом пикселей.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESPONSIVE} />
+  <Plain text={PLAIN_RESPONSIVE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Вьюпорт: ширина вёрстки и видимая часть"
   lead="Телефон шириной 412 CSS-пикселей по умолчанию верстает страницу на 980 и уменьшает её, чтобы влезла. Мета-тег `viewport` просит верстать по ширине экрана. А то, что видно сейчас, — отдельный прямоугольник, который двигают щипок и клавиатура."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VIEWPORTS} />
+  <Plain text={PLAIN_VIEWPORTS} />
 
   <CodeBlock code={META_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -188,9 +162,8 @@ import {
   eyebrow="Раздел 2"
   title="Единицы окна: vh, svh, dvh и 100vw"
   lead="Процент от окна — простая идея, пока окно не меняет размер само. На телефоне адресная строка выезжает и прячется, и «высота окна» становится тремя числами. А по ширине `vw` не знает о полосе прокрутки."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOOLBAR} />
+  <Plain text={PLAIN_TOOLBAR} />
 
   <Table
     head={['единица', 'от какого окна', 'что из этого следует']}
@@ -230,7 +203,6 @@ import {
   eyebrow="Раздел 3"
   title="Медиазапросы: диапазоны, em и prefers"
   lead="Медиазапрос спрашивает про окно и устройство целиком. Условие проверяется до стилей страницы, и отсюда две его особенности: `em` в нём не зависит от ваших правил, а ширина окна в нём включает полосу прокрутки."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Диапазон вместо min и max" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -276,7 +248,6 @@ import {
   eyebrow="Раздел 4"
   title="Контейнерные запросы: место, а не окно"
   lead="Карточка в узкой боковой колонке и та же карточка в широкой ленте живут в одном окне. Медиазапрос их не различает, контейнерный — различает: он спрашивает ширину предка, которого объявили контейнером."
-  leadWidth={72}
 >
   <CodeBlock code={CQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -284,7 +255,7 @@ import {
 
   ### Что ломает изоляция размера
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTAINMENT} />
+  <Plain text={PLAIN_CONTAINMENT} />
 
   <Table
     head={['контейнер', 'без container-type', 'с container-type: inline-size']}
@@ -324,9 +295,8 @@ import {
   eyebrowTone="demo"
   title="Какое правило сработает и почему"
   lead="Проверку условий и подсчёт единиц можно уложить в одну функцию. Она получает ширину окна, цепочку контейнеров и CSS, проверяет каждое условие с нужной точкой отсчёта и считает итоговые значения, включая `clamp`, `vw`, `cqi` и `em`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESOLVE} />
+  <Plain text={PLAIN_RESOLVE} />
 
   <Card title="Вычислитель правил" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RESOLVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -348,9 +318,8 @@ import {
   eyebrow="Раздел 6"
   title="clamp() и масштаб страницы"
   lead="«Текучий» шрифт растёт вместе с окном между полом и потолком. Удобно, но у такого шрифта есть изъян: человек, который увеличил страницу, ждёт, что вырастет и текст."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLAMP} />
+  <Plain text={PLAIN_CLAMP} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Прямая через две точки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

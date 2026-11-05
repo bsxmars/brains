@@ -5,7 +5,6 @@ headingWidth: 24
 order: 25
 kicker: фреймворки изнутри
 lead: "Компонент просит «дайте логгер» — и получает чей-то. Чей именно, решает не он, а дерево над ним: Angular обходит иерархию инжекторов с флагами, Vue ищет по цепочке прототипов, React — ближайший провайдер. Как устроен каждый поиск, где они расходятся и почему один и тот же запрос в трёх фреймворках даёт разные ответы."
-leadWidth: 66
 summary: "Зачем DI — замена реализации в тестах и экземпляр на поддерево, Vue — объект provides с прототипом родителя, ключ-символ, значение по умолчанию и ref, React — ближайший провайдер, `Object.is` и `use(Context)`, Angular — EnvironmentInjector и ElementInjector, `providedIn: 'root'`, четыре вида провайдеров, `multi`, `InjectionToken`, флаги `optional`/`self`/`skipSelf`/`host`, `NG0200` и `NG0201`, и учебный инжектор, сверенный с Angular 21, Vue 3.5 и React 19."
 verifiedOn: "@angular/core 21.2.25 (JIT), Vue 3.5.42, React 19.3.0, pinia 4.0.3, happy-dom 20.14.5, TypeScript 6.0.3, Node 24.11.0, октябрь 2026: примеры исполнены, учебный инжектор и учебные provide/inject и контекст сверены с настоящими фреймворками на одних деревьях в tests/unit/dependency-injection.test.ts"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DiLab from '@/widgets/di-lab/ui/DiLab.vue';
@@ -109,46 +111,18 @@ import {
   «только у себя», «начиная с родителя», «не дальше хоста». Vue хранит провайдеры в объектах,
   связанных прототипами, и ищет оператором `in`. React берёт ближайший `<Ctx value>` выше.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DI} />
+  <Plain text={PLAIN_DI} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead="Четыре вещи: три разобраны в других темах, четвёртая объяснена прямо на карточке."
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead="Четыре вещи: три разобраны в других темах, четвёртая объяснена прямо на карточке." />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Зачем просить, а не создавать"
   lead="Корзина считает сумму по ценам с сервера. Пока она сама создаёт клиент API, проверить её без сети нельзя. Когда она только просит клиент, тест кладёт на его место подделку, и код корзины об этом не знает."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Сама создаёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -182,9 +156,8 @@ import {
   eyebrow="Раздел 2"
   title="Vue: provide и inject"
   lead="Во Vue у каждого компонента есть объект `provides`. Прототип этого объекта — объект родителя, а в самом конце цепочки стоит объект приложения. Поиск значения — обычное чтение свойства: движок JS сам пройдёт по прототипам вверх."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROVIDES} />
+  <Plain text={PLAIN_PROVIDES} />
 
   <Card title="Одно приложение, четыре компонента" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VUE_CHAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -240,7 +213,6 @@ import {
   eyebrow="Раздел 3"
   title="React: контекст"
   lead="Контекст в React — та же схема поиска, что во Vue, без прототипов: компонент читает значение ближайшего провайдера над собой, а если провайдеров нет — значение, переданное в `createContext`. Создавать объекты React не умеет: провайдер отдаёт то, что ему передали."
-  leadWidth={72}
 >
   <Card title="Свой провайдер не виден, use — после условия" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={REACT_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -265,9 +237,8 @@ import {
   eyebrow="Раздел 4"
   title="Иерархия инжекторов Angular"
   lead="В Angular инжектор — отдельный объект, и их два вида. Инжекторы окружения живут вне дерева компонентов: корень приложения, ленивые маршруты. Инжекторы элементов повторяют дерево компонентов. Запрос сначала идёт вверх по элементам, потом по окружениям."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INJECTORS} />
+  <Plain text={PLAIN_INJECTORS} />
 
   <Table
     head={['инжектор', 'что в нём и откуда']}
@@ -292,7 +263,6 @@ import {
   eyebrow="Раздел 5"
   title="Провайдеры, токены и флаги"
   lead="Провайдер в Angular — рецепт: отдать готовое значение, создать экземпляр класса, вызвать функцию или сослаться на другой токен. Флаги в `inject` меняют, где начать поиск, где его закончить и что вернуть, если ничего не нашлось."
-  leadWidth={72}
 >
   <Card title="Четыре рецепта и multi" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TOKENS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -340,7 +310,6 @@ import {
   eyebrow="Раздел 6"
   title="Иерархический инжектор своими руками"
   lead="Полторы сотни строк: таблицы провайдеров на узлах дерева, поиск с четырьмя флагами, один экземпляр на инжектор, `multi` и метка, которая ловит цикл. Рядом — то же для Vue и React: им хватает сорока и двадцати строк, потому что создавать объекты и разбирать флаги не нужно."
-  leadWidth={72}
 >
   <Card title="Учебный инжектор Angular" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ANGULAR_DI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -392,7 +361,6 @@ import {
   eyebrow="Раздел 7"
   title="Циклы и другие ошибки"
   lead="Два сервиса, которые просят друг друга, не создать ни в каком порядке. Angular замечает это по метке на записи и бросает `NG0200` с путём. Но та же метка однажды соврёт — и это стоит знать заранее."
-  leadWidth={72}
 >
   <Card title="Цикл, нет провайдера — и снова «цикл»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CYCLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />

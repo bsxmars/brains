@@ -3,7 +3,6 @@ title: "SSR и гидратация: React и Vue"
 order: 7
 kicker: фреймворки изнутри
 lead: "Сервер присылает готовую разметку, браузер её оживляет — не пересоздавая, а забирая узлы. Разница между React и Vue видна там, где сервер и браузер разошлись: один выбрасывает поддерево, другой латает узел, а атрибут не чинит никто."
-leadWidth: 66
 summary: "Что приходит в HTML, какие узлы гидратация забирает и какие выбрасывает, чем React 19 и Vue 3.5 отвечают на несовпадение, стриминг, выборочная и ленивая гидратация."
 verifiedOn: React 19.3 · Vue 3.5.42 · Node 26.8 · Chromium (Playwright 1.63)
 nav:
@@ -21,12 +20,14 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SsrLab from '@/widgets/ssr-hydration/ui/SsrLab.vue';
@@ -84,44 +85,19 @@ import {
   TIME_SCENE_CODE, TIME_SCENE_NOTE, TIME_STEPS, EXT_SCENE_CODE, EXT_STEPS, PLAIN_EXT,
 } from './data';
 
-<Section variant="intro" eyebrow="Идея" lead={INTRO_NOTE} leadWidth={72}>
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+<Section variant="intro" eyebrow="Идея" lead={INTRO_NOTE}>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  leadWidth={72}
->
-  <CardGrid min={260} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} min={260} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Что отдаёт сервер"
   lead="Серверный рендер — это тот же код компонентов, выполненный в Node, и результат у него один: **строка HTML**. Никаких обработчиков, состояния или ссылок на узлы в ней нет — только разметка и несколько служебных комментариев."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SSR} />
+  <Plain text={PLAIN_SSR} />
 
   ### Сквозной пример
 
@@ -172,9 +148,8 @@ import {
   eyebrowTone="demo"
   title="Гидратация: забрать, а не создать"
   lead="Гидратация — это первый рендер, у которого узлы уже есть. Фреймворк проходит своё дерево, на каждом шаге берёт **следующий узел документа** и проверяет, тот ли это узел. Совпал — забирает его и вешает обработчики."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HYDRATION} />
+  <Plain text={PLAIN_HYDRATION} />
 
   ### В каком порядке всё вызывается
 
@@ -208,9 +183,8 @@ import {
   eyebrow="Раздел 3"
   title="Несовпадения: выбросить или залатать"
   lead="Сервер отрисовал время `12:00:00`, а браузер через три секунды считает `12:00:03` — один и тот же код дал два ответа. Так же расходится всё, что зависит от момента или от окружения. Что тогда происходит с документом, решает библиотека, и решают они противоположно."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MISMATCH} />
+  <Plain text={PLAIN_MISMATCH} />
 
   <Callout size={17} lh={1.55} pad="20px 22px">
     <Md text={MISMATCH_NOTE} />
@@ -250,7 +224,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EXT} />
+  <Plain text={PLAIN_EXT} />
 
   ### Что показало демо на трёх расхождениях
 
@@ -304,9 +278,8 @@ import {
   eyebrow="Раздел 4"
   title="Стриминг: каркас сейчас, остальное потом"
   lead="Серверу не обязательно ждать самые медленные данные, чтобы начать ответ. React досылает недостающие куски в тот же ответ и вставляет их на место скриптом; Vue отправляет по порядку и ждёт медленное на месте."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STREAM} />
+  <Plain text={PLAIN_STREAM} />
 
   ### React: `renderToPipeableStream`
 
@@ -352,9 +325,8 @@ import {
   eyebrow="Раздел 5"
   title="Ленивая гидратация и острова"
   lead="Не всё на странице нужно оживлять сразу. Vue 3.5 умеет откладывать гидратацию отдельного компонента до условия, а острова откладывают ещё и загрузку его кода — и эта разница важнее, чем кажется."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAZY} />
+  <Plain text={PLAIN_LAZY} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Vue 3.5 · hydrateOnInteraction" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -386,7 +358,6 @@ import {
   eyebrow="Раздел 6"
   title="Цена и Server Components"
   lead="SSR не ускоряет страницу целиком — он перекладывает цену между метриками. Что-то наступает раньше, что-то позже, и одна метрика появляется там, где при клиентском рендере её не было: промежуток «видно, но не работает»."
-  leadWidth={72}
 >
   <CardGrid min={260} gap={14} align="start">
     {COST.map((item) => (
@@ -410,7 +381,6 @@ import {
   eyebrow="Раздел 8"
   title="Источники"
   lead="Документация обеих библиотек и исходники там, где тема опирается на чтение кода, а не на прогон."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { TxScenario, TxStep } from '@/widgets/tx-lab/model/types';
 
 /**
@@ -66,7 +66,7 @@ import type { TxScenario, TxStep } from '@/widgets/tx-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'квота',
     d: 'Сколько байт браузер разрешает занять одному сайту. Узнать её можно вызовом `navigator.storage.estimate()`; в неё входят IndexedDB, Cache API и OPFS.',
@@ -106,7 +106,7 @@ export const PLAIN_STORAGE =
 
 export const PREREQ_NOTE = 'Тема опирается на четыре вещи, разобранные в других темах.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Origin',
     d: 'Источник страницы — протокол, домен и порт вместе. Все хранилища, кроме кук, делятся по origin: `http://localhost:51720` и `http://localhost:51721` друг друга не видят.',
@@ -1169,7 +1169,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Indexed Database API 3.0',
     href: 'https://w3c.github.io/IndexedDB/',

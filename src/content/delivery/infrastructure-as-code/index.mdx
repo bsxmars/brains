@@ -5,7 +5,6 @@ headingWidth: 24
 order: 19
 kicker: доставка
 lead: "Вы пишете не «создай сервер», а «сервер должен быть». Terraform сравнивает написанное с тем, что записано в файле состояния, и сам решает: создать, поправить на месте, заменить или удалить. Как устроен этот файл, почему в нём лежат пароли, откуда берётся порядок действий и почему удаление одного элемента из списка пересоздаёт половину инфраструктуры."
-leadWidth: 66
 summary: "Декларативность и цикл init/plan/apply; terraform.tfstate изнутри — serial, lineage, dependencies; пароль в состоянии открытым текстом, sensitive, шифрование OpenTofu и ephemeral; удалённое состояние и замок на своём http-бэкенде; граф зависимостей и граф apply; символы плана, forces replacement, known after apply и create_before_destroy; дрейф, refresh-only, import, -target; count против for_each и moved; модули; мини-планировщик, сверенный с tofu plan."
 verifiedOn: "OpenTofu 1.12.7 (образ ghcr.io/opentofu/opentofu, linux/arm64), hashicorp/local 2.9.1, hashicorp/random 3.9.1, Docker Desktop на macOS, октябрь 2026: 51 план (действия, причины, переносы, дрейф, граф apply), состояние, шифрование, замок на http-бэкенде, import, -target, ephemeral и модуль пересобираются tests/unit/infrastructure-as-code.test.ts при наличии Docker; мини-планировщик сверен со всеми 51 планом. Terraform на стенде не запускался: его отличия, бэкенды S3/GCS/azurerm/pg, Pulumi, AWS CDK и Crossplane — по документации"
 nav:
@@ -35,6 +34,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import IacLab from '@/widgets/iac-lab/ui/IacLab.vue';
@@ -143,46 +145,18 @@ import {
   размер — поменять». Terraform — это и есть такие проверки, написанные один раз для всех
   ресурсов: вы описываете результат, а шаги к нему он выводит сам.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IAC} />
+  <Plain text={PLAIN_IAC} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Желаемое состояние вместо шагов"
   lead="Пример на всю тему — пять ресурсов, которым не нужно облако: имя приложения, пароль, номер релиза и файлы на диске. Конфигурация говорит, что они должны быть и как связаны, но ни слова о том, в каком порядке их делать."
-  leadWidth={72}
 >
   <Card title="main.tf" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MAIN_TF} size={11.5} lh={1.65} pad="14px 16px" />
@@ -226,9 +200,8 @@ import {
   eyebrow="Раздел 2"
   title="Файл состояния"
   lead="После первого `apply` рядом с конфигурацией появляется `terraform.tfstate`. Это JSON, где у каждого адреса из конфигурации записан настоящий объект и все его поля. Без этого файла Terraform не узнает свои объекты в мире."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STATE} />
+  <Plain text={PLAIN_STATE} />
 
   <Card title="terraform.tfstate — три записи из пяти" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={STATE_JSON_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -267,7 +240,6 @@ import {
   eyebrow="Раздел 3"
   title="Секреты в состоянии"
   lead="Всё, что вернул провайдер, лежит в состоянии как есть, и пароли тоже. Метка `sensitive` прячет значение с экрана, но не из файла."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Вывод с меткой sensitive" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -330,9 +302,8 @@ import {
   eyebrow="Раздел 4"
   title="Общее состояние и замок"
   lead="Файл на ноутбуке годится одному человеку. Команде нужно одно состояние на всех и замок: два одновременных `apply` с одним состоянием разойдутся, и в файле останется то, что записали последним."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOCK} />
+  <Plain text={PLAIN_LOCK} />
 
   Где хранить состояние, задаёт блок `backend`. Самый простой для разбора — `http`: состояние
   лежит на любом сервере, который умеет отдать и принять JSON. Такой сервер на Node занимает пару
@@ -377,9 +348,8 @@ import {
   eyebrow="Раздел 5"
   title="Граф зависимостей"
   lead="Порядок действий Terraform выводит сам — из ссылок между ресурсами. `${random_pet.app.id}` в содержимом файла — это не только подстановка значения, но и ребро графа: файл нельзя создать раньше питомца."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GRAPH} />
+  <Plain text={PLAIN_GRAPH} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="tofu graph" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -417,7 +387,6 @@ import {
   eyebrow="Раздел 6"
   title="Как читать план"
   lead="План — это не только список «что поменяется». По символу слева видно, переживёт ли объект правку: `~` значит, что объект и его номер останутся, `-/+` — что его удалят и создадут заново."
-  leadWidth={72}
 >
   <Table
     head={['символ', 'действие', 'что значит']}
@@ -428,7 +397,7 @@ import {
     minWidth={600}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REPLACE} />
+  <Plain text={PLAIN_REPLACE} />
 
   ### Правка на месте, которая заменяет соседа
 
@@ -469,9 +438,8 @@ import {
   eyebrow="Раздел 7"
   title="Дрейф, refresh и импорт"
   lead="Каждый план начинается с refresh: провайдер перечитывает объекты из состояния и сообщает, что изменилось без Terraform. Правку руками план покажет — и предложит откатить."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DRIFT} />
+  <Plain text={PLAIN_DRIFT} />
 
   <Card title="Ручная правка dev.txt" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={DRIFT_RUN} size={11.5} lh={1.65} pad="14px 16px" />
@@ -512,9 +480,8 @@ import {
   eyebrow="Раздел 8"
   title="count против for_each"
   lead="Оба размножают ресурс, но по-разному называют экземпляры: `count` — номерами, `for_each` — ключами. Имя экземпляра — часть адреса, а по адресу Terraform сопоставляет конфигурацию с состоянием. От выбора зависит, что случится, когда из списка уйдёт элемент."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COUNT} />
+  <Plain text={PLAIN_COUNT} />
 
   <Card tone="err" title="count: stage убран из середины" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={COUNT_DROP_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
@@ -566,7 +533,6 @@ import {
   eyebrow="Раздел 9"
   title="Планировщик своими руками"
   lead={PLANNER_INTRO}
-  leadWidth={72}
 >
   <Card title="plan(config, state, schema, world)" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PLAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -600,7 +566,6 @@ import {
   eyebrow="Раздел 10"
   title="Модули и соседи"
   lead="Модуль — способ не копировать одинаковые блоки: каталог с конфигурацией, который вызывают с разными входами. А Terraform — не единственный инструмент, который сравнивает желаемое с записанным."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Модуль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

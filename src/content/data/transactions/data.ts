@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Level, Op, Row, RowLockMode, Scenario, Step } from '@/widgets/mvcc-lab/model/types';
 
 /**
@@ -64,7 +64,7 @@ import type { Level, Op, Row, RowLockMode, Scenario, Step } from '@/widgets/mvcc
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'транзакция',
     d: 'Группа команд между `BEGIN` и `COMMIT`, которая применяется целиком или не применяется вовсе. Команда вне `BEGIN` — тоже транзакция, из одной команды.',
@@ -101,7 +101,7 @@ export const PLAIN_TX =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи. Две разобраны на сайте, третья объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'SQL: SELECT, UPDATE, BEGIN и COMMIT',
     d: 'Достаточно читать простые запросы. `UPDATE accounts SET balance = 110 WHERE id = 1` меняет столбец у строки с `id = 1`; `BEGIN` открывает транзакцию, `COMMIT` её фиксирует, `ROLLBACK` отменяет.',
@@ -1060,7 +1060,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'PostgreSQL — Transaction Isolation',
     href: 'https://www.postgresql.org/docs/current/transaction-iso.html',

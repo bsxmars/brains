@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DemoStep, NativeRun, StackRow } from '@/widgets/undo-lab/model/types';
 
 /**
@@ -58,7 +58,7 @@ import type { DemoStep, NativeRun, StackRow } from '@/widgets/undo-lab/model/typ
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'стопка (стек)',
     d: 'Список, в который кладут сверху и снимают сверху. Последнее положенное снимается первым — поэтому Ctrl+Z отменяет сначала самое свежее.',
@@ -94,7 +94,7 @@ export const PLAIN_HISTORY =
 
 export const PREREQ_NOTE = 'Тема опирается на три вещи, разобранные в других темах.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Неизменяемое обновление',
     d: 'Новое состояние — новый объект, старое не трогается. Immer разрешает писать «мутацией» черновика и сам копирует только путь от корня до изменённого поля.',
@@ -846,7 +846,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Yjs — Y.UndoManager',
     href: 'https://docs.yjs.dev/api/undo-manager',

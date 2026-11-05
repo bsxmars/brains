@@ -3,7 +3,6 @@ title: "Сигналы: третья модель реактивности"
 order: 8
 kicker: фреймворки изнутри
 lead: "Сигнал — значение, которое помнит своих читателей. Запись толкает вниз только пометку «грязно», а пересчёт тянут читатели — поэтому ромб в графе не даёт глитча, а непрочитанное не считается вовсе. Мини-реализация исполняется на странице, а тест сверяет её с `@vue/reactivity` 3.5 и alien-signals."
-leadWidth: 66
 summary: "`signal`, `computed`, `effect` и `batch` на push-pull, глитч наивного push на ромбе и рендер без виртуального DOM — мини-реализация в демо, сверенная тестом с Vue 3.5 и alien-signals; что предлагает TC39."
 verifiedOn: Vue 3.5.42 · alien-signals 3.2.1 · Node 26.8.2
 nav:
@@ -23,10 +22,12 @@ nav:
 import Md from '@/shared/ui/Md.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SignalGraph from '@/widgets/mini-signals/ui/SignalGraph.vue';
@@ -51,44 +52,19 @@ import {
   variant="intro"
   eyebrow="Идея"
   lead={INTRO_NOTE}
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+  <Plain text={PLAIN_INTRO} />
 
-  <CardGrid min={240} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
->
-  <CardGrid min={270} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Сигнал: значение, версия, подписчики"
   lead="У сигнала три поля: значение, номер версии и множество тех, кто его читал. Из `get` и `set` над ними собирается всё остальное."
-  leadWidth={72}
 >
   ### Снаружи: четыре вызова
 
@@ -110,9 +86,8 @@ import {
   eyebrow="Раздел 2"
   title="Push вниз, pull вверх"
   lead="Запись распространяется в два хода. Вниз по графу идёт пометка — дёшево и ничего не вычисляя. Вверх идёт пересчёт — только от тех, кому значение действительно понадобилось, и только там, где версии источников разошлись."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUSHPULL} />
+  <Plain text={PLAIN_PUSHPULL} />
 
   ### Push: пометка
 
@@ -134,9 +109,8 @@ import {
   eyebrow="Раздел 3"
   title="Ромб и глитч"
   lead="`b` и `c` оба зависят от `a`, эффект `E` читает оба. Для любого согласованного состояния `b === 2 * (c - 1)`. Наивная реактивность умудряется показать эффекту пару, для которой это неверно. В интерфейсе это мелькнувшая на миг нелепая сумма или лишний запрос с несогласованными параметрами."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GLITCH} />
+  <Plain text={PLAIN_GLITCH} />
 
   ### Наивный push
 
@@ -168,7 +142,6 @@ import {
   eyebrow="Раздел 4"
   title="Эффект, очередь и пакет"
   lead="Цена и количество меняются одним действием пользователя — эффект, который шлёт запрос, должен выполниться один раз, а не два. Эффект — последний узел графа: значения у него нет, читателей тоже. Помеченный эффект встаёт в очередь, и очередь сливается, когда пометка закончилась, — после каждой записи или после целого пакета."
-  leadWidth={72}
 >
   <CodeBlock code={STEP_EFFECT} />
 
@@ -186,9 +159,8 @@ import {
   eyebrow="Раздел 5"
   title="DOM без виртуального DOM"
   lead="Если эффект умеет перезапускаться от одного сигнала, его можно привязать к одному узлу. Тогда компоненту не нужно выполняться заново, а рендеру — сравнивать деревья."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DOM} />
+  <Plain text={PLAIN_DOM} />
 
   <CodeBlock code={STEP_DOM} />
 
@@ -208,7 +180,6 @@ import {
   eyebrow="Раздел 6"
   title="Где здесь Vue и React"
   lead="Три модели различаются не тем, как узнают об изменении, а тем, что перезапускают, когда узнали."
-  leadWidth={72}
 >
   <Table
     head={MODELS_HEAD}
@@ -232,7 +203,6 @@ import {
   eyebrow="Раздел 7"
   title="Предложение TC39: граф в языке, эффекты — нет"
   lead="`Signal.State`, `Signal.Computed` и `Signal.subtle.Watcher` — те же сигнал, производный сигнал и пометка, только встроенные в язык."
-  leadWidth={72}
 >
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={TC39_NOTE} />
 
@@ -252,7 +222,6 @@ import {
   eyebrow="Раздел 8"
   title="Мини-версия против Vue 3.5 и alien-signals"
   lead="Сто сорок строк ведут себя как настоящие библиотеки на сценариях демо. Расходятся они в нескольких намеренных местах — и именно эти места бьют при переносе кода."
-  leadWidth={72}
 >
   <Table
     head={REAL_HEAD}
@@ -270,7 +239,6 @@ import {
   eyebrow="Раздел 9"
   title="Тонкие места"
   lead="Ошибки, которые сигналы делают возможными: застывшее чтение, мутация мимо сравнения, эффекты без владельца."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>

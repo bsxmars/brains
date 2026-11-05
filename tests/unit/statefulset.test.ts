@@ -6,6 +6,7 @@ import { parseAllDocuments } from 'yaml';
 import * as t from '@/content/delivery/statefulset/data';
 import { loadSim, play, settled } from '@/widgets/sts-controller/model/run';
 import type { PodPolicy, Retention, SetSpec, SetState } from '@/widgets/sts-controller/model/types';
+import { ansiLcg } from '../helpers/rng';
 
 /**
  * Тема «StatefulSet, тома и данные».
@@ -176,18 +177,9 @@ describe('SIM_CODE: RollingUpdate и partition', () => {
 });
 
 describe('SIM_CODE: инварианты на случайных сценариях', () => {
-  /** Детерминированный генератор: красный прогон воспроизводится. */
-  function rng(seed: number) {
-    let x = seed;
-    return () => {
-      x = (x * 1103515245 + 12345) % 2147483648;
-      return x / 2147483648;
-    };
-  }
-
   it('OrderedReady: не больше одного неготового или завершающегося пода; новый под ниже partition — текущей ревизии', () => {
     for (let seed = 1; seed <= 300; seed++) {
-      const r = rng(seed);
+      const r = ansiLcg(seed);
       let s = settled(sim, BASE);
       for (let i = 0; i < 40; i++) {
         const k = r();
@@ -217,7 +209,7 @@ describe('SIM_CODE: инварианты на случайных сценари�
 
   it('модель успокаивается: из любого состояния `run` доводит набор до replicas готовых подов', () => {
     for (let seed = 1; seed <= 100; seed++) {
-      const r = rng(seed);
+      const r = ansiLcg(seed);
       const policy: PodPolicy = r() < 0.5 ? 'OrderedReady' : 'Parallel';
       const n = Math.floor(r() * 6);
       const res = play(sim, settled(sim, { ...BASE, podManagementPolicy: policy }), ['image', `scale ${n}`, 'run']);
@@ -424,7 +416,7 @@ describe('ссылки и тонкие места', () => {
   }
 
   it('«Перед началом» ведёт на существующие разделы', () => {
-    for (const p of t.PREREQ) expect(resolves(p.href), p.href).toBe(true);
+    for (const p of t.PREREQ) expect(resolves(p.href ?? ''), p.href).toBe(true);
   });
 
   it('внутренние ссылки в тексте ведут на существующие разделы', () => {

@@ -3,7 +3,6 @@ title: "Длинные списки: виртуализация"
 order: 5
 kicker: браузер и рендеринг
 lead: "Десять тысяч строк — это десятки тысяч узлов, и каждый браузер хранит, стилизует и раскладывает, хотя на экране их двадцать. Виртуальный список держит в DOM только видимое и за это расплачивается: поиск, фокус и программы экранного доступа перестают видеть остальное, пока о них не позаботиться явно."
-leadWidth: 66
 summary: "Окно видимых строк: расчёт по `scrollTop`, запас, распорки; разная высота — префиксные суммы, бинарный поиск, `ResizeObserver` и поправка прокрутки против якорения браузера; `content-visibility: auto` с замером цены; `aria-setsize`, Ctrl+F и фокус; липкие заголовки и подгрузка — Chromium 153."
 verifiedOn: Chromium 153
 nav:
@@ -21,10 +20,12 @@ nav:
 import Md from '@/shared/ui/Md.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VlLab from '@/widgets/vlist-lab/ui/VlLab.vue';
@@ -44,45 +45,19 @@ import {
   variant="intro"
   eyebrow="Идея"
   lead={INTRO_NOTE}
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+  <Plain text={PLAIN_INTRO} />
 
-  <CardGrid min={240} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  leadWidth={72}
->
-  <CardGrid min={270} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Цена узла: за что платит длинный список"
   lead="Длинный список тормозит в трёх местах: когда строится, когда меняется ширина окна и когда его прокручивают. Три способа его показать платят в этих местах по-разному. Числа — во сколько раз дороже или дешевле, чем «всё в DOM» на 10 000 строк: миллисекунды зависят от машины, отношения — нет."
-  leadWidth={72}
 >
   <Table
     head={COST_HEAD}
@@ -102,9 +77,8 @@ import {
   eyebrow="Раздел 2"
   title="Окно: какие строки нужны прямо сейчас"
   lead="При одинаковой высоте строк окно — это арифметика: номер первой видимой строки — прокрутка, делённая на высоту строки, последней — то же для нижнего края. К ним добавляется запас, а место остальных строк занимают распорки."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WINDOW} />
+  <Plain text={PLAIN_WINDOW} />
 
   <CodeBlock code={WINDOW_CODE} />
 
@@ -130,9 +104,8 @@ import {
   eyebrow="Раздел 3"
   title="Разная высота: смещения, поиск и прыжки"
   lead="Когда строки разной высоты, деление не работает: верх строки — сумма высот всех строк до неё. Эти суммы считаются один раз в массив, а строка по координате ищется в нём делением пополам."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PREFIX} />
+  <Plain text={PLAIN_PREFIX} />
 
   <CardGrid min={250} gap={14} align="start">
     {MEASURE_FACTS.map((fact) => (
@@ -162,7 +135,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_JUMP} />
+  <Plain text={PLAIN_JUMP} />
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={JUMP_NOTE} />
 
@@ -190,7 +163,6 @@ import {
   eyebrow="Раздел 4"
   title="`content-visibility: auto`: окно без JS"
   lead={CV_LEAD}
-  leadWidth={72}
 >
   <CodeBlock code={CV_CODE} />
 
@@ -240,9 +212,8 @@ import {
   eyebrow="Раздел 5"
   title="Доступность и поиск: чего нет в DOM, того нет ни для кого"
   lead="Виртуальный список обманывает не только полосу прокрутки. Поиск браузера, программа экранного доступа и клавиатура работают с DOM, и каждой из них нужно отдельно рассказать, что строк больше, чем узлов."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_A11Y} />
+  <Plain text={PLAIN_A11Y} />
 
   <CodeBlock code={A11Y_CODE} />
 
@@ -262,7 +233,6 @@ import {
   eyebrow="Раздел 6"
   title="Липкие заголовки и бесконечная подгрузка"
   lead="Обе задачи сводятся к одному: окно — не только видимые строки. В него добавляют то, что должно жить в DOM вне экрана, а конец окна служит сигналом, что пора грузить дальше."
-  leadWidth={72}
 >
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={STICKY_NOTE} />
 
@@ -280,7 +250,6 @@ import {
   eyebrow="Раздел 7"
   title="Тонкие места"
   lead="Места, где виртуальный список ломается молча: страница не падает, а читатель теряет место, фокус или найденное."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>
@@ -290,7 +259,6 @@ import {
   eyebrow="Раздел 8"
   title="Источники"
   lead="Спецификации — чтобы сверить, что браузер вправе пропускать и когда он сдвигает прокрутку сам; поведение конкретного движка — только запуском."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

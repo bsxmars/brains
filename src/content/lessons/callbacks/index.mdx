@@ -2,7 +2,6 @@
 title: Колбэки
 order: 13
 lead: "Колбэк — функция, которую вы отдаёте чужому коду, чтобы тот вызвал её сам. Отдать функцию — значит отдать право её вызвать: когда, сколько раз, с какими аргументами и с каким `this`, решаете уже не вы. Промисы колбэки не заменили, а добавили к ним гарантии. Понять, какие именно, можно, только зная, чего у простого колбэка нет."
-leadWidth: 66
 summary: "Инверсия управления, граница синхронного и асинхронного, Zalgo, `this`, error-first, шесть гарантий промиса и реентерантность: колбэк, который меняет того, кто его вызвал."
 verifiedOn: Node 24.11 и 26.8
 nav:
@@ -29,6 +28,9 @@ import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import IocBoundary from '@/widgets/ioc-boundary/ui/IocBoundary.astro';
 import CallbackGuarantees from '@/widgets/callback-guarantees/ui/CallbackGuarantees.astro';
 import CallbackCompare from '@/widgets/callback-guarantees/ui/CallbackCompare.astro';
@@ -87,42 +89,16 @@ import {
   variant="intro"
   eyebrow="Граница · что именно вы отдаёте"
   lead="Вместе с функцией вы отдаёте чужому коду шесть решений. Каждое из них — отдельный источник багов."
-  leadWidth={66}
   gap={24}
 >
   <IocBoundary rows={IOC_ROWS} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IOC} />
+  <Plain text={PLAIN_IOC} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={70}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -131,7 +107,7 @@ import {
   title="Граница синхронного и асинхронного"
   lead="Передача функции выглядит одинаково, а ведёт себя по-разному. Всё решает одно: выполняется ли ещё ваша функция — лежит ли она на стеке — в тот момент, когда колбэк вызывают."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STACK} />
+  <Plain text={PLAIN_STACK} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={STACK_DEMO_NOTE} />
@@ -187,7 +163,7 @@ import {
   title="Функция как значение"
   lead="Колбэк — не «код, который выполнится потом», а объект, который лежит в чужом списке. У такого объекта две неожиданные стороны: он помнит место, где его создали, и его легко вызвать там, где хотели только передать."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+  <Plain text={PLAIN_CONTEXT} />
 
   <CardGrid min={290} gap={16} align="start">
     <Card label="объект функции в куче" labelSize={12} pad={18} radius={5} gap={12}>
@@ -283,7 +259,7 @@ import {
   title="Zalgo: функция обязана быть либо всегда синхронной, либо всегда асинхронной"
   lead="Код вокруг вызова всегда рассчитывает на определённый порядок строк. Если колбэк зовут то сразу, то потом, этот расчёт верен в одном случае и неверен в другом. Отладить такое почти нельзя: `console.log` сдвигает время выполнения, а тест с заглушкой (моком) всегда идёт по одной ветке."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ZALGO} />
+  <Plain text={PLAIN_ZALGO} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={ZALGO_DEMO_NOTE} />
@@ -351,7 +327,7 @@ import {
 
       Случаи живут в `model/cases.ts` самого виджета: он их не показывает, а выполняет,
       и список обязан лежать рядом с кодом, который его исполняет. */}
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THIS} />
+  <Plain text={PLAIN_THIS} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={THIS_DEMO_NOTE} />
@@ -609,7 +585,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISPATCH} />
+  <Plain text={PLAIN_DISPATCH} />
 
   Итог двумя строками вывода — первая и вторая рассылка:
 

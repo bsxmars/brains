@@ -5,7 +5,6 @@ headingWidth: 24
 order: 24
 kicker: фреймворки изнутри
 lead: "«Удалить 1 файлов?» — так выглядит перевод, собранный из кусков. В русском у слова при числе три формы, глагол меняется по роду, а в японском число стоит посреди фразы. Поэтому переводчику отдают не обрывки, а сообщение целиком — маленькую программу с ветками по числу и роду. Как устроен язык ICU MessageFormat, как его разобрать своими руками, когда разбирать — в браузере или при сборке, что делает vue-i18n со словарями и как выбрать локаль, не сломав поиск и гидратацию."
-leadWidth: 66
 summary: "Почему склейка строк ломается: порядок слов, число, род, падеж. ICU MessageFormat: аргументы, `select`, `plural` с категориями CLDR, `=N`, `offset`, `#`, `selectordinal`, вложенность, апострофы; учебный разбор и формат, сверенный с `intl-messageformat` и `@messageformat/core`. Разбор в браузере против сборки заранее — в байтах. MessageFormat 2 коротко. vue-i18n: свой формат, правило множественного числа, ленивые словари, цепочка запасных локалей, реактивность. Выбор локали: адрес, cookie, `Accept-Language`, `hreflang`, RTL."
 verifiedOn: "intl-messageformat 12.1.2, @messageformat/core 3.4.0, vue-i18n 11.4.12, Vue 3.5.42, esbuild 0.28.2, Node 24.11.0 (ICU 77.1, CLDR 47.0), Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: учебный разбор ICU сверен с двумя библиотеками на 34 506 сочетаниях сообщений, чисел и шести локалей; байты бандлов, вывод compileModule, поведение vue-i18n и Chromium пересобирает tests/unit/i18n.test.ts. MessageFormat 2 — по спецификации"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import I18nLab from '@/widgets/i18n-lab/ui/I18nLab.vue';
@@ -111,48 +113,20 @@ import {
   MessageFormat — общий язык таких сообщений: его понимают библиотеки, сервисы перевода
   и сами переводчики.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MESSAGE} />
+  <Plain text={PLAIN_MESSAGE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Почему склейка строк ломается"
   lead="Сквозной пример темы — вопрос перед удалением: «Удалить 3 файла из папки «Загрузки»?». Собранный в коде из кусков, он ошибается в русском на каждом втором числе и не переводится на японский вовсе. Записанный сообщением — переводится на любой язык без правки кода."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONCAT} />
+  <Plain text={PLAIN_CONCAT} />
 
   <Card title="Склейка против сообщения" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CONCAT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -181,7 +155,6 @@ import {
   eyebrow="Раздел 2"
   title="Синтаксис ICU MessageFormat"
   lead="Сообщение — обычный текст, в котором фигурные скобки отмечают места для значений. Внутри скобок — имя аргумента и, по желанию, тип: `select` выбирает ветку по значению, `plural` — по форме числа, `selectordinal` — по порядковому номеру. Ветка — снова сообщение, поэтому их можно вкладывать."
-  leadWidth={72}
 >
   <Table
     head={['что', 'сообщение', 'значения', 'результат', 'зачем']}
@@ -197,7 +170,7 @@ import {
 
   <Md text={PLURAL_LINK} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OFFSET} />
+  <Plain text={PLAIN_OFFSET} />
 
   ### Числа и даты внутри
 
@@ -215,9 +188,8 @@ import {
   eyebrow="Раздел 3"
   title="Разбор своими руками"
   lead="Синтаксис перестаёт пугать, когда его разберёшь сам. Сотня строк превращает сообщение в дерево, выбирает ветку и собирает строку. Это рекурсивный спуск: каждая конструкция языка — своя функция, а вложенность получается сама, потому что функции вызывают друг друга."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PARSER} />
+  <Plain text={PLAIN_PARSER} />
 
   <Card title="parse, pick, format" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ICU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -244,7 +216,6 @@ import {
   eyebrow="Раздел 4"
   title="Разбирать при сборке"
   lead="Строку сообщения нужно разобрать хотя бы раз. Вопрос — где: в браузере у каждого пользователя или один раз при сборке. Во втором случае парсер не едет в бандл, а ошибка в переводе ломает сборку, а не экран."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Готовое дерево: formatjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -294,7 +265,6 @@ import {
   eyebrow="Раздел 5"
   title="MessageFormat 2"
   lead="Вторая версия языка сообщений, закреплённая в стандарте Unicode, исправляет главное неудобство первой: ветки больше не прячутся внутри фразы. Браузеры её пока не исполняют, а из библиотек её понимает `messageformat` 4 — преемник `@messageformat/core`; пример написан по тексту спецификации."
-  leadWidth={72}
 >
   <Card title="То же сообщение на MF2" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MF2_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -313,7 +283,6 @@ import {
   eyebrow="Раздел 6"
   title="vue-i18n: словари во Vue"
   lead="vue-i18n хранит словари по локалям, отдаёт `t()` и `$t` в компоненты и перерисовывает их, когда меняется язык. Сообщения у него — не ICU, а свой формат, и правило множественного числа по умолчанию к русскому не подходит."
-  leadWidth={72}
 >
   <Table
     head={['что', 'ICU', 'vue-i18n']}
@@ -379,7 +348,6 @@ import {
   eyebrow="Раздел 7"
   title="Как выбрать локаль"
   lead="Язык страницы можно взять из адреса, из cookie, из заголовка запроса или из настроек браузера. Источники отвечают разное, видны разным сторонам и по-разному сказываются на поиске и кеше."
-  leadWidth={72}
 >
   <Table
     head={['источник', 'кто видит', 'что важно']}
@@ -417,7 +385,7 @@ import {
 
   ### Справа налево
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RTL} />
+  <Plain text={PLAIN_RTL} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Направление по локали" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

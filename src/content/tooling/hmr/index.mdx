@@ -5,7 +5,6 @@ headingWidth: 24
 order: 4
 kicker: сборка и инструменты
 lead: "Сохранили файл — и через долю секунды страница показывает новый код, не теряя введённого в форму. Это не свойство фреймворка, а договор: dev-сервер идёт от изменённого модуля вверх по тем, кто его импортирует, пока не найдёт модуль, пообещавший принять обновление. Не нашёл — перезагружает страницу целиком."
-leadWidth: 66
 summary: "Граф модулей на dev-сервере Vite, поиск границы вверх по импортёрам, сообщения по WebSocket и метка `?t=` в адресе; `accept`, `dispose`, `data` и `invalidate`; что происходит с обычным CSS, CSS-модулями и Vue SFC; React Fast Refresh и почему в продакшен-сборке от всего этого не остаётся ни строки."
 verifiedOn: "Vite 8.3.0 (createServer, без Astro), @vitejs/plugin-vue 6.0.8 и Vue 3.5.42, Chromium 153.0.8010.12 (Playwright 1.63), Node 26.8.2, сентябрь 2026: сообщения по WebSocket, перезапрошенные адреса и состояние страницы сняты стендом на девятнадцати сценариях и закреплены tests/unit/hmr.test.ts; продакшен-сборка — vite build той же фикстуры. React Fast Refresh замером не проверялся: поведение хуков — по документации, обёртка модуля — по исходнику @vitejs/plugin-react 5.2.0"
 nav:
@@ -30,6 +29,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import HmrBoundary from '@/widgets/hmr-boundary/ui/HmrBoundary.vue';
@@ -96,44 +98,18 @@ import {
   WebSocket и умеет импортировать модуль заново под другим адресом. А код модулей обещает
   через `import.meta.hot`, что сумеет пережить собственную замену.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HMR} />
+  <Plain text={PLAIN_HMR} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Граф на сервере и метка в адресе"
   lead="От сохранения файла до новой кнопки на экране — семь шагов, и шесть из них происходят на сервере. Браузер в этой цепочке делает только последнее: импортирует модуль по адресу, который ему назвали, и зовёт колбэк."
-  leadWidth={72}
 >
   <Card title="Путь правки" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={760} chips={PIPELINE_CHIPS} />
@@ -156,9 +132,8 @@ import {
   eyebrow="Раздел 2"
   title="Поиск границы"
   lead="Сервер поднимается от изменённого модуля по импортёрам. Граница останавливает подъём на своей ветке. Ветка, дошедшая до модуля без импортёров, — тупик, и одного тупика на любой ветке достаточно, чтобы перезагрузить всю страницу."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BOUNDARY} />
+  <Plain text={PLAIN_BOUNDARY} />
 
   <Card title="Поиск границы — полсотни строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FIND_BOUNDARY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -197,7 +172,6 @@ import {
   eyebrow="Раздел 3"
   title="`accept`, `dispose`, `invalidate`"
   lead="Модуль может принять себя или свою зависимость, передать состояние следующему экземпляру и, получив обновление, отказаться от него в пользу импортёров. Всё это — методы `import.meta.hot`, и каждый из них сервер видит в тексте модуля, а не в его поведении."
-  leadWidth={72}
 >
   <Card title="Три формы `accept`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ACCEPT_FORMS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -233,7 +207,7 @@ import {
 
   ### Перенести состояние: `dispose` и `data`
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISPOSE} />
+  <Plain text={PLAIN_DISPOSE} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Старый экземпляр пишет, новый читает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -272,7 +246,6 @@ import {
   eyebrow="Раздел 4"
   title="CSS и Vue-компоненты"
   lead="Стилям и компонентам `accept` пишет не автор, а инструмент: Vite — обычному CSS, плагин Vue — каждому `.vue`. Поэтому правка стиля или шаблона почти никогда не перезагружает страницу. Исключения — CSS-модули, которые себя не принимают, и `<script setup>`, чья правка пересоздаёт компонент."
-  leadWidth={72}
 >
   <Table
     head={['как подключён стиль', 'сообщение', 'что происходит']}
@@ -285,7 +258,7 @@ import {
 
   ### Vue SFC: `rerender` против `reload`
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RERENDER} />
+  <Plain text={PLAIN_RERENDER} />
 
   <Card title="Что плагин дописывает в компонент" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VUE_GENERATED_CODE} size={11} lh={1.65} pad="14px 16px" />
@@ -308,7 +281,6 @@ import {
   eyebrow="Раздел 5"
   title="React Fast Refresh и продакшен-сборка"
   lead="Fast Refresh — тот же `accept` на себя в каждом модуле с компонентами плюс проверка, что экспорты остались компонентами. А в продакшен-сборке нет ни клиента, ни WebSocket, ни `import.meta.hot`: код внутри `if (import.meta.hot)` исчезает ещё до минификации."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {REACT_FACTS.map((fact) => (

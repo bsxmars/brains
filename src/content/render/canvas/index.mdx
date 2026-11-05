@@ -5,7 +5,6 @@ headingWidth: 22
 order: 18
 kicker: браузер и рендеринг
 lead: "Холст — не дерево элементов, а одна таблица пикселей. Нарисованный круг нельзя кликнуть, подвинуть или прочитать вслух, зато тысяча кругов стоит столько же, сколько один. Почему линия в 1px выходит серой и двойной, почему на ретине всё мылится, куда копятся пути без `beginPath`, когда холст отказывается отдать свои пиксели и как рисовать в воркере, пока главный поток занят."
-leadWidth: 66
 summary: "Битмап против DOM и SVG, попадание и доступность, буфер против CSS-размера и `devicePixelRatio`, покрытие пикселя и полупиксельные линии, `save`/`restore`, пути и `beginPath`, `clearRect` под матрицей, цена кадра и слои, запачканный холст и CORS, `OffscreenCanvas` в воркере при занятом главном потоке, `ImageBitmap` и `createImageBitmap`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless, программная растеризация), Node 24.11.0, октябрь 2026; сброс пятна — ещё Firefox 155.0 и WebKit 26.6. Пиксели, снимки экрана, дерево доступности, слои, ошибки и кадры воркера сняты стендом и снимаются заново в tests/unit/canvas.test.ts; модель покрытия сверена с Chromium в 64 случаях"
 nav:
@@ -24,13 +23,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import LineLab from '@/widgets/canvas-lab/ui/LineLab.vue';
@@ -113,46 +114,18 @@ import {
   с холстом проходит молча: исключения нет, просто картинка мыльная, линия серая, а кадр
   тяжелеет.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANVAS} />
+  <Plain text={PLAIN_CANVAS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Битмап, а не дерево"
   lead="Круг в SVG — элемент, у которого есть координаты, стили и обработчики. Круг на холсте — закрашенные пиксели. Браузер хранит результат рисования, а не то, что рисовали, и от этого зависит всё остальное: как узнать, куда кликнули, и что прочтёт скринридер."
-  leadWidth={72}
 >
   <Card title="Круг на холсте и клик по нему" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={HIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -203,9 +176,8 @@ import {
   eyebrow="Раздел 2"
   title="Два размера холста"
   lead="У холста два размера, и браузер их не связывает. Атрибуты `width` и `height` задают, сколько пикселей в буфере. CSS задаёт, какое место элемент займёт на странице. Если они не совпадают с точками экрана, браузер растягивает готовую картинку — и она мылится."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUFFER} />
+  <Plain text={PLAIN_BUFFER} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Буфер в CSS-пикселях" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -258,9 +230,8 @@ import {
   eyebrowTone="demo"
   title="Полпикселя: почему линия в 1px серая"
   lead="Координаты на холсте — дробные, а пиксели — целые клетки. Когда край фигуры проходит через середину клетки, браузер красит её частично: альфа равна доле клетки под фигурой. Поэтому одна и та же линия выходит то чёрной в один пиксель, то двумя серыми."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COVERAGE} />
+  <Plain text={PLAIN_COVERAGE} />
 
   <Card title="Модель: покрытие пикселя полосой" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RASTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -291,7 +262,6 @@ import {
   eyebrow="Раздел 4"
   title="Состояние и путь"
   lead="Контекст 2D помнит настройки между вызовами: цвет, толщину, шрифт, матрицу сдвига и масштаба. Каждая команда рисования берёт их в момент вызова. Отдельно от настроек живёт путь — набранные, но ещё не нарисованные отрезки."
-  leadWidth={72}
 >
   <Card title="save и restore" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={STATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -299,7 +269,7 @@ import {
 
   ### Путь копится
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PATH} />
+  <Plain text={PLAIN_PATH} />
 
   <Card title="Четыре полупрозрачные линии" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PATH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -324,7 +294,6 @@ import {
   eyebrow="Раздел 5"
   title="Цена кадра"
   lead="Анимация на холсте — это перерисовка в каждом `requestAnimationFrame`. Браузер не знает, какая часть картинки изменилась, поэтому решать, что рисовать заново, а что взять готовым, приходится коду."
-  leadWidth={72}
 >
   <Card title="Фон — один раз, в кадре — копия" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FRAME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -368,9 +337,8 @@ import {
   eyebrow="Раздел 6"
   title="Чужие пиксели: запачканный холст"
   lead="Нарисовать на холсте картинку с другого origin можно всегда. Прочитать после этого его пиксели — только если сервер картинки разрешил это через CORS. Иначе холст считается запачканным, и всё, что выносит пиксели в JavaScript, бросает `SecurityError`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TAINT} />
+  <Plain text={PLAIN_TAINT} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Без CORS" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -418,7 +386,6 @@ import {
   eyebrowTone="demo"
   title="Холст в воркере: OffscreenCanvas и ImageBitmap"
   lead="`transferControlToOffscreen()` отдаёт буфер холста воркеру. Элемент остаётся на странице, а рисует в него воркер — своим циклом кадров. Пока главный поток занят, анимация в воркере продолжается."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Страница" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

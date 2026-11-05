@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { CompatTable, CustomRange, FeatureRow, TranspilePreset } from '@/widgets/transpile-lab/model/types';
 
 /**
@@ -54,7 +54,7 @@ import type { CompatTable, CustomRange, FeatureRow, TranspilePreset } from '@/wi
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'транспиляция',
     d: 'Перевод кода с новой версии JavaScript на старую: `a?.b` становится проверкой на `null` и `undefined`, `async` — генератором с обвязкой. Результат — снова JavaScript, просто написанный старыми словами.',
@@ -91,7 +91,7 @@ export const PLAIN_TRANSPILE =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи. Каждая разобрана в своей теме — здесь хватит того, что написано на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Сборка — цепочка инструментов',
     d: 'Код, который вы пишете, и код, который скачивает браузер, — разные файлы. Между ними стоит сборка: склейка модулей, минификация, а среди прочего — перевод синтаксиса под нужные браузеры. Отдельную легаси-сборку для старых браузеров через `type="module"`/`nomodule` эта тема не повторяет.',
@@ -522,7 +522,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Babel — `@babel/preset-env`',
     href: 'https://babeljs.io/docs/babel-preset-env',

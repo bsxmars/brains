@@ -3,7 +3,6 @@ title: Стримы и обратное давление
 order: 5
 kicker: сеть и безопасность
 lead: "Стрим — не труба, по которой что-то течёт само, а **очередь с лимитом** и правило «источник наполняет её только тогда, когда его об этом просят». Отсюда и обратное давление: это не сообщение «притормози», а **отсутствие вызова**, которое расходится вверх по цепочке до самого сокета."
-leadWidth: 66
 summary: "Очередь, `highWaterMark` и `desiredSize`: как медленный потребитель физически замедляет сервер и почему парсер потока обязан помнить, что было в прошлом чанке."
 verifiedOn: Node 24.11 и Chromium 153 (Playwright, headless), сентябрь 2026; раздел 6 переснят на Node 26.8.2 и Chromium 153.0.8010.12, свой байтовый источник, NDJSON и node:stream — только Node 26.8.2, переподключение EventSource — своим стендом в Chromium 153.0.8010.12; спецификации — WHATWG Streams и HTML Standard §9.2
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BackpressurePipe from '@/widgets/backpressure-pipe/ui/BackpressurePipe.vue';
@@ -133,37 +135,12 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLOW} />
+  <Plain text={PLAIN_FLOW} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -171,9 +148,8 @@ import {
   eyebrowTone="demo"
   title="Три числа, из которых состоит вся механика"
   lead="Всё поведение стримов сводится к трём величинам, и в отладке смотрят именно на них. Стримы в демо ниже настоящие: числа сняты с живых `ReadableStream` и `WritableStream` на каждом шаге."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HWM} />
+  <Plain text={PLAIN_HWM} />
 
   <Table
     head={['величина', 'что это', 'где смотреть']}
@@ -193,7 +169,7 @@ import {
   {/* ⚠️ Три карточки после демо («Что стоит попробовать первым», «А теперь переключите
       источник», «Отрицательное — это „перелили“») ушли: первые две стали подписью к демо,
       третья — врезкой «на пальцах» про `highWaterMark`. */}
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PUSH} />
+  <Plain text={PLAIN_PUSH} />
 
   <Card title="Как читать `desiredSize`" titleSize={18} pad={22} gap={14}>
     <NumberedList items={DESIRED_RULES} />
@@ -205,7 +181,6 @@ import {
   eyebrow="Раздел 2"
   title="Читаемый поток: кто кого зовёт"
   lead="Источник данных описывают объектом с тремя необязательными методами. Очередь, состояния и промисы ведёт платформа, а от вас ей нужно только «дай следующий кусок» и «прибери за собой»."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Источник — это три метода" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -256,7 +231,6 @@ import {
   eyebrow="Раздел 3"
   title="Записываемый поток и отметка воды"
   lead="Записываемый стрим — приёмник, куда данные уходят по частям. Объект с его методами называют стоком (sink). Свой сток пишут редко, чаще берут готовый конец цепочки. Но от его `desiredSize` зависит, будет ли цепочка тормозить источник."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сток — тоже несколько методов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -307,7 +281,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WRITE_LOOP} />
+  <Plain text={PLAIN_WRITE_LOOP} />
 
   <Card tone="info" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
     <Md text={THROUGHPUT_MEASURE} />
@@ -368,9 +342,8 @@ import {
   eyebrowTone="demo"
   title="Трансформация: где живёт состояние"
   lead="Трансформ — единственное звено цепочки, которое может хранить данные между чанками. На этом держится всё остальное. Поток приходит разрезанным где попало, и собрать из него целые сообщения можно только потому, что `transform` получает чанки строго по одному и помнит, что было в прошлом."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSFORM} />
+  <Plain text={PLAIN_TRANSFORM} />
 
   <Card tone="ok" pad={18} radius={5} size={15.5} lh={1.6}>
     <Md text={TRANSFORM_PAIR} />
@@ -570,7 +543,6 @@ import {
   eyebrow="Раздел 5"
   title="Отмена, `tee` и блокировка читателя"
   lead="У стрима ровно один потребитель. `cancel` и `abort` — не синонимы: только один из них отличим от нормального конца. А ветвление через `tee` копит в памяти всё, что не успела прочитать медленная ветка."
-  leadWidth={72}
 >
   <CardGrid min={270} gap={14}>
     {LOCK_FACTS.map((fact) => (
@@ -606,7 +578,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STOP} />
+  <Plain text={PLAIN_STOP} />
 
   <Card title="`cancel` против `abort`: не синонимы" titleSize={18} pad={22} gap={14}>
     <Table
@@ -684,7 +656,6 @@ import {
   eyebrow="Раздел 6"
   title="Итерация над стримом и байтовые читатели"
   lead="Два способа читать, которые выглядят просто удобной записью. У обоих есть скрытое поведение: цикл **отменяет стрим** на выходе, а байтовый читатель **забирает** переданный ему буфер."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Цикл вместо ручного `read()`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -719,7 +690,7 @@ import {
 
   ### Байтовые читатели: буфер даёте вы
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BYOB} />
+  <Plain text={PLAIN_BYOB} />
 
   <Card title="`getReader({ mode: 'byob' })`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={BYOB_CODE} size={11.5} lh={1.7} pad="14px 16px" />

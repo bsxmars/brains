@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AePreset, LabFile } from '@/widgets/compress-lab/model/types';
 
 /**
@@ -80,7 +80,7 @@ const less = (a: number, b: number) => `${(((b - a) / b) * 100).toFixed(1).repla
 export const PLAIN_CODING =
   'Как посылка с вещами в вакуумном пакете. Получатель заранее пишет: «у меня дома есть насос для пакетов вот таких типов». Отправитель пакует тем, что есть у обоих, и пишет на коробке, чем упаковано. Вещи те же, коробка меньше. Перепутает надпись — получатель вскроет и найдёт мешанину.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'кодировка содержимого',
     d: 'Способ упаковать тело ответа: `gzip`, `br` (Brotli), `zstd` (Zstandard), `deflate`. Её имя сервер пишет в `Content-Encoding`, браузер распаковывает сам. `identity` — «без упаковки».',
@@ -114,7 +114,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Кеш HTTP и ETag',
     d: 'Браузер берёт ответ из кеша по `Cache-Control` и сверяет его с сервером по `ETag`. Ключ записи в кеше — адрес; `Vary` дописывает к ключу заголовки запроса.',
@@ -674,7 +674,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'RFC 9110 — HTTP Semantics, раздел 12.5.3 «Accept-Encoding»',
     href: 'https://www.rfc-editor.org/rfc/rfc9110#section-12.5.3',

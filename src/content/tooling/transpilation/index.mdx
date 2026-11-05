@@ -5,7 +5,6 @@ headingWidth: 24
 order: 8
 kicker: сборка и инструменты
 lead: "Одна строка `browserslist` решает, во что превратится ваш код: `?.` станет цепочкой проверок на `null`, приватное поле — записью в `WeakMap`, а один вызов `structuredClone` потянет 30 КБ полифила. Как Babel по таблицам совместимости выбирает, что переписать, что дописать и чего не сделать вовсе."
-leadWidth: 66
 summary: "Синтаксис против встроенных функций, запрос browserslist → цели → плагины `@babel/preset-env`, во что превращаются `?.`, `??`, `#x`, `async` и spread и сколько это стоит, `useBuiltIns: 'usage'` и `'entry'`, core-js, что нельзя ни переписать, ни дописать, esbuild и tsc без полифилов."
 verifiedOn: "@babel/preset-env 7.29.7, core-js 3.50.0, browserslist 4.28.9 (caniuse-lite 1.0.30001810), esbuild 0.28.2, TypeScript 6.0.3, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: вывод Babel, esbuild и tsc, списки полифилов и байты сняты стендом и пересобираются tests/unit/transpilation.test.ts; учебная функция решения сверена с preset-env на двадцати одном запросе browserslist"
 nav:
@@ -31,6 +30,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TranspileLab from '@/widgets/transpile-lab/ui/TranspileLab.vue';
@@ -110,46 +112,18 @@ import {
   `Promise.withResolvers`. Чем старше список, тем больше переписано, тем тяжелее файл — и тем
   больше мест, где копия ведёт себя чуть иначе, чем оригинал.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRANSPILE} />
+  <Plain text={PLAIN_TRANSPILE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Переписать или дописать"
   lead="Сквозной пример на всю тему — класс корзины. В нём собраны обе беды старого браузера: синтаксис, которого он не прочтёт, и встроенные функции, которых у него нет."
-  leadWidth={72}
 >
   <Card title="cart.js" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SAMPLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -191,13 +165,12 @@ import {
   eyebrow="Раздел 2"
   title="От запроса к плагинам"
   lead="Babel не знает слов «старый браузер». Он знает список версий и таблицу «с какой версии умеет». Решение принимается в три шага, и каждый можно повторить руками."
-  leadWidth={72}
 >
   <Card title="Путь решения" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={760} chips={DECIDE_CHIPS} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TARGETS} />
+  <Plain text={PLAIN_TARGETS} />
 
   <Card title="Решение preset-env — полсотни строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={DECIDE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -251,7 +224,6 @@ import {
   eyebrow="Раздел 3"
   title="Во что превращается синтаксис"
   lead="Плагин заменяет конструкцию тем, что понимает старый движок, и платит за это байтами: временными переменными, проверками и хелперами. Ниже каждая конструкция переведена в одиночку, одним плагином, — так видна её собственная цена."
-  leadWidth={72}
 >
   <Table
     head={['конструкция', 'плагин', 'не нужен с версии', 'байт: было → стало']}
@@ -307,9 +279,8 @@ import {
   eyebrow="Раздел 4"
   title="Полифилы: usage, entry и core-js"
   lead="Полифил не меняет ваш код — Babel только вписывает в него `import` модулей core-js. Какие модули и куда, решает опция `useBuiltIns`, а выбирает их та же функция, что и плагины, — только по таблице `core-js-compat`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_USAGE} />
+  <Plain text={PLAIN_USAGE} />
 
   <Table
     head={['`useBuiltIns`', 'что делает']}
@@ -365,7 +336,6 @@ import {
   eyebrow="Раздел 5"
   title="Чего нельзя ни переписать, ни дописать"
   lead="Переписать можно то, что выражается старыми словами, дописать — то, что выражается старым кодом. Для остального нужен сам движок, и сборка тут бессильна. Хуже того — она об этом молчит."
-  leadWidth={72}
 >
   <Table
     head={['что', 'почему нельзя', 'что делает сборка']}
@@ -405,7 +375,6 @@ import {
   eyebrow="Раздел 6"
   title="esbuild и tsc: только синтаксис"
   lead="esbuild и TypeScript тоже умеют понижать синтаксис, и без настройки плагинов. Но цель у них задаётся иначе, браузерный список они не читают, а полифилов не добавляют вовсе."
-  leadWidth={72}
 >
   <Card title="Цель в esbuild" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={ESBUILD_CODE} size={11.5} lh={1.65} pad="14px 16px" />

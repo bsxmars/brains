@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { GrowthSet, TraceExample } from '@/widgets/regex-lab/model/types';
 
 /**
@@ -55,7 +55,7 @@ import type { GrowthSet, TraceExample } from '@/widgets/regex-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'шаблон и строка',
     d: 'Шаблон — само регулярное выражение, `/^\\d+$/`. Строка — текст, в котором его ищут. «Совпадение» — кусок строки, который шаблон описал целиком.',
@@ -88,7 +88,7 @@ export const PLAIN_BACKTRACK =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем и на привычный синтаксис регулярок. Если что-то незнакомо, начните со ссылки на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Синтаксис регулярок на уровне «читаю»',
     d: 'Что значат `\\d+`, `[a-z]`, `^…$`, `(…)` и `|`. Тема не учит писать регулярки — она объясняет, что движок делает с уже написанной.',
@@ -768,7 +768,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMAScript — RegExp (Regular Expression) Objects',
     href: 'https://tc39.es/ecma262/#sec-regexp-regular-expression-objects',

@@ -5,7 +5,6 @@ headingWidth: 24
 order: 20
 kicker: браузер и рендеринг
 lead: "Модальное окно с `z-index: 9999` прячется под блоком с `z-index: 2` — и это не ошибка браузера. `z-index` сравнивают только внутри одной группы элементов, контекста наложения, а группу молча создают `opacity`, `transform`, `filter` и ещё два десятка свойств. Как браузер выбирает порядок отрисовки, кто создаёт контекст, почему `isolation: isolate` — лекарство и что такое верхний слой, куда не дотянется никакой `z-index`."
-leadWidth: 66
 summary: "Семь шагов отрисовки из CSS 2.1 (приложение E), float и `inline-block` как «почти контекст», полный список свойств, создающих контекст, ловушка `z-index: 9999` и `isolation: isolate`, верхний слой: `showModal()`, `popover`, полный экран, `::backdrop`, порядок внутри слоя, инертность страницы под модальным окном."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: список свойств, порядок отрисовки, верхний слой, модальность и дерево доступности сняты стендом и снимаются заново в tests/unit/stacking.test.ts; функция темы paintOrder сверена с elementsFromPoint на сценах демо и 300 случайных деревьях"
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import StackingLab from '@/widgets/stacking-lab/ui/StackingLab.vue';
@@ -92,48 +94,20 @@ import {
   но и `opacity`, `transform`, `filter`, `will-change`, — то есть свойства, которые ставят
   совсем не ради порядка.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+  <Plain text={PLAIN_CONTEXT} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Семь шагов отрисовки"
   lead="Внутри каждого контекста наложения браузер рисует в одном и том же порядке из семи шагов. Порядок записан в CSS 2.1, в приложении E, и с тех пор только дополнялся: flex- и grid-элементы встали на шаг строчных, новые свойства научились создавать контексты."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ORDER} />
+  <Plain text={PLAIN_ORDER} />
 
   <Card title="Шаги внутри одного контекста, снизу вверх" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <NumberedList items={PAINT_STEPS} size={15.5} />
@@ -173,7 +147,6 @@ import {
   eyebrow="Раздел 2"
   title="Кто создаёт контекст"
   lead="Корень страницы — `<html>` — контекст всегда. Остальные элементы становятся контекстом по одной из причин ниже. Любое свойство можно проверить самому одним приёмом: положить внутрь элемента ребёнка с `position: relative; z-index: -1`. Если ребёнок виден над фоном родителя — родитель контекст; если ушёл под фон — нет."
-  leadWidth={72}
 >
   <Table
     head={['свойство', 'контекст', 'заметка']}
@@ -199,7 +172,6 @@ import {
   eyebrowTone="demo"
   title="Ловушка 9999"
   lead="Самая частая жалоба на `z-index` — «ставлю больше, а не помогает». Число не помогает, потому что сравнивается не с тем, с чем вы думаете."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Модальное окно внутри шапки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -220,7 +192,7 @@ import {
 
   ### Протечка наружу и isolation
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ISOLATE} />
+  <Plain text={PLAIN_ISOLATE} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Значок поверх шапки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -249,9 +221,8 @@ import {
   eyebrow="Раздел 4"
   title="Верхний слой"
   lead="Всё, что выше, — правила внутри страницы. Верхний слой лежит над ней: элементы туда переносит сам браузер, и ни один `z-index`, контекст или `overflow: hidden` на странице их не достанет."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOP} />
+  <Plain text={PLAIN_TOP} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Хуже места не придумать" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -297,9 +268,8 @@ import {
   eyebrow="Раздел 5"
   title="Модальное окно"
   lead="`showModal()` не только поднимает диалог наверх. Всё, что вне диалога, становится инертным: не кликается, не получает фокус и исчезает для скринридера. Раньше это собирали из трёх приёмов и библиотеки ловушки фокуса — теперь это один вызов."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INERT} />
+  <Plain text={PLAIN_INERT} />
 
   <Table
     head={['что под открытым `showModal()`', 'что происходит']}

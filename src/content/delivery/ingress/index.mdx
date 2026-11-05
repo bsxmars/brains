@@ -3,7 +3,6 @@ title: "Вход в кластер: Ingress и Gateway API"
 order: 7
 kicker: доставка
 lead: "Сервис Kubernetes видит адрес и порт, но не хост и не путь. Чтобы один внешний адрес раздавал запросы разным приложениям, нужен вход — прокси с правилами «хост и путь → сервис». Правила пишут в Ingress или в Gateway API, а исполняет их отдельный контроллер. Без него правила **ничего не делают и ни на что не жалуются**, а `Prefix /api` совпадает с `/api/orders`, но не с `/apiary`."
-leadWidth: 68
 summary: "Путь запроса снаружи до пода; Ingress — хост, путь, pathType и как выбирается совпадение; IngressClass и аннотации контроллера; TLS и cert-manager; Gateway API — роли, условия, веса, редирект и переписывание; статус ingress-nginx; SPA, кеш и WebSocket на входе."
 verifiedOn: "Правила выбора бэкенда — учебной функцией темы по спецификациям Ingress (networking.k8s.io/v1) и Gateway API (gateway.networking.k8s.io/v1); её сверяет тест на таблицах примеров из самих спецификаций. Кластер не поднимался: умолчания ingress-nginx, cert-manager и статус проектов — по документации, сентябрь 2026, и помечены в тексте"
 nav:
@@ -22,12 +21,14 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import PathDiagram from '@/widgets/ingress-path-diagram/ui/PathDiagram.astro';
 import RolesDiagram from '@/widgets/ingress-roles-diagram/ui/RolesDiagram.astro';
@@ -101,45 +102,19 @@ import {
   ROLES_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE} leadWidth={72}>
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENTRY} />
+<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
+  <Plain text={PLAIN_ENTRY} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Путь запроса снаружи до пода"
   lead="Между адресом в браузере и процессом в поде стоят четыре посредника, и только один из них читает HTTP. Именно ему и адресованы Ingress и Gateway API."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={SERVICE_TYPES_NOTE} />
@@ -165,7 +140,6 @@ import {
   eyebrow="Раздел 2"
   title="Ingress: хост, путь и какое правило выиграет"
   lead="Правило Ingress — хост, путь и тип пути. Тип пути решает больше, чем кажется: `Prefix` сравнивает сегменты, а не буквы, и из нескольких совпавших правил выигрывает самое длинное, а не первое по порядку."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={INGRESS_WHY} />
@@ -173,7 +147,7 @@ import {
 
   <CodeBlock code={INGRESS_CODE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PREFIX} />
+  <Plain text={PLAIN_PREFIX} />
 
   <Table
     head={PATH_TYPES.head}
@@ -227,7 +201,6 @@ import {
   eyebrow="Раздел 3"
   title="Класс, контроллер и аннотации"
   lead="Ingress — только данные. Исполняет их контроллер, который находит «свои» объекты по классу, а всё, чего нет в спецификации, читает из аннотаций — своих собственных."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={CONTROLLER_WHY} />
@@ -271,7 +244,6 @@ import {
   eyebrow="Раздел 4"
   title="TLS на входе и откуда берётся сертификат"
   lead="Шифрование заканчивается на входе. Сертификат лежит в Secret, а класть его туда и продлевать удобнее всего поручить cert-manager."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={TLS_WHY} />
@@ -296,11 +268,11 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TLS} />
+  <Plain text={PLAIN_TLS} />
 
   ### cert-manager
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CERT} />
+  <Plain text={PLAIN_CERT} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={CERT_WHY} />
@@ -324,13 +296,12 @@ import {
   eyebrow="Раздел 5"
   title="Gateway API: роли, условия, веса и фильтры"
   lead="Та же задача, что у Ingress, но то, что там было аннотациями конкретного контроллера, здесь — поля спецификации, а один объект разрезан на три по владельцам."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={GATEWAY_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROLES} />
+  <Plain text={PLAIN_ROLES} />
 
   <Table
     head={ROLES.head}
@@ -391,7 +362,7 @@ import {
 
   <Md text={MATCH_FOOT} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MATCH} />
+  <Plain text={PLAIN_MATCH} />
 
   ### Фильтры: редирект и переписывание пути
 
@@ -440,7 +411,6 @@ import {
   eyebrowTone="demo"
   title="Куда уйдёт запрос"
   lead="Правила выбора из обеих спецификаций — одной функцией. Её же исполняет демо: впишите адрес и посмотрите, какое правило выиграет и почему."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={ROUTER_WHY} />
@@ -460,7 +430,6 @@ import {
   eyebrow="Раздел 7"
   title="Фронтенд на входе: SPA, кеш и WebSocket"
   lead="Три вопроса, которые фронтендер приносит ко входу первыми. Ответ на все три один: вход выбирает сервис, а что и как отдавать, решает сервер за ним."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={SPA_NOTE} />
@@ -480,7 +449,6 @@ import {
   eyebrow="Раздел 8"
   title="Тонкие места"
   lead="Почти все они молчат: объект создан, ошибки нет, просто запрос ушёл не туда или настройка перестала действовать."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>

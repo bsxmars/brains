@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ChainScenario, CodePatch, RaceStep } from '@/widgets/mini-watch/model/types';
 
 /**
@@ -603,7 +603,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Эффект — лампочка, которая загорается, когда меняется то, на что она смотрит. `watch` — та же лампочка с секретарём: он сравнивает, что было и что стало, и зовёт вас, только если разница есть, а перед новым звонком сам кладёт трубку прошлого. `effectScope` — рубильник на щитке: одним движением гасит все лампочки комнаты. Версии у `computed` — отметки «проверено» на счётчиках: пока цифры те же, что при прошлой проверке, пересчитывать нечего.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'источник `watch`',
     d: 'Первый аргумент `watch`: `ref`, реактивный объект, функция-геттер или массив из них. Из него `watch` строит геттер эффекта — функцию, чьи чтения становятся зависимостями.',
@@ -642,7 +642,7 @@ export const GLOSSARY = [
 // Перед началом
 // ---------------------------------------------------------------------------
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как устроены `effect`, `track`/`trigger` и очередь',
     d: 'Эффект перед запуском забывает старые зависимости и собирает новые, `Dep` будит подписчиков, задание встаёт в очередь один раз, очередь разбирается в микрозадаче. Здесь всё это переписано в форме Vue 3.5.',
@@ -1209,7 +1209,7 @@ export const PITFALLS: Pitfall[] = [
 // Раздел 9 · источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: '`@vue/reactivity` · `watch.ts`',
     href: 'https://github.com/vuejs/core/blob/main/packages/reactivity/src/watch.ts',

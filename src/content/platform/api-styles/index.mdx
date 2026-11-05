@@ -5,7 +5,6 @@ headingWidth: 24
 order: 16
 kicker: сеть и безопасность
 lead: "Экран со списком заказов, авторами и товарами можно собрать десятью GET-запросами, одним POST с запросом GraphQL или одним вызовом gRPC. Разница видна в числах: сколько запросов ждут друг друга, сколько байт уходит впустую, сколько раз сервер сходит в базу — и что из этого сможет закешировать браузер."
-leadWidth: 66
 summary: "Один экран тремя способами: запросы и байты; REST — ресурсы, водопад, лишние поля, ETag и Cache-Control на втором заходе; GraphQL — исполнитель и резолверы, N+1 и DataLoader по журналу базы, persisted queries, глубина запроса как атака, ошибки при статусе 200; gRPC-web — protobuf по байтам (varint, ключи полей), размер против JSON до и после сжатия, трейлеры HTTP/2 и почему браузеру нужен прокси."
 verifiedOn: "Node 24.11.0, graphql 17.0.2, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: три API над одной «базой» на своём node:http-сервере; учебный исполнитель GraphQL сверен tests/unit/api-styles.test.ts с graphql 17 — ответ, порядок вызовов резолверов, журнал базы; байты пересобраны на сырых сокетах. gRPC-сервера и прокси на стенде нет: protobuf закодирован по спецификации и сверен с её примерами, кадр gRPC-web — по PROTOCOL-WEB.md, трейлеры проверены на node:http2 и в Chromium"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ApiWireLab from '@/widgets/api-wire-lab/ui/ApiWireLab.vue';
@@ -111,46 +113,18 @@ import {
   «базой». Поэтому разницу можно не пересказывать, а посчитать: запросы, байты в обе стороны
   и обращения к базе.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STYLES} />
+  <Plain text={PLAIN_STYLES} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Один экран — три способа"
   lead="«База» — три таблицы: пользователи, товары и заказы. Заказ ссылается на автора и на товары по id, как в любой реляционной базе. Её одинаково читают REST-маршруты, резолверы GraphQL и сервис gRPC."
-  leadWidth={72}
 >
   <Card title="«База»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TABLES_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
@@ -182,7 +156,6 @@ import {
   eyebrow="Раздел 2"
   title="REST: ресурсы, водопад и кеш"
   lead="REST раскладывает данные по ресурсам: у каждой записи свой адрес, а какие поля в ней отдать, решает сервер. Экран клиент собирает сам — и платит за это запросами."
-  leadWidth={72}
 >
   <Card title="Маршруты и клиент экрана" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={REST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -216,7 +189,6 @@ import {
   eyebrow="Раздел 3"
   title="GraphQL изнутри: запрос, схема, резолверы"
   lead="У GraphQL один адрес. Клиент присылает запрос — текст, по форме которого сервер строит ответ: какие поля названы, те и придут, с той же вложенностью. Что вообще можно спросить, сервер описывает схемой."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Схема (SDL)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -228,7 +200,7 @@ import {
     </Card>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESOLVER} />
+  <Plain text={PLAIN_RESOLVER} />
 
   <Card title="Схема для исполнителя, «база» и резолверы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SCHEMA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -256,9 +228,8 @@ import {
   eyebrow="Раздел 4"
   title="N+1 и DataLoader"
   lead="Резолвер ничего не знает о соседях. `author` первого заказа не знает, что ещё четыре заказа ждут своих авторов, — и каждый идёт в базу сам. Клиент отправил один запрос, а база получила шестнадцать."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_N1} />
+  <Plain text={PLAIN_N1} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Без загрузчика: 16 обращений" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -270,7 +241,7 @@ import {
     </Card>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BATCH} />
+  <Plain text={PLAIN_BATCH} />
 
   <Card title="Загрузчик в духе DataLoader" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LOADER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -296,11 +267,10 @@ import {
   eyebrow="Раздел 5"
   title="GraphQL на проводе: кеш, глубина, ошибки"
   lead="Один POST на всё удобен клиенту и неудобен всему, что стоит между клиентом и базой: кешу, который не видит адреса, защите, которая не знает, сколько стоит запрос, и мониторингу, который смотрит на коды ответа."
-  leadWidth={72}
 >
   ### Persisted queries: адрес для кеша
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_APQ} />
+  <Plain text={PLAIN_APQ} />
 
   <Card title="Automatic persisted queries на стенде" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={APQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -354,13 +324,12 @@ import {
   eyebrow="Раздел 6"
   title="gRPC-web: байты по схеме"
   lead="gRPC описывает API файлом `.proto`: сервис, методы и сообщения, у каждого поля — номер. По проводу едет protobuf — двоичное сообщение, в котором вместо имён полей стоят эти номера. Прочитать его может только тот, у кого есть схема."
-  leadWidth={72}
 >
   <Card title="shop.proto" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PROTO_FILE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VARINT} />
+  <Plain text={PLAIN_VARINT} />
 
   <Card title="Кодирование protobuf и кадр gRPC-web" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PROTO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -404,7 +373,7 @@ import {
 
   ### Трейлеры: почему браузеру нужен gRPC-web
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRAILERS} />
+  <Plain text={PLAIN_TRAILERS} />
 
   Настоящий gRPC работает поверх HTTP/2. Тело ответа — сообщения в кадрах по 5 + N байт,
   а статус вызова (`grpc-status`) сервер присылает трейлерами: ещё одним кадром HEADERS
@@ -430,7 +399,6 @@ import {
   eyebrow="Раздел 7"
   title="Что выбрать"
   lead="Ни один способ не быстрее «вообще». Каждый переносит работу в своё место: REST — на клиент и кеш, GraphQL — на сервер, gRPC — в схему и прокси."
-  leadWidth={72}
 >
   <Table
     head={['способ', 'хорош, когда', 'чем платите']}

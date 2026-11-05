@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ConfigKey, Scenario, ScenarioId, StandRun } from '@/widgets/zone-lab/model/types';
 
 /**
@@ -51,7 +51,7 @@ import type { ConfigKey, Scenario, ScenarioId, StandRun } from '@/widgets/zone-l
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'проверка изменений (change detection)',
     d: 'Проход по дереву компонентов: Angular выполняет шаблон компонента, сравнивает каждое значение с прошлым и правит в DOM только то, что поменялось. Сам по себе проход ничего не знает о том, *что* изменилось, — он просто сверяет всё, что ему велели проверить.',
@@ -81,7 +81,7 @@ export const GLOSSARY = [
 export const PLAIN_TICK =
   'Как охранник, который не знает, что в здании поменялось, и после каждого звонка в дверь обходит все комнаты подряд. Ничего не пропустит — но обходит и тогда, когда звонил курьер не по адресу. Без зоны охранник сидит на месте, пока ему не скажут «в 12-й комнате переставили стол», — и идёт только туда.';
 
-export const PREREQ: { t: string; d: string; href: string; hrefLabel: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Задачи и микрозадачи',
     d: 'Браузер выполняет задачи по одной: таймер, клик, ответ сети. После каждой он выполняет все микрозадачи — колбэки `then` и `queueMicrotask`. Зона ловит ровно этот момент: «задача и её микрозадачи кончились».',
@@ -670,7 +670,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Angular — Zoneless',
     href: 'https://angular.dev/guide/zoneless',

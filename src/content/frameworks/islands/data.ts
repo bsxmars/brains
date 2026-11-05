@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { IslandSpec, LabMode, StandPage } from '@/widgets/islands-lab/model/types';
 
 /**
@@ -67,7 +67,7 @@ import type { IslandSpec, LabMode, StandPage } from '@/widgets/islands-lab/model
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'остров',
     d: 'Интерактивный кусок страницы, у которого своё маленькое приложение и своё время оживания. Всё вокруг острова — обычный HTML без кода.',
@@ -100,7 +100,7 @@ export const PLAIN_ISLANDS =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Гидратация',
     d: 'Сервер прислал HTML, а фреймворк в браузере ещё раз рендерит те же компоненты и забирает готовые узлы себе, навешивая обработчики. До конца гидратации кнопки выглядят живыми, но не работают.',
@@ -797,7 +797,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Astro — Islands architecture',
     href: 'https://docs.astro.build/en/concepts/islands/',

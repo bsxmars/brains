@@ -3,7 +3,6 @@ title: "Поведение как значение: стратегия, кома
 order: 4
 kicker: паттерны
 lead: "Четыре поведенческих паттерна вынимают действие из объекта и делают его отдельной вещью. В книге такой вещью может быть только объект класса, а в JavaScript функция — уже значение. Поэтому половина паттернов сводится к колбэку, а книжные версии ломаются на потерянном `this`, `void`, который пропускает промис, и общих объектах-состояниях."
-leadWidth: 66
 summary: "Стратегия как класс и как функция, `satisfies` для набора стратегий, компаратор `sort` и булев компаратор, который в V8 не сортирует, `this`-параметр, который не спасает без `this: void`; команда с историей и откатом, «как было» в момент выполнения, команда-данные для очереди и Redux; шаблонный метод, `async`-шаг под `void`, `override` и шаги объектом; состояние классами, общий объект-состояние, который публикует чужой документ, размеченное объединение с `assertNever` и таблица переходов."
 verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, Redux 5.0.1, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, пример с отказом промиса запущен отдельным процессом `node` — `tests/unit/patterns-behavior.test.ts`"
 nav:
@@ -19,12 +18,14 @@ nav:
 
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -68,44 +69,18 @@ import {
 } from './data';
 
 <Section variant="intro" eyebrow="Поведение и язык" gap={24}>
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BEHAVIOR} />
+  <Plain text={PLAIN_BEHAVIOR} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Зачем: где живёт «как именно»"
   lead="Сервис авторизации проверяет пользователя через JWT. Потом заказчик просит вход через GitHub, потом через Google. Каждый новый способ — ещё одна ветка `if` в каждом методе класса, и класс знает обо всех провайдерах сразу."
-  leadWidth={72}
 >
   <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -126,9 +101,8 @@ import {
   eyebrow="Раздел 2"
   title="Стратегия"
   lead="Стратегия — сменный алгоритм за общим интерфейсом. Тот, кто его вызывает, знает только интерфейс: «дай пользователя — скажу, пускать ли». Какой провайдер стоит за ним, решают снаружи, и решение можно поменять на лету."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STRATEGY} />
+  <Plain text={PLAIN_STRATEGY} />
 
   ### Книжная версия
 
@@ -164,9 +138,8 @@ import {
   eyebrow="Раздел 3"
   title="Команда"
   lead="Команда превращает вызов в объект: что сделать, с чем и как отменить. Такой объект можно положить в очередь, выполнить позже, записать в журнал и откатить. Пример: добавление пользователя, которое можно отменить, — контроллер не зовёт сервис напрямую, а создаёт команду."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMMAND} />
+  <Plain text={PLAIN_COMMAND} />
 
   ### Книжная версия
 
@@ -192,9 +165,8 @@ import {
   eyebrow="Раздел 4"
   title="Шаблонный метод"
   lead="Шаблонный метод фиксирует порядок шагов в базовом классе, а сами шаги оставляет наследникам. Пример: анкету отправляют в несколько API. Путь у всех один — заполнить, залогировать, отправить, — а формат данных и адрес у каждого свой."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEMPLATE} />
+  <Plain text={PLAIN_TEMPLATE} />
 
   ### Книжная версия
 
@@ -228,9 +200,8 @@ import {
   eyebrow="Раздел 5"
   title="Состояние"
   lead="Паттерн «состояние» — не то состояние приложения, которым заняты стейт-менеджеры. Речь об одном объекте, который ведёт себя по-разному в зависимости от своего положения. Пример: статья в блоге. Черновик можно опубликовать, опубликованную — снять, а из черновика сразу в «опубликовано» пути нет."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STATE} />
+  <Plain text={PLAIN_STATE} />
 
   ### Книжная версия: класс на состояние
 
@@ -266,7 +237,6 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
   lead="Книга «банды четырёх» описывает эти паттерны через классы и наследование; источники ниже показывают, как те же идеи выглядят там, где функция — значение, и где у языка свои правила."
-  leadWidth={72}
 >
   <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
     <SourceList items={SOURCES} />

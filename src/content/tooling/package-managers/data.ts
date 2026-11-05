@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 import { compileSemver } from '@/widgets/pm-lab/model/semver';
 import type { Registry } from '@/widgets/pm-lab/model/layout';
 
@@ -50,7 +50,7 @@ import type { Registry } from '@/widgets/pm-lab/model/layout';
 
 /* ──────────────────── Вводный раздел · словарь ──────────────────── */
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'реестр и тарбол',
     d: 'Реестр (registry) — сервер с пакетами, по умолчанию `registry.npmjs.org`. На каждое имя он отдаёт документ со списком всех версий и их зависимостей, а сами версии лежат архивами `.tgz` — тарболами.',
@@ -90,7 +90,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Как менеджер выбирает версии и раскладывает файлы, тема объясняет с нуля. Известными считаются две вещи — у каждой есть разбор на сайте.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как Node находит пакет по имени',
     d: '`require(\'c\')` ищет папку `c` в `node_modules` рядом с файлом, потом папкой выше — и так до корня диска; `dependencies` из `package.json` загрузчик не читает вовсе. Поэтому раскладка на диске и решает, какую версию получит код.',
@@ -1181,7 +1181,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Раздел 8 · источники ──────────────────── */
 
-export const SOURCES: { t: string; items: string[] }[] = [
+export const SOURCES: SourceGroup[] = [
   {
     t: 'Спецификации и документация',
     items: [

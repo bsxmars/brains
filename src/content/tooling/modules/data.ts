@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Модули и сборка».
@@ -1542,7 +1542,7 @@ export const LEGACY_FACTS: { t: string; d: string; tone?: 'info' | 'ok' | 'warn'
 
 // ---- Источники ----
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 §16.2 — Modules',
     href: 'https://tc39.es/ecma262/#sec-modules',
@@ -1639,7 +1639,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
  * и именно поэтому мимо них проходят не задумываясь. А тема стоит ровно на точных значениях:
  * живая привязка — не копия, побочный эффект — не «что-то плохое», а критерий доказуемости.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'декларация',
     d: '`import` и `export` — не команды, которые выполняются по ходу кода, а объявления: их можно писать только на верхнем уровне файла и только с путём в кавычках. Из этого ограничения следует всё остальное: зависимости известны **до** выполнения хоть одной строки.',
@@ -1691,7 +1691,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Известными считаются две вещи: **почему загрузка модулей обязана быть асинхронной** и почему модуль держит свои данные в памяти до закрытия страницы.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Почему синхронная загрузка невозможна',
     d: 'Синхронный сетевой запрос за каждым модулем заблокировал бы поток целиком. Отсюда и три фазы, и асинхронность верхнего уровня, и то, что CommonJS в браузере существует только в переваренном сборщиком виде.',

@@ -1,6 +1,6 @@
 import type { CascadeDecl, CascadeLayers, CriterionCopy } from '@/widgets/cascade-referee/model/types';
 import type { DefaultProp, KeywordCopy } from '@/widgets/defaulting-lab/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ResolvedProp } from '@/widgets/resolved-value/model/types';
 import type { SelfCheckItem } from '@/widgets/self-check/model/types';
 import type { SpecPiece, SpecRival } from '@/widgets/specificity-lab/model/types';
@@ -1458,7 +1458,7 @@ export const SELF_CHECK: SelfCheckItem[] = [
  * стоят уже в первой карточке. Для пришедшего из поиска это несколько незнакомых слов
  * в первом экране — при том что каждое объясняется одной фразой.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'origin (этаж)',
     d: 'Чей это CSS: браузера, пользователя или автора страницы. Критерий 1 сортирует объявления именно по этажам, и `!important` не «усиливает правило», а **переставляет его на другой этаж** — оттого важное пользовательское и побеждает важное авторское.',
@@ -1506,7 +1506,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема разбирает **внутренность одного шага кадра** — шага style. Сам кадр и цену чтения стиля из JS она берёт как известное.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Где во времени стоит шаг style',
     d: 'Кадр — это последовательность фаз: задача, микрозадачи, `rAF`, **style**, layout, paint, commit. Всё, о чём эта тема, происходит внутри одной из них; граница между `computed` и `used` — это буквально граница между style и layout.',
@@ -1528,7 +1528,7 @@ export const PREREQ = [
 
 // ---- Раздел 8 · источники ----
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'CSS Cascading and Inheritance Level 5',
     href: 'https://drafts.csswg.org/css-cascade-5/',

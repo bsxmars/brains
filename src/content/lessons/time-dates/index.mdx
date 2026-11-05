@@ -3,7 +3,6 @@ title: "Время и даты: UTC, часовые пояса и Temporal"
 headingWidth: 24
 order: 8
 lead: "`Date` — не дата, а одно число: миллисекунды от полуночи 1 января 1970 года по UTC. Всё остальное — год, час, день недели — вычисляется из него через пояс машины. Отсюда «минус день» у пользователей в Америке, «завтра в 12:00», которое приходит в 13:00, и 02:30, которого не было. Temporal разводит эти вопросы по разным типам и заставляет ответить на них явно."
-leadWidth: 66
 summary: "`Date` как число и его пределы; месяцы с нуля; почему `'2026-03-29'` — UTC, а `'2026-03-29T00:00'` — местное время; переход на летнее время: несуществующий и повторённый час, сутки по 23 и 25 часов; сравнение, `toISOString`, JSON и `Intl.DateTimeFormat`; база поясов IANA, которая разная в Node 24 и 26; типы Temporal и `disambiguation`; перевод «время на часах → UTC» по таблице переходов своими руками."
 verifiedOn: "Node 24.11.0 (ICU 77.1, tzdata 2025b) и 26.8.2 с nodejs.org (ICU 78.3, tzdata 2026c, встроенный Temporal), temporal-polyfill 1.0.5, Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: выражения и примеры исполняет tests/unit/time-dates.test.ts в процессах Node с нужным TZ; учебная функция сверена с Temporal.ZonedDateTime и Date на моментах через каждые 5 минут вокруг переходов семи зон; колонки браузеров — стенд, строки Node 26 тест сверяет на Node 26.8.2"
 nav:
@@ -29,6 +28,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TzLab from '@/widgets/tz-lab/ui/TzLab.vue';
@@ -106,46 +108,18 @@ import {
   не ломали код, нужно различать три вещи — момент, время на часах и зону, — и знать,
   какая из них где лежит.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DATE} />
+  <Plain text={PLAIN_DATE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="`Date` — это число"
   lead="Внутри `Date` одно поле — миллисекунды от эпохи. Конструктор переводит в это число то, что вы передали, а геттеры переводят число обратно в год, месяц и час. Оба перевода идут через календарь с особенностями, которые тянутся из первых версий языка."
-  leadWidth={72}
 >
   <Table
     head={['выражение', 'результат', 'почему']}
@@ -170,7 +144,6 @@ import {
   eyebrow="Раздел 2"
   title="Строка без зоны"
   lead="Стандарт обязывает движки одинаково понимать один формат строк — ISO 8601. И в нём строка только с датой читается как полночь UTC, а строка с датой и временем без пояса — как местное время машины. Одна и та же «дата 29 марта» даёт разные моменты, а в части мира — и другое число месяца."
-  leadWidth={72}
 >
   <Table
     head={['строка', 'как читается', 'Москва', 'Нью-Йорк', 'Калькутта']}
@@ -205,9 +178,8 @@ import {
   eyebrow="Раздел 3"
   title="Летнее время: час, которого не было, и час, который был дважды"
   lead="Там, где переводят часы, время на часах дважды в год перестаёт однозначно указывать на момент. Весной в Берлине после 01:59:59 сразу идёт 03:00 — времени с 02:00 до 02:59 в этот день нет. Осенью после 02:59:59 летнего времени снова наступает 02:00 — и этот час проходит дважды."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GAP} />
+  <Plain text={PLAIN_GAP} />
 
   <Table
     head={['выражение', 'пояс', 'результат', 'почему']}
@@ -236,7 +208,6 @@ import {
   eyebrow="Раздел 4"
   title="Сравнение и вывод"
   lead="Сравнивать `Date` нужно по числу, а не по объекту. А выводить — помня, что каждый метод сам выбирает, в каком поясе читать момент: `toISOString` и `JSON.stringify` — всегда UTC, `toString` и геттеры — пояс машины, `Intl.DateTimeFormat` — тот, что передан опцией."
-  leadWidth={72}
 >
   <Table
     head={['выражение (пояс — Москва)', 'результат', 'почему']}
@@ -249,7 +220,7 @@ import {
 
   ### Один момент — разные подписи
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTL} />
+  <Plain text={PLAIN_INTL} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Intl.DateTimeFormat и timeZone" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -269,9 +240,8 @@ import {
   eyebrow="Раздел 5"
   title="База поясов: зона — это история"
   lead="`+03:00` — смещение на сегодня. `Europe/Moscow` — запись обо всех переводах часов в Москве, какие известны, и о правилах на будущее. Такие записи для всех мест мира ведёт проект IANA в базе tzdata, выпуская её несколько раз в год, и каждая программа носит свою копию."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TZDB} />
+  <Plain text={PLAIN_TZDB} />
 
   <Table
     head={['зона', 'смещения', 'что в ней особенного']}
@@ -332,9 +302,8 @@ import {
   eyebrow="Раздел 6"
   title="Temporal: свой тип на каждый вопрос"
   lead="Temporal — встроенный объект, который приходит в язык на смену `Date`. Вместо одного типа на всё — несколько: момент, время на часах в зоне, дата без времени, длительность. Объекты неизменяемы, месяцы считаются с единицы, а выбор в разрыве и повторе — явная опция."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEMPORAL} />
+  <Plain text={PLAIN_TEMPORAL} />
 
   <Table
     head={['тип', 'что хранит', 'пример', 'когда брать']}
@@ -356,7 +325,7 @@ import {
 
   ### `disambiguation`: что делать с 02:30
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISAMBIGUATION} />
+  <Plain text={PLAIN_DISAMBIGUATION} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Время на часах → зона" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -400,9 +369,8 @@ import {
   eyebrowTone="demo"
   title="Время на часах → UTC своими руками"
   lead="Всё, что `Date` и `toZonedDateTime` делают с временем на часах, помещается в сорок строк: таблица переходов зоны, перебор смещений и правило выбора. Ни лета, ни зимы, ни названий стран функция не знает — только моменты, когда менялось смещение."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CANDIDATES} />
+  <Plain text={PLAIN_CANDIDATES} />
 
   <Card title="Перевод по таблице переходов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LOCAL_TO_UTC_CODE} size={11.5} lh={1.65} pad="14px 16px" />

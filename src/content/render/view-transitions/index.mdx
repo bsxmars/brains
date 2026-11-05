@@ -3,7 +3,6 @@ title: "View Transitions: анимация между состояниями"
 order: 4
 kicker: браузер и рендеринг
 lead: "`document.startViewTransition` снимает страницу до изменения и после, а между снимками анимирует картинки, а не ваши элементы. Отсюда всё поведение API: пока колбэк работает, экран стоит; сорвавшийся переход отменяет анимацию, но не изменение DOM."
-leadWidth: 66
 summary: "`startViewTransition`: порядок колбэка и промисов, дерево `::view-transition-*`, дубли имён, `skipTransition` и переход поверх перехода, `@view-transition` с `pageswap`/`pagereveal` и предрендером — сверено в Chromium 153, Firefox 155 и WebKit 26.6."
 verifiedOn: Chromium 153 · Firefox 155 · WebKit 26.6 · React 19.3 · Vue 3.5.42
 nav:
@@ -22,10 +21,12 @@ nav:
 import Md from '@/shared/ui/Md.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VtLab from '@/widgets/vt-lab/ui/VtLab.vue';
@@ -47,47 +48,21 @@ import {
   variant="intro"
   eyebrow="Идея"
   lead={INTRO_NOTE}
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+  <Plain text={PLAIN_INTRO} />
 
-  <CardGrid min={240} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  leadWidth={72}
->
-  <CardGrid min={270} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Два снимка, колбэк и три промиса"
   lead="Вызов возвращает объект сразу, а работа идёт по кадрам: снимок старого состояния, колбэк, снимок нового, дерево псевдоэлементов, анимация. Каждый этап отмечен своим промисом, и у каждого промиса свой список причин для отказа."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+  <Plain text={PLAIN_SNAPSHOT} />
 
   <CodeBlock code={BASIC_CODE} />
 
@@ -119,7 +94,7 @@ import {
     <Md text={TREE_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROMISES} />
+  <Plain text={PLAIN_PROMISES} />
 
   <Table
     head={PROMISES_HEAD}
@@ -139,9 +114,8 @@ import {
   eyebrow="Раздел 2"
   title="Имена: кто с кем сопоставляется"
   lead="Без имён браузер снимает страницу одним куском `root` и просто растворяет старую картинку в новой. Имя выделяет элемент в отдельную группу, и тогда он едет от старого места к новому. Имя обязано быть уникальным в каждом из двух снимков."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NAME} />
+  <Plain text={PLAIN_NAME} />
 
   <Card title="Имя переходит от элемента к элементу" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={HANDOFF_CODE} />
@@ -179,7 +153,6 @@ import {
   eyebrow="Раздел 3"
   title="Место в кадре: пока колбэк работает, экран стоит"
   lead={FRAME_NOTE}
-  leadWidth={72}
 >
   <CardGrid min={260} gap={14} align="start">
     {FRAME_FACTS.map((fact) => (
@@ -203,7 +176,6 @@ import {
   eyebrow="Раздел 4"
   title="Прерывание: отменяется анимация, а не изменение"
   lead="Пользователь щёлкнул по двум вкладкам подряд — второй переход начался, пока первый ещё играл. Переход можно и пропустить вызовом `skipTransition`, и сломать дублем имени или долгим колбэком. Исходы различаются тем, какой из трёх промисов отклонён."
-  leadWidth={72}
 >
   ### Два щелчка подряд
 
@@ -223,7 +195,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OVERLAP} />
+  <Plain text={PLAIN_OVERLAP} />
 
   ### Все исходы
 
@@ -245,7 +217,6 @@ import {
   eyebrow="Раздел 5"
   title="Между документами: `@view-transition`, `pageswap`, `pagereveal`"
   lead="Сайту из обычных страниц не нужен SPA-роутер, чтобы картинка из списка плавно превратилась в шапку статьи: навигация по ссылке тоже может стать переходом — если обе страницы одного источника об этом попросили. Старая страница снимается перед уходом, новая получает готовый объект перехода в `pagereveal`."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="CSS на обеих страницах" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
@@ -281,7 +252,6 @@ import {
   eyebrow="Раздел 6"
   title="`prefers-reduced-motion`: гасить приходится самим"
   lead="Переход — это движение, которое пользователь не запускал руками: ровно тот случай, ради которого придуман запрос «поменьше движения». Браузер его здесь не учитывает."
-  leadWidth={72}
 >
   <CodeBlock code={MOTION_CODE} />
 
@@ -295,7 +265,6 @@ import {
   eyebrow="Раздел 7"
   title="Поддержка в трёх движках"
   lead="Переходы внутри документа есть во всех трёх, и ведут себя одинаково. Расходятся переходы между документами, переходы на отдельном элементе и имена, которые браузер придумывает сам."
-  leadWidth={72}
 >
   <Table
     head={ENGINES_HEAD}
@@ -313,7 +282,6 @@ import {
   eyebrow="Раздел 8"
   title="Тонкие места"
   lead="Места, где переход ломается молча: анимации нет, ошибки на экране нет, а DOM уже в новом состоянии."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>
@@ -323,7 +291,6 @@ import {
   eyebrow="Раздел 9"
   title="Источники"
   lead="Спецификации — чтобы сверить порядок шагов и список причин отказа; тексты ошибок и имена, которые браузер придумывает сам, у каждого движка свои, и сверять их надо запуском."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

@@ -5,7 +5,6 @@ headingWidth: 24
 order: 19
 kicker: сеть и безопасность
 lead: "Кнопка «Загрузить» отправляет обычный HTTP-запрос — но какой именно, решает, что будет при обрыве на 90%. Файл может уехать телом multipart вместе с формой, кусками с докачкой или напрямую в хранилище по ссылке, которую подписал ваш сервер. Здесь — байты каждого способа, честный прогресс и что проверить на сервере."
-leadWidth: 66
 summary: "Тело `multipart/form-data` по байтам: граница, заголовки частей, экранирование имён и CRLF; прогресс отправки — `xhr.upload` против `fetch` и тела-стрима по HTTP/2; протокол tus — `POST`, `PATCH`, `HEAD` и `Upload-Offset`, обрыв посреди куска и `409`; presigned URL по образцу S3 SigV4 — что подписано, а что нет; тип по первым байтам, лимит размера, имя файла."
 verifiedOn: "Node 24.11.0 (undici 7.16.0), Chromium 153.0.8010.12 (Playwright 1.63), tus-js-client 4.3.1, @tus/server 2.4.5, @tus/file-store 2.1.1, октябрь 2026: тела multipart из Node и Chromium, прогресс XHR, preflight, журнал tus с обрывом и повтор PATCH в Chromium пересобираются tests/unit/uploads.test.ts; подпись сверена с примером из документации AWS, с настоящим S3 не сверялась"
 nav:
@@ -31,6 +30,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MultipartLab from '@/widgets/upload-lab/ui/MultipartLab.vue';
@@ -91,46 +93,18 @@ import {
   принято. А чтобы гигабайты не шли через ваш API, браузеру выдают подписанную ссылку прямо
   в хранилище.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_UPLOAD} />
+  <Plain text={PLAIN_UPLOAD} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Тело multipart по байтам"
   lead="`FormData` в `fetch` превращается в тело `multipart/form-data`: поля идут друг за другом, у каждого свои заголовки, а между ними — строка-граница. Одна и та же форма из Node и из Chromium даёт одинаковые байты, кроме самой границы."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Форма" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -153,7 +127,7 @@ import {
     </CardNote>
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BOUNDARY} />
+  <Plain text={PLAIN_BOUNDARY} />
 
   <Table
     head={['', 'Node (undici)', 'Chromium']}
@@ -184,13 +158,12 @@ import {
   eyebrow="Раздел 2"
   title="Прогресс отправки"
   lead="Полосу загрузки рисуют по событиям, которые браузер шлёт, пока отдаёт тело в сеть. Такие события есть у `XMLHttpRequest` и нет у `fetch`. И даже у XHR они говорят не совсем о том, о чём кажется."
-  leadWidth={72}
 >
   <Card title="Загрузка с прогрессом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PROGRESS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROGRESS} />
+  <Plain text={PLAIN_PROGRESS} />
 
   <CardGrid min={280} gap={14} align="start">
     {PROGRESS_FACTS.map((fact) => (
@@ -209,7 +182,6 @@ import {
   eyebrow="Раздел 3"
   title="Докачка: протокол tus"
   lead="Чтобы обрыв не стоил всего файла, загрузку делают долгоживущим объектом на сервере. Клиент создаёт его, шлёт куски с указанием, с какого байта они начинаются, а после обрыва спрашивает, сколько байт сервер на самом деле сохранил."
-  leadWidth={72}
 >
   <Table
     head={['запрос', 'ответ', 'заголовок ответа']}
@@ -222,7 +194,7 @@ import {
 
   <Md text={TUS_LOG_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OFFSET} />
+  <Plain text={PLAIN_OFFSET} />
 
   ### Клиент и сервер
 
@@ -251,7 +223,6 @@ import {
   eyebrow="Раздел 4"
   title="Прямо в хранилище"
   lead="Гигабайты видео незачем пропускать через свой API: их всё равно кладут в объектное хранилище. Ваш сервер решает, можно ли загрузить, и выдаёт браузеру ссылку с подписью — разрешение на один запрос к одному файлу на короткое время."
-  leadWidth={72}
 >
   <Card title="Пять шагов" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={700} chips={DIRECT_CHIPS} />
@@ -290,7 +261,6 @@ import {
   eyebrow="Раздел 5"
   title="Проверки на сервере"
   lead="Всё, что пришло в запросе загрузки, написал клиент: имя, тип, размер. Сервер проверяет сам файл — и делает это, пока читает, а не после."
-  leadWidth={72}
 >
   <CheckList items={SAFETY_RULES} size={15.5} />
 

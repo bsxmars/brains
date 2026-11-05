@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AuthServer, DnsRecord, DemoQuery, RolloutScenario, Zone } from '@/widgets/dns-lab/model/types';
 
 /**
@@ -332,7 +332,7 @@ export const ZONE_CDN_TEXT = [
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'зона',
     d: 'Кусок пространства имён, за который отвечает один владелец: `shop.test.` и всё под ним, кроме того, что он отдал другим. Записи зоны лежат на её **авторитетных** серверах.',
@@ -373,7 +373,7 @@ export const PLAIN_DNS =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем. Сам DNS, его пакеты и кеши разобраны здесь с нуля.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'IP-адрес, UDP и круг «туда и обратно»',
     d: 'Соединение открывают не с именем, а с IP-адресом и портом. Каждый вопрос по сети стоит круг туда и обратно (RTT), и DNS-запрос — первый такой круг при заходе на новый домен.',
@@ -911,7 +911,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   { title: 'RFC 1034 — Domain Names: Concepts and Facilities', href: 'https://www.rfc-editor.org/rfc/rfc1034', what: 'зоны, делегирование, алгоритм авторитетного сервера (4.3.2) и резолвера (5.3.3), CNAME (3.6.2)' },
   { title: 'RFC 1035 — Domain Names: Implementation and Specification', href: 'https://www.rfc-editor.org/rfc/rfc1035', what: 'формат пакета, заголовок и флаги, сжатие имён (4.1.4), предел 512 байт для UDP' },
   { title: 'RFC 2181 — Clarifications to the DNS Specification', href: 'https://www.rfc-editor.org/rfc/rfc2181', what: 'CNAME без соседей (10.1), TTL набора записей (5.2), доверие к glue (5.4.1)' },

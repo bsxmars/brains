@@ -3,7 +3,6 @@ title: "Голос: запись с микрофона и речь"
 headingWidth: 24
 order: 25
 lead: "`getUserMedia` даёт живой поток с микрофона, `MediaRecorder` сжимает его и отдаёт кусками, а из кусков получается файл, который можно послушать или отправить. Рядом — синтез речи, который работает на вашем компьютере, и распознавание, которое в Chrome по умолчанию отправляет голос на сервер. Микрофон держит включённым не запись, а дорожка потока: остановить запись мало, нужен `track.stop()`. А формат записи у трёх движков разный."
-leadWidth: 66
 summary: "Запись с микрофона: `getUserMedia`, `MediaRecorder`, куски `dataavailable` и `Blob`; форматы и `isTypeSupported` в Chromium, Firefox и WebKit; разрешение, ошибки и `track.stop()`; эхо- и шумоподавление, `getSettings`; синтез речи — голоса, очередь, запрет без клика; распознавание — где есть, облако и `processLocally`; запись кусками на сервер."
 verifiedOn: "Playwright 1.63 на macOS arm64, ноябрь 2026: Chromium 153 с поддельным микрофоном, Firefox 155, WebKit 26.6; каждый пример с выводом исполняет tests/e2e/media-voice.spec.ts. Распознавание живой речи не проверялось: у поддельного микрофона её нет"
 nav:
@@ -21,13 +20,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -88,46 +89,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STREAM} />
+  <Plain text={PLAIN_STREAM} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Запись с микрофона: от потока до файла"
   lead="Три шага: попросить поток, записать его `MediaRecorder` и сложить куски в `Blob`. Пример пишет две секунды и отдаёт запись тегу `<audio>`."
-  leadWidth={72}
 >
   <CodeBlock code={RECORD_CODE} />
 
@@ -139,7 +112,7 @@ import {
 
   ### В каком формате приходит запись
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTAINER} />
+  <Plain text={PLAIN_CONTAINER} />
 
   <Table
     head={FORMAT_HEAD}
@@ -161,7 +134,6 @@ import {
   eyebrow="Раздел 2"
   title="Разрешение, ошибки и индикатор записи"
   lead="Микрофон страница получает только с согласия человека и только в безопасном контексте. Узнать, спросит ли браузер, можно заранее, а вот получить поток без вопроса — нельзя."
-  leadWidth={72}
 >
   <CodeBlock code={PERMISSION_CODE} />
 
@@ -205,9 +177,8 @@ import {
   eyebrow="Раздел 3"
   title="Обработка звука микрофона"
   lead="Браузер не отдаёт звук микрофона как есть. Сначала он убирает эхо и шум и выравнивает громкость. Включено ли это на деле, говорит дорожка, а не ваш запрос."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROCESSING} />
+  <Plain text={PLAIN_PROCESSING} />
 
   <CodeBlock code={PROCESSING_CODE} />
 
@@ -237,7 +208,6 @@ import {
   eyebrow="Раздел 4"
   title="Синтез речи: speechSynthesis"
   lead="Чтобы браузер произнёс текст, нужна фраза `SpeechSynthesisUtterance` и вызов `speechSynthesis.speak`. Сервер не нужен: голоса берутся у операционной системы."
-  leadWidth={72}
 >
   <CodeBlock code={SPEAK_CODE} />
 
@@ -261,7 +231,6 @@ import {
   eyebrow="Раздел 5"
   title="Распознавание речи: SpeechRecognition"
   lead="Распознавание превращает речь в текст по ходу разговора: сначала приходят черновики, потом итог. Но есть оно не везде, и в Chrome по умолчанию голос распознаёт сервер, а не ваш компьютер."
-  leadWidth={72}
 >
   <CodeBlock code={RECOGNIZE_CODE} />
 
@@ -295,7 +264,6 @@ import {
   eyebrow="Раздел 6"
   title="Голос на сервер кусками"
   lead="Те же куски `dataavailable` можно отправлять, пока человек говорит. Сервер получает запись по частям и склеивает файл сам."
-  leadWidth={72}
 >
   <CodeBlock code={UPLOAD_CODE} />
 

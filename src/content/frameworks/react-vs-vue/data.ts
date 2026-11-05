@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { SelfCheckItem } from '@/widgets/self-check/model/types';
 import type { ActionCopy, WorkPoint } from '@/widgets/two-models/model/types';
 
@@ -92,7 +92,7 @@ import type { ActionCopy, WorkPoint } from '@/widgets/two-models/model/types';
 export const INTRO_NOTE =
   'Кто переносил код с Vue на React, узнаёт первую неделю: всё работает, но профайлер мигает всем деревом, а `onMounted`, переписанный в `useEffect`, иногда мерцает. Дело не в «быстрее» и «медленнее»: две модели по-разному решают, **кого пересчитать после записи** и когда. Числа ниже сняты на одной задаче — два фреймворка рядом на одной странице, счётчики работы у каждого, — и любое из них можно пересчитать самому в демо.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'инвалидация',
     d: 'Пометка «это устарело, надо пересчитать». React помечает **всё поддерево**, начиная с компонента, где вызвали `setState`. Vue помечает **только тех**, кто читал изменившееся значение.',
@@ -504,7 +504,7 @@ export const SELF_CHECK: SelfCheckItem[] = [
 export const PREREQ_NOTE =
   'Тема сравнивает две механики и **ни одну из них не объясняет** — каждая разобрана в своей теме. Если какая-то из двух незнакома, начните с неё.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как React решает, что пересчитывать',
     d: 'Пометка устаревшим всего поддерева, условия, при которых React пропускает компонент (bailout), `memo` и батчинг. Здесь из этого берутся готовые выводы — например, что `memo` на каждом узле возвращает те же числа, что Vue даёт сам.',
@@ -523,7 +523,7 @@ export const PREREQ = [
 
 // ---- Раздел 6 · источники ----
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'React · Render and Commit',
     href: 'https://react.dev/learn/render-and-commit',

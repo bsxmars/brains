@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { EventSequence } from '@/widgets/debounce-throttle/model/types';
 import type { RateCode, TapePreset } from '@/widgets/rate-lab/model/types';
 
@@ -45,7 +45,7 @@ import type { RateCode, TapePreset } from '@/widgets/rate-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'лента событий',
     d: 'Моменты, когда что-то произошло: нажата клавиша, сдвинулась прокрутка, ушёл запрос к API. Все алгоритмы темы читают такую ленту и решают, какие события пропустить дальше.',
@@ -82,7 +82,7 @@ export const PLAIN_BUDGET =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Таймер — «не раньше чем»',
     d: '`setTimeout(fn, 300)` кладёт запись в список таймеров и сразу возвращает управление. Функция выполнится не раньше чем через 300 мс, а точнее — когда до неё дойдёт цикл событий.',
@@ -712,7 +712,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'lodash — `_.debounce`',
     href: 'https://lodash.com/docs/4.17.15#debounce',

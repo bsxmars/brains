@@ -1,7 +1,7 @@
 import type { GuaranteeRow, CompareRow } from '@/widgets/callback-guarantees/model/types';
 import type { StackMode } from '@/widgets/callback-stack/model/types';
 import type { IocRow } from '@/widgets/ioc-boundary/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ThisOption } from '@/widgets/this-in-callback/model/types';
 import type { ZalgoMode } from '@/widgets/zalgo-demo/model/types';
 
@@ -853,7 +853,7 @@ console.log('bind(o) !== bind(o):', user.greet.bind(user) !== user.greet.bind(us
  *
  * ⚠️ Вторая строка обязательна — без неё ссылка означает «я это где-то видел».
  */
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 · 27.5.1.3 CreateResolvingFunctions',
     href: 'https://tc39.es/ecma262/#sec-createresolvingfunctions',
@@ -905,7 +905,7 @@ export const SOURCES = [
  * вышло исторически, и словарь здесь не украшение, а способ не отправлять читателя вперёд
  * по списку за каждым вторым термином.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'инверсия управления',
     d: 'Передать функцию — значит **передать право её вызвать**. Когда, сколько раз, с какими аргументами и с каким `this` — решает уже чужой код. Все шесть категорий багов темы растут отсюда.',
@@ -949,7 +949,7 @@ export const GLOSSARY = [
 /* ⚠️ Здесь стоял лид «Три факта тема берёт готовыми: где…, что…, что…» — пересказ трёх карточек под ним. Снят 2026-09-30. */
 export const PREREQ_NOTE = '';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что колбэк исполняется в пустом стеке',
     d: 'Асинхронный колбэк вызывается **новой задачей**, и вашей функции на стеке под ним уже нет: `try/catch` вокруг подписки до него не дотягивается, а `return` из него никто не получит. Очереди, из которых его достают, разобраны отдельно.',

@@ -1,7 +1,7 @@
 import type { FramePhase, FrameStep } from '@/widgets/frame-timeline/model/types';
 import type { ThrashMode, ThrashSize } from '@/widgets/layout-thrash/model/types';
 import type { MoveCase } from '@/widgets/move-cost/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные урока «Кадр браузера».
@@ -1132,7 +1132,7 @@ requestAnimationFrame(() => {
  * первого раздела, композитор — во вводной. Читатель, пришедший из поиска, до объяснения
  * не доживает: он спотыкается на третьем абзаце.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'vsync',
     d: 'Сигнал дисплея «я готов показать следующий кадр». Приходит с частотой экрана — 60, 90 или 120 раз в секунду — и задаёт ритм всему остальному: браузер не рисует по таймеру, он отвечает на этот сигнал.',
@@ -1172,7 +1172,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Три вещи тема считает известными — все три из «Внутренностей JS». Без них правило «отдать поток» выглядит заклинанием без причины.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что микрозадача не отпускает поток',
     d: 'Очередь микрозадач выполняется **до конца** за один раз, включая всё, что добавилось по ходу. Отсюда главное правило темы: отдать поток браузеру можно только задачей. Если это не на месте, фраза «дать кадру случиться» останется заклинанием.',
@@ -1201,7 +1201,7 @@ export const PREREQ = [
 
 // ---- Раздел 8 · источники ----
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'HTML Standard · Update the rendering',
     href: 'https://html.spec.whatwg.org/multipage/webappapis.html#update-the-rendering',

@@ -5,7 +5,6 @@ headingWidth: 24
 order: 17
 kicker: доставка
 lead: "Флаг выглядит как `if (flags.newCart)`, но это не переменная, а функция: на входе — кто спрашивает, на выходе — вариант. Отсюда всё остальное: почему 20% пользователей можно выбрать без базы, почему переименование флага перемешивает всех, почему клиентский флаг мигает и что стандартизирует OpenFeature."
-leadWidth: 66
 summary: "Флаг как функция контекста: правила по очереди, доли, значение по умолчанию; корзины по MurmurHash3 как у flagd, монотонность и что её ломает — переименование, порядок вариантов, три варианта, смена формулы, UTF-8 против UTF-16; OpenFeature — провайдер, контекст и его слои, хуки, resolution details; сервер, браузер или edge и мигание; выключатель и удаление флагов; флаг против канарейки."
 verifiedOn: "@openfeature/server-sdk 1.23.0, imurmurhash 0.1.4, Node 24.11.0, Go 1.26.0 с twmb/murmur3 1.2.0, октябрь 2026: вычислитель темы исполнен через настоящий OpenFeature SDK и сверен с InMemoryProvider; раскладка по корзинам — с векторами flagd-testbed (v1 и v2); хеш — с imurmurhash и с Go-библиотекой flagd; распределение и липкость — на 10 000 детерминированных id (tests/unit/feature-flags.test.ts). Клиентский SDK, edge-платформы и сервисы флагов — по документации"
 nav:
@@ -23,7 +22,6 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
@@ -31,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FlagLab from '@/widgets/flag-lab/ui/FlagLab.vue';
@@ -106,52 +107,24 @@ import {
   пошло не так — выключают, не дожидаясь отката. Условие и называется флагом, а настройку
   «кому включено» хранит отдельный сервис.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLAG} />
+  <Plain text={PLAIN_FLAG} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Флаг — это функция"
   lead="Вариант флага зависит от того, кто спрашивает. Поэтому у флага нет «значения» — есть функция от контекста, правила внутри неё и порядок, в котором они проверяются."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={FUNCTION_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+  <Plain text={PLAIN_CONTEXT} />
 
   <Card title="Флаги на всю тему" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FLAGS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -192,13 +165,12 @@ import {
   eyebrow="Раздел 2"
   title="Корзины и хеш"
   lead="Доля пользователей выбирается без базы: хеш от ключа флага и id даёт номер корзины, а доля — это порог. Так устроено и в открытом сервисе флагов flagd, и учебная функция раскладывает пользователей так же, как он."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={BUCKET_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUCKET} />
+  <Plain text={PLAIN_BUCKET} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Доли во flagd" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -222,7 +194,7 @@ import {
 
   ### Рост доли только добавляет
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MONOTONE} />
+  <Plain text={PLAIN_MONOTONE} />
 
   <Md text={MONOTONE_NOTE} />
 
@@ -257,13 +229,12 @@ import {
   eyebrow="Раздел 3"
   title="OpenFeature: стандарт вызова"
   lead="Код приложения спрашивает флаг через один и тот же API, а отвечает провайдер конкретного сервиса. Значение по умолчанию при ошибке, хуки и подробный ответ делает SDK — провайдеру остаётся только вычислить."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={OF_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROVIDER} />
+  <Plain text={PLAIN_PROVIDER} />
 
   <Card title="Провайдер поверх evaluate" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PROVIDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -317,7 +288,6 @@ import {
   eyebrow="Раздел 4"
   title="Где вычислять флаг"
   lead="Функция одна, а вызвать её можно на сервере, в браузере или на узле CDN. Ответ не меняется — меняется момент, когда он готов, и то, кто видит настройку."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={WHERE_WHY} />
@@ -334,7 +304,7 @@ import {
 
   ### Мигание при загрузке
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLICKER} />
+  <Plain text={PLAIN_FLICKER} />
 
   <Card title="Как это происходит" titleSize={17} pad={20} gap={13}>
     <NumberedList items={FLICKER_STEPS} size={15.5} />
@@ -359,7 +329,6 @@ import {
   eyebrow="Раздел 5"
   title="Выключатель и удаление"
   lead="У флага две опасные минуты: когда его надо выключить в аварию и когда его наконец удаляют. В обе он ведёт себя не так, как в обычный день."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={KILL_WHY} />
@@ -385,7 +354,6 @@ import {
   eyebrow="Раздел 6"
   title="Флаг или канарейка"
   lead="Оба показывают новое части пользователей и оба делят людей хешем. Но канарейка делит версии, а флаг — ветки кода внутри одной версии."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={VS_WHY} />

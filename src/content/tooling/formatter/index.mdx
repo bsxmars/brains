@@ -5,7 +5,6 @@ headingWidth: 24
 order: 16
 kicker: сборка и инструменты
 lead: "Prettier не правит ваш файл — он печатает его заново. Сначала превращает дерево синтаксиса в Doc: описание всех возможных раскладок сразу. Потом жадно, слева направо, решает для каждой группы: в строку или с переносами. Как устроен Doc, почему первой ломается внешняя скобка, почему `printWidth` — не предел и почему второй прогон иногда всё-таки меняет файл."
-leadWidth: 66
 summary: "Путь кода парсер → AST → Doc → текст, команды Doc (`group`, `indent`, `line`, `softline`, `hardline`, `ifBreak`, `fill`, `conditionalGroup`, `breakParent`), алгоритм Вадлера и жадный `fits`, порядок «снаружи внутрь», ширина по East Asian Width, что Prettier берёт из исходника, совместная жизнь с ESLint, идемпотентность и известные нестабильные случаи."
 verifiedOn: "Prettier 3.9.6, Node 24.11.0, октябрь 2026: Doc примеров сняты printToDoc и пересобираются tests/unit/formatter.test.ts; учебный принтер сверен с printDocToString на случайных Doc и на Doc настоящего кода на ширинах 10…100; выводы, ширины и нестабильные случаи сняты prettier.format"
 nav:
@@ -31,6 +30,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FormatLab from '@/widgets/format-lab/ui/FormatLab.vue';
@@ -115,46 +117,18 @@ import {
   процедура: пройти Doc слева направо и для каждой группы решить, уместится ли она
   в остаток строки. Почти всё, что Prettier делает с кодом, следует из этой процедуры.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FORMATTER} />
+  <Plain text={PLAIN_FORMATTER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="От кода к Doc"
   lead="Между деревом синтаксиса и текстом у Prettier есть ещё один слой. Узлы дерева печатаются не в строки, а в Doc — дерево из кусков текста и указаний «здесь можно перенести». Ширина строки на этом шаге ещё не нужна."
-  leadWidth={72}
 >
   <Card title="Путь файла через Prettier" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={720} chips={PIPELINE_CHIPS} />
@@ -162,7 +136,7 @@ import {
     <Md text={PIPELINE_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DOC} />
+  <Plain text={PLAIN_DOC} />
 
   ### Doc одной строки кода
 
@@ -208,11 +182,10 @@ import {
   eyebrow="Раздел 2"
   title="Печать по ширине"
   lead="Печатник Doc ничего не знает о языке. Он держит одну цифру — сколько колонок осталось в текущей строке — и для каждой группы задаёт один вопрос: уместится ли она в этот остаток целиком."
-  leadWidth={72}
 >
   <Md text={WADLER_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FITS} />
+  <Plain text={PLAIN_FITS} />
 
   <Card title="Учебный принтер Doc" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PRINTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -241,7 +214,7 @@ import {
 
   ### breakParent: изнутри наружу
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BREAK_PARENT} />
+  <Plain text={PLAIN_BREAK_PARENT} />
 
   <Md text={BREAK_PARENT_NOTE} />
 
@@ -267,7 +240,6 @@ import {
   eyebrow="Раздел 3"
   title="Ширина строки"
   lead="`printWidth` — то, к чему Prettier стремится, а не граница. Текст в Doc неделим, и если неделимый кусок длиннее строки, он останется длиннее. А сама ширина считается не в символах строки JavaScript, а в колонках экрана."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Строка длиннее printWidth" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -279,7 +251,7 @@ import {
 
   ### Сколько колонок занимает символ
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WIDTH} />
+  <Plain text={PLAIN_WIDTH} />
 
   <Table
     head={['строка', 'что это', '`length`', 'кодовых точек', 'ширина у Prettier']}
@@ -310,7 +282,6 @@ import {
   eyebrow="Раздел 4"
   title="Что остаётся от исходника"
   lead="Раз Doc строится из дерева, исходная вёрстка в него почти не попадает. Почти — потому что дерево помнит смещения узлов, и по ним Prettier заглядывает в исходный текст в нескольких местах."
-  leadWidth={72}
 >
   <Table
     head={['что было в исходнике', 'что с этим делает Prettier']}
@@ -333,7 +304,7 @@ import {
 
   ### Перенос после `{`
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FIRST_KEY} />
+  <Plain text={PLAIN_FIRST_KEY} />
 
   <Md text={FIRST_KEY_LINK} />
 
@@ -363,7 +334,6 @@ import {
   eyebrow="Раздел 5"
   title="Форматтер и линтер"
   lead="Линтер ищет ошибки, форматтер печатает форму. Пока каждый занят своим, они не мешают друг другу; мешают, когда у линтера остались правила про вид кода."
-  leadWidth={72}
 >
   <Md text={LINT_NOTE} />
 
@@ -389,9 +359,8 @@ import {
   eyebrow="Раздел 6"
   title="Идемпотентность"
   lead="От форматтера ждут, что второй прогон по его же выводу ничего не изменит. Иначе `prettier --check` в CI падает на только что отформатированных файлах, а в истории появляются коммиты «ещё раз прогнал Prettier»."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IDEMPOTENT} />
+  <Plain text={PLAIN_IDEMPOTENT} />
 
   <Md text={IDEM_NOTE} />
 

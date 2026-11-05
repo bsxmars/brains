@@ -1,7 +1,7 @@
 import type { CopyWay } from '@/widgets/copy-cost/model/types';
 import type { FlattenStep } from '@/widgets/flatten-steps/model/types';
 import type { LogBar } from '@/widgets/log-bars/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Source } from '@/entities/lesson';
 import type { StringRep } from '@/widgets/string-xray/model/types';
 import type { UnicodeSample } from '@/widgets/unicode-inspector/model/types';
 
@@ -810,7 +810,7 @@ const nat = new Intl.Collator('ru', { numeric: true });
  * и только в конце заметки про одну реализацию. Всё, что в этой теме названо представлением
  * строки, живёт в последней группе и частью языка не является.
  */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 · String Exotic Objects',
     href: 'https://tc39.es/ecma262/#sec-string-exotic-objects',
@@ -868,7 +868,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
  * «Интернирование» названо во вводном разделе, а объяснено в первом («Таблица строк»). А `retained size`,
  * «изолят» и `heapUsed` приходят из тем 10 и 12, то есть из будущего относительно этой.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'представление',
     d: 'Как строка устроена в памяти **прямо сейчас**: буфер, склейка, срез, ссылка или внешние байты. Меняется само по ходу жизни строки. Из JS его не видно — заметны только последствия: время и память.',

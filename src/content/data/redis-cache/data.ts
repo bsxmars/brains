@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { HerdParams, RaceScenario, Row, Strategy } from '@/widgets/cache-race-lab/model/types';
 
 /**
@@ -60,7 +60,7 @@ import type { HerdParams, RaceScenario, Row, Strategy } from '@/widgets/cache-ra
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'Redis',
     d: 'Сервер «ключ — значение», который держит данные в памяти. Приложение ходит к нему по сети командами: `GET` читает ключ, `SET` пишет, `DEL` удаляет. Ответ — за доли миллисекунды, поэтому его ставят перед медленной базой.',
@@ -97,7 +97,7 @@ export const PLAIN_CACHE =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи. Три разобраны на сайте, четвёртая объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Транзакция и COMMIT',
     d: 'Изменения внутри `BEGIN … COMMIT` не видны другим соединениям, пока транзакция не зафиксирована. Читатель, пришедший раньше `COMMIT`, видит старую строку.',
@@ -1093,7 +1093,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Redis — Key eviction',
     href: 'https://redis.io/docs/latest/develop/reference/eviction/',

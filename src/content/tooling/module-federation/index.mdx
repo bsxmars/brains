@@ -5,7 +5,6 @@ headingWidth: 26
 order: 5
 kicker: сборка и инструменты
 lead: "Корзину выкатывает одна команда, каталог — другая, а встречаются они впервые в браузере пользователя. Загрузить чужой модуль по адресу просто; трудно договориться, чья копия React на странице работает, — и не уронить всё, когда соседняя команда выкатит новый мажор."
-leadWidth: 66
 summary: "Зачем микрофронтенды и чем за них платят; способы собрать страницу из частей — от пакетов до iframe и import maps; контейнер Module Federation с `init` и `get`; shareScope и выбор общей версии: `singleton`, `requiredVersion`, `strictVersion`, `eager`; почему две копии React ломают рендер; упавший и зависший remote, рассинхрон выкатов и кеш `remoteEntry.js`."
 verifiedOn: "Учебная федерация исполняется демо и tests/unit/module-federation.test.ts, её semver сверен с пакетом semver 7.8.5; две копии модуля — стенд node:http (127.0.0.1:49231 и :49232) в Chromium 153.0.8010.12 (Playwright 1.63) и те же строки в Node 26.8.2; две копии React 19.3.0 — Node 26.8.2, обе сборки. Правила выбора версии и тексты предупреждений сверены с исходником webpack v5.111.1 (lib/sharing); настоящий рантайм не запускался. Сентябрь 2026"
 nav:
@@ -29,6 +28,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MfShareScope from '@/widgets/mf-share-scope/ui/MfShareScope.vue';
@@ -96,42 +98,18 @@ import {
   и выкатывается её конвейером. Технически это значит, что страница собирается из частей,
   которые никогда не собирались вместе, и договор между ними проверяется только в браузере.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FEDERATION} />
+  <Plain text={PLAIN_FEDERATION} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Зачем и чем платят"
   lead="Микрофронтенды покупают одно — независимый выкат частей интерфейса. Платят за это интеграцией, которая переезжает из CI в браузер, лишними байтами и общим на всех документом."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {WHY_FACTS.map((fact) => (
@@ -158,7 +136,6 @@ import {
   eyebrow="Раздел 2"
   title="Контейнер: `init` и `get`"
   lead="Remote при сборке кладёт рядом с чанками контейнер — `remoteEntry.js`. Host загружает его, отдаёт ему общий shareScope через `init` и просит модуль по публичному имени через `get`. В ответ приходит не модуль, а фабрика — функция, которая исполнит модуль, когда её вызовут."
-  leadWidth={72}
 >
   <Card title="Как это выглядит в конфиге webpack" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MF_CONFIG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -191,9 +168,8 @@ import {
   eyebrow="Раздел 3"
   title="Общие зависимости: чья копия работает"
   lead="Каждая сборка кладёт в shareScope свою версию пакета и при потреблении выбирает одну по своим правилам. Выбор зависит от диапазона, от флагов `singleton` и `strictVersion` и от того, какая копия уже взята раньше."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHARE_SCOPE} />
+  <Plain text={PLAIN_SHARE_SCOPE} />
 
   <Table
     head={['флаг', 'по умолчанию', 'что делает']}
@@ -251,7 +227,7 @@ import {
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text="Во всех строках в shareScope лежат `18.3.1` от host и `19.1.0` от cart; каждую строку посчитал `consume` из блока выше. Главное читается по колонке «получит»: `singleton` без `strictVersion` не спорит с диапазоном: отдаёт уже взятую копию, а если такой нет — старшую, и только предупреждает." />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_COPIES} />
+  <Plain text={PLAIN_TWO_COPIES} />
 
   <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SINGLETON_NOTE} />
 
@@ -318,7 +294,6 @@ import {
   eyebrow="Раздел 4"
   title="Устойчивость: упавший remote и рассинхрон выкатов"
   lead="Remote — это сервер другой команды, и он бывает недоступен, медленен или уже на другой версии. Host обязан пережить все три случая сам: рантайм федерации ни таймаута, ни заглушки за него не поставит."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {FAILURE_FACTS.map((fact) => (
@@ -376,7 +351,6 @@ import {
   eyebrow="Раздел 5"
   title="Контракты, типы и стили"
   lead="Контейнер знает имена модулей и больше ничего: ни типов пропсов, ни стилей, ни того, кто владеет адресной строкой. Всё это — договорённость команд, и чем она уже, тем реже ломается."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {CONTRACT_FACTS.map((fact) => (

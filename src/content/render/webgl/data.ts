@@ -1,6 +1,6 @@
 import type { DrawMode } from '@/widgets/draw-calls/model/types';
 import type { StrategyOption } from '@/widgets/context-loss/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ShaderPreset } from '@/widgets/shader-lab/model/types';
 
 /**
@@ -906,7 +906,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ---- Раздел 7 · источники ----
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'WebGL 2.0 Specification',
     href: 'https://registry.khronos.org/webgl/specs/latest/2.0/',
@@ -953,7 +953,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
  * её словарь не пересекается ни с одной соседней. Для читателя, пришедшего из поиска,
  * «вызов отрисовки» и «состояние контекста» — термины, а не общие слова.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'контекст',
     d: 'Объект, через который идут все команды: `canvas.getContext("webgl2")`. Он же владеет всей видеопамятью сцены — буферами, текстурами, программами. Потерять контекст значит потерять их все разом, и это штатное событие, а не сбой (раздел «Потеря контекста»).',
@@ -993,7 +993,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема продолжает [«Кадр браузера»](/render/render-pipeline/) с того места, где тот кончился, — со слова `commit`. Знаний о графике она не требует, но два факта о кадре считает известными: без них непонятно, почему канвас ведёт себя не как остальная страница.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что после `commit` работа уходит с главного потока',
     d: 'Канвас с контекстом WebGL — это слой композитора, то есть он живёт **после** этой границы. Отсюда и всё остальное: содержимое канваса не участвует ни в style, ни в layout, ни в paint.',

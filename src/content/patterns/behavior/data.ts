@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Поведение как значение: стратегия, команда, шаблонный метод, состояние».
@@ -45,7 +45,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 export const PLAIN_BEHAVIOR =
   'Все четыре паттерна — про одно: часть поведения вынимают из объекта и делают отдельной вещью, которую можно передать, сохранить или подменить. Как насадки у дрели: дрель одна, а сверлит, крутит или мешает — смотря что вставили. В C++ 1994 года «вещью» мог быть только объект класса. В JavaScript функция сама по себе значение, и половина этих паттернов сводится к тому, чтобы передать функцию.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'поведенческий паттерн',
     d: 'Паттерн про то, **кто и как выполняет действие**: какой алгоритм выбрать, когда запустить, в каком порядке пройти шаги, что разрешено объекту в его нынешнем положении. В этой теме их четыре: стратегия, команда, шаблонный метод, состояние.',
@@ -84,7 +84,7 @@ export const GLOSSARY = [
 
 export const PREREQ_NOTE = 'Тема опирается на четыре вещи, и все четыре разобраны на сайте.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Функция помнит, где её создали',
     d: 'Замыкание: функция видит переменные места, где её написали, даже когда тот вызов давно закончился. На этом держится команда без класса — она носит свои данные в замыкании.',
@@ -785,7 +785,7 @@ export const PITFALLS: Pitfall[] = [
 /* ──────────────────── Раздел 7 · источники ──────────────────── */
 
 /** ⚠️ Без разметки: `SourceList` печатает `title` и `what` как есть. */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Refactoring Guru — поведенческие паттерны',
     href: 'https://refactoring.guru/ru/design-patterns/behavioral-patterns',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { CacheMode, CacheRun, FilterPreset, WsPackage } from '@/widgets/monorepo-lab/model/types';
 
 /**
@@ -62,7 +62,7 @@ import type { CacheMode, CacheRun, FilterPreset, WsPackage } from '@/widgets/mon
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'монорепозиторий',
     d: 'Один git-репозиторий, в котором лежит несколько пакетов: приложения, общая библиотека компонентов, клиент API. У каждого свой `package.json`, а история, lock-файл и CI — общие.',
@@ -103,7 +103,7 @@ export const PLAIN_MONOREPO =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи, разобранные в других темах сайта. Здесь они нужны только как опора — повторять их не будем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' | 'ok' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как Node находит пакет по имени',
     d: '`require(\'tiny-color\')` ищет папку `tiny-color` в `node_modules` рядом с файлом, потом папкой выше — и так до корня диска. `package.json` с его `dependencies` загрузчик при этом не читает.',
@@ -768,7 +768,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'npm — workspaces',
     href: 'https://docs.npmjs.com/cli/v11/using-npm/workspaces',

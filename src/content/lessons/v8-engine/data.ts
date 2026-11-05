@@ -1,6 +1,6 @@
 import type { ElementsCase } from '@/widgets/elements-kinds/model/types';
 import type { IcState } from '@/widgets/ic-states/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Source } from '@/entities/lesson';
 import type { Tier, TierStep } from '@/widgets/tier-pipeline/model/types';
 import { READ_LOOP_CODE } from '@/widgets/ic-bench/model/bench';
 
@@ -461,7 +461,7 @@ export const BENCH_LIES: Pitfall[] = [
  * Отдельно про `v8.dev/docs/d8`: он стоит здесь не как экзотика, а как ответ на вопрос «где всё
  * это посмотреть». Со страницы — нигде; в Node — снимком кучи и флагами (см. раздел s0).
  */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'V8 · Launching Ignition and TurboFan',
     href: 'https://v8.dev/blog/launching-ignition-and-turbofan',
@@ -549,7 +549,7 @@ export const BENCH_HOW = [
  * это не объект, это `Map`» — то же слово в **противоположном** значении, про JS-коллекцию.
  * Поэтому первая карточка словаря приравнивает имена явно, а вторая разводит коллизию.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'форма = hidden class = `Map`',
     d: 'Три имени **одной сущности**: описание устройства объекта — какие у него свойства и по каким смещениям они лежат. «Форма» — обиходное слово, «hidden class» — из статей, `Map` — как она называется в исходниках V8. В теме встречаются все три; сущность одна.',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LabAction, LabComponentId, LabMode } from '@/widgets/store-lab/model/types';
 
 /**
@@ -48,7 +48,7 @@ import type { LabAction, LabComponentId, LabMode } from '@/widgets/store-lab/mod
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'стор',
     d: 'Объект, который держит состояние приложения вне компонентов и сообщает, когда оно меняется. Компоненты читают из него и подписываются на изменения.',
@@ -85,7 +85,7 @@ export const PLAIN_STORE =
 export const PREREQ_NOTE =
   'Стор живёт вне фреймворка, но перерисовывать компонент решает фреймворк. Поэтому тема опирается на то, как это решают React и Vue.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'React сравнивает ссылки, а не содержимое',
     d: 'Ре-рендер — это повторный вызов функции компонента. Решая, нужен ли он, React сравнивает пропсы и зависимости через `Object.is`. Новый массив с теми же элементами для него — изменение.',
@@ -612,7 +612,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Redux — Store API',
     href: 'https://redux.js.org/api/store',

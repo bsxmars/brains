@@ -3,7 +3,6 @@ title: "Видео в браузере"
 headingWidth: 24
 order: 23
 lead: "`<video>` — проигрыватель, которым управляют из JS. `play()` возвращает промис и бывает отклонён: со звуком без жеста пользователя ролик не пойдёт. Что браузер сумеет показать, решает кодек, а не расширение файла. Длинный ролик и смену качества плеер собирает сам — кусками через MediaSource, а `waiting` и `readyState` показывают, где кончился буфер."
-leadWidth: 66
 summary: "Первый ролик из JS: события по порядку и промис `play()`; контейнер и кодек, `canPlayType`, `isTypeSupported` и `mediaCapabilities` в трёх движках; автоплей и `NotAllowedError`; MediaSource, куски HLS из фрагментированного mp4 и смена качества; буфер, `readyState` и почему перемотка ждёт; `requestVideoFrameCallback`."
 verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 из Playwright 1.63 на Apple M1, ноябрь 2026: каждый пример с выводом исполняет tests/e2e/media-video.spec.ts на роликах из tests/fixtures/media-video, снятых ffmpeg"
 nav:
@@ -21,7 +20,6 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
@@ -29,6 +27,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -98,46 +99,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VIDEO} />
+  <Plain text={PLAIN_VIDEO} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Первый ролик: play, pause и события"
   lead="Ролик в две секунды и слушатели на все события загрузки и показа. Когда браузер готов, код зовёт `play()` и ждёт его промис."
-  leadWidth={72}
 >
   <CodeBlock code={FIRST_CODE} />
 
@@ -182,9 +155,8 @@ import {
   eyebrow="Раздел 2"
   title="Контейнер и кодек: что браузер сумеет показать"
   lead="Расширение файла говорит только о контейнере. Сыграет ли ролик, зависит от кодека внутри — и спрашивать браузер надо точной строкой с кодеком."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CODEC} />
+  <Plain text={PLAIN_CODEC} />
 
   <CodeBlock code={CODEC_CODE} />
 
@@ -228,7 +200,6 @@ import {
   eyebrow="Раздел 3"
   title="Автоплей: без звука можно, со звуком — после жеста"
   lead="Ролик пробует запуститься сам, со звуком. Если браузер откажет, код выключает звук и пробует снова, а кнопка включает звук обратно."
-  leadWidth={72}
 >
   <CodeBlock code={AUTOPLAY_CODE} />
 
@@ -238,7 +209,7 @@ import {
     <Md text={AUTOPLAY_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_AUTOPLAY} />
+  <Plain text={PLAIN_AUTOPLAY} />
 
   <CardGrid min={280} gap={14} align="start">
     {AUTOPLAY_FACTS.map((fact) => (
@@ -253,13 +224,12 @@ import {
   eyebrow="Раздел 4"
   title="MediaSource: куски подаёт плеер"
   lead="Вместо файла у ролика пустой источник, и код сам скачивает куски по секунде и кладёт их в буфер. Так работают плееры HLS и DASH — и так же они меняют качество на ходу."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={MSE_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FRAGMENTS} />
+  <Plain text={PLAIN_FRAGMENTS} />
 
   ### Плейлист HLS
 
@@ -297,7 +267,6 @@ import {
   eyebrow="Раздел 5"
   title="Буфер, readyState и waiting: почему перемотка ждёт"
   lead="Два числа описывают ролик в любой момент: `readyState` — сколько данных есть, `networkState` — что браузер делает с сетью. А `buffered` показывает, какие секунды уже лежат в памяти."
-  leadWidth={72}
 >
   <Table
     head={['readyState', 'что есть']}
@@ -329,7 +298,7 @@ import {
     <Md text={STALL_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WAITING} />
+  <Plain text={PLAIN_WAITING} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={SEEK_NOTE} />
@@ -345,7 +314,6 @@ import {
   eyebrow="Раздел 6"
   title="Кадр за кадром: requestVideoFrameCallback"
   lead="Чтобы обработать каждый кадр — нарисовать его на холсте, наложить эффект, подписать время, — нужен колбэк на кадр ролика, а не на кадр экрана."
-  leadWidth={72}
 >
   <CodeBlock code={FRAME_CODE} />
 

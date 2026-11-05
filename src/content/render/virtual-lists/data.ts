@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { VlMode } from '@/widgets/vlist-lab/model/types';
 
 /**
@@ -86,7 +86,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Бегущая строка на вокзале: табло показывает пять рейсов из трёхсот, и когда один уходит вверх, снизу появляется следующий. Табло не печатает все триста рейсов на длинной ленте — у него пять строк, в которые по очереди подставляется текст. Высоту «всей ленты» при этом знает только расписание: табло ей не пользуется, а вот полосе прокрутки она нужна.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'окно (window)',
     d: 'Диапазон строк, которые сейчас есть в DOM: видимые плюс запас. Записывается полуоткрытым `[start, end)` — `end` в окно не входит.',
@@ -121,7 +121,7 @@ export const GLOSSARY = [
   },
 ];
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Из каких шагов состоит кадр',
     d: 'Стиль, раскладка, отрисовка и композиция — и что каждый шаг работает по всему дереву, если его не ограничить. Виртуализация сокращает дерево, `content-visibility` сокращает работу над ним.',
@@ -606,7 +606,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Источники ──────────────────── */
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'CSS Containment Module Level 2 · content-visibility',
     href: 'https://www.w3.org/TR/css-contain-2/#content-visibility',

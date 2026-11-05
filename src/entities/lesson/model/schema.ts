@@ -20,8 +20,6 @@ export const lessonSchema = z.object({
   headingWidth: z.number().default(20),
   /** Короткое описание под заголовком: о чём урок и что из него следует. */
   lead: z.string(),
-  /** Ширина лида в `ch` — в оригиналах 62–66. */
-  leadWidth: z.number().default(64),
   /** Одна фраза для карты курса. */
   summary: z.string(),
   /** Разделы для навигации: якорь и подпись без номера — номер ставит виджет. */

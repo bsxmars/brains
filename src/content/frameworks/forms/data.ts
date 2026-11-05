@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { RenderSetup } from '@/widgets/form-lab/model/types';
 
 /**
@@ -45,7 +45,7 @@ import type { RenderSetup } from '@/widgets/form-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'контролируемое поле',
     d: 'Поле, значение которого задаёт фреймворк: в React — `value` из состояния плюс `onChange`, который это состояние меняет. Поле показывает то, что лежит в состоянии, а не то, что набрал человек.',
@@ -82,7 +82,7 @@ export const PLAIN_TWO_COPIES =
 export const PREREQ_NOTE =
   'Форма соединяет три вещи, которые на сайте разобраны отдельно: как React решает, кого перерисовать, как Vue запоминает, что прочитал рендер, и как браузер отправляет события.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Ре-рендер в React — вызов функции компонента',
     d: '`setState` помечает компонент устаревшим, и React вызывает его функцию заново. Вместе с ним вызываются все дети, если их не обернули в `memo`. Правка DOM после этого — отдельный шаг, и он бывает пустым.',
@@ -995,7 +995,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Vue — исходник `vModel.ts`',
     href: 'https://github.com/vuejs/core/blob/main/packages/runtime-dom/src/directives/vModel.ts',

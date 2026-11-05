@@ -1,6 +1,6 @@
 import type { BuildVariant, ChangeOption } from '@/widgets/layer-cache/model/types';
 import type { SizeBar } from '@/widgets/image-size/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 
 /**
  * Данные темы «Docker: образ и слои».
@@ -771,7 +771,7 @@ export const HARDEN_NOTE =
 
 /* ────────────────────────── Раздел 8 · источники ────────────────────────── */
 
-export const SOURCES: { t: string; items: string[] }[] = [
+export const SOURCES: SourceGroup[] = [
   {
     t: 'Спецификации',
     items: [
@@ -821,7 +821,7 @@ export const SOURCES: { t: string; items: string[] }[] = [
  * Отдельный случай — `OCI`: до этой правки аббревиатура впервые появлялась в **лиде раздела
  * «Источники»**, то есть там, где вводить её уже поздно, а расшифровки не было нигде.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'образ',
     d: 'Не архив с приложением, а **стопка слоёв плюс их опись — манифест**. Под одним именем в реестре (хранилище образов) лежат три разных объекта: манифест, конфиг и сами слои. Путаница между ними даёт половину вопросов вида «почему `docker images` показывает одно, а `docker system df` другое».',
@@ -891,7 +891,7 @@ export const ORDER_DEMO_NOTE =
 export const PREREQ_NOTE =
   'Оба факта не про Docker, но оба объясняют, почему он устроен именно так.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как работает кеш по хешу содержимого',
     d: 'Слои скачиваются по сети и кешируются по digest — хешу содержимого, — поэтому одинаковый слой скачивается один раз. Такой кеш устроен так же, как браузерный. Здесь речь о другом: как слой вообще получается.',

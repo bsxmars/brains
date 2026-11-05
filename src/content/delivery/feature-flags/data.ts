@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DemoUser } from '@/widgets/flag-lab/model/types';
 
 /**
@@ -50,7 +50,7 @@ import type { DemoUser } from '@/widgets/flag-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'флаг (feature flag)',
     d: 'Условие в коде, значение которого приходит не из кода, а из отдельной настройки. Меняется без сборки и выката: `if (flags.newCart) …`.',
@@ -83,7 +83,7 @@ export const PLAIN_FLAG =
 export const PREREQ_NOTE =
   'Тема идёт после «Прогрессивной доставки» и опирается на неё. Остальное нужно только в разделе про место вычисления.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Выкат и откат',
     d: 'Новая версия кода приезжает на серверы по шагам, а откат — это выкат старой версии. Оба занимают минуты и затрагивают весь код сразу.',
@@ -561,7 +561,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'OpenFeature: спецификация',
     href: 'https://openfeature.dev/specification/',

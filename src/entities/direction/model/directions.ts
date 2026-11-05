@@ -122,12 +122,6 @@ export const DIRECTIONS: Direction[] = [
   },
 ];
 
-export function getDirection(id: DirectionId): Direction {
-  const direction = DIRECTIONS.find((d) => d.id === id);
-  if (!direction) throw new Error(`Неизвестное направление: ${id}`);
-  return direction;
-}
-
 /** Адрес урока внутри направления. */
 export function lessonHref(direction: Direction, slug: string): string {
   return withBase(`${direction.base}${slug}/`);

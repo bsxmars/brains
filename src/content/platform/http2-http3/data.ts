@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Capture } from '@/widgets/h2-frame-lab/model/types';
 import { CHROMIUM_CHUNKS, NODE_CHUNKS, QUIC_INITIAL_HEX, QUIC_INITIAL_SIZE } from './stand';
 
@@ -66,7 +66,7 @@ export { CHROMIUM_CHUNKS, NODE_CHUNKS, QUIC_INITIAL_HEX, QUIC_INITIAL_SIZE };
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'соединение и поток',
     d: 'Соединение — одно TCP-подключение (или одно QUIC-подключение) к серверу. Поток — один запрос с ответом внутри него. В HTTP/2 у каждого потока свой номер, и потоков в соединении много одновременно.',
@@ -107,7 +107,7 @@ export const PLAIN_H2 =
 export const PREREQ_NOTE =
   'Тема спускается на уровень байтов. Ей нужны три вещи из других тем и одна, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'TCP, TLS и три версии HTTP в общих чертах',
     d: 'Что стоит открыть соединение, почему HTTP/1.1 держит шесть соединений на источник и почему одна потеря пакета в HTTP/2 тормозит все файлы сразу. Здесь это повторяется одной фразой.',
@@ -800,7 +800,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'RFC 9113 — HTTP/2',
     href: 'https://www.rfc-editor.org/rfc/rfc9113',

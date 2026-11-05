@@ -5,7 +5,6 @@ headingWidth: 24
 order: 15
 kicker: фреймворки изнутри
 lead: "Redux, Zustand и Pinia выглядят по-разному, а внутри у всех одно и то же: состояние и список тех, кому сообщить об изменении. Разница — в том, как подписчик узнаёт, касается ли его изменение. Redux зовёт всех, Zustand спрашивает селектор и сравнивает ссылки, Pinia не спрашивает ничего: Vue сам помнит, кто что читал."
-leadWidth: 66
 summary: "Стор как «состояние + подписчики», reducer и неизменяемость в Redux, селектор в `useSyncExternalStore` у Zustand — откуда лишний рендер и бесконечный цикл, `useShallow`, Pinia на реактивности Vue. Мини-реализация в демо сверена тестом с redux 5, zustand 5 и pinia 4."
 verifiedOn: "redux 5.0.1, @reduxjs/toolkit 2.13.0 (immer 11.1.18), reselect 5.3.0, zustand 5.0.15, pinia 4.0.3, React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, октябрь 2026: вызовы подписчиков и селекторов и рендеры компонентов сняты стендом и повторяются tests/unit/state-managers.test.ts; мини-реализация темы сверена с библиотеками на той же последовательности действий"
 nav:
@@ -23,13 +22,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import StoreLab from '@/widgets/store-lab/ui/StoreLab.vue';
@@ -100,46 +101,18 @@ import {
   изменятся. Дальше начинается главное: изменений много, компонентов много, и перерисовывать
   все на каждое изменение — дорого.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STORE} />
+  <Plain text={PLAIN_STORE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Стор: состояние и подписчики"
   lead="Двадцать строк ниже — почти дословно стор Zustand: переменная `state`, набор `listeners` и три функции. Читать, менять, подписаться. Компонентов, React и Vue здесь нет — стор о них ничего не знает."
-  leadWidth={72}
 >
   <Card title="createStore" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={STORE_CODE} />
@@ -168,9 +141,8 @@ import {
   eyebrow="Раздел 2"
   title="Redux: reducer, dispatch и неизменяемость"
   lead="В Redux состояние меняет одна функция — reducer. Она получает старое состояние и действие и возвращает новое состояние. Стор хранит результат и после каждого `dispatch` зовёт всех подписчиков, не проверяя, изменилось ли хоть что-то."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTION} />
+  <Plain text={PLAIN_ACTION} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Стор Redux" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -197,7 +169,7 @@ import {
 
   ### Почему нельзя мутировать
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IMMUTABLE} />
+  <Plain text={PLAIN_IMMUTABLE} />
 
   <Card tone="err" title="Мутация в reducer" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
     <CodeBlock code={MUTATE_CODE} />
@@ -232,9 +204,8 @@ import {
   eyebrow="Раздел 3"
   title="Селектор: подписка на свой кусок"
   lead="Селектор выбирает из состояния то, что нужно одному компоненту. Стор по-прежнему зовёт всех, но каждый подписчик сначала вызывает свой селектор и сравнивает ответ с прошлым через `Object.is`. Совпало — рендера нет."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SELECTOR} />
+  <Plain text={PLAIN_SELECTOR} />
 
   <Card title="subscribeSelector и shallow" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SELECTOR_CODE} />
@@ -259,7 +230,6 @@ import {
   eyebrow="Раздел 4"
   title="Zustand: селектор внутри `useSyncExternalStore`"
   lead="`create` в Zustand — это стор из раздела «Стор» плюс хук. Хук ничего не сравнивает сам: он отдаёт селектор в `useSyncExternalStore` как `getSnapshot`, а сравнивает React."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Как пишут" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -311,7 +281,6 @@ import {
   eyebrow="Раздел 5"
   title="Pinia: подписка не нужна"
   lead="В Pinia у компонента нет ни селектора, ни подписки. Стор — `reactive`-объект Vue, и рендер компонента сам запоминает, какие поля стора прочитал. Изменение будит ровно тех, кто читал изменённое поле."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Мини-Pinia" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -356,7 +325,6 @@ import {
   eyebrow="Раздел 6"
   title="Один стор — четыре способа подписки"
   lead="Три компонента читают одно и то же состояние сквозного примера. Меняется только то, как каждый из них узнаёт об изменении."
-  leadWidth={72}
 >
   <StoreLab
     client:visible

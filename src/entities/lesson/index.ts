@@ -6,7 +6,11 @@
  */
 export { lessonSchema } from './model/schema';
 export type { LessonFrontmatter } from './model/schema';
-export { getLessons, getDirectionLessons, neighbours } from './model/lessons';
+export { getDirectionLessons } from './model/lessons';
 export type { Lesson, LessonCollection } from './model/lessons';
+/** Соседи — чистая функция без `astro:content`, поэтому в своём файле и под юнит-тестом. */
+export { neighbours } from './model/neighbours';
+export type { Neighbours } from './model/neighbours';
 export { getAnswerKey, parseAnswerKey } from './model/summary';
+export type { GlossaryTerm, Pitfall, Prereq, Source, SourceGroup } from './model/topic';
 export type { AnswerKey, AnswerKeyBlock, AnswerKeyItem } from './model/summary';

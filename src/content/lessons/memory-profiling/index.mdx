@@ -2,7 +2,6 @@
 title: Профилирование памяти
 order: 34
 lead: "Снимок памяти среднего одностраничного приложения (SPA) — это сотни тысяч объектов, и большая часть из них принадлежит самому движку. Если просто листать этот список, утечку не найти. Её находит порядок действий: один сценарий много раз подряд, три снимка, сравнение двух последних и панель, которая показывает, кто держит найденный объект."
-leadWidth: 66
 summary: "Семь шагов поиска утечки, два веса объекта — собственный и удерживаемый — и цепочка «кто держит»: как от строки в снимке дойти до строки в коде."
 verifiedOn: "Node 24.11 и 26.8 · DevTools Chrome 153"
 nav:
@@ -26,6 +25,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import ComparisonTable from '@/widgets/comparison-table/ui/ComparisonTable.vue';
 import HeapGraph from '@/widgets/heap-graph/ui/HeapGraph.vue';
 import MemoryMonitor from '@/widgets/memory-monitor/ui/MemoryMonitor.vue';
@@ -88,7 +89,6 @@ import {
   variant="intro"
   eyebrow="Снимок — не список объектов, а граф"
   lead="Снимок кучи — это все живые объекты (узлы графа) и ссылки между ними (рёбра), записанные в один момент. Все режимы панели Memory — разные способы показать этот граф."
-  leadWidth={72}
   gap={24}
 >
   <CardGrid min={280} gap={14}>
@@ -109,32 +109,11 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RETAINED} />
+  <Plain text={PLAIN_RETAINED} />
 
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -142,7 +121,6 @@ import {
   eyebrowTone="demo"
   title="Performance monitor: есть ли вообще утечка"
   lead="Прежде чем снимать снимки, надо убедиться, что утечка вообще есть. На это отвечает график, который пишется непрерывно. На нём три линии, и по тому, какие из них растут **вместе**, вид утечки понятен ещё до первого снимка."
-  leadWidth={72}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={MONITOR_DEMO_NOTE} />
@@ -194,7 +172,6 @@ import {
   eyebrowTone="demo"
   title="Семь шагов, а не «посмотреть снимок»"
   lead="Порядок здесь не пожелание. Каждый шаг отсекает свой вид ложных находок: пропустите шаг — и будете искать утечку там, где её нет."
-  leadWidth={70}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={PROCEDURE_DEMO_NOTE} />
@@ -204,7 +181,7 @@ import {
 
   ### Почему именно три снимка, а не два
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THREE_SNAPSHOTS} />
+  <Plain text={PLAIN_THREE_SNAPSHOTS} />
 
   <FlowChips
     minWidth={640}
@@ -251,7 +228,6 @@ import {
   eyebrowTone="demo"
   title="Как читать режим Comparison"
   lead="Этот режим отвечает на один вопрос: **каких объектов между двумя снимками стало больше**. Колонок семь, и почти каждая по отдельности может ввести в заблуждение."
-  leadWidth={72}
 >
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CMP_CAVEAT} />
 
@@ -334,7 +310,6 @@ import {
   eyebrowTone="demo"
   title="Shallow против retained — на числах"
   lead="Shallow — вес самого объекта. Retained — сколько памяти освободится, если объект выбросить. Главное в определении retained — слово «только»: байты, до которых есть второй путь, объекту уже не принадлежат."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={20} align="start">
     <Card title="Пример, на котором считаем" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
@@ -384,7 +359,7 @@ window.h = makeHandler();`}
   Retained size узла — это вес всех объектов, до которых можно дойти только через него
   (их называют поддеревом доминирования).
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DOMINATOR} />
+  <Plain text={PLAIN_DOMINATOR} />
 
   Доминатор — не то же самое, что «тот, кто ссылается». Наименьший пример — ромб:
 
@@ -469,9 +444,8 @@ window.h = makeHandler();`}
   eyebrowTone="demo"
   title="Retainers: от строки в снимке до строки в коде"
   lead="Сравнение показало, что копятся объекты `Chart`, — но создают их в десяти местах кода. Какое из них виновато, говорит не сам объект, а тот, кто его держит. Панель Retainers показывает граф наоборот: не «на что ссылается объект», а «кто ссылается на него»."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RETAINERS} />
+  <Plain text={PLAIN_RETAINERS} />
 
   <CardGrid min={280} gap={14}>
     {DETACHED_FACTS.map((item) => (
@@ -529,7 +503,6 @@ window.h = makeHandler();`}
   eyebrow="Раздел 6"
   title="Где снимок молчит: соседние профили"
   lead="Снимок показывает, что живо сейчас. Он не скажет, когда объект создан и какой код его выделил. На эти вопросы отвечают другие профили той же вкладки."
-  leadWidth={72}
 >
   ### Профили вкладки Memory — разные вопросы
 
@@ -592,7 +565,6 @@ window.h = makeHandler();`}
   eyebrow="Раздел 7"
   title="Снимок из Node: одна строка и файл на диске"
   lead="Панель Memory меняется от версии к версии, а `v8.writeHeapSnapshot()` — нет. Снимок из Node — это файл: его можно разобрать скриптом, сравнить с прошлым и проверить своё подозрение за минуту."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={20} align="start">
     <Card title="Снять" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>

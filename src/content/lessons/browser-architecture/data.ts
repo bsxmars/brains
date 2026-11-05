@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Source } from '@/entities/lesson';
 import type { ProcessInfo } from '@/widgets/process-catalog/model/types';
 import type { SiteCase } from '@/widgets/site-resolver/model/types';
 import type { ThreadInfo } from '@/widgets/renderer-threads/model/types';
@@ -393,7 +393,7 @@ export const DOM_HEAP_ROWS: string[][] = [
  */
 
 /** Источники темы: документация реализации отдельно, спецификация отдельно. */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Chromium · Process Model and Site Isolation',
     href: 'https://chromium.googlesource.com/chromium/src/+/main/docs/process_model_and_site_isolation.md',
@@ -586,7 +586,7 @@ export const SELF_CHECK: SelfCheckItem[] = [
  * и в тонких местах, но не расшифрованы нигде. Это имена из внутренностей Chromium —
  * догадаться по контексту нельзя, а без них половина фраз читается как шум.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'site',
     d: 'Сайт: схема плюс домен, который можно купить у регистратора (`eTLD+1`). По сайтам браузер и раскладывает документы по процессам. Это не origin — тот включает хост целиком и порт: `a.example.com` и `b.example.com` — два разных origin, но один site, и браузер вправе держать их в одном процессе.',

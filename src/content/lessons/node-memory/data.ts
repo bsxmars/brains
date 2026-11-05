@@ -3,7 +3,7 @@ import type { GcToken } from '@/widgets/gc-line/model/types';
 import type { TriageCase } from '@/widgets/growth-triage/model/types';
 import type { Budget } from '@/widgets/memory-budget/model/types';
 import type { MemoryField } from '@/widgets/memory-fields/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные урока «Память в Node». Перенесены из
@@ -825,7 +825,7 @@ export const PITFALLS: Pitfall[] = [
  * MDN здесь нет намеренно — ни одно утверждение темы не про браузер. Зато есть документация
  * ядра: `constrainedMemory()` и коды выхода объясняются не Node, а cgroup.
  */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'glibc · Memory Allocation Tunables (`glibc.malloc.arena_max`)',
     href: 'https://www.gnu.org/software/libc/manual/html_node/Memory-Allocation-Tunables.html',
@@ -877,7 +877,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
  * при том что она опирается сразу на три предыдущие и вводит свои аббревиатуры (`RCE`, `CDP`)
  * без расшифровки, а «изолят» употребляет семь раз, ни разу не объяснив.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`rss`',
     d: 'Resident Set Size, «резидентная память» — сколько оперативной памяти процесс занимает **целиком**: куча JS, буферы, стеки потоков, код самого Node. По этому числу ядро решает, убивать ли процесс.',
@@ -921,7 +921,7 @@ export const GLOSSARY = [
 /* ⚠️ Здесь стоял лид «Чтобы разбирать инциденты с памятью, нужны три вещи: устройство кучи, чтение снимка…» — пересказ карточек. Снят 2026-10-01. */
 export const PREREQ_NOTE = '';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как устроена куча V8',
     d: 'Куча делится на молодое поколение (оно разбито на полупространства) и старое, и сборка платит за выживших, а не за умерших. Без этого строки `--trace-gc` не прочитать.',

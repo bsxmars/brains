@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «StatefulSet, тома и данные».
@@ -63,7 +63,7 @@ export const INTRO_NOTE =
 export const PLAIN_IDENTITY =
   'Поды Deployment — курьеры службы доставки: заказ отдают первому свободному, заболел один — прислали другого, с другим именем, и никто не заметил. Поды StatefulSet — сотрудники за столами с табличками «стол 0», «стол 1», «стол 2». Ушёл сотрудник на больничный — за его стол садится замена **с той же табличкой**, а папки в ящике стола остались на месте. Папки — это том, табличка — имя и DNS-адрес.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'том',
     d: 'Каталог, который Kubernetes подключает в контейнер. Бывает временным — живёт, пока жив под, — и постоянным: тогда за ним стоит диск, который переживает под.',
@@ -113,7 +113,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'StatefulSet — ещё один контроллер над подами. Всё, что верно для подов, сервисов и проб, верно и для него; отличается он тем, чего не даёт Deployment, — личностью реплики и её собственным диском.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Под, ReplicaSet и Deployment',
     d: 'Под нельзя изменить — только заменить новым, и это делает контроллер, сводя желаемое с действительным. StatefulSet устроен так же, только заменяет под **тем же именем**.',
@@ -1000,7 +1000,7 @@ export const PITFALLS: Pitfall[] = [
 // Раздел 9 — источники
 // ─────────────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Kubernetes: StatefulSets',
     href: 'https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/',

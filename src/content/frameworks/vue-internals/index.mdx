@@ -3,7 +3,6 @@ title: "Vue 3 изнутри: своя реактивность"
 order: 11
 kicker: фреймворки изнутри
 lead: "Реактивность Vue помещается в три сотни строк: `Proxy` замечает чтение, таблица `WeakMap → Map → Dep` помнит, кто что читал, номер версии не даёт будить зря, а очередь в микрозадаче превращает три записи в одну перерисовку. Мини-версия ниже исполняется на странице, а тест сверяет её с настоящим Vue 3.5."
-leadWidth: 66
 summary: "Мини-Vue за шесть шагов — `reactive`, `track`/`trigger`, `effect`, `ref`, `computed`, планировщик — исполняется в демо и сверяется тестом с `@vue/runtime-core` 3.5 в обеих сборках."
 verifiedOn: Vue 3.5.42 · Node 26.8.2
 nav:
@@ -23,10 +22,12 @@ nav:
 import Md from '@/shared/ui/Md.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniReactivity from '@/widgets/mini-reactivity/ui/MiniReactivity.vue';
@@ -51,48 +52,21 @@ import {
   variant="intro"
   eyebrow="Идея"
   lead={INTRO_NOTE}
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRO} />
+  <Plain text={PLAIN_INTRO} />
 
-  <CardGrid min={240} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={270} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} min={270} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="`reactive`: прокси, который замечает операции"
   lead="`reactive(obj)` не копирует объект и не расставляет геттеры по ключам — он возвращает `Proxy` с пятью ловушками. Три из них (`get`, `has`, `ownKeys`) записывают чтение, две (`set`, `deleteProperty`) сообщают об изменении. Что каждая делает снаружи — в [«Реактивности Vue», раздел «Модель»](/frameworks/vue-reactivity/#s1)."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+  <Plain text={PLAIN_PROXY} />
 
   <CodeBlock code={STEP_REACTIVE} />
 
@@ -116,9 +90,8 @@ import {
   eyebrow="Раздел 2"
   title="`track` и `trigger`: таблица «кто что читал»"
   lead="Зависимости хранятся не в эффектах и не в объектах, а в отдельной таблице из трёх уровней: `WeakMap` от объекта к `Map` от ключа к `Dep` — набору подписчиков с номером версии. `track` дописывает в неё текущий эффект, `trigger` достаёт из неё тех, кого надо разбудить."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TABLE} />
+  <Plain text={PLAIN_TABLE} />
 
   <CodeBlock code={TABLE_SHAPE} />
 
@@ -154,7 +127,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NOTIFY} />
+  <Plain text={PLAIN_NOTIFY} />
 </Section>
 
 <Section
@@ -162,13 +135,12 @@ import {
   eyebrow="Раздел 3"
   title="`effect`: запуск, сбор, очистка"
   lead="Эффект — функция плюс память о том, что она прочитала. Запуск устроен в четыре хода: стереть старые связи, объявить себя `activeEffect`, выполнить функцию — все чтения запишутся на него, — вернуть `activeEffect` прежнему владельцу."
-  leadWidth={72}
 >
   <CodeBlock code={STEP_EFFECT} />
 
   ### Зачем стирать связи перед каждым запуском
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLEANUP} />
+  <Plain text={PLAIN_CLEANUP} />
 
   <Card title="Ветка `if` решает, от чего зависит эффект" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={BRANCH_CODE} />
@@ -190,9 +162,8 @@ import {
   eyebrow="Раздел 4"
   title="`ref` и `shallowRef`: свой `Dep` без таблицы"
   lead="У `ref` нет ключей и нет прокси: это объект с геттером и сеттером `value` и одним собственным `Dep`. Поэтому `targetMap` ему не нужна — подписчик записывается прямо в `ref.dep`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REF} />
+  <Plain text={PLAIN_REF} />
 
   <CodeBlock code={STEP_REF} />
 
@@ -208,9 +179,8 @@ import {
   eyebrow="Раздел 5"
   title="`computed`: ленивый, кеширующий, и подписчик, и источник"
   lead="`computed` — два объекта в одном. Для своих источников он подписчик: внутри сидит эффект с геттером. Для тех, кто читает `.value`, он источник: у него свой `Dep`. Между ними — флаг `dirty` и номер версии, и на этих двух полях держится вся экономия."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPUTED} />
+  <Plain text={PLAIN_COMPUTED} />
 
   <CodeBlock code={STEP_COMPUTED} />
 
@@ -244,7 +214,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GLITCH} />
+  <Plain text={PLAIN_GLITCH} />
 </Section>
 
 <Section
@@ -252,9 +222,8 @@ import {
   eyebrow="Раздел 6"
   title="Планировщик: очередь, микрозадача, `nextTick`"
   lead="Реактивность будит эффекты сразу, в той же строке, где была запись. Откладывает их планировщик: эффекту дают `scheduler`, который не выполняет работу, а ставит задание в очередь. Очередь разбирается одной микрозадачей."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE} />
+  <Plain text={PLAIN_QUEUE} />
 
   <CodeBlock code={STEP_SCHEDULER} />
 
@@ -283,7 +252,6 @@ import {
   eyebrowTone="demo"
   title="Мини-Vue вживую: таблица, очередь, журнал"
   lead="Демо исполняет ровно ту строку, что напечатана выше по частям. Граф не нарисован заранее: это содержимое `targetMap.get(toRaw(state))`, прочитанное после каждого шага, с версиями `Dep` и флагом `dirty` у `computed`."
-  leadWidth={72}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={DEMO_NOTE} />
@@ -297,7 +265,6 @@ import {
   eyebrow="Раздел 8"
   title="Что в Vue 3.5 иначе"
   lead="Мини-версия повторяет форму 3.5 — версии у `Dep`, `isDirty`, досчёт `computed` по цепочке, — но не её экономию. На сценариях теста поведение совпадает; отличаются цена и то, что ещё умеет настоящая реализация."
-  leadWidth={72}
 >
   <Table
     head={REAL_HEAD}
@@ -313,7 +280,7 @@ import {
 
   ### Массивы и коллекции
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COLLECTIONS} />
+  <Plain text={PLAIN_COLLECTIONS} />
 
   <Card title="Кого будит запись в `Map` и в `length`" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={COLLECTIONS_CODE} />
@@ -335,7 +302,6 @@ import {
   eyebrow="Раздел 9"
   title="Тонкие места"
   lead="Места, где своя реактивность ломается тише всего: код работает на простых данных и перестаёт — на геттере, на `NaN`, на втором прогоне."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>
@@ -346,7 +312,6 @@ import {
   eyebrow="Раздел 10"
   title="Источники"
   lead="Каждая строка мини-версии имеет оригинал в исходниках Vue — и там же видно, во что он вырос."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DemoToken, DiSpec } from '@/widgets/di-lab/model/types';
 
 /**
@@ -40,7 +40,7 @@ import type { DemoToken, DiSpec } from '@/widgets/di-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'зависимость',
     d: 'Объект, без которого класс или компонент не работает: клиент API, логгер, хранилище. Корзине нужен сервис цен — это её зависимость.',
@@ -70,7 +70,7 @@ export const GLOSSARY = [
 export const PLAIN_DI =
   'Как розетка в гостинице. Фен не носит с собой электростанцию, он просит «дайте 220 вольт», а откуда ток — из городской сети или от генератора отеля, — решает здание. В тестовой комнате можно поставить стенд вместо сети, и фен этого не заметит.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Цепочка прототипов',
     d: 'Если у объекта нет своего свойства, чтение идёт в его прототип, потом в прототип прототипа. `Object.create(p)` создаёт пустой объект с прототипом `p`. На этом целиком построен `provide` во Vue.',
@@ -992,7 +992,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Angular — Hierarchical injectors',
     href: 'https://angular.dev/guide/di/hierarchical-dependency-injection',

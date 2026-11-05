@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ChartTrace, StepTrace } from '@/widgets/eviction-lab/model/types';
 
 /**
@@ -51,7 +51,7 @@ export const share = (x: number) => `${(x * 100).toFixed(1).replace('.', ',')} %
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'кеш',
     d: 'Копия ответов, которые дорого получать заново: результат запроса, вычисления, разобранный модуль. Кеш отвечает быстро, но место в нём ограничено.',
@@ -88,7 +88,7 @@ export const PLAIN_EVICTION =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем. Ещё одна объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: '`Map` и его итератор',
     d: '`Map` хранит пары «ключ → значение» и помнит порядок, в котором ключи добавляли. `map.keys()` возвращает итератор: каждый `next()` отдаёт следующий ключ в этом порядке.',
@@ -882,7 +882,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'lru-cache (isaacs/node-lru-cache)',
     href: 'https://github.com/isaacs/node-lru-cache',

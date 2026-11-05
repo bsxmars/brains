@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AnimCase, AnimSpec, LayerScene, StandFrame } from '@/widgets/anim-lab/model/types';
 
 /**
@@ -219,7 +219,7 @@ export const prop = (label: string) => {
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'главный поток (main thread)',
     d: 'Поток вкладки, где выполняется ваш JavaScript и где браузер считает стили, раскладку и рисует. Пока там крутится долгая задача, ничего из этого не происходит.',
@@ -256,7 +256,7 @@ export const PLAIN_COMPOSITED =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи из других тем. Базовую картину слоёв и композитора она не повторяет, а продолжает.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' | 'warn' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Шаги кадра',
     d: 'Между двумя обновлениями экрана браузер делает style → layout → paint → composite. Первые три идут на главном потоке, последний — уже без него. Дорогая анимация та, что запускает ранние шаги на каждом кадре.',
@@ -868,7 +868,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Web Animations Level 1',
     href: 'https://www.w3.org/TR/web-animations-1/',

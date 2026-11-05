@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { TzScenario, ZoneTable } from '@/widgets/tz-lab/model/types';
 
 /**
@@ -68,7 +68,7 @@ export const exprTones = (rows: ExprRow[]) => rows.map((r) => r.tone);
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'UTC',
     d: 'Всемирное координированное время — общая для всей планеты шкала, от которой отсчитывают остальные. Летнего времени у неё нет. В записи ISO обозначается буквой `Z`: `2026-03-29T00:00Z`.',
@@ -109,7 +109,7 @@ export const PLAIN_DATE =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем и на одну бытовую — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Число в JS — double',
     d: 'Каждое `number` — 64-битное число с плавающей точкой. Целые до `2⁵³` (около 9·10¹⁵) оно хранит точно, дальше начинает их терять. Миллисекунды `Date` — такое же число.',
@@ -758,7 +758,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 — Date Objects',
     href: 'https://tc39.es/ecma262/#sec-date-objects',

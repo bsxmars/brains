@@ -5,7 +5,6 @@ headingWidth: 22
 order: 18
 kicker: фреймворки изнутри
 lead: "Клик по ссылке в SPA не загружает новую страницу: роутер забирает его у браузера, меняет адрес через History API, находит по адресу цепочку компонентов и спрашивает guards, можно ли туда. Здесь — каждый из этих шагов, разобранный на учебном роутере, который ведёт себя как vue-router."
-leadWidth: 66
 summary: "History API и `popstate`, Navigation API и `intercept()`, когда роутер обязан отдать клик браузеру, шаблон пути → регулярка и вес, почему `/users/new` побеждает `/users/:id`, вложенные маршруты и `matched`, порядок guards, отмена и перенаправление, ленивые маршруты, водопад загрузок во вложенных уровнях, восстановление прокрутки. Учебный роутер сверен тестом с vue-router 5.3.1."
 verifiedOn: "vue-router 5.3.1, vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, Chromium 153 (Playwright 1.63), Firefox 155 и WebKit 26.6 — только наличие Navigation API, октябрь 2026: регулярки, веса, порядок и resolve учебного роутера сверены с vue-router на сотнях случайных таблиц; журналы guards и шкалы загрузки — с vue-router, смонтированным во Vue; события истории, клики и прокрутка сняты в Chromium на macOS. Ctrl+клик вне macOS и пункт «Открыть в новой вкладке» описаны по документации"
 nav:
@@ -26,13 +25,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import RouterLab from '@/widgets/router-lab/ui/RouterLab.vue';
@@ -129,48 +130,20 @@ import {
   копируют, по нему возвращаются кнопкой «назад», его открывают в новой вкладке. Роутер
   связывает адрес и экран в обе стороны.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROUTER} />
+  <Plain text={PLAIN_ROUTER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="История вкладки: адрес без перезагрузки"
   lead="`history.pushState` меняет адрес в строке браузера и добавляет запись истории — а документ остаётся прежним. На этом стоит любой роутер SPA. Самый маленький из них — двадцать строк."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HISTORY} />
+  <Plain text={PLAIN_HISTORY} />
 
   <Card title="Роутер на History API" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={HISTORY_CODE} />
@@ -209,7 +182,6 @@ import {
   eyebrow="Раздел 2"
   title="Navigation API: одно событие на все переходы"
   lead="History API заставляет роутер ловить клики, слушать `popstate` и помнить, что `pushState` молчит. Navigation API собирает всё в одно событие `navigate`: браузер сам сообщает о любом переходе во вкладке и даёт его перехватить."
-  leadWidth={72}
 >
   <Card title="Тот же роутер на navigate" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={NAVAPI_CODE} />
@@ -242,7 +214,6 @@ import {
   eyebrow="Раздел 3"
   title="Перехват клика: когда отдать его браузеру"
   lead="Роутер на History API ловит клики по ссылкам сам — одним слушателем на `document`. Отменить переход браузера он может не всегда: клик с ⌘ — это просьба открыть вкладку, а не перейти здесь."
-  leadWidth={72}
 >
   <Card title="shouldIntercept" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={INTERCEPT_CODE} />
@@ -279,7 +250,6 @@ import {
   eyebrow="Раздел 4"
   title="Шаблон пути: токены, регулярка, вес"
   lead="`/users/:id` для роутера — не строка, а регулярное выражение и набор чисел. Регулярка отвечает, подходит ли адрес; числа — насколько точно. Учебная версия ниже даёт те же регулярки и веса, что vue-router 5.3.1."
-  leadWidth={72}
 >
   <Card title="tokenize и compile" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MATCH_CODE} />
@@ -287,7 +257,7 @@ import {
 
   <Md text={MATCH_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCORE} />
+  <Plain text={PLAIN_SCORE} />
 
   <Table
     head={['шаблон', 'регулярка', 'вес']}
@@ -313,7 +283,6 @@ import {
   eyebrow="Раздел 5"
   title="Ранжирование: почему `/users/new` побеждает `/users/:id`"
   lead="Подходящих маршрутов часто несколько: адрес `/users/new` подходит и к `/users/new`, и к `/users/:id`, и к «всему что угодно». Роутер не перебирает их в порядке объявления — он заранее сортирует записи по весу и берёт первую подходящую."
-  leadWidth={72}
 >
   <Card title="Сквозная таблица маршрутов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ROUTES_CODE} />
@@ -343,7 +312,6 @@ import {
   eyebrow="Раздел 6"
   title="Вложенные маршруты: найти сразу несколько уровней"
   lead="`children` превращают таблицу в дерево. Роутер раскладывает его в плоский список полных путей, а найдя запись, поднимается по родителям: экран профиля — это макет раздела, внутри него профиль, внутри профиля — вкладка постов."
-  leadWidth={72}
 >
   <Card title="createMatcher и resolve" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MATCHER_CODE} />
@@ -367,9 +335,8 @@ import {
   eyebrow="Раздел 7"
   title="Guards: кто и в каком порядке решает"
   lead="Маршрут найден, но переходить ещё рано. Роутер проходит восемь этапов, и на каждом кто-то может отменить переход или перенаправить его. Порядок жёсткий, и он объясняет большинство «почему мой guard не сработал»."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GUARD} />
+  <Plain text={PLAIN_GUARD} />
 
   <Table
     head={['этап', 'кто вызывается', 'когда']}
@@ -411,7 +378,6 @@ import {
   eyebrow="Раздел 8"
   title="Ленивые маршруты и данные: до перехода или после"
   lead="Экрану нужны две вещи: его код и его данные. Код ленивого маршрута скачивается при первом переходе. Данные можно ждать до смены адреса или после — и от этого выбора зависит, выстроятся ли запросы вложенных уровней водопадом."
-  leadWidth={72}
 >
   <Card title="Магазин в три уровня" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SHOP_CODE} />
@@ -447,9 +413,8 @@ import {
   eyebrow="Раздел 9"
   title="Прокрутка: где был и где окажется"
   lead="При обычной смене документа браузер сам возвращает прокрутку на «назад». В SPA документ не меняется, и вопрос «где показать новый экран» решает роутер — или никто."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCROLL} />
+  <Plain text={PLAIN_SCROLL} />
 
   <Card title="scrollBehavior" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SCROLL_CODE} />

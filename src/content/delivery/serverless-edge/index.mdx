@@ -5,7 +5,6 @@ headingWidth: 24
 order: 16
 kicker: доставка
 lead: "Функцию не держат запущенной: платформа поднимает экземпляр на запрос, какое-то время хранит его тёплым и выгружает. Всё, что у обычного сервера случается один раз при запуске, — импорт зависимостей, соединение с базой, — здесь повторяется в каждом новом экземпляре. А экземпляров в пик сотни, и все они идут к одной базе."
-leadWidth: 66
 summary: "Жизнь экземпляра: Init, вызов, заморозка, выгрузка; из чего состоит холодный старт и сколько модулей грузит импорт; ленивый `import()` и сборка в один файл; что переживает вызов и гонка `db ??= await connect()`; один запрос на экземпляр против многих и пул соединений против `max_connections`; изоляты V8, хост на `node:vm`, лимит процессора и что есть в edge-рантайме; edge у пользователя против региона у базы; потоковый ответ."
 verifiedOn: "Node 24.11.0 и 26.8.2, esbuild 0.28.2, zod 4.6.2, ioredis 5.11.1, yaml 2.9.1, Postgres 16.6 в Docker 27.4.0, октябрь 2026: модули холодного старта, сборка, соединения, хост на node:vm и потоковый ответ пересчитываются tests/unit/serverless-edge.test.ts; модель масштабирования совпала с эмулятором на настоящем Postgres во всех точках шести прогонов; всё про Lambda, Cloud Run, Vercel, Cloudflare Workers и Next.js — по документации"
 nav:
@@ -32,6 +31,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ScaleLab from '@/widgets/serverless-lab/ui/ScaleLab.vue';
@@ -128,46 +130,18 @@ import {
   запросов нет. Вы не платите за простой и не думаете о машинах, но всё, что сервер
   делал при запуске, теперь случается снова и снова — и параллельно.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SERVERLESS} />
+  <Plain text={PLAIN_SERVERLESS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Жизнь экземпляра: запуск, вызовы, заморозка"
   lead="Единица деплоя — функция-обработчик, а единица работы — экземпляр: процесс с вашим кодом, который платформа запустила. Один экземпляр живёт много вызовов подряд. Дорогая часть — запуск — случается у него один раз, дешёвая — вызов обработчика — на каждый запрос."
-  leadWidth={72}
 >
   <Card title="Один экземпляр Lambda от рождения до выгрузки" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={700} chips={LIFECYCLE_CHIPS} />
@@ -202,7 +176,6 @@ import {
   eyebrow="Раздел 2"
   title="Холодный старт: что в нём ваше"
   lead="Холодный старт складывается из двух частей. Первую делает платформа: поднимает среду и запускает рантайм. Вторую — ваш код: всё, что стоит в модуле вне обработчика, исполняется до первого запроса. Её не видно в коде обработчика, и именно её проще всего раздуть."
-  leadWidth={72}
 >
   <CardGrid min={290} gap={16} align="start">
     {COLD_PARTS.map((p) => (
@@ -276,7 +249,6 @@ import {
   eyebrow="Раздел 3"
   title="Что переживает вызов, а что нет"
   lead="Между вызовами одного экземпляра модуль остаётся в памяти: переменные верхнего уровня, открытые соединения, кеши. Между экземплярами не общее ничего. На этом держится главный приём — открыть соединение с базой один раз на экземпляр, а не на каждый запрос."
-  leadWidth={72}
 >
   <Table
     head={['что', 'следующий вызов того же экземпляра', 'вызов в другом экземпляре']}
@@ -323,9 +295,8 @@ import {
   eyebrowTone="demo"
   title="Параллелизм на экземпляр и пул соединений"
   lead="Сколько экземпляров поднимет платформа, решает не число запросов в секунду, а число запросов, которые идут одновременно. А сколько соединений получит база — то, сколько из них держит каждый экземпляр, включая тех, что сейчас простаивают."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LITTLE} />
+  <Plain text={PLAIN_LITTLE} />
 
   <Md text={LITTLE_NOTE} />
 
@@ -365,9 +336,8 @@ import {
   eyebrow="Раздел 5"
   title="Edge-рантайм: изолят вместо контейнера"
   lead="Edge-платформы запускают код не в отдельном процессе, а в изоляте V8 внутри общего процесса. Новый изолят поднимается быстро, и его можно держать в каждом городе. Цена — рантайм даёт только то, что выбрал хост: Web API, лимит процессора на запрос и никакого общего состояния, на которое стоит рассчитывать."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ISOLATE} />
+  <Plain text={PLAIN_ISOLATE} />
 
   <Md text={ISOLATE_NOTE} />
 
@@ -441,9 +411,8 @@ import {
   eyebrowTone="demo"
   title="Ближе к пользователю или ближе к базе"
   lead="Edge сокращает путь от пользователя до кода. Но если код ходит в базу, путь от кода до базы удлиняется ровно на столько же — и проходится столько раз, сколько запросов к базе подряд."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PLACE} />
+  <Plain text={PLAIN_PLACE} />
 
   Цена одного похода в базу — один круг. Цена нового соединения — несколько: столько обменов
   нужно Postgres, чтобы пустить клиента. На стенде их четыре.
@@ -503,7 +472,6 @@ import {
   eyebrow="Раздел 7"
   title="Стриминг ответа: первые байты раньше базы"
   lead="Функция, которая копит ответ целиком, отдаёт первый байт только после последнего запроса к базе. Потоковая отдаёт шапку сразу, а данные дописывает, когда они придут. Полное время то же, а пользователь видит страницу раньше."
-  leadWidth={72}
 >
   <Card title="Один обработчик — два способа ответить" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={STREAM_CODE} size={11.5} lh={1.65} pad="14px 16px" />

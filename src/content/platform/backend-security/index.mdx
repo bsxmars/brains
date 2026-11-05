@@ -4,7 +4,6 @@ headingWidth: 24
 order: 10
 kicker: сеть и безопасность
 lead: "API-роут в Next, Nuxt или Astro — настоящий сервер: у него секреты, база и доступ во внутреннюю сеть. Четыре проверки, которые должны стоять в каждом обработчике, — владелец объекта, адрес исходящего запроса, параметры вместо склейки и список разрешённых полей, — и тест на каждую, который падает на наивной версии."
-leadWidth: 66
 summary: "Доступ к чужому объекту по id и проверка владельца в запросе к базе; исходящий запрос на адрес пользователя (SSRF): разбор URL, адреса после резолва, проверка в lookup соединения и редиректы — с калькулятором, где рядом работает чёрный список строк; параметры SQL, экранирование HTML и execFile вместо exec; лишние поля в теле запроса и схема zod; ошибки без стека и секреты вне бандла; lock-файл глазами сервера. Весь код исполняется тестом темы."
 verifiedOn: "Node 26.8.2: node:sqlite, child_process (exec, execFile, shell: true и DEP0190), http.get с опцией lookup на своём сервере 127.0.0.1, парсер WHATWG URL; zod 4.6.2; package-lock.json этого курса; npm 11.19.1 (только справка npm audit). Сентябрь 2026. Agent из undici 8.10.2 с connect.lookup — тем же тестом. Реестры специальных адресов IANA, OWASP, Server Actions и бюллетень CVE-2025-29927, префиксы публичных переменных Vite, Next.js, Nuxt и Astro, адрес сервиса метаданных AWS, Google Cloud и Azure — сверены с первоисточниками 29 сентября 2026"
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import BsEgressCheck from '@/widgets/bs-egress-check/ui/BsEgressCheck.vue';
 import BsFieldAllowlist from '@/widgets/bs-field-allowlist/ui/BsFieldAllowlist.vue';
@@ -108,15 +110,9 @@ import {
     <Md text={INTRO_THESIS} />
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SERVER} />
+  <Plain text={PLAIN_SERVER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 
   <Card title="Сквозной пример: база магазина" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
     <CodeBlock code={SEED_CODE} size={10.5} lh={1.65} pad="14px 16px" />
@@ -127,33 +123,15 @@ import {
   </Card>
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Чужой объект по id"
   lead="Адрес `/api/orders/3` — это просьба «дайте заказ 3», а не доказательство, что заказ ваш. Сервер, который проверил только вход, отдаст заказ любому вошедшему: достаточно поменять число в адресе."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IDOR} />
+  <Plain text={PLAIN_IDOR} />
 
   <CardGrid min={340} gap={16} align="start">
     <Card tone="err" title="Как бывает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -201,9 +179,8 @@ import {
   eyebrow="Раздел 2"
   title="Запрос на адрес пользователя"
   lead="Вебхук, превью ссылки, «загрузить картинку по URL» — сервер идёт туда, куда ему сказали. Снаружи до `localhost`, внутренней сети и сервиса метаданных облака не дойти, а изнутри сервера — можно. Проверять надо не строку адреса, а IP, с которым сервер соединится."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SSRF} />
+  <Plain text={PLAIN_SSRF} />
 
   <Card title="Пять шагов защитной проверки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={EGRESS_STEPS} size={15} />
@@ -300,9 +277,8 @@ import {
   eyebrow="Раздел 3"
   title="Инъекции: SQL, HTML и командная строка"
   lead="Одна ошибка в трёх местах: значение от пользователя вклеивают в текст, который потом разбирает другой язык — SQL, HTML, оболочка. Разборщик не знает, где кончился ваш текст и началось значение. Лечение одно: передать значение отдельно от текста."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PARAMS} />
+  <Plain text={PLAIN_PARAMS} />
 
   ### SQL
 
@@ -372,9 +348,8 @@ import {
   eyebrow="Раздел 4"
   title="Лишние поля в теле запроса"
   lead="Форма профиля шлёт `name` и `bio`. Тело запроса пишет не форма, а тот, кто его отправил, — и в нём может оказаться `role`, `id` или `__proto__`. Запись принимает только поля из явного списка, а их значения проверяет схема."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MASS} />
+  <Plain text={PLAIN_MASS} />
 
   <CardGrid min={340} gap={16} align="start">
     <Card tone="err" title="Как бывает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -452,7 +427,6 @@ import {
   eyebrow="Раздел 5"
   title="Ошибки и секреты"
   lead="Исключение знает о сервере всё: имена таблиц, внутренние адреса, пути к файлам. Секрет знает ещё больше. Ни то ни другое не должно доехать до клиента — ни в теле ответа 500, ни строкой в бандле."
-  leadWidth={72}
 >
   <CardGrid min={340} gap={16} align="start">
     <Card tone="err" title="Как бывает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -490,7 +464,6 @@ import {
   eyebrow="Раздел 6"
   title="Цепочка поставок"
   lead="Код сервера — ваш код плюс сотни пакетов, которые исполняются с теми же правами: читают те же секреты и ходят в ту же внутреннюю сеть."
-  leadWidth={72}
 >
   <CardGrid min={290} gap={14} align="start">
     {SUPPLY_CARDS.map((card) => (

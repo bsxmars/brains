@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { CostBar, ProxyOp } from '@/widgets/proxy-traps/model/types';
 import type { ReactiveScenario } from '@/widgets/proxy-reactivity/model/types';
 import type { Snippet } from '@/widgets/snippet-lab/model/types';
@@ -43,7 +43,7 @@ import type { Snippet } from '@/widgets/snippet-lab/model/types';
 export const PLAIN_PROXY =
   'Прокси — как секретарь у двери кабинета. Любая просьба к хозяину — «покажи», «положи», «есть ли у тебя» — идёт через секретаря. Он может записать её в журнал, отказать или ответить сам. Но если он просто передаёт просьбу дальше, посетитель разницы не заметит. `Reflect` — это и есть «передать дальше как есть».';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'target и handler',
     d: '`new Proxy(target, handler)` берёт два объекта. **target** (цель) — объект, который прокси представляет. **handler** — объект с функциями-перехватчиками. Сам прокси — третий, новый объект.',
@@ -77,7 +77,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Прокси подменяет операции, которые уже разобраны в «Объектной модели». Без них непонятно, что именно перехватывается.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' | 'warn' | 'err' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Прототипы и чтение `[[Get]]`, запись `[[Set]]`',
     d: 'Чтение `obj.x` ищет ключ по цепочке прототипов, а запись ищет в цепочке причину **не** создавать свойство. Обе операции — внутренние методы, и обе передают по цепочке получателя: от его имени вызовется найденный геттер. Цепочка как таковая — в [«Объектной модели», раздел «Прототипы»](/js/object-model/#s2).',
@@ -1240,7 +1240,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники и смежное ───────────────────────────────────────────────────────────────────
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 · 10.5 Proxy Object Internal Methods and Internal Slots',
     href: 'https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots',

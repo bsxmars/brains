@@ -3,7 +3,6 @@ title: "Создание объектов: фабрика, строитель, �
 order: 1
 kicker: паттерны
 lead: "Четыре порождающих паттерна придуманы для языков, где класс — не значение, копировать объект умеет только он сам, а глобальную переменную надо прятать в класс. В JavaScript половина этого есть из коробки, а книжные реализации ломаются на стирании типов, `#`-полях и кеше модулей."
-leadWidth: 66
 summary: "Фабрика как реестр классов и как фабричная функция, типизация реестра картой типов и ключ `constructor` из адреса; строитель с цепочкой, заготовка, которая копит чужие шаги, неизменяемый строитель и `build()`, запрещённый типами; прототип против `.prototype`, четыре способа скопировать экземпляр с `#`-полем и общий `Date`; одиночка через `private constructor`, модуль как одиночка, второй экземпляр от `?v=2`, двух копий пакета и SSR."
 verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, примеры с модулями запущены настоящим `node` — `tests/unit/patterns-creational.test.ts`"
 nav:
@@ -19,12 +18,14 @@ nav:
 
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -66,44 +67,18 @@ import {
 } from './data';
 
 <Section variant="intro" eyebrow="Паттерны и язык" gap={24}>
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PATTERN} />
+  <Plain text={PLAIN_PATTERN} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Зачем: где рождается объект"
   lead="Страховой агент отправляет заявки двум партнёрам — «ТФ» и «АБ». У каждого свой API и своя анкета, но остальной код хочет работать с полисом вообще, не зная, чей он. Проблема видна сразу: решение «какой класс создать» оказывается в каждом месте, где нужен полис."
-  leadWidth={72}
 >
   <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -124,7 +99,6 @@ import {
   eyebrow="Раздел 2"
   title="Фабрика"
   lead="Фабрика отвечает на вопрос «какой класс создать» в одном месте. В книге это иерархия: абстрактная фабрика и по наследнику на каждый вариант. В JS класс — обычное значение, поэтому фабрика чаще всего сворачивается в объект-реестр или в функцию, которая возвращает объект."
-  leadWidth={72}
 >
   ### Книжная версия: фабричный метод
 
@@ -164,9 +138,8 @@ import {
   eyebrow="Раздел 3"
   title="Строитель"
   lead="Строитель собирает объект по шагам: каждый метод добавляет кусок и возвращает сам строитель, а последний — `build()` — отдаёт результат. Пример: задание на конвертацию картинки, все сочетания форматов и размеров."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUILDER} />
+  <Plain text={PLAIN_BUILDER} />
 
   <CodeBlock code={BUILDER_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -192,9 +165,8 @@ import {
   eyebrow="Раздел 4"
   title="Прототип"
   lead="Паттерн «прототип» — это копия готового объекта, которую потом меняют: черновик заявки, из которого делают вторую с другим адресом почты. В JS скопировать объект можно четырьмя встроенными способами, и ни один не копирует экземпляр класса целиком."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROTOTYPE} />
+  <Plain text={PLAIN_PROTOTYPE} />
 
   <CodeBlock code={CLONE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -223,9 +195,8 @@ import {
   eyebrow="Раздел 5"
   title="Одиночка"
   lead="Одиночка — класс, у которого может быть только один экземпляр: общий кеш, настройки, логгер. В книге его прячут за закрытым конструктором. В JS второй экземпляр возникает не от лишнего `new`, а от того, что модуль выполнился второй раз."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SINGLETON} />
+  <Plain text={PLAIN_SINGLETON} />
 
   ### Книжная версия
 
@@ -257,7 +228,6 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
   lead="Книга «банды четырёх» описывает паттерны для C++ и Smalltalk; источники ниже показывают, как те же идеи выглядят на JavaScript и где у языка свои правила."
-  leadWidth={72}
 >
   <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
     <SourceList items={SOURCES} />

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { HooksScenario } from '@/widgets/mini-hooks/model/types';
 import { STEP_ELEMENT } from '../react-internals/data';
 
@@ -1071,7 +1071,7 @@ export const HOOK_CELLS_TABLE = {
 
 /* ─────────────────────────────────── Зачин ─────────────────────────────────── */
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'ячейка хука',
     d: 'Объект `{ memoizedState, queue, next }` на файбере компонента. Каждый вызов хука в рендере берёт следующую ячейку, и ячейки связаны в список: `fiber.memoizedState` — первая, дальше по `next`.',
@@ -1105,7 +1105,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема отвечает на вопрос «каким кодом это получается», а не «как это выглядит снаружи». Что такое файбер и почему хуки нельзя вызывать под условием, когда React пропускает компонент и зачем переходу нарезанный рендер — всё это здесь считается известным.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Хуки — ячейки по номеру вызова',
     d: 'Хук не знает своего имени и находит своё состояние по порядку вызова. Там же — очередь `setState` и почему `setN(n + 1)` три раза даёт единицу. Здесь та же идея доведена до связного списка React.',
@@ -1403,7 +1403,7 @@ const done = useMemo(() => items.filter(isDone), [items]);`,
 
 /* ─────────────────────────────── Источники ─────────────────────────────── */
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'ReactFiberHooks.js — исходники React',
     href: 'https://github.com/facebook/react/blob/main/packages/react-reconciler/src/ReactFiberHooks.js',

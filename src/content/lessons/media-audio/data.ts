@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Звук: Web Audio API».
@@ -75,7 +75,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 // ─── Вводный раздел ────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'сэмпл',
     d: 'Одно число — громкость сигнала в один момент времени, обычно от −1 до 1. Звук в Web Audio — это длинный ряд таких чисел в `Float32Array`.',
@@ -107,7 +107,7 @@ export const PLAIN_AUDIO =
 
 export const PREREQ_NOTE = 'Тема опирается на три вещи из соседних тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Типизированный массив',
     d: 'Сэмплы лежат в `Float32Array` — виде поверх буфера байтов. Файл приходит как `ArrayBuffer`.',
@@ -550,7 +550,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Web Audio API 1.1',
     href: 'https://www.w3.org/TR/webaudio-1.1/',

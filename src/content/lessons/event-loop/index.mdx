@@ -2,7 +2,6 @@
 title: Event Loop
 order: 14
 lead: "Цикл событий решает, какой код выполнится следующим: обработчик клика, таймер, ответ сети или продолжение промиса. Сам язык его почти не описывает: в спецификации ECMAScript есть только очередь для промисов (Job Queue) и правило «начатое выполняется до конца» (run-to-completion). Очереди задач, таймеры и отрисовку добавляет **хост** — браузер по HTML Standard или Node через библиотеку libuv."
-leadWidth: 66
 summary: "Один оборот цикла по шагам: источники задач, checkpoint, таймеры, фазы libuv в Node."
 verifiedOn: Node 24.11
 nav:
@@ -21,11 +20,13 @@ import Md from '@/shared/ui/Md.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import TimerClamp from '@/widgets/timer-clamp/ui/TimerClamp.vue';
 import EventLoopTurn from '@/widgets/event-loop-turn/ui/EventLoopTurn.vue';
@@ -82,7 +83,6 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
   variant="intro"
   eyebrow="Зачем цикл вообще существует"
   lead="Поток у JavaScript один, а работы, которая **ждёт** внешний мир — сеть, таймер, клик, — много. Совместить одно с другим можно тремя способами."
-  leadWidth={68}
   gap={24}
 >
   <CardGrid min={270} gap={14}>
@@ -109,7 +109,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
     </Card>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TURN} />
+  <Plain text={PLAIN_TURN} />
 
   <Callout size={19} pad="22px 24px">
 
@@ -118,35 +118,10 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
 
   </Callout>
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={70}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -155,7 +130,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
   title="Один оборот цикла, по шагам"
   lead="Сценарий: пользователь кликнул мышью по кнопке, **пока** выполнялся скрипт. Проследите, где управление уходит обратно в цикл и где возвращается в ваш код."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MICROTASK} />
+  <Plain text={PLAIN_MICROTASK} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={TURN_DEMO_NOTE} />
@@ -420,7 +395,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
   Здесь цикл встречается с отрисовкой. Что происходит дальше — style, layout, paint, composite —
   разобрано по шагам в [теме про кадр браузера](/render/render-pipeline/).
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RENDER} />
+  <Plain text={PLAIN_RENDER} />
 
   <Card pad={22} radius={5} gap={18}>
     <FlowChips
@@ -477,7 +452,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
   title="Node: тот же принцип, другая машина"
   lead="В браузере цикл берёт задачу из любой непустой очереди. В Node оборот жёстко разбит на **фазы**. Отсюда главное отличие: **в Node порядок между категориями коллбэков предсказуем, в браузере — нет.**"
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PHASES} />
+  <Plain text={PLAIN_PHASES} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={NODE_DEMO_NOTE} />
@@ -531,7 +506,7 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POOL} />
+  <Plain text={PLAIN_POOL} />
 
   Лечится это двумя путями. Размер пула задаёт переменная окружения `UV_THREADPOOL_SIZE` —
   больше потоков, больше одновременных хешей и чтений. А тяжёлые вычисления, которым пул
@@ -556,7 +531,6 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
   eyebrow="Раздел 6"
   title="Кто с кем делит цикл"
   lead="У вкладки свой цикл событий, у каждого воркера — тоже свой. Спецификация называет такого владельца цикла **агентом**: у него свои объекты и свои очереди, а с соседями он только обменивается сообщениями. Отсюда главное следствие: долгий код подвешивает только свой цикл. Зависший воркер страницу не остановит, а долгий скрипт страницы остановит всё, что работает в её цикле."
-  leadWidth={70}
 >
   <Table
     head={['что', 'свой цикл', 'делит поток с вами']}

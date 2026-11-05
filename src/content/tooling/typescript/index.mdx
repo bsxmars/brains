@@ -3,7 +3,6 @@ title: TypeScript на уровне типов
 order: 2
 kicker: сборка и инструменты
 lead: "Типы в TypeScript — это отдельный маленький язык: он выполняется внутри компилятора и исчезает при сборке. Половина проблем с ним — оттого, что его читают как подписи к переменным, а он вычисляет."
-leadWidth: 66
 summary: "Откуда берётся выведенный тип, `type` против `interface`, сужение и где оно врёт, условные типы и `infer`, mapped-типы и сохранение формы, рекурсия и её измеренные пределы, вариантность, бренды и схемы, классы, миксины и декораторы, слияние объявлений и поиск медленного типа — и что из TypeScript переживает сборку."
 verifiedOn: "TypeScript 6.0.3, программный прогон `tsc --noEmit` со `strict`, сентябрь 2026. Каждое число снято компилятором и закреплено `tests/unit/ts-type-level.test.ts`. Пределы рекурсии — деталь реализации компилятора, а не контракт языка: они менялись и будут меняться"
 nav:
@@ -31,6 +30,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VarianceDiagram from '@/widgets/typescript-variance-diagram/ui/VarianceDiagram.astro';
@@ -181,42 +183,16 @@ import {
   выглядят как типы, а на деле порождают код: `enum`, `namespace` со значением,
   параметр-свойство и `const enum`. Они разобраны в разделе «Тип как вычисление», в подразделе о стирании.
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Тип как вычисление"
   lead="«Вывод типов сломался» звучит как мистика по одной причине: под одними словами прячутся три разных механизма. Они срабатывают в разное время и по разным правилам, а ошибка почти всегда появляется на стыке двух из них."
-  leadWidth={72}
 >
   <CodeBlock code={MECHANISMS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
@@ -394,7 +370,7 @@ import {
     <NumberedList items={UNTYPED_NOTES} size={14.5} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HKT} />
+  <Plain text={PLAIN_HKT} />
 
   <Card tone="info" title="Где слияние работает как инструмент: типы высшего порядка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={HKT_CODE} size={10.5} lh={1.65} pad="14px 16px" />
@@ -410,9 +386,8 @@ import {
   eyebrow="Раздел 2"
   title="Сужение"
   lead="Объединение `string | number` разрешает только то, что годится для всех членов сразу. Чтобы вызвать `toLowerCase`, надо выяснить, что там строка, — проверкой при выполнении. Компилятор читает эти проверки и в каждой ветке считает тип уже. Это называют сужением (narrowing): типы не вычисляются, а следуют за `if`, `switch` и `return`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NARROWING} />
+  <Plain text={PLAIN_NARROWING} />
 
   <CodeBlock code={NARROW_BASICS_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -465,9 +440,8 @@ import {
   eyebrow="Раздел 3"
   title="Условные типы и `infer`"
   lead="Если в условный тип пришло объединение, TypeScript проверяет каждый его член отдельно и собирает ответы обратно. Это называют дистрибутивностью, и на ней построена половина остального. А почти все странные результаты самописных типов — это она же, встретившая `never`, `any` или `boolean`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISTRIBUTION} />
+  <Plain text={PLAIN_DISTRIBUTION} />
 
   <CodeBlock code={DIST_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
@@ -542,7 +516,7 @@ import {
     <NumberedList items={TYPE_TESTS_NOTES} size={14.5} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INFER} />
+  <Plain text={PLAIN_INFER} />
 
   <Card tone="info" title="`infer` — единственный способ достать тип изнутри" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
 
@@ -654,9 +628,8 @@ import {
   eyebrow="Раздел 4"
   title="Mapped-типы и сохранение формы"
   lead="Mapped-тип — это цикл `for` по ключам типа, который строит новый тип. От того, как записан этот цикл, зависит, останется ли массив массивом. На этом и ломается почти любой самописный `DeepPartial`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOMOMORPHIC} />
+  <Plain text={PLAIN_HOMOMORPHIC} />
 
   <CodeBlock code={MAPPED_BASICS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
@@ -748,11 +721,10 @@ import {
   eyebrow="Раздел 5"
   title="Рекурсия и её пределы"
   lead="Здесь язык типов упирается в ограничения компилятора, и у них есть конкретные числа. Хорошая новость: чтобы тип, падающий на пятидесяти шагах, заработал на тысяче, его достаточно переписать по шаблону, а не придумывать заново."
-  leadWidth={72}
 >
   <CodeBlock code={TUPLE_MATH_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TAIL} />
+  <Plain text={PLAIN_TAIL} />
 
   <Card title="Две формы рекурсии" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
     <CodeBlock code={TAIL_FORMS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -900,9 +872,8 @@ import {
   eyebrow="Раздел 6"
   title="Вариантность"
   lead="Если `Dog` подходит туда, где ждут `Animal`, подходит ли туда же коробка с собаками? Это вопрос вариантности. В TS её обычно не объявляют: компилятор сам смотрит, где стоит параметр — на входе или на выходе, — и выводит ответ. А одно исключение из этого правила не выключается никаким флагом."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VARIANCE} />
+  <Plain text={PLAIN_VARIANCE} />
 
   <Md text={VARIANCE_SCENE_NOTE} />
 
@@ -922,7 +893,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VARIANCE_PLACES} />
+  <Plain text={PLAIN_VARIANCE_PLACES} />
 
   Те же четыре вида — в общем виде, для любого контейнера:
 
@@ -1032,9 +1003,8 @@ import {
   eyebrow="Раздел 7"
   title="Классы: что проверяет компилятор, а что движок"
   lead="Класс в TypeScript — это класс JavaScript с подписями. Часть подписей стирается и работает только при компиляции, часть совпадает с настоящими возможностями движка, а декораторы компилятор не стирает, а переписывает в код. Ошибки в классах почти всегда — от того, что одно приняли за другое."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PRIVATE} />
+  <Plain text={PLAIN_PRIVATE} />
 
   <CodeBlock code={CLASS_PRIVATE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -1078,7 +1048,7 @@ import {
 
   ### Миксины
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MIXIN} />
+  <Plain text={PLAIN_MIXIN} />
 
   <CodeBlock code={MIXIN_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -1143,7 +1113,6 @@ import {
   eyebrow="Раздел 9"
   title="Источники"
   lead="Handbook и release notes объясняют правила языка, а исходники библиотек показывают, как эти правила выглядят в настоящем коде."
-  leadWidth={72}
 >
   <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
     <SourceList items={SOURCES} />

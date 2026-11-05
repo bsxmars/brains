@@ -5,7 +5,6 @@ headingWidth: 24
 order: 15
 kicker: сборка и инструменты
 lead: "Код пакета может быть безупречным, а пакет — сломанным. `exports` отдал `require` не тот файл, TypeScript нашёл типы от другого формата, `dist` не попал в архив, а «минорное» обновление закрыло путь, которым пользовались все. Как Node, TypeScript и npm читают `package.json` — по шагам, на маленьких пакетах-фикстурах."
-leadWidth: 66
 summary: "Алгоритм `exports`: сокращения, точный ключ и шаблоны с `*`, условия по порядку, `null` и ошибки Node; кто какие условия включает и почему TypeScript возвращается из условия, а Node — нет; `type` и расширения, `require(esm)` в Node 24, двойной пакет и два экземпляра состояния; `.d.mts`/`.d.cts` и маскарад типов по attw и publint; что уезжает в тарбол; какие правки карты ломают версию."
 verifiedOn: "Node 24.11.0, npm 11.6.1, TypeScript 6.0.3, publint 0.3.25, @arethetypeswrong/core 0.18.5, октябрь 2026: четырнадцать пакетов-фикстур, ответы Node, TypeScript, publint, attw и npm pack --dry-run пересобираются tests/unit/package-publishing.test.ts; учебный резолвер exports совпадает с Node на всех спецификаторах в четырёх режимах. Ничего не публиковалось."
 nav:
@@ -23,13 +22,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ExportsLab from '@/widgets/exports-lab/ui/ExportsLab.vue';
@@ -103,46 +104,18 @@ import {
   Код тут ни при чём. Это ошибки упаковки: какой файл кому достаётся, какой формат у него
   на самом деле и что вообще лежит в архиве, который скачал пользователь.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EXPORTS} />
+  <Plain text={PLAIN_EXPORTS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Поле `exports`: как Node выбирает файл"
   lead="Спецификатор `price-kit/plugins/card` Node делит на имя пакета и подпуть `./plugins/card`, находит `package.json` пакета и спрашивает его карту. Алгоритм записан в документации Node по шагам и помещается в сотню строк кода."
-  leadWidth={72}
 >
   <Card title="Сквозной пример: package.json пакета price-kit" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PRICE_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
@@ -189,7 +162,6 @@ import {
   eyebrow="Раздел 2"
   title="Условия: кто какие включает"
   lead="Карта одна, а читают её разные программы, и каждая включает свой набор условий. Резолвер не выбирает «лучшее» условие — он берёт первое включённое сверху. Поэтому порядок ключей — часть смысла карты."
-  leadWidth={72}
 >
   <Table
     head={['кто читает', 'включённые условия']}
@@ -230,7 +202,6 @@ import {
   eyebrow="Раздел 3"
   title="ESM и CommonJS в одном пакете"
   lead="Формат файла Node определяет по расширению и полю `type`, а на содержимое смотрит, только когда `type` не задан. А с тех пор как `require` умеет загружать ESM, у автора пакета появился выбор, которого раньше не было: публиковать один формат вместо двух."
-  leadWidth={72}
 >
   <Table
     head={['файл', 'формат']}
@@ -268,7 +239,7 @@ import {
 
   ### Двойной пакет: два экземпляра состояния
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HAZARD} />
+  <Plain text={PLAIN_HAZARD} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="dual-kit: карта" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -300,7 +271,6 @@ import {
   eyebrow="Раздел 4"
   title="Типы: что видит TypeScript"
   lead="TypeScript ищет типы по той же карте `exports`, но со своими условиями и своими правилами. Найти `.d.ts` мало: TypeScript должен понять, описывает файл ESM или CommonJS. Это решает расширение и поле `type`, а не содержимое файла."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {TYPES_RULES.map((rule) => (
@@ -331,7 +301,7 @@ import {
 
   ### Маскарад: типы от другого формата
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MASQUERADE} />
+  <Plain text={PLAIN_MASQUERADE} />
 
   <Table
     head={['пакет', 'как устроен', 'что сказал attw']}
@@ -352,7 +322,6 @@ import {
   eyebrow="Раздел 5"
   title="Что уедет в тарбол"
   lead="Публикуется не папка, а архив. Что в него войдёт, решают поле `files`, файл `.npmignore` и — неожиданно — `.gitignore`. Посмотреть заранее можно без публикации: `npm pack --dry-run` печатает список файлов и ничего никуда не отправляет."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Проект" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -388,7 +357,6 @@ import {
   eyebrow="Раздел 6"
   title="Что ломает версию"
   lead="Номер версии — обещание: патч чинит, минор добавляет, мажор ломает. Автору пакета важно, что считается API. Карта `exports` и условия — тоже API, и их правка ломает чужой код не хуже удалённой функции."
-  leadWidth={72}
 >
   <Table
     head={['правка', 'спецификатор', 'было', 'стало', 'версия']}

@@ -4,7 +4,6 @@ heading: "Копирование и сериализация: JSON и structured
 headingWidth: 24
 order: 11
 lead: "`{ ...obj }` копирует один уровень, `JSON.parse(JSON.stringify(obj))` молча теряет даты и `undefined`, `structuredClone` падает на первой же функции. У каждого способа свой алгоритм, и все три записаны в спецификациях по шагам. Зная шаги, можно заранее сказать, что приедет в копию, а что нет, — и почему replacer видит дату строкой."
-leadWidth: 66
 summary: "Поверхностная копия: спред и `Object.assign`, геттеры и дескрипторы; `JSON.stringify` по шагам спецификации — `toJSON`, replacer, отступ, циклы, учебная реализация; `JSON.parse` и reviver снизу вверх, `context.source`; `structuredClone` по алгоритму HTML — таблица `memory`, слоты, ошибки, буферы, `DataCloneError` посреди обхода, перенос; сравнение с `cloneDeep` из lodash."
 verifiedOn: "Node 24.11.0 (V8 13.6), Chromium 153.0.8010.12 (Playwright 1.63), lodash-es 4.18.1, октябрь 2026: примеры и таблицы исполняет tests/unit/serialization.test.ts; учебные stringify и clone сверены с JSON.stringify и structuredClone на наборе значений и 400 случайных деревьях"
 nav:
@@ -29,6 +28,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CloneLab from '@/widgets/clone-lab/ui/CloneLab.vue';
@@ -117,46 +119,18 @@ import {
   Ошибки от этого тихие: дата превращается в строку, вложенный массив остаётся общим,
   экземпляр класса теряет методы — без единого исключения.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COPY} />
+  <Plain text={PLAIN_COPY} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Поверхностная копия"
   lead="Пример на всю тему — заказ с датой, массивом товаров, множеством меток и пустым промокодом. Самая короткая копия — спред `{ ...order }`: новый объект с теми же значениями свойств. Но значение свойства-объекта — это ссылка, и копируется именно она."
-  leadWidth={72}
 >
   <Card title="Заказ" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -170,7 +144,7 @@ import {
     </CardNote>
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHALLOW} />
+  <Plain text={PLAIN_SHALLOW} />
 
   ### Что спред делает со свойствами
 
@@ -199,7 +173,6 @@ import {
   eyebrow="Раздел 2"
   title="Запись в JSON по шагам"
   lead="JSON проходит всё дерево, поэтому `JSON.parse(JSON.stringify(x))` часто зовут глубокой копией. Но по пути значение превращается в текст, а в JSON есть только шесть видов значений: объект, массив, строка, число, `true`/`false` и `null`. Всё остальное во что-то превращается или пропадает."
-  leadWidth={72}
 >
   <Card title="Заказ в JSON" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={STRINGIFY_ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -209,7 +182,7 @@ import {
     </CardNote>
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPEC_STEPS} />
+  <Plain text={PLAIN_SPEC_STEPS} />
 
   <Card title="Одно свойство — пять шагов" titleSize={17} pad={20} gap={13}>
     <NumberedList items={STRINGIFY_STEPS} size={15.5} />
@@ -294,7 +267,6 @@ import {
   eyebrow="Раздел 3"
   title="JSON.parse и reviver"
   lead="Обратный путь — разбор текста. Типов, которых нет в JSON, разбор не восстановит: дата приедет строкой, множество — пустым объектом. Восстанавливать их можно функцией reviver: она вызывается для каждого разобранного значения и может его заменить."
-  leadWidth={72}
 >
   <Card title="Reviver восстанавливает дату" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={REVIVER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -304,7 +276,7 @@ import {
     </CardNote>
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REVIVER} />
+  <Plain text={PLAIN_REVIVER} />
 
   <Md text={SOURCE_NOTE} />
 
@@ -331,7 +303,6 @@ import {
   eyebrow="Раздел 4"
   title="Structured clone по шагам"
   lead="`structuredClone` не переводит значение в текст. Алгоритм из спецификации HTML записывает объекты во внутренний формат и сразу собирает их заново. Поэтому он знает типы, которых в JSON нет, и сохраняет граф ссылок. Тот же алгоритм копирует сообщения `postMessage`."
-  leadWidth={72}
 >
   <Card title="Тот же заказ" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CLONE_ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -345,7 +316,7 @@ import {
     <NumberedList items={CLONE_STEPS} size={15.5} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SLOT} />
+  <Plain text={PLAIN_SLOT} />
 
   ### Общие ссылки и циклы
 
@@ -436,7 +407,6 @@ import {
   eyebrowTone="demo"
   title="Три способа рядом"
   lead="Глубоких копий в обиходе три: JSON туда и обратно, `structuredClone` и `cloneDeep` из lodash. Каждый по-своему решает, что делать с тем, чего он копировать не умеет: превратить, отказать или оставить ссылку на оригинал."
-  leadWidth={72}
 >
   <Table
     head={COMPARE_HEAD}

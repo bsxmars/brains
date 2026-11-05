@@ -5,7 +5,6 @@ headingWidth: 24
 order: 21
 kicker: фреймворки изнутри
 lead: "Шаблон Angular читает обычные поля класса, и записать в них можно откуда угодно. Десять лет Angular узнавал о записи косвенно: zone.js подменял `setTimeout`, `Promise` и `addEventListener` и после каждой задачи звал проверку всего дерева. Теперь проверку заказывает сигнал. Что это меняет — по счётчикам настоящего Angular 21 на одном и том же приложении."
-leadWidth: 66
 summary: "Что подменяет zone.js и как прячет подмену, мини-зона и `onMicrotaskEmpty`, цена проверки всего дерева и `OnPush`, `NG0100`, почему родной `await` теряет зону и CLI переписывает `async`, планировщик без зоны: кто заказывает тик и почему три записи — один тик, сигналы Angular среди других."
 verifiedOn: "@angular/core 21.2.25, zone.js 0.16.3, esbuild 0.28.2, Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: приложение темы собрано и запущено в Chromium с зоной и без, на десяти сценариях; мини-версия сверена с этими счётчиками в tests/unit/angular-zoneless.test.ts"
 nav:
@@ -30,6 +29,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ZoneLab from '@/widgets/zone-lab/ui/ZoneLab.vue';
@@ -94,38 +96,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TICK} />
+  <Plain text={PLAIN_TICK} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section id="s0" eyebrow="Перед началом" title="Что тема считает известным">
-  <CardGrid min={270} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Шаблон читает обычные поля"
   lead="Пример на всю тему — четыре компонента. Counter и List держат данные в сигналах, Clock — в обычном поле и в сигнале, App их собирает. Одно и то же приложение запускается с зоной и без, с `Default` и с `OnPush`."
-  leadWidth={72}
 >
   <Card title="Приложение: app.ts" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ANGULAR_APP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -155,9 +137,8 @@ import {
   eyebrow="Раздел 2"
   title="zone.js: подменить всё асинхронное"
   lead="Если не знаешь, когда поменялись данные, остаётся следить за всем, что может их поменять. Данные меняет только код, а код после старта страницы запускают задачи: таймеры, события, ответы сети, промисы. zone.js оборачивает каждую функцию, через которую задачу можно поставить, и узнаёт о каждой."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ZONE} />
+  <Plain text={PLAIN_ZONE} />
 
   ### Что подменено
 
@@ -204,7 +185,6 @@ import {
   eyebrow="Раздел 3"
   title="Цена: всё дерево после любой задачи"
   lead="Зона сообщает «что-то выполнилось», а не «что-то изменилось». Поэтому проверка запускается и после таймера, который ничего не менял, и после каждого движения мыши, — и каждый раз от корня."
-  leadWidth={72}
 >
   <Table
     head={['сценарий', 'зона, Default: тиков · шаблонов', 'зона, OnPush', 'без зоны, Default']}
@@ -234,7 +214,6 @@ import {
   eyebrow="Раздел 4"
   title="async/await: где зона теряет след"
   lead="Зона живёт, пока каждый колбэк проходит через подменённую функцию. Родной `await` через неё не проходит."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Где мы после каждого шага" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -285,9 +264,8 @@ import {
   eyebrow="Раздел 5"
   title="Без зоны: проверку заказывают"
   lead="Без зоны никто не следит за таймерами и событиями. Проверку запускает планировщик, а будят его только те, кто точно знает, что данные изменились: сигнал, обработчик из шаблона, `markForCheck`. Будить можно сколько угодно раз — тик всё равно один."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCHEDULER} />
+  <Plain text={PLAIN_SCHEDULER} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Планировщик" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -338,7 +316,6 @@ import {
   eyebrow="Раздел 6"
   title="Сигналы Angular среди других"
   lead="Граф у сигналов Angular тот же, что у Vue и Solid. Отличаются они тем, кто их читает в шаблоне и когда выполняются эффекты."
-  leadWidth={72}
 >
   <Card title="Ленивость, кеш и мутация мимо сигнала" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SIGNAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />

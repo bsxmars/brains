@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Страница и система: экран, „Поделиться“, значок, оплата».
@@ -61,7 +61,7 @@ export const has = (v: boolean): string => (v ? 'есть' : 'нет');
 
 // ─── Вводный раздел ────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'безопасный контекст',
     d: 'Страница, открытая по `https:`, или с `localhost` и `127.0.0.1`. Проверяется флажком `isSecureContext`. Вне безопасного контекста все четыре API этой темы пропадают из `navigator` целиком.',
@@ -94,7 +94,7 @@ export const PLAIN_SYSTEM =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из соседних тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Источник страницы',
     d: 'Протокол, домен и порт вместе. От протокола зависит, безопасный ли контекст: на `http:` браузер прячет почти всё, что касается системы.',
@@ -514,7 +514,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Screen Wake Lock API',
     href: 'https://www.w3.org/TR/screen-wake-lock/',

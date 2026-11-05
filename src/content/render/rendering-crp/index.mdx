@@ -3,7 +3,6 @@ title: Критический путь и Web Vitals
 order: 3
 kicker: браузер и рендеринг
 lead: "Пока страница не показала первый пиксель, браузер в основном ждёт — сеть, стили, скрипты, — а не выполняет ваш код. Три метрики — LCP, INP и CLS — меряют три разных вещи: когда появилось главное, как быстро страница ответила на действие и насколько прыгало содержимое. И каждая ломается по-своему."
-leadWidth: 66
 summary: "Что останавливает разбор HTML, что задерживает первую отрисовку, как считаются LCP, INP и CLS — и почему зелёная оценка Lighthouse ничего не обещает."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), сентябрь 2026; пороги CWV — политика Google, сверяйте с web.dev"
 nav:
@@ -29,6 +28,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ClsLive from '@/widgets/cls-live/ui/ClsLive.vue';
@@ -128,35 +130,10 @@ import {
     </CardNote>
   </Card>
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -164,11 +141,10 @@ import {
   eyebrowTone="demo"
   title="Критический путь: кто кого ждёт"
   lead="Один и тот же документ, одни и те же ресурсы, два порядка их объявления. Из сотен миллисекунд до первого пикселя на работу уходят единицы — остальное ожидание."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BLOCKING} />
+  <Plain text={PLAIN_BLOCKING} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PRELOAD} />
+  <Plain text={PLAIN_PRELOAD} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CRP_DEMO_NOTE} />
 
@@ -231,7 +207,6 @@ import {
   eyebrow="Раздел 2"
   title="LCP: когда появилось главное"
   lead="Метрика отвечает на вопрос «когда я увидел то, ради чего пришёл». Считается она проще, чем кажется, и почти все ошибки в ней — не в оптимизации, а в чтении: люди чинят не ту часть."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Кто считается кандидатом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -266,7 +241,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LCP_PARTS} />
+  <Plain text={PLAIN_LCP_PARTS} />
 
   ### Четыре части на одной картинке
 
@@ -335,9 +310,8 @@ import {
   eyebrowTone="demo"
   title="CLS: насколько под руками прыгало"
   lead="Единственная метрика из трёх, которая меряется не во времени, — и единственная, которую можно посчитать на бумаге."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLS} />
+  <Plain text={PLAIN_CLS} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CLS_DEMO_NOTE} />
 
@@ -390,7 +364,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLS_WINDOWS} />
+  <Plain text={PLAIN_CLS_WINDOWS} />
 
   <Card title="Что исключается — и почему это не поблажка" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
 
@@ -436,9 +410,8 @@ import {
   eyebrowTone="demo"
   title="INP: сколько ждал отклик"
   lead="Метрика меряет путь от нажатия до следующей отрисовки целиком — а не «как быстро вызвался обработчик»."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INP} />
+  <Plain text={PLAIN_INP} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={INP_DEMO_NOTE} />
 
@@ -517,7 +490,6 @@ import {
   eyebrow="Раздел 5"
   title="Чем это мерить и чему верить"
   lead="Измерения бывают двух видов, и их постоянно путают. Лабораторные — Lighthouse, DevTools — отвечают на вопрос «стало ли лучше после моей правки». Полевые — данные настоящих пользователей — на вопрос «есть ли проблема». Ответ одних на вопрос других ничего не стоит."
-  leadWidth={72}
 >
   <Table
     head={['', 'лаборатория', 'поле']}
@@ -582,7 +554,7 @@ import {
 
   <Md text={CRUX_LEAD} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CRUX} />
+  <Plain text={PLAIN_CRUX} />
 
   <Table
     head={['как достать', 'что отдаёт', 'как часто и на какой срок']}
@@ -623,7 +595,6 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
   lead="Спецификации API — чтобы проверить, как считается число. Документация Google — чтобы узнать текущие пороги: это политика, а не поведение движка, и она меняется чаще всего остального в этой теме."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

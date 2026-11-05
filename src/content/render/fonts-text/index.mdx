@@ -5,7 +5,6 @@ headingWidth: 22
 order: 12
 kicker: браузер и рендеринг
 lead: "Заголовок сначала пустой, потом появляется — и кнопка под ним прыгает вниз. Это не капризы: браузер качает шрифт позже, чем кажется, решает по `font-display`, что показать в ожидании, и раскладывает текст заново, когда файл приходит. Как это устроено по шагам и как сделать, чтобы подмена ничего не двигала."
-leadWidth: 66
 summary: "Когда браузер начинает качать шрифт, периоды блокировки и подмены и пять значений `font-display`, FOIT и FOUT, сдвиг при подмене и подгонка запасного шрифта `size-adjust` / `ascent-override` / `descent-override`, подмножества и `unicode-range`, `preload` с `crossorigin`, `document.fonts`, шейпинг: кернинг, лигатуры и `measureText`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: запросы, фазы font-display, сдвиги и ширины сняты стендом со своим сервером и задержкой шрифта; функции темы сверены с замерами в tests/unit/fonts-text.test.ts"
 nav:
@@ -23,13 +22,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FontDisplayLab from '@/widgets/font-display-lab/ui/FontDisplayLab.vue';
@@ -94,48 +95,20 @@ import {
   ширину. Каждый шаг виден читателю: пустым заголовком, сменой шрифта на глазах, прыжком
   кнопки под пальцем. И почти каждый можно настроить, если знать, как он устроен.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FONTS} />
+  <Plain text={PLAIN_FONTS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Когда браузер начинает качать шрифт"
   lead="`@font-face` — объявление, а не команда. Браузер читает правило и ничего не качает, пока шрифт не понадобится, чтобы разложить настоящий текст."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAZY} />
+  <Plain text={PLAIN_LAZY} />
 
   <CodeBlock code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -173,9 +146,8 @@ import {
   eyebrowTone="demo"
   title="font-display: что видно, пока шрифт едет"
   lead="С момента, когда загрузка началась, идут часы. Сначала период блокировки: текст не видно. Потом период подмены: виден запасной шрифт, и пришедший файл его заменит. Потом подмены больше не будет. `font-display` задаёт длину первых двух периодов."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISPLAY} />
+  <Plain text={PLAIN_DISPLAY} />
 
   <Table
     head={['значение', 'блокировка', 'подмена', 'когда брать']}
@@ -210,7 +182,6 @@ import {
   eyebrow="Раздел 3"
   title="Сдвиг при подмене и как его погасить"
   lead="Колонка текста 360px, `font-display: swap`, шрифт приходит через 800 мс. Под абзацем — кнопка. Строки после подмены другие, и кнопка уезжает: это сдвиг, который попадает в CLS."
-  leadWidth={72}
 >
   <Table
     head={['вариант', 'что добавлено', 'высота абзаца, px', 'верх кнопки, px', 'CLS']}
@@ -225,7 +196,7 @@ import {
 
   ### Запасной шрифт по мерке
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OVERRIDES} />
+  <Plain text={PLAIN_OVERRIDES} />
 
   Запасной шрифт нельзя переделать, но можно объявить его заново, как отдельное семейство,
   и переписать ему метрики. `size-adjust` масштабирует все буквы, а `ascent-override`,
@@ -251,9 +222,8 @@ import {
   eyebrow="Раздел 4"
   title="Подмножества и unicode-range"
   lead="Шрифт с латиницей, кириллицей и вьетнамским — сотни килобайт, а странице обычно нужна одна-две письменности. Поэтому шрифт режут на файлы-подмножества и каждому пишут `unicode-range`: какие символы в нём есть. Браузер качает только те файлы, чьи символы встречаются в тексте."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RANGE} />
+  <Plain text={PLAIN_RANGE} />
 
   <CodeBlock code={SUBSET_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -277,7 +247,6 @@ import {
   eyebrow="Раздел 5"
   title="preload и document.fonts"
   lead="Браузер узнаёт о шрифте поздно, после HTML, CSS и стилей. `preload` называет файл прямо в HTML, и запрос уходит сразу. А `document.fonts` даёт скрипту увидеть и запустить загрузку самому."
-  leadWidth={72}
 >
   <CodeBlock code={PRELOAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -317,9 +286,8 @@ import {
   eyebrow="Раздел 6"
   title="Ширина строки: почему не сумма букв"
   lead="Шрифт пришёл — теперь строку надо измерить. Кажется, что ширина слова равна сумме ширин его букв. Для большинства шрифтов это не так, и разница — проценты."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHAPING} />
+  <Plain text={PLAIN_SHAPING} />
 
   <CodeBlock code={MEASURE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 

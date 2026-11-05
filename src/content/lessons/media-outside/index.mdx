@@ -3,7 +3,6 @@ title: "Плеер вне вкладки: Picture-in-Picture, Media Session и �
 headingWidth: 24
 order: 26
 lead: "`requestPictureInPicture` выносит видео в маленькое окно поверх всех программ, а `documentPictureInPicture` — целый кусок страницы с кнопками. Media Session отдаёт кнопки плеера шторке телефона, клавиатуре и наушникам. `getDisplayMedia` показывает экран человека в вашем `<video>`. Окна и захват открываются только сразу после клика, а отказы у них в разных движках разные."
-leadWidth: 66
 summary: "`requestPictureInPicture` и `PictureInPictureWindow`; почему окно открывается только по клику и сколько живёт временная активация; Document PiP — перенос элемента и стилей, одно окно на вкладку; Media Session — метаданные, действия и `setPositionState`, что из этого знает каждый движок; `getDisplayMedia`, `displaySurface`, звук вкладки, `CaptureController` и два способа закончить показ; как проверить всё это в Chromium без окна."
 verifiedOn: "Playwright 1.63: Chromium 153, Firefox 155, WebKit 26.6, ноябрь 2026. Каждый пример с выводом и каждая таблица отказов исполняются tests/e2e/media-outside.spec.ts; захват экрана — на поддельном экране Chromium"
 nav:
@@ -18,8 +17,6 @@ nav:
 
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
-import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
@@ -27,6 +24,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -80,44 +80,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OUTSIDE} />
+  <Plain text={PLAIN_OUTSIDE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Картинка в картинке: видео поверх всех окон"
   lead="Один вызов у элемента `<video>` — и кадр переезжает в маленькое окно поверх всех программ. Окно живёт, пока его не закроет человек или пока страница не вызовет `document.exitPictureInPicture()`."
-  leadWidth={72}
 >
   <CodeBlock code={PIP_CODE} />
 
@@ -133,7 +107,7 @@ import {
   `NotAllowedError`. Окно поверх всех программ открывается только по действию человека:
   клику, касанию, нажатию клавиши.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIVATION} />
+  <Plain text={PLAIN_ACTIVATION} />
 
   ### Правила окна
 
@@ -159,7 +133,6 @@ import {
   eyebrow="Раздел 2"
   title="Целая страница в маленьком окне: Document Picture-in-Picture"
   lead="В обычное окно «картинка в картинке» помещается только кадр видео. `documentPictureInPicture.requestWindow` открывает поверх всех программ окно с целым документом. Туда переносят плеер с кнопками, субтитры, таймер, окошко звонка."
-  leadWidth={72}
 >
   <CodeBlock code={DPIP_CODE} />
 
@@ -179,13 +152,12 @@ import {
   eyebrow="Раздел 3"
   title="Кнопки в системе: Media Session"
   lead="Кнопки «пауза» и «следующий трек» есть в шторке телефона, на клавиатуре, на наушниках и на экране блокировки. Нажимает их человек, а сигнал получает браузер. `navigator.mediaSession` говорит браузеру, что сейчас играет и что делать по каждой кнопке."
-  leadWidth={72}
 >
   <CodeBlock code={MS_CODE} />
 
   <CodeBlock code={MS_OUT} tone="ok" />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SESSION} />
+  <Plain text={PLAIN_SESSION} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={MS_NOTE} />
@@ -225,7 +197,6 @@ import {
   eyebrow="Раздел 4"
   title="Захват экрана: getDisplayMedia"
   lead="`getDisplayMedia` просит человека выбрать, что показать: весь экран, окно программы или вкладку. Ответ — `MediaStream`, такой же, как с камеры. Его показывают в `<video>`, записывают в файл или отправляют собеседнику."
-  leadWidth={72}
 >
   <CodeBlock code={GDM_CODE} />
 
@@ -241,7 +212,7 @@ import {
 
   ### Куда переключится человек: `CaptureController`
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FOCUS} />
+  <Plain text={PLAIN_FOCUS} />
 
   <Table
     head={['когда вызван `setFocusBehavior`', 'ответ']}

@@ -1,7 +1,7 @@
 import type { CmpRow, SortKey } from '@/widgets/comparison-table/model/types';
 import type { HeapNode, HeapVariant } from '@/widgets/heap-graph/model/types';
 import type { Metric, MonitorCombo } from '@/widgets/memory-monitor/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { RetainerChain } from '@/widgets/retainer-chain/model/types';
 
 /**
@@ -822,7 +822,7 @@ export const NODE_FLAGS: string[][] = [
  * и она же устаревает быстрее всего: ровно поэтому утверждения про колонки и цвета в теме
  * помечены как требующие проверки. Документация Node и спецификация живут дольше.
  */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Chrome DevTools · Record heap snapshots',
     href: 'https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots/',
@@ -876,7 +876,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
    нужны два факта.» — пересказ карточек. Снят 2026-10-01. */
 export const PREREQ_NOTE = '';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что объект жив, пока достижим',
     d: 'Объект жив, пока до него можно дойти по ссылкам от корней — глобального объекта и стека вызовов. Всё остальное сборщик вправе убрать в любой момент.',

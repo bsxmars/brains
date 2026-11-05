@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 import type { SeqDiagram } from '@/widgets/security-sequence-diagram/model/types';
 
 /**
@@ -1279,7 +1279,7 @@ export const ISOLATION_BREAKS = [
   '**`document.domain`** под изоляцией не работает (он и так объявлен устаревшим).',
 ];
 
-export const SOURCES: { t: string; items: string[] }[] = [
+export const SOURCES: SourceGroup[] = [
   {
     t: 'Спецификации',
     items: [
@@ -1572,7 +1572,7 @@ export const BLIND_SPOT_RUN =
  * в спецификации. «CORS защищает сервер», «CSP чинит XSS», «origin — это домен» — три ложных
  * утверждения, на которых держится половина ошибок; разводить их надо до первого раздела.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'origin (источник)',
     d: 'Тройка **протокол + домен + порт**, и все три обязательны: `https://a.ru` и `http://a.ru` — разные источники, как и `a.ru:443` против `a.ru:8443`. Не «домен» и не «сайт»: у последнего своё определение, по которому поддомены считаются вместе.',
@@ -1624,7 +1624,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Все механизмы безопасности здесь объясняются с нуля. Известными считаются две вещи про устройство платформы. Первая — где браузер хранит куки: отсюда то, что фронт не видит сессионную куку. Вторая — сколько стоит лишний поход на сервер: отсюда цена preflight и его отдельный кеш.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что куки живут в сетевом процессе',
     d: 'Страница их не выбирает и не видит: их прикрепляет сетевой процесс, а вкладка отдаёт ему только адрес. Отсюда и `HttpOnly` как пометка «процессу страницы (рендереру) не показывать», и то, что скомпрометированный рендерер не может унести сессию.',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные урока «Промис изнутри».
@@ -488,7 +488,7 @@ export const SEQ_FACTS = [
  * записано у соседних тем. Стабилен здесь **якорь**, а не номер; номер приведён к тому,
  * что читатель увидит, перейдя по ссылке.
  */
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 · 27.5.1.5 NewPromiseCapability',
     href: 'https://tc39.es/ecma262/#sec-newpromisecapability',
@@ -546,7 +546,7 @@ export const SOURCES = [
  * в разделе 1 как известные, хотя не были названы нигде, а executor и «реакция» —
  * ключевые слова всех трёх операций спеки.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'тик',
     d: 'Одна микрозадача в очереди. «Конструкция стоит 3 тика» значит «её результат виден на третьей микрозадаче после синхронного кода».',
@@ -578,7 +578,7 @@ export const GLOSSARY = [
 /* ⚠️ Здесь стоял лид «Известными считаются три факта — все три нужны…» — пересказ карточек. Снят 2026-09-30. */
 export const PREREQ_NOTE = '';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что очередь микрозадач выполняется до конца',
     d: 'После каждой задачи браузер и Node выполняют всю очередь микрозадач целиком, включая те, что добавились по ходу. Как это устроено, разобрано отдельно.',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LocationProbe, ProbeGroup } from '@/widgets/nginx-lab/model/types';
 
 /**
@@ -60,7 +60,7 @@ import type { LocationProbe, ProbeGroup } from '@/widgets/nginx-lab/model/types'
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'обратный прокси',
     d: 'Сервер, который принимает запросы вместо вашего приложения и пересылает их ему. Браузер говорит только с прокси и про приложение за ним ничего не знает.',
@@ -97,7 +97,7 @@ export const PLAIN_PROXY =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи из других тем. Если что-то незнакомо — хватит раздела по ссылке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Хост и путь запроса',
     d: 'В каждом HTTP-запросе есть имя сайта — заголовок `Host` — и путь вроде `/api/users?page=2`. По этим двум вещам прокси решает, кому отдать запрос. В Kubernetes то же самое решает Ingress.',
@@ -851,7 +851,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'nginx: How nginx processes a request',
     href: 'https://nginx.org/en/docs/http/request_processing.html',

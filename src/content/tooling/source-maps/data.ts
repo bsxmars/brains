@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { MapExample } from '@/widgets/source-map-lab/model/types';
 
 /**
@@ -35,7 +35,7 @@ import type { MapExample } from '@/widgets/source-map-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'source map (карта исходников)',
     d: 'JSON-файл рядом с бандлом. Для каждого куска сгенерированного кода в нём записано, из какого файла, строки и колонки исходника этот кусок получился.',
@@ -68,7 +68,7 @@ export const PLAIN_SOURCEMAP =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Рабочая сборка не похожа на исходники',
     d: 'Сборщик склеивает модули в один файл, стирает типы, переименовывает переменные и убирает пробелы. Строки и колонки бандла поэтому ничего не говорят о том, где эта строка лежала у вас.',
@@ -460,7 +460,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-426 — Source map format specification',
     href: 'https://tc39.es/ecma426/',

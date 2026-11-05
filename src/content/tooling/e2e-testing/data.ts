@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AwFixture, LogLine } from '@/widgets/autowait-lab/model/types';
 
 /**
@@ -66,7 +66,7 @@ import type { AwFixture, LogLine } from '@/widgets/autowait-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'e2e-тест (сквозной)',
     d: 'Тест, который открывает настоящую страницу в настоящем браузере и действует как пользователь: нажимает, вводит, ждёт. Проверяет всё сразу — разметку, стили, скрипты, сервер.',
@@ -107,7 +107,7 @@ export const PLAIN_E2E =
 export const PREREQ_NOTE =
   'Тема о том, что происходит между строкой теста и браузером. Сам тест-раннер, процессы браузера, дерево доступности и разница между настоящим кликом и `el.click()` разобраны в других темах — здесь на них опираются.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как раннер собирает и запускает тесты',
     d: 'Файлы ищутся по шаблону, `describe` и `test` собираются в дерево, хуки `beforeEach`/`afterEach` обходят каждый тест. `@playwright/test` устроен так же, только каждому тесту выдаёт ещё и страницу.',
@@ -851,7 +851,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Playwright — Auto-waiting (Actionability)',
     href: 'https://playwright.dev/docs/actionability',

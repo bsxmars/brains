@@ -5,7 +5,6 @@ headingWidth: 24
 order: 4
 kicker: данные и бэкенд
 lead: "Обработчик начислил бонусы и упал, не успев сказать очереди «готово». Через 200 мс сообщение заберёт другой обработчик — и начислит ещё раз. Очередь не умеет «ровно один раз»: она выбирает между «может потеряться» и «может прийти дважды». Как устроено подтверждение, куда деваются зависшие и ядовитые сообщения и как сделать, чтобы дубль ничего не менял."
-leadWidth: 66
 summary: "Зачем очередь; «не больше одного раза» и «не меньше одного раза»; `XACK` до работы и после по шагам; список ожидания, `XPENDING`, счётчик доставок и `XAUTOCLAIM`; ядовитые сообщения и очередь мёртвых писем; ключ идемпотентности и `INSERT … ON CONFLICT DO NOTHING` в одной транзакции с эффектом; двойная запись и outbox; порядок и партиции; перебор всех точек падения."
 verifiedOn: "Redis 7.4.11 (redis:7-alpine в Docker), ioredis 5.11.1, @electric-sql/pglite 0.5.8 (PostgreSQL 18.3), PostgreSQL 16.15 (postgres:16-alpine, два сеанса psql), Node 24.11.0, октябрь 2026: журналы всех сценариев, перебор точек падения для двенадцати вариантов кода, медленный обработчик, удалённая запись и одновременная вставка ключа сняты стендом (пересборка — tests/unit/queues.test.ts при QUEUES_REDIS_CONTAINER и QUEUES_PG_CONTAINER); учебная модель сверена с ними строка в строку и с PGlite — при каждом прогоне. По документации: RabbitMQ, SQS и Kafka, Debezium"
 nav:
@@ -32,6 +31,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import QueueLab from '@/widgets/queue-lab/ui/QueueLab.vue';
@@ -112,46 +114,18 @@ import {
   упасть на любой строке. От того, на какой именно, зависит, потеряются бонусы или
   начислятся дважды.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE} />
+  <Plain text={PLAIN_QUEUE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Зачем очередь"
   lead="Очередь разрывает вызов на две половины. Отправитель кладёт сообщение и сразу идёт дальше, обработчик забирает его, когда может. Упал обработчик или не успевает за потоком — сообщения ждут, а отправитель этого даже не замечает."
-  leadWidth={72}
 >
   <CardGrid min={240} gap={14} align="start">
     {WHY_ROWS.map((row) => (
@@ -200,7 +174,6 @@ import {
   eyebrow="Раздел 2"
   title="Подтверждение: до работы или после"
   lead="Обработчик делает две вещи: эффект — начисляет бонусы — и подтверждение, `XACK`. Упасть он может между ними. От порядка этих двух строк зависит, что случится с сообщением при падении: потеряется оно или придёт ещё раз."
-  leadWidth={72}
 >
   <Card title="Обработчик: чтение и доставка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CONSUMER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -235,9 +208,8 @@ import {
   eyebrow="Раздел 3"
   title="Список ожидания и повторная выдача"
   lead="Запись, выданная обработчику, числится за ним, пока не придёт `XACK`. Сам Redis её никому не отдаст: упавший обработчик держит запись сколько угодно долго. Забирает её живой обработчик — командой `XAUTOCLAIM`, если запись висит дольше заданного времени."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VISIBILITY} />
+  <Plain text={PLAIN_VISIBILITY} />
 
   <Card title="Забрать своё и чужое" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CLAIM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -282,9 +254,8 @@ import {
   eyebrow="Раздел 4"
   title="Ядовитые сообщения и очередь мёртвых писем"
   lead="Сообщение, на котором обработка падает каждый раз, не уйдёт само: без `XACK` оно возвращается снова и снова, занимает обработчиков и копит счётчик доставок. После нескольких попыток его перекладывают в отдельный поток — очередь мёртвых писем — и подтверждают в основном."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POISON} />
+  <Plain text={PLAIN_POISON} />
 
   <QueueLab client:visible parts={PARTS} scenarios={SCENES.poison} caption={CAPTIONS.poison} />
 
@@ -303,9 +274,8 @@ import {
   eyebrow="Раздел 5"
   title="Идемпотентный обработчик"
   lead="Дубли неизбежны: их приносят повторная выдача, перезапуск, ретранслятор. Значит, обработчик должен узнавать повтор и ничего не делать. Для этого у события есть ключ, а в базе — таблица обработанных ключей, которая меняется той же транзакцией, что и бонусы."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_UNIQUE} />
+  <Plain text={PLAIN_UNIQUE} />
 
   <Card title="Два обработчика с ключом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={IDEMPOTENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -354,9 +324,8 @@ import {
   eyebrow="Раздел 6"
   title="Двойная запись и outbox"
   lead="Сервис заказов должен сделать две вещи: записать заказ в базу и опубликовать событие. Это две системы, и общей транзакции у них нет. Упадёт процесс между ними — получится заказ без события или событие без заказа."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OUTBOX} />
+  <Plain text={PLAIN_OUTBOX} />
 
   <Card title="Три издателя и ретранслятор" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PRODUCER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -389,7 +358,6 @@ import {
   eyebrow="Раздел 7"
   title="Порядок сообщений и партиции"
   lead="Поток в Redis упорядочен: записи лежат по номерам. Но порядок записи — ещё не порядок обработки. Два обработчика берут соседние записи и заканчивают когда придётся, а повторная выдача приносит старое сообщение после нового."
-  leadWidth={72}
 >
   <QueueLab client:visible parts={PARTS} scenarios={SCENES.order} caption={CAPTIONS.order} />
 
@@ -411,7 +379,6 @@ import {
   eyebrow="Раздел 8"
   title="Все точки падения"
   lead="Один сценарий — один случай. Чтобы сказать «эффект ровно один раз при любом падении», нужно проверить все места, где процесс может упасть. Меток в коде немного, их можно перебрать: прогнать заказ через всю цепочку, роняя процесс на каждой метке по очереди."
-  leadWidth={72}
 >
   <CrashLab client:visible parts={PARTS} schedule={FULL_SCHEDULE} producers={PRODUCER_OPTIONS} handlers={HANDLER_OPTIONS} caption={CRASH_CAPTION} />
 

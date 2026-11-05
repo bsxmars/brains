@@ -5,7 +5,6 @@ headingWidth: 24
 order: 16
 kicker: браузер и рендеринг
 lead: "Анимация `transform` едет, даже когда JavaScript завис на секунду, а анимация `left` встаёт. Разница не в «скорости свойства», а в том, кто считает кадр: композитор, которому отдали траекторию целиком, или главный поток, который должен пройти style, layout и paint заново на каждом кадре."
-leadWidth: 66
 summary: "Какие свойства Chromium анимирует на композиторе и почему `blur()` нет, как одно свойство в `@keyframes` держит на главном потоке всю анимацию, CSS против `element.animate` против `requestAnimationFrame`, когда элемент получает слой и сколько стоит «взрыв слоёв», `prefers-reduced-motion` для CSS и JS."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: счётчики Performance.getMetrics, трассировка, LayerTree, Animation-домен и скринкаст при занятом главном потоке сняты стендом; функции темы сверяются с литералами tests/unit/animations.test.ts"
 nav:
@@ -30,6 +29,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AnimLab from '@/widgets/anim-lab/ui/AnimLab.vue';
@@ -96,46 +98,18 @@ import {
   Сошлись — анимация уходит на композитор. Нет — каждый кадр её считает главный поток,
   тот же, где выполняется ваш JavaScript.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPOSITED} />
+  <Plain text={PLAIN_COMPOSITED} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Цена свойства: что происходит на каждом кадре"
   lead="Одна и та же анимация длиной в секунду, девятнадцать свойств по очереди. Протокол отладчика Chromium считает, сколько раз за эту секунду браузер пересчитал стили и раскладку, а трассировка — сколько раз рисовал и почему отказался отдать анимацию композитору."
-  leadWidth={72}
 >
   <Table
     head={['свойство', 'на композиторе', 'стиль за 1 с', 'раскладка за 1 с', 'отрисовка (Paint)']}
@@ -175,7 +149,6 @@ import {
   eyebrowTone="demo"
   title="Одна анимация — одно решение"
   lead="Композитор принимает анимацию целиком или не принимает вовсе. Поэтому важно не только какие свойства вы анимируете, но и как они разложены по анимациям."
-  leadWidth={72}
 >
   <Table
     head={['что написано', 'при занятом потоке', 'почему']}
@@ -205,7 +178,6 @@ import {
   eyebrow="Раздел 3"
   title="Занятый поток: что едет, а что встаёт"
   lead="Проверка из «Кадра браузера» — заблокировать главный поток и посмотреть, что продолжит двигаться, — здесь проведена на пятнадцати анимациях сразу. Кадры для неё дал композитор: он присылает их и тогда, когда главный поток стоит."
-  leadWidth={72}
 >
   <Table
     head={['анимация', 'что сравнивалось', 'поток занят 1 с']}
@@ -227,7 +199,6 @@ import {
   eyebrow="Раздел 4"
   title="CSS, `element.animate`, `requestAnimationFrame`"
   lead="Четыре способа получить одно движение. Первые три — один механизм анимаций браузера: он знает траекторию заранее и может отдать её композитору. Четвёртый — ваш код, который каждый кадр пишет новое значение в стиль."
-  leadWidth={72}
 >
   <Table
     head={['способ', 'кто считает значение', 'объект анимации', 'композитор']}
@@ -260,7 +231,6 @@ import {
   eyebrowTone="demo"
   title="Слои и их цена"
   lead="Когда элемент получает свой слой, видно в протоколе отладчика: `LayerTree` отдаёт список слоёв, их размеры и причины. Базовые причины разобраны в «Кадре браузера»; здесь — то, что из них следует для анимаций."
-  leadWidth={72}
 >
   <Table
     head={['на странице', 'свой слой', 'причина']}
@@ -279,7 +249,7 @@ import {
 
   ### Взрыв слоёв
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SQUASH} />
+  <Plain text={PLAIN_SQUASH} />
 
   <Table
     head={['страница', 'слоёв', 'память']}
@@ -309,7 +279,6 @@ import {
   eyebrow="Раздел 6"
   title="`prefers-reduced-motion`: гасить приходится самим"
   lead="Настройка «уменьшить движение» в системе — просьба пользователя, а не приказ браузеру. Ни одну анимацию браузер из-за неё не останавливает: это делает страница."
-  leadWidth={72}
 >
   <Table
     head={['способ', 'настройка включена', '+ глобальное правило `.001ms`']}

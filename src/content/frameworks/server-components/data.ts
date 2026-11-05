@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * «Server Components изнутри».
@@ -41,7 +41,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 export const INTRO_NOTE =
   'Страница поста разбирает markdown и ходит в базу, а в браузер ради этого уезжают парсер и клиент к API — хотя читателю нужен только готовый текст и одна кнопка «лайк». Server Components — не ещё один способ отрендерить HTML, а **компоненты, которые исполняются только на сервере** и присылают в браузер не разметку и не код, а результат: дерево элементов в текстовом потоке. Клиентские компоненты в этом дереве — дырки с адресом модуля, их код грузится и оживает как обычно.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'серверный компонент',
     d: 'Функция-компонент, которую React вызывает **только на сервере**, в том числе `async`. Может читать базу и файлы. Не имеет состояния и эффектов: в серверной сборке React хуков `useState` и `useEffect` нет вовсе. В браузер уходит то, что она вернула, а не она сама.',
@@ -83,7 +83,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема стоит на трёх вещах из React и одной из сборки. Если какая-то из них незнакома, её стоит прочесть сначала.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Элемент React — это объект',
     d: 'JSX превращается в вызов `createElement`, а тот возвращает обычный объект `{ $$typeof, type, key, props }`. Сериализатор в этой теме работает именно с такими объектами.',
@@ -898,7 +898,7 @@ export const PITFALLS: Pitfall[] = [
 // Источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'React · Server Components',
     href: 'https://react.dev/reference/rsc/server-components',

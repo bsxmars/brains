@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Config, Schema } from '@/widgets/iac-lab/model/types';
 
 /**
@@ -55,7 +55,7 @@ import type { Config, Schema } from '@/widgets/iac-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'провайдер',
     d: 'Плагин, который умеет разговаривать с одной системой: облаком, GitHub, файловой системой. Отдельная программа; Terraform сам не знает ни одного API и всё делает через провайдеров.',
@@ -92,7 +92,7 @@ export const PLAIN_IAC =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи, разобранные в других темах, и на одну, которая объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Желаемое состояние и сверка',
     d: 'Описание говорит, каким система должна быть, а программа сама доводит её до описанного. В Kubernetes так работают контроллеры: сравнивают и исправляют в цикле.',
@@ -1094,7 +1094,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'OpenTofu — State',
     href: 'https://opentofu.org/docs/language/state/',

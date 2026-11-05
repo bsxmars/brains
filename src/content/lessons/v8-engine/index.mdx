@@ -2,7 +2,6 @@
 title: Движок V8
 order: 31
 lead: "Сколько сил стоит тратить на компиляцию функции, зависит от того, сколько раз она выполнится. А этого заранее не знает никто. Поэтому V8 начинает с дешёвого исполнения и переходит к более быстрому коду, когда функция показала, что её вызывают часто. Интерпретатор при этом не только быстро стартует, но и собирает статистику — профиль, — на которой потом строится быстрый код."
-leadWidth: 66
 summary: "Четыре яруса и петля обратно: формы объектов, inline caches, виды элементов и почему старые советы по оптимизации устарели."
 verifiedOn: "Node 24.11 · V8 13.6 и Node 26.8 · V8 14.6"
 nav:
@@ -25,6 +24,8 @@ import CheckList from '@/shared/ui/CheckList.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import ElementsKinds from '@/widgets/elements-kinds/ui/ElementsKinds.vue';
 import HiddenClassTree from '@/widgets/hidden-class-tree/ui/HiddenClassTree.astro';
 import IcBench from '@/widgets/ic-bench/ui/IcBench.vue';
@@ -76,7 +77,6 @@ import {
   variant="intro"
   eyebrow="Почему ярусов несколько, а не один компилятор"
   lead="Компилятор не может быть одновременно быстрым и хорошим. Хорошие оптимизации требуют анализа кода, а анализ занимает время."
-  leadWidth={70}
   gap={24}
 >
   ### Две крайности — и обе плохи
@@ -111,17 +111,11 @@ import {
     </Card>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPECULATION} />
+  <Plain text={PLAIN_SPECULATION} />
 
   ### Слова, которые встретятся раньше, чем объяснены
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
 <Section
@@ -129,7 +123,6 @@ import {
   eyebrow="Перед началом"
   title="Граница наблюдаемого"
   lead="Почти всё, о чём эта тема, **со страницы не видно**: у языка нет способа спросить движок, как он хранит объект. В Node часть этого можно подсмотреть — снимком кучи и отладочными флагами V8. И всё это — про V8: формы объектов и inline caches есть и у JavaScriptCore, и у SpiderMonkey, но число ярусов, их имена и пороги у каждого движка свои."
-  leadWidth={70}
 >
   <CardGrid min={290} gap={16} align="start">
     <Card tone="err" title="Не видно со страницы" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
@@ -215,7 +208,7 @@ import {
 
   <TierPipeline client:visible tiers={TIERS} steps={PIPELINE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEOPT} />
+  <Plain text={PLAIN_DEOPT} />
 
   <CardGrid min={270} gap={14}>
     <Card pad={16} radius={4} size={15.5}>
@@ -364,7 +357,7 @@ import {
   портит код, который сгенерировал компилятор. Отключить JIT — поможет наполовину: вторая
   половина таких ошибок живёт в интерпретаторе, парсере и сборщике.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SANDBOX} />
+  <Plain text={PLAIN_SANDBOX} />
 
   Песочница V8 не мешает испортить память — она ограничивает, **какую**. Куча V8 и память
   буферов `ArrayBuffer` живут внутри одной заранее зарезервированной области адресов (сейчас
@@ -398,9 +391,8 @@ import {
   eyebrow="Раздел 2"
   title="Формы объектов: дерево переходов"
   lead="Форма описывает, какие у объекта поля и где каждое лежит. Тысяча объектов одной формы — это тысяча наборов значений и **одна** форма на всех. Поэтому `obj.x` превращается в две инструкции: «проверь, что у объекта форма №17» и «загрузи значение по известному смещению»."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHAPE} />
+  <Plain text={PLAIN_SHAPE} />
 
   <HiddenClassTree code={SHAPE_TREE_CODE} />
 
@@ -523,9 +515,8 @@ import {
   eyebrowTone="demo"
   title="Inline caches: почему одно и то же чтение свойства бывает в разы медленнее"
   lead="Inline cache (IC) — ячейка в профиле функции, закреплённая за одной **площадкой**: местом в коде вроде `o.v`. В ней площадка запоминает, какие формы к ней приходили и где у каждой лежит поле. Состояние ячейки меняется только вперёд: **uninitialized** (площадка ещё не выполнялась) → **monomorphic** (одна форма) → **polymorphic** (две–четыре) → **megamorphic** (больше четырёх). Чем дальше по этой цепочке, тем меньше компилятор знает о пришедшем объекте."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IC} />
+  <Plain text={PLAIN_IC} />
 
   ### Одна площадка, пять форм
 
@@ -593,9 +584,8 @@ import {
   eyebrowTone="demo"
   title="Виды элементов массива: переходы только в одну сторону"
   lead="Форма описывает **именованные** свойства. Элементы массива хранятся отдельно, и у них своя классификация — вид элементов (elements kind). Миллион малых целых V8 хранит плотно: каждое число лежит прямо в ячейке, без отдельного объекта в куче. Миллион дробных — голыми 8-байтовыми числами. А массив из чего попало — ссылками, и каждое дробное число там отдельный объект."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ELEMENTS} />
+  <Plain text={PLAIN_ELEMENTS} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={ELEMENTS_DEMO_NOTE} />
@@ -661,7 +651,6 @@ import {
   eyebrow="Раздел 5"
   title="Crankshaft умер, и почти все «советы по оптимизации» умерли вместе с ним"
   lead="Crankshaft — оптимизирующий компилятор V8 в 2010–2017 годах. У него был **явный список конструкций, которые он не умел**: встретив такую, он отказывался оптимизировать всю функцию целиком. TurboFan компилирует из байткода, а байткод есть для любой конструкции. Списка «не умею» у него **нет**."
-  leadWidth={72}
 >
   <Callout size={18.5} pad="22px 24px">
 

@@ -3,7 +3,6 @@ title: "Server Components изнутри"
 order: 6
 kicker: фреймворки изнутри
 lead: "Серверный компонент присылает в браузер не HTML и не свой код, а результат — дерево элементов текстовым потоком Flight. В потоке видно всё: где дыра под `async`, что пролезло через `'use client'`, почему серверная функция приезжает номером, а не кодом."
-leadWidth: 66
 summary: "Чем Server Components отличаются от SSR, формат потока Flight строка за строкой, учебный сериализатор, сверенный с настоящим React, граница 'use client' и её ошибки, серверные функции, async-компоненты, Suspense и cache()."
 verifiedOn: "react-server-dom-webpack 19.3.0 · React 19.3.0 · Node 26.8.2, продакшен и отладочная сборки; сентябрь 2026"
 nav:
@@ -28,6 +27,9 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import RscFlight from '@/widgets/rsc-flight/ui/RscFlight.vue';
@@ -77,45 +79,19 @@ import {
   FLIGHT_READ_STEPS,
 } from './data';
 
-<Section variant="intro" eyebrow="Компоненты, которые остаются на сервере" lead={INTRO_NOTE} leadWidth={72}>
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+<Section variant="intro" eyebrow="Компоненты, которые остаются на сервере" lead={INTRO_NOTE}>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={260} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} min={260} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Не другой SSR, а другой вид компонента"
   lead="SSR отвечает на вопрос «как показать страницу до того, как приехал код». Server Components отвечают на другой: «какой код вообще не должен ехать в браузер». Ответы складываются, а не заменяют друг друга."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RSC} />
+  <Plain text={PLAIN_RSC} />
 
   <Table
     head={SSR_VS_RSC.head}
@@ -166,9 +142,8 @@ import {
   eyebrow="Раздел 2"
   title="Формат потока: строки, номера и $-ссылки"
   lead="Поток Flight — текст из строк `id:значение`. Значение почти всегда JSON, а всё, чего в JSON нет, — элементы, ссылки на модули, промисы, символы — записано строками с префиксом `$`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLIGHT} />
+  <Plain text={PLAIN_FLIGHT} />
 
   <Card title="Сквозной пример: страница поста" titleSize={18} pad={22} gap={14}>
     <CodeBlock code={PAGE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -307,9 +282,8 @@ import {
   eyebrow="Раздел 4"
   title="Граница 'use client': что пролезает в пропсы"
   lead="Всё, что серверный компонент кладёт в пропсы клиентского, должно пережить путь через текст. Данные переживают, функции и экземпляры классов — нет."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BOUNDARY} />
+  <Plain text={PLAIN_BOUNDARY} />
 
   <Table
     head={PROP_TABLE.head}
@@ -354,9 +328,8 @@ import {
   eyebrow="Раздел 5"
   title="Серверные функции: ссылка вместо кода"
   lead="Функцию через границу не передать — кроме той, что объявлена на сервере директивой `'use server'`. Её тоже не передают: передают id, по которому клиент может попросить сервер её вызвать."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTION} />
+  <Plain text={PLAIN_ACTION} />
 
   <Card title="Путь вызова" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ACTION_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -382,7 +355,6 @@ import {
   eyebrow="Раздел 6"
   title="Async, Suspense и cache()"
   lead="`async`-компонент — главное, что серверные компоненты умеют, а клиентские нет. Сервер не ждёт его на месте: ставит дыру и досылает результат, когда промис разрешится."
-  leadWidth={72}
 >
   <CardGrid min={290} gap={14} align="start">
     {ORDER_FACTS.map((fact) => (
@@ -405,7 +377,7 @@ import {
 
   ### cache(): один запрос на рендер
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE} />
+  <Plain text={PLAIN_CACHE} />
 
   <Card title="Три компонента, два запроса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -433,7 +405,6 @@ import {
   eyebrow="Раздел 8"
   title="Источники"
   lead="Документация — чтобы проверить формулировку, исходники пакета — потому что у формата нет другой спецификации."
-  leadWidth={72}
 >
   <SourceList items={SOURCES} />
 

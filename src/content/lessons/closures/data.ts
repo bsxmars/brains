@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ScopeProgram } from '@/widgets/scope-lab/model/types';
 
 /**
@@ -62,7 +62,7 @@ import type { ScopeProgram } from '@/widgets/scope-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'окружение (Environment Record)',
     d: 'Таблица имён одного места кода: какие переменные, функции и параметры объявлены именно здесь и что в них сейчас лежит. Своё окружение получают программа, модуль, каждый вызов функции и каждый вход в блок.',
@@ -99,7 +99,7 @@ export const PLAIN_CLOSURE =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем и на одну договорённость о самих примерах.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Функция — это значение',
     d: 'Функцию кладут в переменную, возвращают из другой функции, передают аргументом. Пока на объект функции есть ссылка, он живёт — и держит всё, что держит сам.',
@@ -1123,7 +1123,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 — Environment Records',
     href: 'https://tc39.es/ecma262/#sec-environment-records',

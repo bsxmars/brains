@@ -5,7 +5,6 @@ headingWidth: 24
 order: 21
 kicker: сеть и безопасность
 lead: "`npm install` скачивает чужой код и тут же исполняет часть его — с вашими правами и вашими переменными окружения. Что именно запускается, как lock-файл замечает подменённый архив, почему браузер выполняет скрипт с `integrity=\"sha1-…\"` без всякой проверки, откуда берётся путаница зависимостей и что на самом деле доказывает provenance."
-leadWidth: 66
 summary: "Скрипты установки и `--ignore-scripts`, `allowBuilds` у pnpm; поле `integrity` в lock-файле, `EINTEGRITY` и `Z_DATA_ERROR` на подменённом архиве, подмена на реестре; Subresource Integrity у `<script>`: сильнейший алгоритм, ротация, `crossorigin`, молча отброшенный атрибут; одна функция сверки для npm и браузера; тайпсквоттинг, захват аккаунта и путаница зависимостей; provenance и Sigstore; `npm audit`, порог возраста версии и SBOM."
 verifiedOn: "npm 11.6.1, pnpm 11.0.9, ssri 13.0.1, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026, без сети: скрипты установки, lock-запись, подмена тарбола, учебные реестры (путаница зависимостей, --before, npm sbom) и 29 вариантов атрибута integrity в Chromium пересобираются tests/unit/supply-chain.test.ts; функция темы сверена с ssri и с Chromium. pnpm — разовый прогон. Provenance, npm audit signatures против npmjs и база npm audit — по документации"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SupplyLab from '@/widgets/supply-lab/ui/SupplyLab.vue';
@@ -103,46 +105,18 @@ import {
   на вашей машине в момент установки, а потом — в браузере каждого пользователя. Атака
   на цепочку поставок не ищет ошибку в вашем коде. Она подменяет то, чему ваш код доверяет.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SUPPLY} />
+  <Plain text={PLAIN_SUPPLY} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Что исполняет установка"
   lead="Пакет может объявить в `package.json` команды, которые менеджер запустит сам, пока ставит его. Пример на всю тему — безобидный пакет `greeter`: каждый его скрипт установки дописывает в журнал проекта строку о том, кто его запустил, откуда и видит ли он переменную окружения."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="greeter/package.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -189,9 +163,8 @@ import {
   eyebrow="Раздел 2"
   title="Integrity в lock-файле"
   lead="Lock-файл помнит не только версию и адрес каждого пакета, но и хеш его архива. Скачанные байты npm сверяет с этим хешем до того, как пакет попадёт в `node_modules`. Не совпало — пакет не ставится, и неважно, сколько байтов изменилось и что в них."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTEGRITY} />
+  <Plain text={PLAIN_INTEGRITY} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Запись `greeter` в package-lock.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -253,9 +226,8 @@ import {
   eyebrow="Раздел 3"
   title="SRI: хеш у тега script"
   lead="Та же идея работает в браузере. Скрипт с CDN исполняется с правами вашей страницы, и подмена файла на CDN — это XSS на вашем сайте. Атрибут `integrity` у тега фиксирует хеш файла: браузер скачивает байты, считает их хеш и выполняет скрипт, только если хеш совпал."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SRI} />
+  <Plain text={PLAIN_SRI} />
 
   <CodeBlock code={SCRIPT_TAG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -291,7 +263,6 @@ import {
   eyebrow="Раздел 4"
   title="Одна функция сверки"
   lead="Строку integrity понимают и npm, и браузер, и правила у них почти одинаковые: разобрать строку на хеши, выбрать сильнейший алгоритм, посчитать хеш байтов и сравнить. Расходятся они в одном — что делать, если в строке не нашлось ни одного годного хеша."
-  leadWidth={72}
 >
   <Card title="Проверка integrity — для npm и для браузера" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SRI_CODE} size={11} lh={1.65} pad="14px 16px" />
@@ -314,7 +285,6 @@ import {
   eyebrow="Раздел 5"
   title="Подменённое имя"
   lead="Integrity защищает байты под именем, которое вы уже записали. Самые громкие атаки последних лет идут в обход: вам подсовывают другое имя, другую версию или другого автора — и хеш у них честный."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {NAME_ATTACKS.map((fact) => (
@@ -325,7 +295,7 @@ import {
 
   ### Путаница зависимостей
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONFUSION} />
+  <Plain text={PLAIN_CONFUSION} />
 
   Во внутреннем реестре компании лежит `acme-utils@1.2.0`. В «публичный» кто-то
   опубликовал то же имя с версией `1.99.0` — она подходит под `^1.2.0`. Три учебных
@@ -355,9 +325,8 @@ import {
   eyebrow="Раздел 6"
   title="Provenance: кто собрал пакет"
   lead="Против захвата аккаунта хеш бессилен: новая версия опубликована честно, просто не тем человеком и не из того места. Provenance отвечает на вопрос «откуда взялся этот тарбол» — и отвечает подписью, которую нельзя получить с украденным токеном на ноутбуке."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROVENANCE} />
+  <Plain text={PLAIN_PROVENANCE} />
 
   <CodeBlock code={PROVENANCE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -389,7 +358,6 @@ import {
   eyebrow="Раздел 7"
   title="Аудит, возраст версии и опись"
   lead="Три инструмента, которые не мешают установке, а помогают решить, что ставить и где искать беду: отчёт об известных уязвимостях, срез по дате публикации и опись всего, что стоит в продукте."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {AUDIT_FACTS.map((fact) => (

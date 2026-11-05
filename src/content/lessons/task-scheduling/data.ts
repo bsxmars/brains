@@ -1,7 +1,7 @@
 import type { InpPart } from '@/widgets/inp-anatomy/model/types';
 import type { TimelineClick, TimelineMode } from '@/widgets/long-task-timeline/model/types';
 import type { LifecycleEdge, LifecycleNode } from '@/widgets/page-lifecycle/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { YieldSize, YieldStrategy, YieldTool } from '@/widgets/yield-cost/model/types';
 
 /**
@@ -692,7 +692,7 @@ export const LONGTASK_FACTS: { t: string; d: string; tone?: 'ok' | 'warn' | 'err
 
 // ---- Раздел 6 · источники ----
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C · Long Tasks API',
     href: 'https://w3c.github.io/longtasks/',
@@ -755,7 +755,7 @@ export const SOURCES: { title: string; href: string; what: string }[] = [
  * ссылкой в чужое направление, а «задача против микрозадачи» — то различие, без которого
  * раздел «Чем возвращать управление циклу» превращается в список рецептов.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'long task',
     d: 'Задача цикла событий, которая длится больше 50 мс. Число взято не «для красоты» и не придумано сообществом: так длинная задача **определена в спецификации** Long Tasks.',
@@ -791,7 +791,7 @@ export const GLOSSARY = [
 /* ⚠️ Здесь стоял лид «Вся тема держится на одном различии: задача отпускает поток, микрозадача — нет…» — пересказ словаря и первой карточки. Снят 2026-10-01. */
 export const PREREQ_NOTE = '';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что очередь микрозадач выполняется до конца',
     d: 'Очередь микрозадач выполняется целиком за один раз — включая всё, что в неё добавили по ходу. Значит, микрозадачей поток не отдать: кадру просто негде случиться.',

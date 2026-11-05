@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { RunesScenario } from '@/widgets/svelte-lab/model/types';
 
 /**
@@ -52,7 +52,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Как кондуктор, который заранее знает, кому на какой остановке выходить. Он не будит весь вагон на каждой станции — то есть не перерисовывает компонент целиком, — а трогает за плечо только тех, кому сюда: один текстовый узел, один атрибут.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'руна',
     d: 'Имя со знаком доллара: `$state`, `$derived`, `$effect`, `$props`. Выглядит как вызов функции, но такой функции нет: компилятор узнаёт руну и переписывает код вокруг неё.',
@@ -87,7 +87,7 @@ export const GLOSSARY = [
   },
 ];
 
-export const PREREQ: { t: string; d: string; href: string; hrefLabel: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Сигналы: пометка вниз, пересчёт вверх',
     d: 'Запись помечает зависимых «грязными» и ничего не считает; читатель досчитывает устаревшее, когда оно ему понадобилось. Здесь не пересказывается — только то, как это сделал Svelte.',
@@ -1106,7 +1106,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Svelte · $state',
     href: 'https://svelte.dev/docs/svelte/$state',

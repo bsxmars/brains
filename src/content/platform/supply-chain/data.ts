@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AttrVariant, SupplyDemo } from '@/widgets/supply-lab/model/types';
 
 /**
@@ -56,7 +56,7 @@ import type { AttrVariant, SupplyDemo } from '@/widgets/supply-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'цепочка поставок',
     d: 'Всё, через что чужой код попадает в ваш продукт: реестр пакетов, аккаунты их авторов, конвейер, который пакет собрал, CDN, с которого грузится скрипт. Атака на цепочку бьёт не в ваш код, а в одно из этих звеньев.',
@@ -93,7 +93,7 @@ export const PLAIN_SUPPLY =
 export const PREREQ_NOTE =
   'Тема продолжает разговор о менеджерах пакетов и о заголовках безопасности. Две вещи здесь нужны из других тем, одна объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Lock-файл и `npm ci`',
     d: '`package-lock.json` записывает точную версию, адрес и хеш каждого пакета дерева. `npm ci` ставит ровно его и падает, если `package.json` просит другого; `npm install` в той же ситуации переписывает lock-файл.',
@@ -766,7 +766,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Subresource Integrity',
     href: 'https://www.w3.org/TR/SRI/',

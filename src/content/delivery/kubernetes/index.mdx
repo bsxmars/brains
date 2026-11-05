@@ -3,7 +3,6 @@ title: "Kubernetes: развёртывание"
 order: 3
 kicker: доставка
 lead: "Kubernetes не выполняет команды «запусти» и «останови». Вы описываете, каким должно быть приложение, а он **сводит желаемое с действительным**: снова и снова сравнивает описание с тем, что работает на самом деле, и по шагу исправляет разницу. Отсюда и выкат по частям, и то, почему успешный `rollout status` ещё не значит, что приложение отвечает."
-leadWidth: 68
 summary: "Под, ReplicaSet и Deployment, а рядом DaemonSet, Job и CronJob; как сервис находит поды и кто вообще может до них достучаться; что решают три проверки здоровья — пробы; сколько стоят выкат новой версии и откат — на числах, снятых в учебном кластере kind; бюджет перерывов и автомасштабирование."
 verifiedOn: kind 0.33.0 · kubectl 1.30.5 · Kubernetes 1.37.0
 nav:
@@ -29,6 +28,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import RolloutTimeline from '@/widgets/rollout-timeline/ui/RolloutTimeline.vue';
 import ServiceDiagram from '@/widgets/kubernetes-service-diagram/ui/ServiceDiagram.astro';
@@ -122,51 +124,25 @@ import {
   TERMINATION_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE} leadWidth={72}>
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RECONCILE} />
+<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
+  <Plain text={PLAIN_RECONCILE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Под, ReplicaSet, Deployment — кто кем управляет"
   lead="Три объекта, и каждый следующий нужен потому, что предыдущий чего-то не умеет. Под не умеет восстанавливаться — пропавший под заменяет ReplicaSet. ReplicaSet не умеет менять версию — это делает Deployment. Зная, кто за что отвечает, причину поломки ищут на нужном уровне, а не наугад."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={POD_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_POD} />
+  <Plain text={PLAIN_POD} />
 
   <CardGrid min={290} gap={16} align="start">
     {POD_CARDS.map((item) => (
@@ -250,7 +226,6 @@ import {
   eyebrow="Раздел 2"
   title="Сервис и как трафик находит поды"
   lead="Сервис — не прокси и не балансировщик, а **имя поверх списка адресов**. Список ведёт отдельный контроллер. Под попадает в него, если подходит по меткам и считается готовым."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={SERVICE_WHY} />
@@ -304,7 +279,7 @@ import {
 
   <CodeBlock code={NETPOL_CODE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NETPOL} />
+  <Plain text={PLAIN_NETPOL} />
 
   <CardGrid min={280} gap={14}>
     {NETPOL_FACTS.map((fact) => (
@@ -330,13 +305,12 @@ import {
   eyebrow="Раздел 3"
   title="Пробы: одна решает, слать ли запросы, другая — перезапускать ли"
   lead="Проба — это проверка, которую kubelet регулярно выполняет над контейнером, например HTTP-запрос на `/healthz`. Три пробы настраиваются одинаково, а последствия у них совсем разные. Одна решает, идут ли на под запросы. Вторая перезапускает процесс. Третья только откладывает первые две."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={PROBES_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROBES} />
+  <Plain text={PLAIN_PROBES} />
 
   ### Три пробы на одном приложении
 
@@ -355,7 +329,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROBE_SCENE} />
+  <Plain text={PLAIN_PROBE_SCENE} />
 
   Коротко, в одну таблицу:
 
@@ -411,7 +385,6 @@ import {
   eyebrowTone="demo"
   title="Как выкатывается новая версия и как её откатить"
   lead="Выкат задают два числа и одно условие. Числа — `maxSurge` и `maxUnavailable`, условие — когда Kubernetes считает под готовым. Числа легко найти в документации, а ломает выкаты условие."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={ROLLOUT_WHY} />
@@ -436,7 +409,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROLLOUT} />
+  <Plain text={PLAIN_ROLLOUT} />
 
   ### Три прогона в кластере, и два из них отличаются одной строкой
 
@@ -505,7 +478,7 @@ import {
 
   <CodeBlock code={PDB_CODE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PDB} />
+  <Plain text={PLAIN_PDB} />
 
   <CardGrid min={280} gap={14}>
     {PDB_FACTS.map((fact) => (
@@ -547,9 +520,8 @@ import {
   eyebrow="Раздел 5"
   title="Ресурсы, лимиты и что бывает при их нехватке"
   lead="`requests` и `limits` стоят в одном блоке манифеста, но значат совсем разное. Перепутаете — получите одну из двух непохожих аварий: под, которому не находится места, или под, который убивают на ходу."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESOURCES} />
+  <Plain text={PLAIN_RESOURCES} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={RESOURCES_WHY} />
@@ -638,7 +610,6 @@ import {
   eyebrow="Раздел 6"
   title="Тонкие места"
   lead="Почти все они молчат: ошибки нет, событий нет, объект создан — просто запросы уходят не туда, конфигурация не та, а откатываться не на что."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>
@@ -649,7 +620,6 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
   lead="Документация — чтобы проверить формулировку. Исходники контроллера — чтобы увидеть порядок действий, которого в документации нет."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14} align="start">
     {SOURCES.map((item) => (

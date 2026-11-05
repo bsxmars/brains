@@ -4,7 +4,6 @@ heading: "Асинхронный контекст: AsyncLocalStorage и AsyncCon
 headingWidth: 24
 order: 19
 lead: "Каждая строка лога должна знать id своего запроса. Передавать его аргументом через все слои — утомительно, положить в глобальную переменную — нельзя: два запроса перекрываются по времени, и после `await` там окажется чужой id. Node решает это `AsyncLocalStorage`: значение, которое едет вместе с цепочкой `await`, таймеров и колбэков. Как оно устроено, в какой момент запоминается и почему в браузере его до сих пор нет."
-leadWidth: 66
 summary: "Гонка на глобальной переменной на сервере `node:http`; `run`, `getStore`, `exit` и опасный `enterWith`; момент снимка — регистрация, а не вызов: `then`, `await`, таймеры, `nextTick`, `EventEmitter` и `AsyncResource.bind`; `AsyncContextFrame` в Node 24 против `async_hooks` по числу вызовов хука; учебная переменная контекста на подмене `then` и `setTimeout` и её предел на `await`; предложение `AsyncContext`, zone.js, React, Vue и OpenTelemetry."
 verifiedOn: "Node 24.11.0 (V8 13.6) в обоих режимах AsyncLocalStorage и 26.8.2 (V8 14.6), @opentelemetry/api 1.9.1, @vue/compiler-sfc 3.5.42, Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: сервер, снимки, enterWith и счётчики хука повторяет tests/unit/async-context.test.ts; учебная обёртка сверена с настоящим AsyncLocalStorage на шести сценариях"
 nav:
@@ -29,6 +28,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ContextLab from '@/widgets/context-lab/ui/ContextLab.vue';
@@ -103,46 +105,18 @@ import {
   запрос» откуда угодно, как глобальную переменную. Только обычная глобальная переменная
   для этого не годится, и причина — в `await`.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+  <Plain text={PLAIN_CONTEXT} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Один id на весь процесс"
   lead="Сервер на `node:http`, который пишет id запроса в каждую строку лога. Корзина отвечает за 60 мс, профиль — за 10. Клиент просит корзину, а через 20 мс — профиль."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сервер: id в переменной модуля" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -173,7 +147,7 @@ import {
 
   ### Тот же сервер на AsyncLocalStorage
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ALS} />
+  <Plain text={PLAIN_ALS} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сервер: id в AsyncLocalStorage" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -195,7 +169,6 @@ import {
   eyebrow="Раздел 2"
   title="Хранилище контекста в Node"
   lead="У `AsyncLocalStorage` четыре главных метода. `getStore` читает значение, `run` и `exit` задают его только на время функции и возвращают прежнее, когда функция закончилась. Четвёртый, `enterWith`, так не делает — и поэтому опасен."
-  leadWidth={72}
 >
   <CardGrid min={260} gap={14} align="start">
     {ALS_API.map((item) => (
@@ -233,9 +206,8 @@ import {
   eyebrow="Раздел 3"
   title="Когда берётся снимок"
   lead="Между постановкой колбэка и его вызовом контекст может смениться не раз. Какой из них увидит колбэк? Проверим на промисе, который создан в `A`, подписан в `B` и разрешён в `C`, и на таймерах и событии, которые поставлены в одном контексте, а запущены из другого."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SNAPSHOT} />
+  <Plain text={PLAIN_SNAPSHOT} />
 
   <Card title="Создан, подписан, разрешён" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CAPTURE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -260,9 +232,8 @@ import {
   eyebrow="Раздел 4"
   title="Внутри Node: кадр против хуков"
   lead="До Node 24 `AsyncLocalStorage` стоял на `async_hooks`: Node звал JavaScript-хук на рождение каждого промиса и таймера, и хук копировал в него значение. С Node 24 значения едут в одном неизменяемом кадре, а ссылку на кадр через промисы переносит сам V8."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FRAME} />
+  <Plain text={PLAIN_FRAME} />
 
   <CardGrid min={260} gap={14} align="start">
     {FRAME_STEPS.map((step) => (
@@ -294,7 +265,6 @@ import {
   eyebrow="Раздел 5"
   title="Своя переменная контекста"
   lead="Механизм можно повторить на чистом JavaScript: хранить текущие значения в одной переменной модуля, при регистрации колбэка запоминать их, при вызове — ставить обратно. Остаётся перехватить все места, где колбэки отдают. Так работал zone.js, и так же он упирается в `await`."
-  leadWidth={72}
 >
   <Card title="Учебная переменная контекста" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MINI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -353,7 +323,6 @@ import {
   eyebrow="Раздел 6"
   title="Браузер и AsyncContext"
   lead="В браузере асинхронного контекста нет ни в одном движке. Предложение `AsyncContext` переносит модель `AsyncLocalStorage` в сам язык, но оно ещё черновик. Пока что фреймворки обходятся кто подменой, кто компилятором, кто никак."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="AsyncContext — как в предложении" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

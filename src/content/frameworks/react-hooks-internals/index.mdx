@@ -3,7 +3,6 @@ title: "React изнутри: хуки и контекст"
 order: 4
 kicker: фреймворки изнутри
 lead: "Почему `setState` тем же значением иногда всё же вызывает функцию компонента, почему `memo` не останавливает контекст и почему стор, прочитанный в рендере, показывает на одном экране два разных числа. Ответ на каждый вопрос — несколько строк в `ReactFiberHooks.js`. Здесь эти строки написаны по шагам, и тест сверяет их с React 19.3 — вплоть до формы ячеек на файбере."
-leadWidth: 66
 summary: "Хуки изнутри: диспетчер и список ячеек, useRef и useMemo, очередь useReducer и ранний выход useState, контекст как стек и пометка читателей мимо memo, useSyncExternalStore и разрыв экрана без него."
 verifiedOn: React 19.3 · Node 26.8
 nav:
@@ -21,11 +20,13 @@ nav:
 
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniHooks from '@/widgets/mini-hooks/ui/MiniHooks.vue';
@@ -100,46 +101,19 @@ import {
   variant="intro"
   eyebrow="Хуки: когда именно"
   lead="Снаружи хуки описывают глаголами: `useMemo` запоминает, контекст пробрасывает, `useSyncExternalStore` подписывает. Каждый глагол верен, пока не спросишь, **когда именно** — когда запомненное пересчитается, кого контекст разбудит, в какой момент подписка успеет. На эти вопросы отвечает не документация, а три поля файбера: список ячеек, `dependencies` и пометки работы."
-  leadWidth={70}
 >
-  <CardGrid min={240} gap={14}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={70}
->
-  <CardGrid min={260} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} min={260} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Каркас: работа своя и работа ниже"
   lead="Всё, что делают `memo`, контекст и ранний выход `setState`, сводится к одному решению — вызывать ли функцию компонента. Его принимает `beginWork` по двум числам на файбере: `lanes` — есть ли работа у него самого, `childLanes` — есть ли она где-то ниже. `setState` ставит `lanes` своему файберу и `childLanes` каждому предку до корня."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHILD_LANES} />
+  <Plain text={PLAIN_CHILD_LANES} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SKELETON_NOTE} />
 
@@ -175,9 +149,8 @@ import {
   eyebrow="Раздел 2"
   title="Диспетчер: один `useState`, две реализации"
   lead="`useState`, который импортирует приложение, ничего не хранит и ничего не считает: он спрашивает у текущего диспетчера, что делать. Перед вызовом компонента `renderWithHooks` ставит диспетчер монтирования или обновления — смотря, есть ли у файбера прошлый список ячеек, — а после вызова снимает. Отсюда и ошибка «хук вне компонента»: вне рендера спрашивать некого."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DISPATCHER} />
+  <Plain text={PLAIN_DISPATCHER} />
 
   <Card title="Шаг 3 · диспетчер и курсор по списку ячеек" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_DISPATCHER} />
@@ -217,7 +190,6 @@ import {
   eyebrow="Раздел 3"
   title="`useRef`, `useMemo`, `useCallback`: ячейка без очереди"
   lead="У этих трёх хуков нет ни очереди, ни `dispatch`: они не умеют заказать рендер. `useRef` хранит объект, созданный один раз. `useMemo` и `useCallback` хранят пару «значение, зависимости» и на каждом рендере решают одно — отдать старое значение или положить новое."
-  leadWidth={70}
 >
   <CardGrid min={280} gap={14} align="start">
     <Card title="Шаг 4 · `useRef`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
@@ -253,7 +225,6 @@ import {
   eyebrow="Раздел 4"
   title="`useReducer` и `useState`: очередь и ранний выход"
   lead="`useState` — это `useReducer` с готовым редьюсером: `action` либо новое значение, либо функция от старого. Ячейка, очередь и свёртка очереди в рендере у них общие. Отличие одно, и оно в `dispatch`: `setState` пробует посчитать новое состояние сразу и, если оно то же, не заказывает рендер вовсе."
-  leadWidth={70}
 >
   <Card title="Шаг 6 · очередь, редьюсер и eager state" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_REDUCER} />
@@ -266,7 +237,7 @@ import {
 
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EAGER} />
+  <Plain text={PLAIN_EAGER} />
 
   <CardGrid min={290} gap={14} align="start">
     <Card tone="warn" title="`setState` тем же значением: ноль, один, ноль" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
@@ -311,9 +282,8 @@ import {
   eyebrow="Раздел 5"
   title="Контекст: стек значений и пометка читателей"
   lead="У контекста нет ячейки и нет очереди. Значение лежит в поле самого объекта контекста, и провайдер подменяет его на время обхода своего поддерева. Чтение записывает контекст в `fiber.dependencies`. Когда значение провайдера меняется, читателям ставят `lanes`, а дорожке к ним — `childLanes`, и пропуск по пропсам их уже не остановит."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROVIDER_STACK} />
+  <Plain text={PLAIN_PROVIDER_STACK} />
 
   <Card title="Шаг 7 · провайдер, `readContext` и распространение" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_CONTEXT} />
@@ -357,9 +327,8 @@ import {
   eyebrow="Раздел 6"
   title="Внешний стор: снимок, подписка и разрыв"
   lead="Стор вне React меняется, когда захочет, — в том числе посреди нарезанного рендера. Компонент, который читает его прямо в теле, получает значение на момент своего вызова, и соседние компоненты одного рендера могут прочитать разные версии. `useSyncExternalStore` не даёт такому экрану дойти до коммита."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEARING} />
+  <Plain text={PLAIN_TEARING} />
 
   <Card title="Разрыв: переход, и после первой ячейки — `store.set`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={SCENARIO_TEAR_PLAIN} />
@@ -430,7 +399,6 @@ import {
   eyebrow="Раздел 7"
   title="Чего в мини-версии нет"
   lead="На сценариях этой темы мини-версия вызывает те же компоненты в том же порядке и показывает ту же разметку, что React 19.3. Но устроена она проще, и в трёх местах это видно по выводу."
-  leadWidth={70}
 >
   <Table
     head={DIFF.head}
@@ -452,7 +420,6 @@ import {
   eyebrow="Раздел 9"
   title="Источники"
   lead="Спецификации у React нет — есть исходники. Ссылки ведут в файлы, где лежат настоящие версии функций с теми же именами, что и здесь."
-  leadWidth={70}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

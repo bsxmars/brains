@@ -5,7 +5,6 @@ headingWidth: 26
 order: 4
 kicker: алгоритмы во фронтенде
 lead: "Поле поиска должно понимать и «сб», и «рекативность», и «vr». За этим стоят три разных механизма: префиксное дерево для подсказок, расстояние Левенштейна для опечаток и подпоследовательность, как в палитре команд редактора. Найти — полдела: в каком порядке показать найденное, расстояние не решает."
-leadWidth: 66
 summary: "Trie и сжатое дерево, тысяча против миллиона слов в счёте узлов, Левенштейн и Дамерау, порог и ранний выход, обход trie со строкой таблицы и BK-дерево, подпоследовательность по мотивам fzf, ранжирование и Fuse.js изнутри: Bitap, `threshold`, `location` и окно в 60 символов."
 verifiedOn: "fuse.js 7.5.0, Node 24.11.0, октябрь 2026: функции темы сверены с перебором словаря, независимыми реализациями расстояний и Fuse.js в tests/unit/fuzzy-search.test.ts; словарь — заголовки тем и разделов курса"
 nav:
@@ -22,7 +21,6 @@ nav:
 
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
-import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
@@ -30,6 +28,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FuzzyLab from '@/widgets/fuzzy-lab/ui/FuzzyLab.vue';
@@ -106,48 +107,20 @@ import {
   столько, что в выдаче оказывается мусор. Чтобы настроить её осознанно, полезно один раз
   собрать всё руками.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SEARCH} />
+  <Plain text={PLAIN_SEARCH} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Префиксное дерево"
   lead="Автодополнение ищет слова, которые начинаются с набранного. Если разложить словарь в дерево по буквам, все такие слова окажутся под одним узлом — до него ведёт путь из букв префикса."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRIE} />
+  <Plain text={PLAIN_TRIE} />
 
   <Card title="Trie: вставка и поиск по префиксу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TRIE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -179,7 +152,7 @@ import {
 
   ### Сжатое дерево и память
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RADIX} />
+  <Plain text={PLAIN_RADIX} />
 
   <Card title="Radix: склеить цепочки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RADIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -201,9 +174,8 @@ import {
   eyebrow="Раздел 2"
   title="Опечатки: Левенштейн и Дамерау"
   lead="Чтобы простить опечатку, нужно измерить, насколько слова похожи. Расстояние Левенштейна считает правки по одной букве: вставку, удаление и замену. Считается оно той же таблицей, что и общая подпоследовательность в diff, только к двум операциям добавляется третья."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LEV} />
+  <Plain text={PLAIN_LEV} />
 
   Как устроена такая таблица и почему каждая клетка опирается на трёх соседей, разобрано
   в [«Diff», разделе «LCS и таблица»](/algorithms/diff/#s2). Здесь — только отличие:
@@ -225,7 +197,7 @@ import {
 
   ### Порог и ранний выход
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BAND} />
+  <Plain text={PLAIN_BAND} />
 
   <Card title="Расстояние не больше k" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={WITHIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -241,9 +213,8 @@ import {
   eyebrow="Раздел 3"
   title="Опечатки в словаре без перебора"
   lead="Даже с порогом перебор сравнивает запрос с каждым словом. Есть два классических способа этого избежать: обойти trie, считая таблицу Левенштейна по строке на узел, или разложить слова в BK-дерево по расстояниям."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRIE_ROW} />
+  <Plain text={PLAIN_TRIE_ROW} />
 
   <Card title="Обход trie со строкой таблицы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TRIE_FUZZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -267,7 +238,7 @@ import {
 
   ### BK-дерево
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BK} />
+  <Plain text={PLAIN_BK} />
 
   <Card title="BK-дерево" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={BK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -291,9 +262,8 @@ import {
   eyebrow="Раздел 4"
   title="По буквам, как в Cmd+P"
   lead="Палитра команд в редакторе находит «Vue и React» по запросу `vr`. Это не префикс и не опечатка: буквы запроса стоят в строке по порядку, но с пропусками. Найти такие строки просто — сложнее выбрать из них лучшие."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SUBSEQ} />
+  <Plain text={PLAIN_SUBSEQ} />
 
   <Card title="Счёт подпоследовательности" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SUBSEQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -317,7 +287,6 @@ import {
   eyebrow="Раздел 5"
   title="Ранжирование"
   lead="Ближе — не значит лучше. Самое похожее по буквам слово может быть редким разделом, а человек искал большую тему с этим словом в середине названия. Порядок выдачи собирают из нескольких признаков, и расстояние — лишь один из них."
-  leadWidth={72}
 >
   <Card title="Поиск по курсу целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SEARCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -361,9 +330,8 @@ import {
   eyebrow="Раздел 6"
   title="Fuse.js изнутри"
   lead="Fuse.js не строит ни trie, ни таблиц: он проходит каждую строку алгоритмом Bitap и ищет в ней кусок, похожий на запрос. От этого у него три свойства, которые стоит знать заранее: запрос не длиннее 32 символов, порог считается долей от длины запроса, а место совпадения в тексте влияет на счёт."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BITAP} />
+  <Plain text={PLAIN_BITAP} />
 
   <Table
     head={['настройка', 'по умолчанию', 'что делает']}

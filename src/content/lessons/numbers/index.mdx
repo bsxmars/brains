@@ -3,7 +3,6 @@ title: "Числа в JS: IEEE 754, Smi и BigInt"
 headingWidth: 24
 order: 5
 lead: "Каждое `number` в JS — 64 бита по стандарту IEEE 754: знак, порядок и мантисса. Отсюда `0.1 + 0.2`, потерянные идентификаторы больше `2⁵³`, `-0` и `(1.005).toFixed(2) === \"1.00\"`. Внутри V8 то же число бывает малым целым прямо в ячейке или объектом в куче. А для точного счёта есть второй тип — `BigInt`."
-leadWidth: 66
 summary: "Биты double и его точное десятичное значение; почему `0.1 + 0.2 !== 0.3` и как сравнивать с допуском; `MAX_SAFE_INTEGER` и JSON с большими id; `-0` и `NaN`; печать, `toFixed` и банковское округление; `BigInt` и `asIntN`; побитовые операции и `ToInt32`; Smi и HeapNumber в V8 — границы в Node и Chrome и байты на элемент; деньги в целых."
 verifiedOn: "Node 24.11.0 (V8 13.6) и 26.8.2 (V8 14.6), Chromium 153.0.8010.12, Firefox 155, WebKit 26.6, октябрь 2026: таблицы выражений исполняет tests/unit/numbers.test.ts; учебные функции сверены с Float64Array, toFixed и x | 0 на сотнях тысяч чисел; Smi и байты на элемент — %IsSmi, %DebugPrint и heapUsed в отдельном процессе Node, колонка Chromium — стенд. Без таймерных замеров"
 nav:
@@ -31,6 +30,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DoubleLab from '@/widgets/double-lab/ui/DoubleLab.vue';
@@ -115,39 +117,12 @@ import {
   `0.30000000000000004`. А движок V8 добавляет к этому свой слой: маленькие целые
   он хранит по-другому, и это видно по памяти, хотя не видно из кода.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DOUBLE} />
+  <Plain text={PLAIN_DOUBLE} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -155,9 +130,8 @@ import {
   eyebrowTone="demo"
   title="Устройство double: знак, порядок, мантисса"
   lead="64 бита делятся так: 1 бит знака, 11 бит порядка и 52 бита мантиссы. Значение обычного числа — `±(1 + мантисса / 2⁵²) · 2^(порядок − 1023)`. Вычитание 1023 нужно, чтобы порядок бывал и отрицательным: так записываются числа меньше единицы."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FIELDS} />
+  <Plain text={PLAIN_FIELDS} />
 
   <Card title="Разбор, сборка и точное значение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={DOUBLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -176,7 +150,7 @@ import {
     minWidth={860}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SUBNORMAL} />
+  <Plain text={PLAIN_SUBNORMAL} />
 
   ### Число по битам
 
@@ -188,7 +162,6 @@ import {
   eyebrow="Раздел 2"
   title="Почему 0.1 + 0.2 !== 0.3"
   lead="Ни одно из трёх чисел не хранится точно. В памяти лежат ближайшие к ним double, и сумма двух приближений попадает не на то приближение, которым записан литерал `0.3`."
-  leadWidth={72}
 >
   <Table
     head={['выражение', 'что лежит в памяти точно', 'печатается']}
@@ -206,7 +179,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ULP} />
+  <Plain text={PLAIN_ULP} />
 
   ### Сравнение с допуском
 
@@ -242,7 +215,6 @@ import {
   eyebrow="Раздел 3"
   title="Где теряются целые"
   lead="`Number.MAX_SAFE_INTEGER` — это `2⁵³ − 1`, последнее целое, у которого есть оба соседа-целых. Выше сетка double становится реже единицы, и целые начинают совпадать друг с другом — без ошибки и без предупреждения."
-  leadWidth={72}
 >
   <Md text={SAFE_NOTE} />
 
@@ -285,7 +257,6 @@ import {
   eyebrow="Раздел 4"
   title="−0 и NaN"
   lead="Оба значения — следствие формата, а не прихоть языка. Знаковый бит есть у любого double, в том числе у нуля. А для «результата нет» в формате зарезервированы порядки из одних единиц."
-  leadWidth={72}
 >
   ### Минус ноль
 
@@ -300,7 +271,7 @@ import {
 
   ### NaN
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NAN} />
+  <Plain text={PLAIN_NAN} />
 
   <Table
     head={['выражение', 'результат', 'почему']}
@@ -329,11 +300,10 @@ import {
   eyebrow="Раздел 5"
   title="Печать и округление"
   lead="Число в памяти и число на экране — разные вещи. Печать выбирает самую короткую запись, которая указывает на тот же double; `toFixed` округляет точное значение; `Intl.NumberFormat` — короткую запись. На одном и том же числе они расходятся."
-  leadWidth={72}
 >
   <Md text={PRINT_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ROUND} />
+  <Plain text={PLAIN_ROUND} />
 
   <Table
     head={['выражение', 'результат', 'почему']}
@@ -357,9 +327,8 @@ import {
   eyebrow="Раздел 6"
   title="BigInt: целые без предела"
   lead="`BigInt` хранит целое любой длины — столько цифр, сколько нужно. Дробей у него нет, а с `number` в одном выражении он не смешивается: язык заставляет явно выбрать, где округлять."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BIGINT} />
+  <Plain text={PLAIN_BIGINT} />
 
   <Table
     head={['выражение', 'результат', 'почему']}
@@ -394,7 +363,6 @@ import {
   eyebrow="Раздел 7"
   title="Побитовые операции: 32 бита, а не 64"
   lead="Побитовый оператор не видит double. Он берёт от числа 32-битное целое по правилу `ToInt32`, работает с ним и возвращает тоже 32-битное. Всё, что не помещается, отрезается молча."
-  leadWidth={72}
 >
   <Md text={BITS_NOTE} />
 
@@ -424,9 +392,8 @@ import {
   eyebrow="Раздел 8"
   title="Внутри V8: Smi и HeapNumber"
   lead="Язык знает один тип `number`, а движок — два способа его хранить. Малое целое лежит прямо в ячейке — это Smi. Всё остальное упаковано в объект HeapNumber в куче, а в ячейке — ссылка на него."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SMI} />
+  <Plain text={PLAIN_SMI} />
 
   <Md text={SMI_NOTE} />
 
@@ -479,7 +446,6 @@ import {
   eyebrow="Раздел 9"
   title="Деньги: целые копейки или BigInt"
   lead="Сумма в рублях с копейками — десятичная дробь, а double хранит двоичные. Ошибка появляется уже при записи цены и копится при каждом сложении. Деньги хранят и считают целыми числами в самых мелких единицах."
-  leadWidth={72}
 >
   <Table
     head={['выражение', 'результат', 'что не так']}

@@ -2,7 +2,6 @@
 title: "Коллекции: Map, Set и словари"
 order: 4
 lead: "Обычный объект годится в словарь, пока ключи — простые строки из кода. Как только ключи приходят из данных, объект начинает их портить: превращает числа и объекты в строки, находит то, чего никто не клал, и меняет порядок. `Map` и `Set` — хеш-таблицы без этих бед. Как они устроены внутри, что видит `for…of`, когда таблицу меняют на ходу, и что выбрать под задачу."
-leadWidth: 66
 summary: "Три беды объекта-словаря и `Object.create(null)`; `Map`: любые ключи, SameValueZero, `getOrInsert`, мост в объект и в JSON; `Set` и методы `union`, `intersection`, `difference`; упорядоченная хеш-таблица V8 изнутри; обход с изменениями — от удалённого ключа до бесконечного цикла; `WeakMap` и `WeakSet`; что выбрать и `Object.groupBy` / `Map.groupBy`."
 verifiedOn: "Node 26.8.2 (V8 14.6); поддержка методов Set, getOrInsert, Map.groupBy и символов-ключей WeakMap — Chromium 153, Firefox 155, WebKit 26.6 (Playwright), октябрь 2026. Весь код темы исполняет tests/unit/collections.test.ts"
 nav:
@@ -21,11 +20,13 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CollectionKeys from '@/widgets/collection-keys/ui/CollectionKeys.vue';
@@ -53,44 +54,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COLLECTIONS} />
+  <Plain text={PLAIN_COLLECTIONS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Объект как словарь"
   lead="Объект не задумывался под ключи из данных, и это видно в трёх местах: ключ становится строкой, в пустом объекте уже что-то лежит, а порядок ключей — не порядок добавления."
-  leadWidth={72}
 >
   <CodeBlock code={OBJ_DICT_CODE} size={12.5} />
 
@@ -98,7 +73,7 @@ import {
 
   ### Объект без прототипа
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NULL_PROTO} />
+  <Plain text={PLAIN_NULL_PROTO} />
 
   <CodeBlock code={NULL_PROTO_CODE} size={12.5} />
 
@@ -120,7 +95,6 @@ import {
   eyebrow="Раздел 2"
   title="Map: словарь с любыми ключами"
   lead="`Map` хранит записи, а не свойства. Поэтому ключ остаётся тем, чем был, пустая таблица пуста, а порядок — порядок вставки."
-  leadWidth={72}
 >
   <CodeBlock code={MAP_CODE} size={12.5} />
 
@@ -160,7 +134,6 @@ import {
   eyebrow="Раздел 3"
   title="Set: множество значений"
   lead="`Set` — та же таблица, что у `Map`, только без значений: ключи и есть содержимое. С 2024 года у него наконец есть операции над множествами."
-  leadWidth={72}
 >
   <CodeBlock code={SET_CODE} size={12.5} />
 
@@ -190,7 +163,6 @@ import {
   eyebrow="Раздел 4"
   title="Изнутри: таблица, которая помнит порядок"
   lead={INSIDE_LEAD}
-  leadWidth={72}
 >
   <CodeBlock code={DEBUG_PRINT_CODE} size={12.5} />
 
@@ -210,7 +182,6 @@ import {
   eyebrow="Раздел 5"
   title="Обход: итератор идёт по живой таблице"
   lead="`for…of` по `Map` не снимает копию ключей. Итератор помнит позицию в массиве записей и на каждом шаге идёт к следующей живой. Отсюда все правила: удалённое не придёт, добавленное придёт, а вставленное заново придёт ещё раз."
-  leadWidth={72}
 >
   <CodeBlock code={ORDER_CODE} size={12.5} />
 
@@ -226,7 +197,6 @@ import {
   eyebrow="Раздел 6"
   title="WeakMap и WeakSet: записи, которые не держат ключ"
   lead="Слабая коллекция привязывает данные к объекту и не мешает сборщику его забрать. Плата — нельзя узнать, что в ней лежит, не зная ключа."
-  leadWidth={72}
 >
   <CodeBlock code={WEAK_CODE} size={12.5} />
 
@@ -250,7 +220,6 @@ import {
   eyebrow="Раздел 7"
   title="Что выбрать"
   lead="Выбор задаёт не вкус, а откуда берутся ключи и что с ними будут делать."
-  leadWidth={72}
 >
   <Table
     head={['задача', 'чем решать']}
@@ -264,7 +233,7 @@ import {
 
   <CodeBlock code={GROUPBY_CODE} size={12} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GROUPBY} />
+  <Plain text={PLAIN_GROUPBY} />
 
   <CardGrid min={250} gap={12} align="start">
     {GROUPBY_FACTS.map((fact) => (

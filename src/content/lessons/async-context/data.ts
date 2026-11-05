@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LogEntry, Scenario } from '@/widgets/context-lab/model/types';
 
 /**
@@ -56,7 +56,7 @@ import type { LogEntry, Scenario } from '@/widgets/context-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'асинхронный контекст',
     d: 'Значение, которое «едет» вместе с цепочкой асинхронной работы: всё, что запущено ради одного запроса, видит его id, хотя между шагами стек пустел и выполнялся чужой код.',
@@ -89,7 +89,7 @@ export const PLAIN_CONTEXT =
 export const PREREQ_NOTE =
   'Тема опирается на то, как устроены цикл событий и промисы. Достаточно общей картины — подробности по ссылкам.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Колбэк выполняется на пустом стеке',
     d: 'Таймер, событие, ответ сети вызывает цикл событий, а не ваша функция. Когда колбэк начинает работу, кадров того, кто его поставил, на стеке уже нет.',
@@ -777,7 +777,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Node.js — Asynchronous context tracking',
     href: 'https://nodejs.org/api/async_context.html',

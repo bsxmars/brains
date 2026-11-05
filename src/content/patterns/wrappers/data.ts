@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Обёртки: адаптер, фасад, заместитель, декоратор, мост».
@@ -43,7 +43,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 export const PLAIN_WRAPPER =
   'Обёртка — как переходник, пульт и секретарь сразу. Переходник позволяет вставить чужую вилку в вашу розетку. Пульт от кондиционера даёт три кнопки вместо платы с проводами. Секретарь пропускает к директору не всех. Во всех трёх случаях между вами и устройством стоит ещё один объект. Разница — в том, **зачем** он там стоит. Пять паттернов этой темы устроены одинаково: один объект держит ссылку на другой и передаёт ему вызовы. Различаются они целью.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'обёртка',
     d: 'Объект, который хранит ссылку на другой объект и вызывает его методы, добавляя что-то своё: перевод, проверку, запись в журнал. Снаружи с обёрткой работают как с обычным объектом.',
@@ -78,7 +78,7 @@ export const GLOSSARY = [
 
 export const PREREQ_NOTE = 'Тема опирается на четыре вещи, и все четыре разобраны на сайте.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Класс, `this` и методы в прототипе',
     d: 'Что делает `new`, где лежат методы и почему спред экземпляра теряет их. Без этого непонятно, почему обёртка — другой объект, а не тот же самый.',
@@ -657,7 +657,7 @@ export const PITFALLS: Pitfall[] = [
 /* ──────────────────── Раздел 8 · источники ──────────────────── */
 
 /** ⚠️ Без разметки: `SourceList` печатает `title` и `what` как есть. */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Refactoring Guru — структурные паттерны',
     href: 'https://refactoring.guru/ru/design-patterns/structural-patterns',

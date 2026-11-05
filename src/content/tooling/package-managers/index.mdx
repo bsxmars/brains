@@ -5,7 +5,6 @@ headingWidth: 22
 order: 3
 kicker: сборка и инструменты
 lead: "`package.json` не описывает, что у вас установлено: он описывает, **что подошло бы**. Какие версии выбраны, где они лежат и какую из них получит `require`, решает менеджер пакетов — и у npm ответ зависит даже от алфавита и от порядка, в котором ставили пакеты. Lock-файл делает этот ответ воспроизводимым, pnpm — честным."
-leadWidth: 66
 summary: "Как читаются диапазоны semver и почему `^0.2.3` не пускает `0.3.0`; как npm поднимает пакеты в плоский `node_modules` и откуда берутся фантомы и одинаковые копии; что записано в lock-файле и чем `npm ci` отличается от `npm install`; peer-зависимости, `ERESOLVE` и `overrides`; хранилище и симлинки pnpm, Yarn PnP; скрипты установки и пороги возраста версий."
 verifiedOn: "Node 26.8.2, npm 11.19.1, pnpm 11.0.9 и Yarn 4.18.0 (оба из кеша corepack) — на учебном реестре из двадцати одного тарбола на 127.0.0.1, без сети, сентябрь 2026, macOS (APFS). Диапазоны сверены с пакетом semver 7.8.5 — 3219 сравнений; раскладки npm и pnpm и integrity тарбола закреплены `tests/unit/package-managers.test.ts`. База уязвимостей `npm audit` (ответ реестра подставлен), provenance и подпись пакетов, Yarn Classic и lockfileVersion 1–2 — по документации"
 nav:
@@ -29,6 +28,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import PmRange from '@/widgets/pm-lab/ui/PmRange.vue';
 import PmTree from '@/widgets/pm-lab/ui/PmTree.vue';
@@ -109,46 +111,20 @@ import {
   видны пакеты, которых оно не объявляло. pnpm кладёт наверх только объявленное, а остальное
   связывает симлинками из общего хранилища. Yarn PnP обходится без `node_modules` вовсе.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MANAGER} />
+  <Plain text={PLAIN_MANAGER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Semver и диапазоны"
   lead="Каждый диапазон — сокращение для пары сравнений «от» и «до». Развернув его, можно ответить на любой вопрос о нём без таблиц: пустит ли он бету, поднимется ли пакет в `0.x`, что выберет менеджер завтра."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RANGE} />
+  <Plain text={PLAIN_RANGE} />
 
   <Table
     head={['диапазон', 'развёртка', 'пробные версии', 'что это значит']}
@@ -187,9 +163,8 @@ import {
   eyebrow="Раздел 2"
   title="Разрешение дерева и подъём"
   lead="Выбрать версию — половина работы. Вторая половина — решить, в какую `node_modules` её положить, и здесь npm и pnpm расходятся: первый экономит копии ценой видимости, второй — наоборот."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HOIST} />
+  <Plain text={PLAIN_HOIST} />
 
   <Card title="Как npm решает, куда положить пакет" titleSize={17} pad={20} gap={13}>
     <NumberedList items={HOIST_STEPS} size={15.5} />
@@ -232,9 +207,8 @@ import {
   eyebrow="Раздел 3"
   title="Lock-файл"
   lead="Lock-файл записывает не только версии, но и раскладку, адрес каждого архива и хеш его байтов. Поэтому по нему можно восстановить ровно то дерево, что было у автора, — и отказаться ставить, если архив на реестре подменили."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LOCK} />
+  <Plain text={PLAIN_LOCK} />
 
   <CardGrid min={320} gap={16} align="start">
     <Card title="`package-lock.json` сценария «две копии»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -279,9 +253,8 @@ import {
   eyebrow="Раздел 4"
   title="Peer-зависимости и overrides"
   lead="Обычная зависимость может лежать в нескольких копиях, peer — нет: плагин обязан видеть тот же экземпляр, что и его хозяин. Когда версии не сходятся, npm отказывается ставить, pnpm ставит и предупреждает, а `overrides` решает спор приказом."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PEER} />
+  <Plain text={PLAIN_PEER} />
 
   ### Что было бы без peer — и три ответа на конфликт
 
@@ -301,7 +274,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PEER_COPY} />
+  <Plain text={PLAIN_PEER_COPY} />
 
   Все случаи из прогона — в одной таблице:
 
@@ -338,9 +311,8 @@ import {
   eyebrow="Раздел 5"
   title="pnpm и Yarn PnP"
   lead="pnpm хранит каждый файл каждого пакета один раз на машину и собирает `node_modules` проекта из ссылок. Поэтому установка быстрая, а приложение видит только то, что объявило. Yarn PnP идёт дальше и заменяет поиск по папкам таблицей."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STORE} />
+  <Plain text={PLAIN_STORE} />
 
   Та же раскладка этажами: приложение видит только верхний, где лежат ссылки на объявленное, а файлы пакетов живут в хранилище машины.
 
@@ -387,7 +359,6 @@ import {
   eyebrow="Раздел 6"
   title="Скрипты установки и цепочка поставок"
   lead="Установка пакета — это исполнение чужого кода: `postinstall` запускается с вашими правами до того, как вы импортировали хоть строку. Менеджеры 2026 года отвечают на это тремя механизмами: одобрением скриптов, порогом возраста версий и сверкой с базой уязвимостей."
-  leadWidth={72}
 >
   ### Одна история захвата — четыре рубежа
 

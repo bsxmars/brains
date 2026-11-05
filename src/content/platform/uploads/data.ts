@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Загрузка файлов: multipart, докачка, прямо в хранилище».
@@ -74,7 +74,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`multipart/form-data`',
     d: 'Формат тела запроса, в котором едут сразу несколько полей формы, в том числе файлы. Каждое поле — отдельная часть со своими заголовками, части разделены строкой-границей.',
@@ -115,7 +115,7 @@ export const PLAIN_UPLOAD =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи из других тем: как форма собирает поля, когда браузер шлёт preflight, как устроено тело-стрим и что такое поток HTTP/2.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: '`FormData`',
     d: 'Набор пар «имя — значение», который браузер собирает из полей формы или вы сами — через `append`. Какие поля в него попадают, а какие теряются, разобрано отдельно; здесь — во что он превращается в сети.',
@@ -408,7 +408,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'HTML Standard — multipart/form-data encoding algorithm',
     href: 'https://html.spec.whatwg.org/multipage/form-control-infrastructure.html',

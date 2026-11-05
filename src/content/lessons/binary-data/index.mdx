@@ -4,7 +4,6 @@ heading: "Бинарные данные: ArrayBuffer, TypedArray, DataView, Blob
 headingWidth: 24
 order: 12
 lead: "`new Uint32Array(bytes.buffer)[0]` читает ширину картинки 3 как 50 331 648, `Uint8Array.of(300)` молча хранит 44, а `btoa('Привет')` бросает исключение. Байты в JS — это буфер без смысла и виды, которые этот смысл задают: тип элемента, смещение, порядок байт. Как они устроены — на разборе настоящего PNG."
-leadWidth: 66
 summary: "`ArrayBuffer` и виды на него; `subarray` против `slice`; выравнивание и `RangeError`; переполнение и `Uint8ClampedArray`; little- и big-endian, `DataView` с флагом; `TextEncoder`/`TextDecoder` и `stream: true`; base64: `btoa` и его ловушка, `Uint8Array.toBase64`; `Blob` и `File`, `slice` без чтения; растущий буфер и `transfer()`; разбор PNG: сигнатура, блоки, `IHDR`, CRC-32."
 verifiedOn: "Node 24.11.0, Node 26.8.2 и Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: все примеры кода темы исполнены в трёх средах; PNG снят с кодировщика Chromium; parsePng и crc32 сверены с zlib.crc32 и размерами из createImageBitmap на четырёх настоящих PNG. Всё, что воспроизводит Node, повторяет tests/unit/binary-data.test.ts"
 nav:
@@ -30,6 +29,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BytesLens from '@/widgets/bytes-lab/ui/BytesLens.vue';
@@ -104,46 +106,18 @@ import {
   Чтобы прочитать заголовок PNG или собрать пакет для сервера, нужно работать с памятью
   напрямую: вот 105 байт, ширина картинки — в байтах с 16-го по 19-й.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BUFFER} />
+  <Plain text={PLAIN_BUFFER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Буфер и вид"
   lead="Пример на всю тему — PNG размером 105 байт, который выдал кодировщик Chromium для холста 3×2. Его первые 16 байт — сигнатура формата и начало первого блока. На них видно главное: буфер один, видов на него сколько угодно, и все они смотрят на одни и те же байты."
-  leadWidth={72}
 >
   <Card title="Два вида на один буфер" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VIEWS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -171,9 +145,8 @@ import {
   eyebrow="Раздел 2"
   title="Выравнивание и переполнение"
   lead="Вид ставит два условия, о которых обычный массив не знает. Начинаться он должен с адреса, кратного размеру элемента. А число, которое не помещается в элемент, не вызывает ошибку — оно молча превращается в другое."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ALIGN} />
+  <Plain text={PLAIN_ALIGN} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Смещение и длина" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -207,9 +180,8 @@ import {
   eyebrowTone="demo"
   title="Порядок байт"
   lead="Число больше 255 занимает несколько байт, и записать их можно двумя способами: старший байт первым или младший первым. Байты одни и те же, а прочитанные «не в том порядке» дают совсем другое число. Именно поэтому `words[2]` в разделе «Буфер и вид» равно не 13."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENDIAN} />
+  <Plain text={PLAIN_ENDIAN} />
 
   <Card title="Ширина картинки двумя способами" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ENDIAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -238,7 +210,6 @@ import {
   eyebrow="Раздел 4"
   title="Текст и base64"
   lead="Строку в байты переводит `TextEncoder`, байты в строку — `TextDecoder`. Когда байты нужно пронести через текст — в JSON, в адрес, в заголовок, — их записывают в base64. У обоих переходов есть по одной ловушке, которая на английском тексте не видна."
-  leadWidth={72}
 >
   <Card title="Байты и строки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TEXT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -250,7 +221,7 @@ import {
 
   ### base64: старый путь и новый
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BTOA} />
+  <Plain text={PLAIN_BTOA} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="warn" title="Ловушка btoa" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -284,9 +255,8 @@ import {
   eyebrow="Раздел 5"
   title="Blob и File"
   lead="`ArrayBuffer` — байты в памяти прямо сейчас. `Blob` — байты, которые где-то есть: в памяти, в файле на диске, в ответе сервера. Прочитать их можно только асинхронно, а вот отрезать кусок или узнать размер — сразу."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BLOB} />
+  <Plain text={PLAIN_BLOB} />
 
   <Card title="Блоб изнутри" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={BLOB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -323,9 +293,8 @@ import {
   eyebrow="Раздел 6"
   title="Растущий буфер и transfer"
   lead="Размер обычного `ArrayBuffer` задаётся при создании и не меняется никогда. Если данных стало больше, нужен новый буфер и копия. Два новых механизма убирают эту копию: буфер, который растёт на месте, и `transfer()`, который отдаёт байты новому буферу, не копируя их."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RESIZE} />
+  <Plain text={PLAIN_RESIZE} />
 
   <Card title="resize и виды" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RESIZE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -356,7 +325,6 @@ import {
   eyebrowTone="demo"
   title="Разбор PNG"
   lead="Всё, что было выше, нужно для одной задачи: прочитать настоящий двоичный формат. PNG — хороший пример: восемь байт сигнатуры, а дальше цепочка блоков одного устройства — длина, тип, данные, контрольная сумма. Числа в нём big-endian, поэтому читать их будем `DataView`."
-  leadWidth={72}
 >
   <Table
     head={['смещение', 'байт', 'поле', 'что там']}
@@ -376,7 +344,7 @@ import {
     minWidth={560}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CRC} />
+  <Plain text={PLAIN_CRC} />
 
   <Card title="Разбор PNG и CRC-32" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PNG_CODE} size={11.5} lh={1.65} pad="14px 16px" />

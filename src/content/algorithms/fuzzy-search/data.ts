@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { SearchTopic } from '@/widgets/fuzzy-lab/model/types';
 
 /**
@@ -59,7 +59,7 @@ export const fmt = (n: number) => n.toLocaleString('ru-RU');
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'автодополнение',
     d: 'Подсказки, пока человек печатает: набрал `сб` — получил «сборка», «сброс», «сборщиков». Ищут слова, которые **начинаются** с набранного.',
@@ -96,7 +96,7 @@ export const PLAIN_SEARCH =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Таблица динамического программирования',
     d: 'Ответ для двух строк собирается из ответов для их более коротких начал: клетка `t[i][j]` считается по трём соседям — сверху, слева и по диагонали. Расстояние Левенштейна считается такой же таблицей, что и общая подпоследовательность в diff, только с ещё одной операцией — заменой.',
@@ -686,7 +686,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Fuse.js — Fuzzy Search',
     href: 'https://www.fusejs.io/fuzzy-search.html',

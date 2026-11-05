@@ -14,7 +14,7 @@ const text = JSON.stringify(t);
 
 describe('ссылки', () => {
   const links = [...text.matchAll(/\]\(\/([a-z]+)\/([a-z0-9-]+)\/(?:#(s\d+))?\)/g)];
-  const prereq = t.PREREQ.map((p) => /^\/([a-z]+)\/([a-z0-9-]+)\/(?:#(s\d+))?$/.exec(p.href)!);
+  const prereq = t.PREREQ.map((p) => /^\/([a-z]+)\/([a-z0-9-]+)\/(?:#(s\d+))?$/.exec(p.href ?? '')!);
 
   it('ссылки найдены', () => {
     expect(links.length).toBeGreaterThanOrEqual(8);

@@ -233,9 +233,13 @@
 | **Перед началом** — что тема считает известным, 3–4 карточки со ссылкой «Где разобрано» | `PREREQ: Prereq[]`, `PREREQ_NOTE` | `<Prereq items={PREREQ} note={PREREQ_NOTE} />`, первый пункт `nav` (`s0`) |
 | Тонкие места — где интуиция промахивается систематически. **Необязателен** | `PITFALLS: Pitfall[]` | `<Pitfalls items={PITFALLS} />` |
 | Что осталось за кадром. **Необязателен**; если объявлен — выведен и не пуст | `OFFSCREEN` | — |
-| **Источники и смежное** | `SOURCES: Source[]` (или `SourceGroup[]`), `RELATED` | `<SourceList items={SOURCES} />`, `<Md text={RELATED} />` |
+| **Источники и смежное** | `SOURCES: Source[]`, `RELATED` | `<SourceList items={SOURCES} />`, `<Md text={RELATED} />` |
+| Врезка-объяснение | `PLAIN_*` | `<Plain text={PLAIN_…} />` |
 
-Типы `GlossaryTerm`, `Prereq`, `Source`, `SourceGroup`, `Pitfall` — из `@/entities/lesson`.
+Типы `GlossaryTerm`, `Prereq`, `Source`, `SourceGroup`, `Pitfall` — `import type` из `@/entities/lesson`
+(именно `import type`: вход тянет `astro:content`, которого нет в vitest). Блоки — в `widgets/topic-blocks`
+(`Glossary`, `Prereq`; у `Prereq` слот `before` над карточками и основной под ними), `Plain` — в `shared/ui`.
+Двенадцать тем выводят источники своей сеткой карточек (`SourceGroup[]` или `{t, d}`) — это их раскладка.
 
 - Зачин двух видов, по предмету: **«Граница наблюдаемого»** там, где предмет из JS не виден
   (`v8-engine`, `memory-gc`, `v8-strings`, `browser-architecture`, `object-model`), **«Что тема считает
@@ -363,7 +367,7 @@ src/
 | Рамка демо | `shared/ui/DemoFrame.vue` |
 | Шаги вперёд/назад | `shared/lib/useStepper.ts` + `shared/ui/StepToolbar.vue` |
 | Автоплей | `shared/lib/usePlayer.ts` + `shared/ui/PlayerToolbar.vue` |
-| Исполнить строку примера и взять экспорт | `shared/lib/load-export.ts` |
+| Исполнить строку примера и взять экспорт | `new Function` в `model/run.ts` слайса: строка из `data.ts` плюс `return { … }` |
 | Листинг кода, консоль, стек, очередь | `CodeListing.vue`, `ConsoleView.vue`, `StackView.vue`, `QueueView.vue` |
 | График | `shared/lib/chart.ts` + `shared/ui/ChartFrame.vue` |
 | Цепочка шагов на схеме | `shared/ui/FlowChips.astro` |
@@ -469,8 +473,8 @@ npx playwright test tests/e2e/<проверка>.spec.ts
 
 ### Тесты
 
-- Общие хелперы тестов — `tests/helpers/` (`rng`, `ts-diagnose`, `load-vue`, `with-browser`,
-  `wait-for-server`). Не копируй их в файл теста.
+- Общие хелперы тестов — `tests/helpers/`: `rng` (`minstd`, `mulberry32`, `ansiLcg`), `ts-diagnose`
+  (`tsHarness`, `execute`), `load-vue`, `with-browser`, `wait-for-server`. Не копируй их в файл теста.
 - ⚠️ Замерная проверка краснеет от нагрузки и выглядит как находка. Прежде чем править порог —
   повтори в тишине. Проверки памяти процесса мигают так же.
 - ⚠️ Доказывая, что тест краснеет, проверь, что правка применилась (`grep` по новому тексту).

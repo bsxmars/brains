@@ -5,7 +5,6 @@ headingWidth: 22
 order: 14
 kicker: браузер и рендеринг
 lead: "Одна и та же картинка на телефоне весит 10 КБ, а на ноутбуке 120 КБ — или наоборот, если ошибиться в одном атрибуте. Как браузер выбирает файл из `srcset`, когда начинает качать ленивую картинку, почему файл в 23 КБ занимает в памяти почти 7 МБ и что держит место под картинкой, пока она едет."
-leadWidth: 66
 summary: "Выбор кандидата из `srcset` по `sizes` и DPR, `x`-дескрипторы, файл из кеша, `<picture>` с `type` и `media`, `Accept`, размеры JPEG / WebP / AVIF / PNG при разном качестве, `loading=\"lazy\"` и его запас, приоритеты и `fetchpriority`, декодирование и память битмапа, `img.decode()`, `width` / `height` и `aspect-ratio`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), sharp 0.35.4 (libvips 8.18.6), Node 24.11.0, октябрь 2026: запросы, приоритеты, пороги lazy, память битмапов и сдвиги сняты стендом со своим сервером и картинками из sharp; функция выбора из srcset и байты файлов сверены в tests/unit/images.test.ts"
 nav:
@@ -24,13 +23,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SrcsetLab from '@/widgets/srcset-lab/ui/SrcsetLab.vue';
@@ -97,39 +98,12 @@ import {
   разметки. Неверная подсказка не даёт ни ошибки, ни предупреждения: просто приезжает не тот файл
   и не тогда.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_IMAGES} />
+  <Plain text={PLAIN_IMAGES} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -137,9 +111,8 @@ import {
   eyebrowTone="demo"
   title="Как браузер выбирает файл из srcset"
   lead="`srcset` перечисляет файлы одной картинки разной ширины, `sizes` говорит, какой ширины будет место под неё. Из этих двух чисел и плотности экрана браузер решает, какой файл скачать, — до того, как загрузит CSS."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SRCSET} />
+  <Plain text={PLAIN_SRCSET} />
 
   <CodeBlock code={MARKUP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -184,7 +157,6 @@ import {
   eyebrow="Раздел 2"
   title="x-дескрипторы и файл, который уже скачан"
   lead="Когда ширина картинки на странице известна и не меняется, слот не нужен: плотность пишут прямо в `srcset`. А когда подходящий файл не совпадает с тем, что уже лежит в кеше, браузер может взять скачанный."
-  leadWidth={72}
 >
   <CodeBlock code={X_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -209,9 +181,8 @@ import {
   eyebrow="Раздел 3"
   title="picture: формат и кадр"
   lead="`srcset` выбирает размер одной и той же картинки. `<picture>` умеет больше: отдать новый формат тем, кто его понимает, и показать на узком экране другой кадр — например, обрезанный по центру."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PICTURE} />
+  <Plain text={PLAIN_PICTURE} />
 
   <CodeBlock code={PICTURE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -236,9 +207,8 @@ import {
   eyebrow="Раздел 4"
   title="Форматы: сколько весит одна и та же картинка"
   lead="Картинка 1200×800 из стенда, сжатая четырьмя форматами при разном качестве. Рядом с размером — насколько результат отличается от исходника."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PSNR} />
+  <Plain text={PLAIN_PSNR} />
 
   <Table
     head={['формат', 'quality', 'байт', 'PSNR, дБ']}
@@ -256,9 +226,8 @@ import {
   eyebrow="Раздел 5"
   title="Ленивая загрузка и приоритет"
   lead="Ленивая картинка не качается, пока не подъедет к экрану. Это экономит байты на длинной странице и вредит на первом экране: браузер узнаёт, что картинка рядом, только после раскладки."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAZY} />
+  <Plain text={PLAIN_LAZY} />
 
   <CodeBlock code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -306,9 +275,8 @@ import {
   eyebrow="Раздел 6"
   title="Декодирование и память"
   lead="Скачанный файл нельзя нарисовать как есть. Перед отрисовкой браузер распаковывает его в битмап, и память считается по пикселям, а не по байтам файла."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DECODE} />
+  <Plain text={PLAIN_DECODE} />
 
   <CodeBlock code={BITMAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -344,7 +312,6 @@ import {
   eyebrow="Раздел 7"
   title="Место под картинку"
   lead="Пока файл едет, браузер не знает его размеров. Если место не зарезервировать, картинка приедет и растолкает текст под собой. Экран 375 px, картинка 1200×800 приходит через 800 мс."
-  leadWidth={72}
 >
   <Table
     head={['вариант', 'CSS / разметка', '`aspect-ratio`', 'до загрузки', 'после', 'CLS']}

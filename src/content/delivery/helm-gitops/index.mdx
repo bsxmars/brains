@@ -3,7 +3,6 @@ title: "Один манифест на много окружений: Helm, Kust
 order: 8
 kicker: доставка
 lead: "У dev, stage и prod одинаковые манифесты с разными числами и строками. **Kustomize** накладывает на базу патчи, **Helm** заполняет шаблоны значениями, и у обоих есть место, где интуиция промахивается: список из файла окружения может заменить базовый целиком. **GitOps** забирает применение у конвейера: кластер сам тянет из Git то, что там записано, и держит это состояние, а откат становится `git revert`."
-leadWidth: 68
 summary: "Окружения как данные и один образ на все; Kustomize — база и слои, images, namePrefix, commonLabels, генератор ConfigMap и хеш в имени; strategic merge против JSON 6902 и ловушка замены списка; Helm — чарт, шаблоны, values и их порядок, релиз, история, откат и хуки; GitOps — Argo CD и Flux, дрейф и self-heal, pull против push; секреты в Git — Sealed Secrets и SOPS."
 verifiedOn: "Слияние патчей, порядок values, синтаксис --set и поведение шаблонов — учебной моделью темы; её сверяет тест на таблицах случаев из документации Kubernetes, kustomize, Helm и RFC 6902/7386. kubectl, kustomize и helm не запускались, кластера не было: Argo CD, Flux, хранение релизов, хуки, Sealed Secrets и SOPS — по документации, сентябрь 2026, и помечены в тексте"
 nav:
@@ -24,12 +23,14 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import KzEnvs from '@/widgets/kz-envs/ui/KzEnvs.vue';
@@ -117,45 +118,19 @@ import {
   PUSH_PULL_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE} leadWidth={72}>
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TWO_WAYS} />
+<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
+  <Plain text={PLAIN_TWO_WAYS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Три окружения — одна задача"
   lead="Сквозной пример темы — фронтенд магазина с серверным рендером: Deployment с двумя контейнерами, Service, Ingress и ConfigMap с адресом API. Одно и то же приложение едет в три окружения, и вот всё, чем они отличаются."
-  leadWidth={72}
 >
   <Table
     head={ENV_TABLE.head}
@@ -179,7 +154,6 @@ import {
   eyebrow="Раздел 2"
   title="Kustomize: база и слои"
   lead="База — обычные манифесты, которые применяются и сами по себе. Слой окружения ссылается на базу и перечисляет только отличия."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={KUSTOMIZE_WHY} />
@@ -233,7 +207,7 @@ import {
 
   ### ConfigMap с хешем в имени
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HASH} />
+  <Plain text={PLAIN_HASH} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={HASH_WHY} />
@@ -265,9 +239,8 @@ import {
   eyebrow="Раздел 3"
   title="Патчи: strategic merge и JSON 6902"
   lead="Strategic merge — кусок манифеста, который сливается с базой. JSON 6902 — список операций по адресам. Первый удобнее, второй точнее, а ловушка у них общая: список, который сливается не так, как ждёшь."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MERGE_KEY} />
+  <Plain text={PLAIN_MERGE_KEY} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={SMP_WHY} />
@@ -317,13 +290,12 @@ import {
   eyebrow="Раздел 4"
   title="Helm: чарт и шаблоны"
   lead="Чарт — папка с шаблонами манифестов и значениями по умолчанию. Шаблон — текст, а не YAML: Helm подставляет значения, а разбирать результат будет уже Kubernetes."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={HELM_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TEMPLATE} />
+  <Plain text={PLAIN_TEMPLATE} />
 
   <CodeBlock code={CHART_TREE} />
 
@@ -369,7 +341,6 @@ import {
   eyebrow="Раздел 5"
   title="Values: кто кого перекрывает"
   lead="Значения собираются из трёх мест, и у каждого свой вес. Словари сливаются вглубь, а списки — нет."
-  leadWidth={72}
 >
   <Card title="Порядок, от слабого к сильному" titleSize={17} pad={20} gap={13}>
     <NumberedList items={PRECEDENCE} size={15.5} />
@@ -394,7 +365,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VALUES} />
+  <Plain text={PLAIN_VALUES} />
 
   ### Файлы окружений
 
@@ -442,7 +413,6 @@ import {
   eyebrow="Раздел 6"
   title="Релиз, история, откат и хуки"
   lead="Helm помнит, что ставил: каждое обновление — новая ревизия релиза, и к любой из них можно вернуться. Хранится это в самом кластере."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={RELEASE_WHY} />
@@ -478,7 +448,6 @@ import {
   eyebrowTone="demo"
   title="Шаблоны против патчей — на одном приложении"
   lead="Одна и та же задача двумя способами. Итог почти совпадает, а расходится там, где способы расходятся идейно: в списках и в том, как меняется ConfigMap."
-  leadWidth={72}
 >
   <Table
     head={COMPARE.head}
@@ -508,13 +477,12 @@ import {
   eyebrow="Раздел 8"
   title="GitOps: кластер сам тянет из Git"
   lead="Конвейер больше не ходит в кластер: он собирает образ и делает коммит. Применяет контроллер внутри кластера, и он же держит кластер таким, как записано."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={GITOPS_WHY} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GITOPS} />
+  <Plain text={PLAIN_GITOPS} />
 
   ### Push против pull
 
@@ -552,7 +520,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DRIFT} />
+  <Plain text={PLAIN_DRIFT} />
 
   ### Argo CD
 
@@ -592,7 +560,6 @@ import {
   eyebrow="Раздел 9"
   title="Секреты в Git"
   lead="Secret как есть в Git класть нельзя: base64 — не шифр. Кладут шифр, а ключ от него есть только у кластера."
-  leadWidth={72}
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={SECRET_WHY} />
@@ -626,7 +593,6 @@ import {
   eyebrow="Раздел 10"
   title="Тонкие места"
   lead="Почти все они молчат: манифест собрался, команда вернула успех, а в кластере не то, что задумано."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>

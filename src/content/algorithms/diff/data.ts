@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DiffPair, MoveScenario } from '@/widgets/diff-lab/model/types';
 
 /**
@@ -47,7 +47,7 @@ import type { DiffPair, MoveScenario } from '@/widgets/diff-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'скрипт правок',
     d: 'Список шагов, который превращает старую последовательность в новую: «оставить», «удалить», «вставить». Замены нет — это удаление плюс вставка. Diff ищет самый короткий такой список.',
@@ -80,7 +80,7 @@ export const PLAIN_DIFF =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Оценка «O-большое»',
     d: '`O(n·m)` значит: работа растёт как произведение длин. Два файла по 10 000 строк — сто миллионов шагов. `O((n+m)·D)` — работа растёт с длиной файлов, умноженной на число правок, и при мелкой правке почти линейна.',
@@ -560,7 +560,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'E. W. Myers — An O(ND) Difference Algorithm and Its Variations (Algorithmica, 1986)',
     href: 'https://doi.org/10.1007/BF01840446',

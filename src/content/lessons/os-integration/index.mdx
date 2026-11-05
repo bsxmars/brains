@@ -3,7 +3,6 @@ title: "Страница и система: экран, „Поделиться�
 headingWidth: 24
 order: 29
 lead: "Четыре вещи, которые сайт берёт у операционной системы: экран, который не гаснет, системное меню «Поделиться», число на иконке приложения и окно оплаты. Каждая — одна строка кода и промис. А отказывает промис по причинам, которых в этой строке не видно: страница не на HTTPS, человек ничего не нажимал, вызов идёт из чужого iframe, сайт не установлен как приложение или движок этого просто не умеет."
-leadWidth: 66
 summary: "`navigator.wakeLock` и почему замок снимается со скрытой вкладкой; `navigator.share`, `canShare` и запасной путь; значок `setAppBadge` и почему во вкладке его не видно; `PaymentRequest` от `canMakePayment` до `complete` и почему на деле ставят кнопку провайдера; жест пользователя и его пять секунд, `allow` у iframe и заголовок `Permissions-Policy`; проверка по имени в `navigator`, а не по юзер-агенту."
 verifiedOn: "Chromium 153 (полный и headless shell), Firefox 155 и WebKit 26.6 из Playwright 1.63 на macOS, ноябрь 2026: каждый пример с выводом и каждую таблицу исполняет tests/e2e/os-integration.spec.ts; окно жеста — пять запусков в трёх движках"
 nav:
@@ -20,8 +19,6 @@ nav:
 
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
-import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
@@ -29,6 +26,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -101,46 +101,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SYSTEM} />
+  <Plain text={PLAIN_SYSTEM} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Не гасить экран: Wake Lock"
   lead="Человек читает рецепт с телефона, руки в муке, а экран гаснет через тридцать секунд. `navigator.wakeLock.request('screen')` просит систему не гасить экран, пока вкладка видна. Ответ — промис с объектом-замком."
-  leadWidth={72}
 >
   <CodeBlock code={WAKE_CODE} />
 
@@ -164,7 +136,7 @@ import {
 
   ### Вкладку спрятали — замок снят
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WAKE} />
+  <Plain text={PLAIN_WAKE} />
 
   <CodeBlock code={VIS_CODE} />
 
@@ -184,7 +156,6 @@ import {
   eyebrow="Раздел 2"
   title="Системное меню «Поделиться»: Web Share"
   lead="`navigator.share` открывает то же меню «Поделиться», что у фотографии в галерее телефона. Вызывается только из обработчика клика, а на случай, когда меню нет, нужен запасной путь."
-  leadWidth={72}
 >
   <CodeBlock code={SHARE_CODE} />
 
@@ -218,7 +189,6 @@ import {
   eyebrow="Раздел 3"
   title="Число на иконке: Badging API"
   lead="`navigator.setAppBadge(3)` рисует тройку на иконке веб-приложения, как у почты или мессенджера. Вызов прост, а результат виден не везде."
-  leadWidth={72}
 >
   <CodeBlock code={BADGE_CODE} />
 
@@ -240,7 +210,6 @@ import {
   eyebrow="Раздел 4"
   title="Окно оплаты: Payment Request"
   lead="`PaymentRequest` открывает окно оплаты самого браузера: сохранённая карта, адрес доставки, Google Pay. Сайт описывает, что продаёт и какие способы принимает, а данные карты собирает браузер или платёжное приложение — сайт их не видит."
-  leadWidth={72}
 >
   <CodeBlock code={PAY_CODE} />
 
@@ -256,7 +225,7 @@ import {
 
   ### Почему на деле ставят кнопку провайдера
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PAY} />
+  <Plain text={PLAIN_PAY} />
 
   <Md text={PAY_REALITY} />
 </Section>
@@ -266,7 +235,6 @@ import {
   eyebrow="Раздел 5"
   title="Жест, безопасный контекст и iframe"
   lead="У всех четырёх API три общих условия. Без HTTPS их имён нет вовсе. Системное окно открывается только сразу после действия человека. А чужой iframe получает возможность, только если страница разрешила её явно."
-  leadWidth={72}
 >
   <CodeBlock code={ACTIVATION_CODE} />
 
@@ -276,7 +244,7 @@ import {
     <Md text={ACTIVATION_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIVATION} />
+  <Plain text={PLAIN_ACTIVATION} />
 
   ### Вызов забирает жест
 
@@ -324,7 +292,6 @@ import {
   eyebrow="Раздел 6"
   title="Есть ли API: проверка по имени, а не по браузеру"
   lead="Поддержку проверяют по имени в `navigator` или `window`. Одна и та же версия Chromium с одинаковым юзер-агентом даёт разный набор API, а на `http:` имена пропадают целиком."
-  leadWidth={72}
 >
   <CodeBlock code={DETECT_CODE} />
 

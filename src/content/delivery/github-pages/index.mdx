@@ -3,7 +3,6 @@ title: 'GitHub Pages: публикация статики'
 order: 6
 kicker: доставка
 lead: "Опубликовать статический сайт — значит положить готовые файлы туда, откуда их будут раздавать. Главная поломка на этом пути одна, и случается она сразу везде: **сайт проекта живёт не в корне домена, а в подкаталоге**. Ссылки, адреса скриптов и пути к файлам, написанные от корня, после переезда ведут мимо сайта. А сборка при этом проходит успешно и ни о чём не предупреждает."
-leadWidth: 68
 summary: "Чего у Pages нет (сервера, переписывания адресов, своих заголовков); базовый путь и почему он ломает ссылки; страница 404 и адреса, которые разбирает скрипт в браузере; кеш и хеш в именах файлов; публикация через GitHub Actions и лимиты."
 verifiedOn: "Astro 7.3.2, Node v26.8.2 (macOS, arm64), 15 сентября 2026 — две сборки этого самого сайта, обычная и `--base /repo/`. Всё, что касается самого хостинга (заголовки, редиректы, кеш CDN, свой домен, лимиты), проверено документацией GitHub, а не прогоном, и помечено в тексте"
 nav:
@@ -29,6 +28,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BasePathLab from '@/widgets/base-path-lab/ui/BasePathLab.vue';
@@ -105,7 +107,7 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BASE} />
+  <Plain text={PLAIN_BASE} />
 
   Проверить это можно на любом сайте. Ниже **этот самый сайт** собран дважды: обычной командой
   и как для подкаталога, с `--base /repo/`. Обе сборки прошли молча, а сколько путей во второй
@@ -136,42 +138,16 @@ import {
     </Card>
   </CardGrid>
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Что такое Pages и чего там нет"
   lead="Статический хостинг проще любого сервера — потому что умеет меньше. Почти все сюрпризы Pages связаны не с тем, что в нём есть, а с тем, чего в нём нет."
-  leadWidth={72}
 >
   <CardGrid min={280} gap={14}>
     {NO_SERVER.map((fact) => (
@@ -218,7 +194,6 @@ import {
   eyebrowTone="demo"
   title="Базовый путь: почему ломается всё сразу"
   lead={BASE_DEMO_NOTE}
-  leadWidth={72}
 >
   <CodeBlock code={BASE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -278,7 +253,7 @@ import {
   Рано или поздно сайт проекта переезжает на свой домен. Это не только настройка DNS: сайт
   снова оказывается в корне, и базовый путь меняется вместе с адресом.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DNS} />
+  <Plain text={PLAIN_DNS} />
 
   <CodeBlock code={DOMAIN_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -298,7 +273,6 @@ import {
   eyebrow="Раздел 3"
   title="Маршрутизация без сервера: 404 и клиентские маршруты"
   lead="На статическом хостинге адрес превращается в путь к файлу по жёсткому правилу, и поменять его вы не можете. Поэтому иначе, чем на своём сервере, устроены две вещи: ответ на несуществующий адрес и адрес, который должен обработать роутер в браузере."
-  leadWidth={72}
 >
   <CodeBlock code={PROBE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -321,7 +295,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPA} />
+  <Plain text={PLAIN_SPA} />
 
   ### Один адрес `/profile/42` — четыре сайта
 
@@ -341,7 +315,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SPA_VARIANTS} />
+  <Plain text={PLAIN_SPA_VARIANTS} />
 
   <Card title="Клиентские маршруты и приём с `404.html`" titleSize={18} pad={22} gap={14}>
     <CodeBlock code={SPA_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -371,9 +345,8 @@ import {
   eyebrow="Раздел 4"
   title="Кеш и инвалидация статики"
   lead="Файлы статики бывают двух видов: в имени одних есть хеш содержимого, в имени других — нет. Первые можно кешировать навсегда: обновлённый файл просто получает новое имя. Вторые обновятся у читателя, только когда истечёт срок кеша, — а задать этот срок своим `Cache-Control` на Pages нельзя."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HASHNAME} />
+  <Plain text={PLAIN_HASHNAME} />
 
   ### Одна публикация глазами вчерашнего читателя
 
@@ -390,7 +363,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEPLOY} />
+  <Plain text={PLAIN_DEPLOY} />
 
   Коротко, в одну таблицу:
 
@@ -482,9 +455,8 @@ import {
   eyebrow="Раздел 5"
   title="Сборка и публикация конвейером"
   lead="Опубликовать сайт на Pages можно двумя способами. Разница не в удобстве, а в том, что окажется в репозитории. Публикация из ветки означает, что собранный сайт придётся коммитить. Публикация артефактом — архивом готовых файлов, который собирает и загружает GitHub Actions, — оставляет в репозитории только исходники. Второй способ почти всегда лучше, и на него к тому же не действует лимит на число сборок."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ARTIFACT} />
+  <Plain text={PLAIN_ARTIFACT} />
 
   <Table
     head={['способ', 'что происходит', 'чем платите']}
@@ -537,7 +509,6 @@ import {
   eyebrow="Раздел 6"
   title="Ограничения и когда Pages не подходит"
   lead="Pages бесплатен, но не безразмерен и годится не для всего: у него есть пределы по объёму и трафику и прямые запреты на то, что на нём размещать. Числа — из документации GitHub."
-  leadWidth={72}
 >
   <Table
     head={['что', 'предел', 'что это значит на практике']}

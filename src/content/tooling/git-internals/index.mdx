@@ -5,7 +5,6 @@ headingWidth: 24
 order: 14
 kicker: сборка и инструменты
 lead: "Внутри `.git` нет «версий файлов» и «веток» в привычном смысле. Там лежат неизменяемые объекты, названные хешами своего содержимого, и несколько маленьких текстовых файлов с этими хешами. Из этих двух вещей складываются коммит, ветка, merge, rebase — и то, почему «удалённый» коммит почти всегда можно вернуть."
-leadWidth: 66
 summary: "Четыре вида объектов и как считается их SHA-1, zlib в `.git/objects`, дерево и коммит байт за байтом, ветка как файл с хешем, `HEAD`, reflog и индекс, общий предок и трёхстороннее слияние, fast-forward, rebase и cherry-pick с новыми хешами, потерянный коммит в reflog, packfile и дельты."
 verifiedOn: "git 2.44.0, isomorphic-git 1.42.6, Node 24.11.0 и 26.8.2, октябрь 2026: хеши, выводы команд и размеры сняты на репозиториях с фиксированным автором и временем и пересобираются tests/unit/git-internals.test.ts; функции темы сверены с git и isomorphic-git, шаги демо повторяются в git"
 nav:
@@ -30,6 +29,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import GitLab from '@/widgets/git-lab/ui/GitLab.vue';
@@ -108,46 +110,18 @@ import {
   и переписывают одну-две ссылки. Поняв эти две операции, можно предсказать, что сделает
   любая команда, и вернуть то, что кажется потерянным.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GIT} />
+  <Plain text={PLAIN_GIT} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Объекты и их хеши"
   lead="Всё, что git знает о проекте, лежит в `.git/objects` объектами четырёх видов. Имя каждого объекта — SHA-1 от его байтов. Поэтому одинаковое содержимое всегда получает одно имя и хранится один раз, где бы и сколько бы раз оно ни встречалось в истории."
-  leadWidth={72}
 >
   <Table
     head={['вид', 'что внутри', 'в примере']}
@@ -157,7 +131,7 @@ import {
     minWidth={640}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HASH} />
+  <Plain text={PLAIN_HASH} />
 
   ### Как считается имя
 
@@ -197,7 +171,6 @@ import {
   eyebrow="Раздел 2"
   title="Дерево и коммит"
   lead="Блоб не знает своего имени — имя файла записано в дереве, которое описывает папку. Коммит ссылается на одно корневое дерево и на родительские коммиты. Хеш каждого уровня считается из хешей нижнего, поэтому хеш коммита зависит от каждого байта каждого файла."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Деревья первого коммита" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -227,7 +200,7 @@ import {
 
   ### Что пишет один коммит
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MERKLE} />
+  <Plain text={PLAIN_MERKLE} />
 
   <Table
     head={['коммит', 'что изменилось', 'новых объектов', 'какие']}
@@ -255,7 +228,6 @@ import {
   eyebrow="Раздел 3"
   title="Ветки, HEAD и индекс"
   lead="Объекты неизменяемы, поэтому всё подвижное в git хранится отдельно — в маленьких файлах-ссылках. Ветка помнит один хеш, `HEAD` помнит имя ветки, reflog помнит, где ссылки бывали раньше. Индекс — тоже подвижная часть: черновик следующего коммита."
-  leadWidth={72}
 >
   <Card title="Ссылки сквозного примера" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={REFS_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
@@ -270,7 +242,7 @@ import {
 
   ### Индекс
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INDEX} />
+  <Plain text={PLAIN_INDEX} />
 
   <Card title="До первого коммита" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={INDEX_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
@@ -286,7 +258,6 @@ import {
   eyebrow="Раздел 4"
   title="Слияние"
   lead="Чтобы слить две ветки, git сначала ищет их общего предка — последний коммит, который есть в обеих историях. Дальше всё решает сравнение трёх снимков: предка и двух вершин. Что поменялось только с одной стороны, переходит в результат; что поменяли обе — сливается построчно или становится конфликтом."
-  leadWidth={72}
 >
   <Card title="Общий предок" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={BASE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -357,9 +328,8 @@ import {
   eyebrow="Раздел 5"
   title="Rebase и cherry-pick"
   lead="Rebase не «передвигает» коммиты: объекты неизменяемы, двигать нечего. Он создаёт новые коммиты с теми же правками поверх другой вершины и переписывает ссылку ветки. У новых коммитов другие родители, а значит, другие хеши."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REBASE} />
+  <Plain text={PLAIN_REBASE} />
 
   <Card title="feature поверх main" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={REBASE_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
@@ -399,7 +369,6 @@ import {
   eyebrow="Раздел 6"
   title="Reflog, сборка мусора и pack"
   lead="Раз объекты не меняются и не удаляются командами вроде `reset` или `rebase`, хранилище только растёт. Убирает лишнее одна команда — `git gc`. Она удаляет объекты, до которых нельзя дойти ни от одной ссылки, и упаковывает остальные в packfile."
-  leadWidth={72}
 >
   <Card title="Отменили слияние" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LOST_SHELL} size={11.5} lh={1.65} pad="14px 16px" />

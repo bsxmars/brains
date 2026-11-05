@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DeflateCodes, DeflatePreset } from '@/widgets/deflate-lab/model/types';
 
 /**
@@ -58,7 +58,7 @@ const n = (x: number) => x.toLocaleString('ru-RU');
 export const PLAIN_DEFLATE =
   'Как конспект лекции. Повторившуюся фразу вы не переписываете, а ставите «см. выше, строка 3, пять слов» — это LZ77. А слова, которые встречаются постоянно, сокращаете: «т. к.», «напр.», — и чем слово частее, тем короче сокращение. Это Хаффман. Конспект читается без лектора: всё нужное для расшифровки лежит в нём самом.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'DEFLATE',
     d: 'Формат сжатых данных из RFC 1951. Внутри gzip, zlib, PNG, zip и `Content-Encoding: gzip` лежит именно он, обёртки отличаются только заголовком и контрольной суммой.',
@@ -96,7 +96,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Сжатие в HTTP',
     d: 'Браузер пишет в `Accept-Encoding`, что умеет распаковать, сервер выбирает и называет выбранное в `Content-Encoding`. Распаковывает браузер сам, скрипт видит готовый текст.',
@@ -821,7 +821,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'RFC 1951 — DEFLATE Compressed Data Format',
     href: 'https://www.rfc-editor.org/rfc/rfc1951',

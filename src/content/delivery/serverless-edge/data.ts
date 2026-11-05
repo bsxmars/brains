@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { PlacePreset, Req, ScalePlatform, ScaleProfile, StandRun } from '@/widgets/serverless-lab/model/types';
 
 /**
@@ -72,7 +72,7 @@ import type { PlacePreset, Req, ScalePlatform, ScaleProfile, StandRun } from '@/
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'функция (serverless)',
     d: 'Код, который вы отдаёте платформе без сервера вокруг: она сама запускает его на запрос, сама масштабирует и сама выключает. Lambda, Cloud Run, Vercel Functions, Cloudflare Workers.',
@@ -117,7 +117,7 @@ export const PLAIN_SERVERLESS =
 export const PREREQ_NOTE =
   'Тема опирается на то, как исполняется модуль, как масштабируют обычные процессы, что такое соединение с базой и из чего складывается сетевая задержка. Всё это разобрано в других темах.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Модуль исполняется один раз',
     d: 'При первом `import` движок загружает граф модулей, связывает их и исполняет код верхнего уровня каждого. Повторный импорт берёт готовый модуль из кеша, ничего не исполняя.',
@@ -988,7 +988,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'AWS Lambda — Understanding the Lambda execution environment lifecycle',
     href: 'https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html',

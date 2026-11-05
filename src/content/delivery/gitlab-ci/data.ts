@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { JobSpec } from '@/widgets/pipeline-graph/model/types';
 import type { PipelineCtx, Rule, When } from '@/widgets/rules-builder/model/types';
 import type { VarLayer, VarSource } from '@/widgets/rules-builder/model/vars';
@@ -1216,7 +1216,7 @@ export const MEASURED = [
 // Раздел 8. Источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'GitLab CI/CD YAML syntax reference',
     href: 'https://docs.gitlab.com/ee/ci/yaml/',
@@ -1308,7 +1308,7 @@ export const SOURCES = [
  * подсказывает вид файла. «Стадия» звучит как зависимость, «кеш» — как способ передать
  * файлы; оба прочтения неверны, и тема начинается ровно с этого.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'стадия (stage)',
     d: 'Группа джобов, после которой все ждут друг друга. **Это не зависимость:** джоб ждёт не того, чей результат ему нужен, а конца всей предыдущей стадии. В замере нужный результат был готов на 1,32 с, а джоб стартовал только на 7,30 с.',
@@ -1378,7 +1378,7 @@ export const GRAPH_DEMO_NOTE =
 export const PREREQ_NOTE =
   'Джоб работает внутри контейнера и передаёт дальше результат сборки. Поэтому тема опирается на две вещи: что такое образ контейнера и что выдаёт сборщик.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Джоб выполняется в контейнере',
     d: 'Каждый джоб получает образ и запускается внутри него. Что такое образ, из чего он состоит и почему в нём «уже всё установлено», здесь не повторяется.',

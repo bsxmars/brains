@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Создание объектов: фабрика, строитель, прототип, одиночка».
@@ -32,7 +32,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 /* ──────────────────── Вводный раздел · словарь ──────────────────── */
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'паттерн проектирования',
     d: 'Повторяющееся решение повторяющейся задачи, у которого есть имя. Ценность имени — в разговоре: «здесь фабрика» короче, чем абзац про то, кто и где создаёт объекты. Двадцать три классических паттерна описаны в книге «банды четырёх» (1994) для C++ и Smalltalk. В C++ у класса нет значения при выполнении, а в Smalltalk класс — объект, как в JS.',
@@ -71,7 +71,7 @@ export const GLOSSARY = [
 
 export const PREREQ_NOTE = 'Тема опирается на три вещи, и все три разобраны на сайте.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Класс, прототип и `#`-поля',
     d: 'Что делает `new`, где лежат методы (в прототипе, один раз на всех) и чем `#`-поле отличается от обычного. Без этого непонятно, почему копия экземпляра теряет методы или ломается на приватном поле.',
@@ -647,7 +647,7 @@ export const PITFALLS: Pitfall[] = [
 /* ──────────────────── Раздел 7 · источники ──────────────────── */
 
 /** ⚠️ Без разметки: `SourceList` печатает `title` и `what` как есть. */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'patterns.dev — Design Patterns',
     href: 'https://www.patterns.dev/vanilla/',

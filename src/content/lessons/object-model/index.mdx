@@ -2,7 +2,6 @@
 title: Объектная модель
 order: 2
 lead: "Объект — это набор свойств плюс ссылка на другой объект. Классы, символы, итераторы и прокси новой сущности не принесли: они надстроены над этим и в это же разворачиваются."
-leadWidth: 66
 summary: "Четыре слоя модели, `[[Get]]` и `[[Set]]` по шагам, порядок инициализации класса и декораторы, дескрипторы и замки, символы, генератор как корутина, ленивые итераторы, прокси как перехват внутренних методов."
 verifiedOn: Node 26.8.2 · V8 14.6 · Apple M1
 nav:
@@ -29,6 +28,8 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import ClassInit from '@/widgets/class-internals/ui/ClassInit.vue';
 import PrivateSlots from '@/widgets/class-internals/ui/PrivateSlots.astro';
 import GeneratorMachine from '@/widgets/generator-machine/ui/GeneratorMachine.vue';
@@ -117,13 +118,7 @@ import {
 
   ### Глоссарий
 
-  <CardGrid min={240} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} />
 
   ### Карта темы: четыре слоя
 
@@ -144,7 +139,7 @@ import {
       ни строки. Классы приходилось достраивать в голове по обрывкам из схемы и демо.
       Теперь у каждой строки схемы и каждого ключа обоих демо есть источник, и он перед
       глазами. */}
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BRACKETS} />
+  <Plain text={PLAIN_BRACKETS} />
 
   ### Что происходит при `new Dog('Шарик')`
 
@@ -168,7 +163,7 @@ import {
     chain={ANATOMY_CHAIN}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DESCRIPTOR} />
+  <Plain text={PLAIN_DESCRIPTOR} />
 
   <Table
     head={ANATOMY_READING_HEAD}
@@ -192,7 +187,7 @@ import {
 
   Ключ читается не «из объекта», а по цепочке — до первого, кто его знает.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RECEIVER} />
+  <Plain text={PLAIN_RECEIVER} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={LOOKUP_DEMO_NOTE} />
@@ -219,7 +214,7 @@ import {
   {/* ⚠️ Здесь стояла карточка «Обратите внимание: первые две проверки смотрят весь путь
       до null, а третья — только сам объект». Её содержание целиком вошло во врезку ниже,
       последней фразой: два объяснения одного правила подряд читаются как муть. */}
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SET} />
+  <Plain text={PLAIN_SET} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={SET_DEMO_NOTE} />
@@ -330,7 +325,6 @@ import {
   eyebrow="Раздел 3"
   title="Наследование и `instanceof`"
   lead="Вопрос «чей это объект» язык решает не сравнением типов: он поднимается по той же цепочке прототипов и вызывает метод, который можно переопределить. Поэтому ответ `instanceof` зависит от того, что лежит в цепочке сейчас, а не от того, как объект создавали."
-  leadWidth={72}
 >
   ### `instanceof` не проверяет тип — он вызывает метод
 
@@ -471,7 +465,7 @@ import {
 
   <CodeBlock code={WEAKMAP_PRIVATE_CODE} size={12} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WEAKMAP} />
+  <Plain text={PLAIN_WEAKMAP} />
 
   <CardGrid min={280} gap={14} align="start">
     {WEAKMAP_VS_SLOT.map((item) => (
@@ -485,7 +479,7 @@ import {
 
   <Md text={DECORATOR_LEAD} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DECORATOR} />
+  <Plain text={PLAIN_DECORATOR} />
 
   <CodeBlock code={DECORATOR_CODE} size={12} />
 
@@ -615,7 +609,6 @@ import {
   eyebrow="Раздел 6"
   title="Замки и перечисление"
   lead="Три уровня запирания, девять способов спросить «какие здесь ключи» и порядок, в котором они приходят — и он не «порядок добавления»."
-  leadWidth={72}
 >
   <CodeBlock code={LOCK_OPENER_CODE} size={12.5} />
 
@@ -687,7 +680,6 @@ import {
   eyebrow="Раздел 7"
   title="Символы — точки расширения языка"
   lead="Чтобы прочитать свойство с символьным ключом, нужно **иметь сам символ**: знать его описание мало, два `Symbol('id')` — разные ключи. Поэтому символьный ключ не столкнётся ни с чьим строковым. Ради этого символы и появились: авторы стандарта получили способ добавлять языку «магические» имена вроде `Symbol.iterator`, не ломая код, где уже был ключ `iterator`."
-  leadWidth={72}
 >
   <Card tone="warn" title="Символ — это НЕ приватность" titleSize={17} pad={20} gap={13}>
     <Table
@@ -778,7 +770,7 @@ import {
 
   <CodeBlock code={ITER_HELPERS_CODE} size={12} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ITER_HELPERS} />
+  <Plain text={PLAIN_ITER_HELPERS} />
 
   <CardGrid min={280} gap={14} align="start">
     {ITER_HELPERS_FACTS.map((fact) => (

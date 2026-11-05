@@ -2,7 +2,6 @@
 title: Промис изнутри
 order: 15
 lead: "`.then` не ставит колбэк в очередь, а только записывает его в промис. В очередь микрозадач колбэк попадёт позже — когда промис выполнится или отклонится. Из этого правила следует многое: в каком порядке срабатывают реакции, почему `return await p` на тик дешевле `return p` и почему промис, который никогда не завершится, может держать в памяти всех, кто на него подписался."
-leadWidth: 66
 summary: Пять скрытых полей, три операции спеки, линейка тиков, комбинаторы и цена промиса.
 verifiedOn: Node 24.11 и 26.8
 nav:
@@ -27,6 +26,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import PromiseAnatomy from '@/widgets/promise-anatomy/ui/PromiseAnatomy.astro';
 import PromiseLifecycle from '@/widgets/promise-lifecycle/ui/PromiseLifecycle.vue';
 import PromiseResolveCard from '@/widgets/promise-resolve-card/ui/PromiseResolveCard.astro';
@@ -99,39 +101,13 @@ import {
   variant="intro"
   eyebrow="Вывести, а не заучить"
   lead="На вопрос «в каком порядке это напечатается» не нужно отвечать по заученной таблице — её можно вывести самому. Цена любой конструкции в тиках складывается из **трёх операций**, которые работают с **пятью скрытыми полями** промиса. Три операции запомнить проще, чем таблицу, и по ним можно посчитать даже тот случай, которого в таблице нет."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TICK} />
+  <Plain text={PLAIN_TICK} />
 
-  <CardGrid min={240} gap={14}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={18} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={70}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -139,7 +115,7 @@ import {
   title="Пять скрытых полей"
   lead="**Подписка на промис, который ещё ждёт, бесплатна.** `.then` на таком промисе только дописывает колбэк во внутренний список — в очередь микрозадач ничего не попадает, сколько бы подписок ни было. Платить приходится, когда промис выполнится или отклонится: тогда весь накопленный список разом уходит в очередь, по микрозадаче на каждый колбэк."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REACTIONS} />
+  <Plain text={PLAIN_REACTIONS} />
 
   <PromiseAnatomy />
 
@@ -228,7 +204,6 @@ import {
   eyebrow="Раздел 2"
   title="Три операции, которые всё объясняют"
   lead={THREE_OPS_LEAD}
-  leadWidth={72}
 >
   <CardGrid min={250} gap={14} align="start">
     {THREE_OPS.map((op) => (
@@ -238,7 +213,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THENABLE} />
+  <Plain text={PLAIN_THENABLE} />
 
   <ResolvePromiseFlow />
 
@@ -360,7 +335,6 @@ import {
   eyebrowTone="demo"
   title="Линейка: как замерить тики самому"
   lead="Сколько тиков стоит код, проще измерить, чем запомнить. Перед ним запускают счётчик — цепочку `.then`, которая на каждом тике печатает `tick 1`, `tick 2` и так далее. Если строка из проверяемого кода появилась после `tick 3`, код стоил три тика."
-  leadWidth={70}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={RULER_DEMO_NOTE} />
@@ -440,7 +414,6 @@ import {
   eyebrow="Раздел 4"
   title="Четыре комбинатора — и ни один не отменяет проигравших"
   lead="Комбинатор — функция, которая собирает много промисов в один: `all`, `allSettled`, `race`, `any`. Все четыре устроены одинаково: подписываются `.then` на каждый элемент и решают, чем завершить **свой** промис. Отсюда и их цена в тиках, и то, чего они не умеют."
-  leadWidth={72}
 >
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
 
@@ -479,9 +452,8 @@ import {
   eyebrow="Раздел 5"
   title="Необработанный отказ: кого ещё можно спасти"
   lead="В консоли `Uncaught (in promise)`, хотя `catch` в коде есть: его добавили слишком поздно. «Поздно» отсчитывается не по времени и не по строкам кода, а от момента, когда **очередь микрозадач опустела**. Node проверяет ровно в этот момент, браузер даёт небольшую отсрочку."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CHECKPOINT} />
+  <Plain text={PLAIN_CHECKPOINT} />
 
   <CodeBlock code={REJECTION_CODE} size={12} />
 
@@ -527,7 +499,6 @@ import {
   eyebrow="Раздел 6"
   title="Во что обходится сам промис"
   lead="Тики — это **задержка**. Процессорное время — отдельный вопрос: сколько стоит сама конструкция и когда это вообще имеет значение."
-  leadWidth={72}
 >
   {/* Вывод стоял после обеих таблиц: читатель сначала видел два столбца «×1.5 … ×13.8» и не знал,
       много это или мало. Карточка сама начинается словами «читать эти таблицы стоит с одной

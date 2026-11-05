@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { EngineKey, EngineSnapshot } from '@/widgets/engine-probe/model/types';
 
 /**
@@ -33,7 +33,7 @@ export const ENGINE_LABELS: Record<EngineKey, string> = {
 export const PLAIN_ENGINES =
   'Как с машинами: марок много, а моторов на рынке единицы, и одна и та же коробка передач стоит под капотами у пяти марок. Поэтому «работает в Chrome» обычно значит «работает в Edge, Opera и Яндекс Браузере», а «работает в Safari» — «работает в любом браузере на iPhone».';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'движок отрисовки',
     d: 'Часть браузера, которая превращает HTML и CSS в пиксели: разбор, стили, раскладка, отрисовка. Их три — **Blink**, **Gecko** и **WebKit**. Что он делает по шагам — в [«Кадре браузера»](/render/render-pipeline/).',
@@ -62,7 +62,7 @@ export const GLOSSARY = [
 
 /* ──────────────────── Перед началом ──────────────────── */
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что движок отрисовки делает с кадром',
     d: 'Стили, раскладка, отрисовка, композиция — шаги одни во всех трёх движках, различается их реализация. Где в кадре что происходит и что из этого дорого, разобрано отдельно.',
@@ -361,7 +361,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Источники ──────────────────── */
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ECMA-262 · Date.parse и формат строки даты',
     href: 'https://tc39.es/ecma262/#sec-date.parse',

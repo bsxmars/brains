@@ -3,7 +3,6 @@ title: "WebGPU: другая модель работы с видеокартой
 order: 8
 kicker: браузер и рендеринг
 lead: "WebGPU — не следующая версия WebGL, а другой договор с видеокартой. Устройство и очередь — явные объекты, команды **записываются заранее и отправляются пачкой**, всё состояние собрано в неизменяемый конвейер. И видеокарта здесь не только рисует, но и просто считает."
-leadWidth: 66
 summary: "Чем WebGPU устроен иначе, чем WebGL: адаптер, устройство и очередь, запись команд отдельно от отправки, неизменяемый конвейер и группы привязок, вычислительные шейдеры и рабочие группы, асинхронное чтение результата и ошибки, которые не бросаются."
 verifiedOn: "Chromium 153.0.8010.12 (SwiftShader через --enable-unsafe-webgpu и Metal в полной сборке), Firefox 155 (с окном), WebKit 26.6 — Playwright 1.63, macOS; сентябрь 2026"
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import GpuCompute from '@/widgets/gpu-compute/ui/GpuCompute.vue';
@@ -91,43 +93,18 @@ import {
   GPU»](/render/webgl/#s2). Меняется то, как вы им управляете, — и появляется то, чего в WebGL
   не было вовсе: вычисления без рисования.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MODEL} />
+  <Plain text={PLAIN_MODEL} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Другая модель: объекты вместо состояния"
   lead="В WebGL есть «текущая программа», «текущий буфер», «включённое смешивание» — и каждый вызов отрисовки берёт из этого текущего то, что там лежит. В WebGPU текущего нет: всё, что нужно для работы, передаётся объектами."
-  leadWidth={72}
 >
   <Table
     head={MODEL_ROWS.head}
@@ -190,9 +167,8 @@ import {
   eyebrow="Раздел 2"
   title="Запись и отправка"
   lead="Команды не уходят на GPU по одной. Их пишут в энкодер, закрывают в командный буфер и отдают очереди пачкой — а всё, на что команды ссылаются, создано и проверено заранее."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENCODER} />
+  <Plain text={PLAIN_ENCODER} />
 
   <Card title="Сложить два массива: весь путь от адаптера до результата" titleSize={18} pad={22} gap={14}>
     <CodeBlock code={ADD_HOST_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -220,7 +196,7 @@ import {
 
   ### Раскладка и группы привязок
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BIND_GROUP} />
+  <Plain text={PLAIN_BIND_GROUP} />
 
   Шейдер объявляет ресурсы номерами — `@group(0) @binding(2)`. Раскладка в JS описывает
   ту же форму: номер, тип (`storage`, `read-only-storage`, `uniform`), видимость по стадиям.
@@ -245,9 +221,8 @@ import {
   eyebrowTone="demo"
   title="Вычисления: шейдер, который ничего не рисует"
   lead="Вычислительный шейдер читает буферы и пишет буферы. Вершин, растеризации и пикселей нет — есть сетка рабочих групп, размер которой задаёте вы, и память, общая внутри группы."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WORKGROUP} />
+  <Plain text={PLAIN_WORKGROUP} />
 
   <Card title="Шейдер сложения" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ADD_WGSL} size={11.5} lh={1.7} pad="14px 16px" />
@@ -320,7 +295,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RACE} />
+  <Plain text={PLAIN_RACE} />
 </Section>
 
 <Section
@@ -328,9 +303,8 @@ import {
   eyebrow="Раздел 4"
   title="Чтение результата — отдельный шаг"
   lead="Результат живёт в памяти видеокарты. Страница получает его не ответом на вызов, а доставкой: копия в особый буфер, промис, отображение в память страницы — и возврат буфера обратно."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MAP} />
+  <Plain text={PLAIN_MAP} />
 
   <Card title="Пять шагов от storage-буфера до массива на JS" titleSize={18} pad={22} gap={14}>
     <NumberedList items={MAP_STEPS} size={15.5} />
@@ -360,9 +334,8 @@ import {
   eyebrow="Раздел 5"
   title="Ошибки: почти ничего не бросается"
   lead="Большинство ошибок WebGPU не исключения. Неверный объект создаётся, но помечается недействительным, а сообщение о нём приходит позже — промисом или событием."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCOPE} />
+  <Plain text={PLAIN_SCOPE} />
 
   ### Один забытый флаг — через всю программу
 
@@ -439,7 +412,6 @@ import {
   eyebrow="Раздел 6"
   title="Поддержка и выбор"
   lead="API есть во всех трёх движках. Различаются наличие адаптера, строгость проверок и тексты — и всё это видно только запуском."
-  leadWidth={72}
 >
   <Table
     head={ENGINE_ROWS.head}
@@ -481,7 +453,6 @@ import {
   eyebrow="Раздел 7"
   title="Тонкие места"
   lead="Большая часть из них молчит: ни исключения, ни предупреждения — просто не те числа."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>
@@ -491,7 +462,6 @@ import {
   eyebrow="Раздел 8"
   title="Источники"
   lead="Спецификации — чтобы проверить формулировку, остальное — чтобы понять, почему формулировка такая."
-  leadWidth={72}
 >
   <SourceList items={SOURCES} />
 

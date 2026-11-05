@@ -5,7 +5,6 @@ headingWidth: 24
 order: 2
 kicker: алгоритмы во фронтенде
 lead: "Двое правят один текст, каждый в своей копии, а правки доходят друг до друга с опозданием и в разном порядке. CRDT — структуры данных, у которых слияние копий всегда даёт один ответ: конфликт решён заранее правилом, и сервер, расставляющий правки по очереди, не нужен."
-leadWidth: 66
 summary: "Почему правка «по индексу» ломается при одновременной работе, OT против CRDT, три свойства слияния на G-Counter, PN-Counter, LWW-Register и OR-Set, последовательность с id и соседом слева в духе RGA, порядок конфликтующих вставок, надгробия и их цена, векторные часы и обмен разницей, Yjs изнутри — с байтами на настоящем Yjs."
 verifiedOn: "yjs 13.6.33, Node 24.11.0, октябрь 2026: мини-CRDT темы сходится на всех порядках доставки, итоги и байты сверены с настоящим Yjs в tests/unit/crdt.test.ts"
 nav:
@@ -29,6 +28,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CrdtLab from '@/widgets/crdt-lab/ui/CrdtLab.vue';
@@ -94,46 +96,18 @@ import {
   и слить так, чтобы у всех вышло одно и то же, даже если правки пришли в разном порядке,
   с опозданием или дважды.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CRDT} />
+  <Plain text={PLAIN_CRDT} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Задача: копии обязаны сойтись"
   lead="Аня и Борис правят слово «кот», каждый в своей копии. Правки уходят друг другу по сети. Самое простое — пересылать правку так, как её сделал редактор: «вставить символ в позицию такую-то»."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Правка по индексу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -147,7 +121,7 @@ import {
 
   <Md text={NAIVE_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONVERGENCE} />
+  <Plain text={PLAIN_CONVERGENCE} />
 
   ### Два выхода: OT и CRDT
 
@@ -172,7 +146,6 @@ import {
   eyebrow="Раздел 2"
   title="Простые CRDT: слияние без конфликтов"
   lead="Чтобы копии сходились при любом порядке доставки, у слияния должно быть три свойства. Проще всего увидеть их не на тексте, а на счётчике, одном поле и множестве."
-  leadWidth={72}
 >
   <CardGrid min={240} gap={14} align="start">
     {MERGE_RULES.map((rule) => (
@@ -181,7 +154,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MERGE} />
+  <Plain text={PLAIN_MERGE} />
 
   <Card title="Счётчики: G-Counter и PN-Counter" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={G_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -214,9 +187,8 @@ import {
   eyebrow="Раздел 3"
   title="Текст как список: id и сосед слева"
   lead="Текст — не счётчик: в нём важен порядок, и вставлять можно куда угодно. Решение — перестать говорить о позициях. Позиция меняется от каждой правки левее, а символ остаётся собой."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ID} />
+  <Plain text={PLAIN_ID} />
 
   <CardGrid min={260} gap={14} align="start">
     {SEQ_FACTS.map((fact) => (
@@ -225,9 +197,9 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAMPORT} />
+  <Plain text={PLAIN_LAMPORT} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOMBSTONE} />
+  <Plain text={PLAIN_TOMBSTONE} />
 
   <Card title="Мини-CRDT текста" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SEQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -272,9 +244,8 @@ import {
   eyebrow="Раздел 4"
   title="Векторные часы и обмен разницей"
   lead="Слить можно всё со всем, но пересылать каждый раз весь документ дорого. Нужно знать, чего у собеседника нет. Для этого каждая копия помнит, сколько правок каждого участника она уже видела."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VECTOR} />
+  <Plain text={PLAIN_VECTOR} />
 
   <Card title="Сравнить часы и найти разницу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -293,7 +264,6 @@ import {
   eyebrow="Раздел 5"
   title="Yjs: как это сделано в настоящей библиотеке"
   lead="Yjs — библиотека CRDT для JavaScript. Документ `Y.Doc` содержит общие типы: `Y.Text`, `Y.Array`, `Y.Map`. Правки уходят наружу бинарными обновлениями, а как их доставлять — WebSocket, WebRTC, IndexedDB — решает отдельный провайдер."
-  leadWidth={72}
 >
   <Card title="Два документа, одновременные правки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={YJS_CODE} size={11.5} lh={1.65} pad="14px 16px" />

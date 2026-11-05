@@ -5,7 +5,6 @@ headingWidth: 22
 order: 11
 kicker: браузер и рендеринг
 lead: "`flex: 1` у трёх колонок — а колонки разной ширины. Ссылка в карточке вылезает за край, хотя у карточки `flex-shrink: 1`. Это не капризы браузера: flex и grid считают размеры по точным алгоритмам из спецификации, и почти все сюрпризы идут из одного числа — минимального размера содержимого."
-leadWidth: 66
 summary: "min-content и max-content, алгоритм flex по шагам — базовый размер, раздача по `flex-grow`, сжатие по `flex-shrink` × базовый размер, заморозка и повторный проход, — `min-width: auto` и переполнения, треки и `fr` в гриде, `minmax`, `auto-fill` и `auto-fit`, авторасстановка и `dense`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), октябрь 2026: размеры сняты getBoundingClientRect на фикстурах; функции темы сверены с замерами в tests/unit/layout-internals.test.ts"
 nav:
@@ -29,6 +28,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FlexLab from '@/widgets/flex-lab/ui/FlexLab.vue';
@@ -93,48 +95,20 @@ import {
   переполнение и «неравные равные» колонки можно предсказать заранее, а не подбирать
   `min-width: 0` наугад.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYOUT} />
+  <Plain text={PLAIN_LAYOUT} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Два размера, которые называет содержимое"
   lead="Прежде чем делить место, браузер спрашивает у содержимого два числа. min-content — самая узкая ширина, при которой ничего не вылезает: текст переносится везде, где можно. max-content — ширина без единого переноса. Ширина текста между ними зависит от того, сколько места дали."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_INTRINSIC} />
+  <Plain text={PLAIN_INTRINSIC} />
 
   <Card title="Один абзац — четыре ширины" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={INTRINSIC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -156,9 +130,8 @@ import {
   eyebrow="Раздел 2"
   title="Рост: как flex раздаёт свободное место"
   lead="Флекс-контейнер сначала ставит каждому элементу базовый размер. Потом считает, сколько места осталось, и раздаёт остаток по долям `flex-grow`. Если кто-то при этом упёрся в `max-width`, его замораживают на границе, а излишек делят заново."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GROW} />
+  <Plain text={PLAIN_GROW} />
 
   <CardGrid min={240} gap={14} align="start">
     {FLEX_STEPS.map((step) => (
@@ -215,9 +188,8 @@ import {
   eyebrowTone="demo"
   title="Сжатие и `min-width: auto`"
   lead="Когда базовые размеры не влезают, элементы сжимаются — но не поровну. Нехватка делится по весу `flex-shrink` × базовый размер: широкий элемент отдаёт больше. И ниже своего минимума элемент не сожмётся, а по умолчанию этот минимум — ширина самого длинного слова."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHRINK} />
+  <Plain text={PLAIN_SHRINK} />
 
   <Table
     head={['фикстура', 'как получилось', 'Chromium, px']}
@@ -261,9 +233,8 @@ import {
   eyebrow="Раздел 4"
   title="Grid: треки и `fr`"
   lead="Грид сначала считает треки — колонки и строки, — а потом ставит элементы в клетки. `fr` — доля места, которое осталось после колонок в пикселях и промежутков. Но у `1fr` есть нижняя граница, и она снова — min-content содержимого."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FR} />
+  <Plain text={PLAIN_FR} />
 
   <Card title="Размер одной доли" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -302,7 +273,6 @@ import {
   eyebrow="Раздел 5"
   title="Авторасстановка: куда встанет элемент"
   lead="Элементы без явной позиции грид расставляет сам. Он идёт по строкам слева направо и ставит каждый элемент в первое место, куда тот помещается. Курсор при этом движется только вперёд: дыры позади остаются пустыми, пока не попросить `dense`."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сетка и элементы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

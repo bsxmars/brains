@@ -5,7 +5,6 @@ headingWidth: 24
 order: 19
 kicker: браузер и рендеринг
 lead: "Выкатили новую версию, а у пользователя старая — и F5 не помогает. Service Worker живёт по своим правилам: ставится заранее, ждёт, пока освободятся вкладки, засыпает между событиями и отвечает на запросы даже без сети. Как устроен его жизненный цикл, когда браузер замечает новую версию и что на самом деле делают `skipWaiting()` и `clients.claim()`."
-leadWidth: 66
 summary: "Регистрация и область, первая страница без контроллера, `install` и `waitUntil`, предзагрузка в Cache API, `waiting` и почему F5 его не снимает, `activate` и чистка кешей, `skipWaiting` и `claim` с их ценой, байтовое сравнение и `updateViaCache`, `respondWith` и три стратегии, navigation preload, офлайн, сон воркера, отладка."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: жизненный цикл снят по протоколу DevTools на десяти сценариях; модель темы и стратегии сверяются с журналами стенда в tests/unit/service-worker.test.ts"
 nav:
@@ -33,6 +32,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SwLab from '@/widgets/sw-lab/ui/SwLab.vue';
@@ -112,46 +114,18 @@ import {
   их запрос и решает, чем ответить. Поэтому браузер обращается с ним осторожно: сначала ставит
   новую версию рядом со старой, потом ждёт удобного момента, чтобы переключить страницы.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SW} />
+  <Plain text={PLAIN_SW} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Регистрация и область"
   lead="Всё начинается с одной строки на странице. `register()` скачивает скрипт, запускает его и привязывает к области адресов. Пример на всю тему — эта страница и этот `sw.js`: он заранее сохраняет три файла, отдаёт их из кеша, а без сети показывает заглушку."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Страница: index.html" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -189,7 +163,6 @@ import {
   eyebrow="Раздел 2"
   title="Установка и активация"
   lead="У новой версии два события подготовки. В `install` она сохраняет всё, что понадобится без сети. В `activate` убирает за предыдущей версией. Между ними может пройти сколько угодно времени: почему — в разделе «Почему новая версия ждёт»."
-  leadWidth={72}
 >
   ### Что увидел сервер при первой установке
 
@@ -221,9 +194,8 @@ import {
   eyebrow="Раздел 3"
   title="Почему новая версия ждёт"
   lead="Установившись, новая версия не включается, а встаёт в `waiting`. Ждёт она одного: момента, когда старой версии будет некого обслуживать. До тех пор все вкладки, и новые тоже, получают старую."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WAITING} />
+  <Plain text={PLAIN_WAITING} />
 
   <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={WAIT_RULE} />
 
@@ -254,7 +226,6 @@ import {
   eyebrow="Раздел 4"
   title="skipWaiting и claim"
   lead="Два вызова, которые ломают ожидание. Их часто ставят парой, не различая, а делают они разное: один отменяет ожидание версии, другой забирает вкладки, которыми никто не управляет."
-  leadWidth={72}
 >
   <Table
     head={['вызов', 'что делает', 'чего не делает']}
@@ -293,7 +264,6 @@ import {
   eyebrow="Раздел 5"
   title="Проверка обновления"
   lead="Браузер сам решает, когда скачать `sw.js` заново, и сравнивает его с установленным побайтно. Новая версия — это не новый деплой, а другие байты, которые дошли до браузера."
-  leadWidth={72}
 >
   <CardGrid min={260} gap={14} align="start">
     {UPDATE_TRIGGERS.map((item) => (
@@ -325,7 +295,6 @@ import {
   eyebrow="Раздел 6"
   title="Перехват fetch"
   lead="На каждый запрос страницы воркер получает событие `fetch` и может ответить сам. Как именно отвечать — стратегия. Обзор пяти стратегий и когда какую брать — в [«Сети и кешировании»](/platform/network/#s5); здесь три основные записаны функциями и прогнаны по одному сценарию."
-  leadWidth={72}
 >
   <Md text={RESPOND_NOTE} />
 
@@ -356,7 +325,7 @@ import {
 
   ### Navigation preload
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PRELOAD} />
+  <Plain text={PLAIN_PRELOAD} />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Предзагрузка навигации" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -383,7 +352,6 @@ import {
   eyebrow="Раздел 7"
   title="Без сети"
   lead="Стенд выключил сеть у всего браузерного контекста — у страницы и у воркера — и перезагрузил вкладку под `SW_CODE`. Работает ровно то, на что в коде есть ветка без сети."
-  leadWidth={72}
 >
   <Table
     head={['что запросили', 'что получила страница']}
@@ -404,7 +372,6 @@ import {
   eyebrow="Раздел 8"
   title="Сон и пробуждение"
   lead="Воркер не работает постоянно. Браузер запускает его на событие и останавливает после простоя. Следующее событие запускает скрипт заново — с первой строки и с пустыми переменными."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Счётчик в переменной" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -432,7 +399,6 @@ import {
   eyebrow="Раздел 9"
   title="Отладка и залипший воркер"
   lead="У разработчика есть DevTools и жёсткая перезагрузка. У пользователя — только то, что придёт в следующем `sw.js`. Оба набора стоит знать, и знать, что каждый инструмент делает на самом деле."
-  leadWidth={72}
 >
   <Table
     head={['инструмент', 'что происходит']}

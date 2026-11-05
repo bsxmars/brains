@@ -5,7 +5,6 @@ headingWidth: 24
 order: 8
 kicker: сеть и безопасность
 lead: "Правило одного источника не даёт чужой странице прочитать ваш ответ — но не мешает ей заметить, загрузился ли он, сколько в нём фреймов и куда он перенаправил. Одного такого признака хватает, чтобы узнать, вошёл ли человек на сайт или есть ли у него доступ к документу. Закрывается это не одним заголовком, а набором, и у каждого в наборе своя дыра."
-leadWidth: 66
 summary: "Что такое межсайтовая утечка одного бита и почему SOP её не закрывает; классы утечек и что закрывает каждый; Fetch Metadata и серверная политика изоляции ресурсов, CORP, COOP и frame-ancestors — с поведением каждого заголовка, снятым на стенде из двух сайтов."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless) против своего сервера на Node 26.8.2, https с самоподписанным сертификатом и http для контроля; три хоста a.test, sub.a.test и b.test через --host-resolver-rules, сентябрь 2026. Снималось только поведение защитных заголовков — с ними и без них. Разделение HTTP-кеша — по документации Chrome, без запуска. Firefox и WebKit не снимались"
 nav:
@@ -31,6 +30,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import FetchMetadataPolicy from '@/widgets/fetch-metadata-policy/ui/FetchMetadataPolicy.vue';
 import {
@@ -91,44 +93,18 @@ import {
   и закрывается она не исправлением бага, а заголовками, которые сужают, что чужой сайт
   может запросить и что он может увидеть.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LEAK} />
+  <Plain text={PLAIN_LEAK} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Один бит вместо ответа"
   lead="Утечке нужны три звена: запрос уходит с куками пользователя, ответ зависит от того, кто этот пользователь, и разница видна чужой странице. Каждая защита в этой теме рвёт одно из звеньев — и полезно заранее знать, какое."
-  leadWidth={72}
 >
   <Card title="Из чего складывается утечка" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={640} chips={LEAK_CHIPS} />
@@ -156,7 +132,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ONE_BIT} />
+  <Plain text={PLAIN_ONE_BIT} />
 
   Те же три звена — и что рвёт каждое, коротко:
 
@@ -178,7 +154,6 @@ import {
   eyebrow="Раздел 2"
   title="Классы утечек и что их закрывает"
   lead="Каналов много, а механизмов защиты немного, и каждый закрывает несколько каналов сразу. Ни один не закрывает все: у политики изоляции нет власти над переходами, у CORP — над окнами, у COOP — над картинками."
-  leadWidth={72}
 >
   <Table
     head={['канал', 'какой бит утекает', 'что закрывает']}
@@ -197,9 +172,8 @@ import {
   eyebrow="Раздел 3"
   title="Fetch Metadata: что браузер сообщает серверу"
   lead="Раньше сервер не мог отличить картинку со своей страницы от той же картинки, вставленной на чужую: запрос одинаковый, куки те же. Теперь каждый запрос по https браузер снабжает заголовками `Sec-Fetch-*`: откуда он пришёл относительно адресата, каким способом и ради чего."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FETCH_METADATA} />
+  <Plain text={PLAIN_FETCH_METADATA} />
 
   <Table
     head={['что сделала страница', '`Site`', '`Mode`', '`Dest`', 'решение политики']}
@@ -235,7 +209,6 @@ import {
   eyebrow="Раздел 4"
   title="Политика изоляции ресурсов"
   lead="Самый сильный слой из доступных серверу: чужой сайт получает отказ раньше, чем сервер прочитал куку и сходил в базу. Ответа, зависящего от пользователя, нет — и различать нечего. Переходы по ссылкам политика пропускает, иначе на сайт нельзя было бы прийти из поиска."
-  leadWidth={72}
 >
   <CardGrid min={320} gap={16} align="start">
     <Card title="Политика — функция от заголовков" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -287,11 +260,10 @@ import {
   eyebrow="Раздел 5"
   title="CORP, COOP и frame-ancestors"
   lead="Политика изоляции решает на сервере, пускать ли запрос. Эти три заголовка работают иначе: сервер отвечает, а браузер решает, что из ответа показать чужой странице. Запрос до сервера при этом доходит всегда."
-  leadWidth={72}
 >
   ### `Cross-Origin-Resource-Policy`: не встраивать чужим
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CORP} />
+  <Plain text={PLAIN_CORP} />
 
   <Table
     head={['страница', 'CORP у картинки `a.test`', '`<img>`', '`fetch`, `no-cors`']}
@@ -307,7 +279,7 @@ import {
 
   ### `Cross-Origin-Opener-Policy`: не держать ссылку на окно
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COOP} />
+  <Plain text={PLAIN_COOP} />
 
   <Md text={COOP_SCENE_NOTE} />
 
@@ -323,7 +295,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COOP_VALUES} />
+  <Plain text={PLAIN_COOP_VALUES} />
 
   Все восемь случаев со стенда — таблицей, строки по порядку:
 

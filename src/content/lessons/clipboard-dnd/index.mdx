@@ -3,7 +3,6 @@ title: "Буфер обмена и перетаскивание"
 headingWidth: 24
 order: 27
 lead: "Кнопка «Скопировать» — одна строка `navigator.clipboard.writeText`, и работает она только по клику. Чтение буфера — только с разрешения, а HTML из него браузер отдаёт почищенным. Перетаскивание устроено так же, как копирование: данные лежат в `DataTransfer`, и браузер решает, кому и когда их показать. В `dragover` видно только тип груза, сам груз — в `drop`."
-leadWidth: 66
 summary: "`writeText` и `readText`: жест, фокус, разрешение и `NotAllowedError`; события `copy`, `cut`, `paste` и подмена копируемого; картинка из буфера файлом; `ClipboardItem`, разрешённые типы в трёх движках, чистка HTML и свои форматы `web `; `draggable`, `dragover` и `drop`, `effectAllowed` и `dropEffect`; что видно в каком событии; файлы и папки из системы, `webkitGetAsEntry`; перетаскивание и клавиатура."
 verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 из Playwright 1.63, macOS arm64, ноябрь 2026: каждый пример исполняет tests/e2e/clipboard-dnd.spec.ts, файлы из системы бросаются настоящим drop через DevTools"
 nav:
@@ -21,13 +20,15 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -107,46 +108,18 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CLIPBOARD} />
+  <Plain text={PLAIN_CLIPBOARD} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Копировать по кнопке: writeText и readText"
   lead="Кнопка «Скопировать» рядом с командой или ссылкой — это одна строка: `navigator.clipboard.writeText(текст)`. Вызов возвращает промис, и тот отклоняется, если браузер решил, что сейчас копировать нельзя."
-  leadWidth={72}
 >
   <CodeBlock code={COPY_MARKUP} />
 
@@ -176,7 +149,7 @@ import {
     <Md text={WHY_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIVATION} />
+  <Plain text={PLAIN_ACTIVATION} />
 
   <Table
     head={['движок', 'запись', 'чтение']}
@@ -200,7 +173,6 @@ import {
   eyebrow="Раздел 2"
   title="События copy, cut и paste"
   lead="Когда человек нажимает Ctrl+C, Ctrl+X или Ctrl+V, браузер сначала шлёт событие, а потом делает своё. В событии есть `clipboardData`: в `copy` в него можно положить своё, в `paste` — прочитать, что вставляют."
-  leadWidth={72}
 >
   ### Подменить то, что копируют
 
@@ -234,7 +206,6 @@ import {
   eyebrow="Раздел 3"
   title="Форматы: ClipboardItem, write и read"
   lead="В буфере лежит не одна строка, а одна вещь в нескольких видах: текст, HTML, картинка. `writeText` кладёт только текст. Чтобы положить несколько видов сразу, нужны `ClipboardItem` и `navigator.clipboard.write`."
-  leadWidth={72}
 >
   <CodeBlock code={ITEM_CODE} />
 
@@ -274,7 +245,7 @@ import {
 
   <CodeBlock code={WEB_FORMAT_OUT.join('\n')} tone="ok" />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WEB_FORMAT} />
+  <Plain text={PLAIN_WEB_FORMAT} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={WEB_FORMAT_NOTE} />
@@ -290,7 +261,6 @@ import {
   eyebrow="Раздел 4"
   title="Перетаскивание: draggable, dragover и drop"
   lead="Перетаскивание — та же передача данных, что и буфер обмена, только мышью. Источник кладёт данные в `dataTransfer` в `dragstart`, приёмник забирает их в `drop`. Между ними `dragover` решает, можно ли сюда бросить."
-  leadWidth={72}
 >
   <CodeBlock code={DRAG_MARKUP} />
 
@@ -304,7 +274,7 @@ import {
 
   ### Почему без preventDefault ничего не бросится
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DROP} />
+  <Plain text={PLAIN_DROP} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={DRAGOVER_NOTE} />
@@ -324,7 +294,6 @@ import {
   eyebrow="Раздел 5"
   title="Режимы DataTransfer: что видно и когда"
   lead="Один и тот же `DataTransfer` открывается по-разному в разных событиях. Писать в него можно, пока груз собирают, читать — когда его приняли, а в пути видно только наклейку с типом."
-  leadWidth={72}
 >
   <Table
     head={['событие', 'что можно']}
@@ -338,7 +307,7 @@ import {
     <Md text={MODES_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROTECTED} />
+  <Plain text={PLAIN_PROTECTED} />
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={AFTER_NOTE} />
@@ -356,7 +325,6 @@ import {
   eyebrow="Раздел 6"
   title="Файлы и папки из системы"
   lead="Когда файл тащат с рабочего стола, `dragstart` на странице нет: источник — система. В `types` приходит `Files`, а сами файлы — в `drop`, через `dataTransfer.files` или `items`."
-  leadWidth={72}
 >
   <CodeBlock code={FILE_DROP_MARKUP} />
 

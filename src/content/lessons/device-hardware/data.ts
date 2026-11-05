@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Доступ к железу: Serial, USB, Bluetooth, HID и MIDI».
@@ -56,7 +56,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 export const PLAIN_DEVICE =
   'Сайт и устройство на столе разделены операционной системой. Обычно с устройством говорит программа, которую вы поставили, а браузер видит только то, что ОС уже перевела на язык страницы: нажатие клавиши, движение мыши, звук. Эти API прокладывают от страницы прямой провод к одному устройству. Провод выдаёт человек: сам выбирает устройство в окне браузера, и только его.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'последовательный порт',
     d: 'Канал, по которому байты идут друг за другом. У платы Arduino или ESP32 это USB-кабель, который система показывает как `COM3` или `/dev/tty.usbmodem…`. Так же подключены 3D-принтеры, станки, сканеры штрихкодов.',
@@ -91,7 +91,7 @@ export const GLOSSARY = [
 
 export const PREREQ_NOTE = 'Тема опирается на три вещи из соседних тем.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Читаемый и записываемый поток',
     d: 'Данные приходят кусками через `reader.read()`, уходят через `writer.write()`. Пока читатель держит поток, никто другой его не возьмёт.',
@@ -497,7 +497,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   { title: 'WHATWG — WebSerial Standard', href: 'https://serial.spec.whatwg.org/', what: '`requestPort`, `open`, потоки порта, порядок закрытия' },
   { title: 'WebUSB API', href: 'https://usb.spec.whatwg.org/', what: 'передачи, `claimInterface`, защищённые классы интерфейсов' },
   { title: 'Web Bluetooth', href: 'https://webbluetoothcg.github.io/web-bluetooth/', what: 'GATT, `optionalServices`, проверка blocklist' },

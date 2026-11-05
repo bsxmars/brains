@@ -3,7 +3,6 @@ title: Кадр браузера
 order: 1
 kicker: браузер и рендеринг
 lead: "Кадр — это не просто «браузер рисует». Это строгая последовательность шагов: одни идут на главном потоке, рядом с вашим JS, другие — уже без него. Эта граница объясняет, почему `transform` едет плавно, а `left` дёргается, и почему «отдать поток» значит **дать кадру случиться**."
-leadWidth: 66
 summary: "Что происходит между двумя сигналами дисплея (vsync): задача, микрозадачи, rAF, style, layout, paint, commit — и работа, которая после commit идёт уже без главного потока."
 verifiedOn: HTML Standard §8.6 и конспекты, сентябрь 2026; порядок колбэков — Node 24.11
 nav:
@@ -29,6 +28,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FrameTimeline from '@/widgets/frame-timeline/ui/FrameTimeline.vue';
@@ -123,7 +125,7 @@ import {
     </Card>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_KITCHEN} />
+  <Plain text={PLAIN_KITCHEN} />
 
   <Table
     head={['частота', 'бюджет кадра', 'что достаётся вашему коду']}
@@ -143,35 +145,10 @@ import {
 
   </Card>
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
@@ -179,7 +156,6 @@ import {
   eyebrowTone="demo"
   title="Кадр по шагам"
   lead="Один кадр на шкале времени — от сигнала дисплея до следующего: где выполняется задача, где микрозадачи, где встаёт `requestAnimationFrame` и в какой момент главный поток освобождается."
-  leadWidth={72}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={FRAME_DEMO_NOTE} />
 
@@ -217,7 +193,7 @@ import {
     </Card>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PAINT} />
+  <Plain text={PLAIN_PAINT} />
 
   ### Полный порядок шагов: какие данные видит каждый коллбэк
 
@@ -289,7 +265,7 @@ import {
   title="Кадра может не быть вовсе"
   lead="Браузер не рисует по таймеру. На каждом сигнале дисплея (vsync) он решает, нужен ли документу кадр, — и половина сюрпризов в анимациях объясняется тем, что ответ бывает «нет»."
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_OPPORTUNITY} />
+  <Plain text={PLAIN_OPPORTUNITY} />
 
   <CardGrid min={280} gap={14}>
     {NO_FRAME.map((fact) => (
@@ -355,9 +331,8 @@ import {
   eyebrowTone="demo"
   title="Чтение и запись: почему цена — в чередовании"
   lead="Типичный симптом: код подгоняет высоту сотни карточек под ширину — и страница замирает, хотя каждая строка цикла тривиальна. Два цикла в демо делают одинаковые чтения и одинаковые записи. Различаются они одним: стоит ли запись между чтениями."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REFLOW} />
+  <Plain text={PLAIN_REFLOW} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={THRASH_DEMO_NOTE} />
 
@@ -431,7 +406,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTAIN} />
+  <Plain text={PLAIN_CONTAIN} />
 
   <Table
     head={['обещание', 'что оно значит', 'что это даёт браузеру']}
@@ -452,9 +427,8 @@ import {
   eyebrowTone="demo"
   title="Что дешевле двигать"
   lead="Четыре способа получить одно и то же движение. Разница не в том, «какое свойство быстрее», а в том, какие стадии кадра запускаются — и кто считает промежуточные значения."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYER} />
+  <Plain text={PLAIN_LAYER} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={MOVE_DEMO_NOTE} />
 
@@ -536,7 +510,7 @@ import {
 
   ### Плитки: почему при быстрой прокрутке видно пустое
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TILES} />
+  <Plain text={PLAIN_TILES} />
 
   <CardGrid min={280} gap={14} align="start">
     {TILES_FACTS.map((fact) => (
@@ -585,7 +559,6 @@ import {
   eyebrow="Раздел 5"
   title="Где в кадре живёт ваш фреймворк"
   lead="[Ре-рендеринг в React](/frameworks/react-rerender/) и [Реактивность Vue](/frameworks/vue-reactivity/) сводятся к одному вопросу: в какую точку кадра фреймворк кладёт свою работу. Точек всего пять, и у каждой своё «что уже посчитано» и своё «что случится после»."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={16}>
     <div class="t-eyebrow t-eyebrow--panel">Пять точек одного кадра</div>
@@ -649,7 +622,6 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
   lead="Спецификации — чтобы проверить формулировку; живые списки и статьи — чтобы понять, почему формулировка такая. Порядок шагов кадра и список принудительных пересчётов меняются, и сверять их надо с источником, а не с этой страницей."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

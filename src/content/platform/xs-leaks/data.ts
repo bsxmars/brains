@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 import { compilePolicy } from '@/widgets/fetch-metadata-policy/model/policy';
 import type { FetchSite } from '@/widgets/fetch-metadata-policy/model/policy';
 
@@ -52,7 +52,7 @@ import type { FetchSite } from '@/widgets/fetch-metadata-policy/model/policy';
  * Слова, которые тема употребляет раньше, чем объясняет. «Сайт» против «источника» решает
  * исход половины таблиц, а `no-cors` и группа контекстов всплывают в классах утечек.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'XS-Leak',
     d: 'Cross-site leak — межсайтовая утечка. Чужая страница не читает ваш ответ, а узнаёт **один признак** о нём: загрузился ли, сколько в нём фреймов, куда он перенаправил. Этого хватает, чтобы ответить «да» или «нет» на вопрос о пользователе.',
@@ -96,7 +96,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Что такое утечка одного бита и какой заголовок какой канал закрывает, объясняется здесь с нуля. Известными считаются четыре вещи — у каждой есть свой разбор на сайте.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Правило одного источника',
     d: 'Что SOP запрещает чужой странице и что разрешает: читать нельзя, отправлять и встраивать — можно. Утечки живут ровно в этом «можно».',
@@ -608,7 +608,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Раздел 7 · источники ──────────────────── */
 
-export const SOURCES: { t: string; items: string[] }[] = [
+export const SOURCES: SourceGroup[] = [
   {
     t: 'Спецификации',
     items: [

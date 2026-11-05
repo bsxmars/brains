@@ -3,7 +3,6 @@ title: "Обёртки: адаптер, фасад, заместитель, де
 order: 2
 kicker: паттерны
 lead: "Пять структурных паттернов устроены одинаково: один объект держит другой и передаёт ему вызовы. Различаются они целью. В JavaScript у каждого есть готовый родственник — `promisify`, модуль, встроенный `Proxy`, синтаксис `@`, рендерер фреймворка, — и у каждой книжной версии своё место, где она ломается."
-leadWidth: 66
 summary: "Книжный адаптер и почему `private` заставляет его наследовать базу, адаптер через интерфейс, `promisify` и потерянный `this`; фасад над тремя сервисами и над `fetch`, который не считает 500 ошибкой; заместитель-класс против встроенного `Proxy` и кеш промисов, который хранит отказ; «декоратор», меняющий сам объект, порядок обёрток в стопке и `@` снизу вверх; мост между уведомлениями и провайдерами и рендерер Vue как мост."
 verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, `promisify` запущен настоящим `node`, `fetch` — против настоящего HTTP-сервера — `tests/unit/patterns-wrappers.test.ts`"
 nav:
@@ -19,13 +18,14 @@ nav:
 ---
 
 import Card from '@/shared/ui/Card.astro';
-import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
@@ -69,44 +69,18 @@ import {
 } from './data';
 
 <Section variant="intro" eyebrow="Паттерны и язык" gap={24}>
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WRAPPER} />
+  <Plain text={PLAIN_WRAPPER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Зачем: один объект между вами и другим"
   lead="Код хочет работать с объектом, но объект не подходит: у него чужой интерфейс, слишком много частей, к нему нужен контроль или ему не хватает поведения. Переписывать объект нельзя или дорого. Тогда между кодом и объектом ставят ещё один — обёртку."
-  leadWidth={72}
 >
   <Table
     head={['паттерн', 'интерфейс снаружи', 'ради чего', 'что уже есть в JS']}
@@ -124,9 +98,8 @@ import {
   eyebrow="Раздел 2"
   title="Адаптер"
   lead="Пример: код умеет сохранять данные только в `KVDatabase`, а заказчик принёс библиотеку постоянного хранилища с другим методом и другим форматом. Ни код, ни библиотеку менять не хочется. Адаптер принимает вызов в форме, которую ждёт код, и переводит его в форму библиотеки."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ADAPTER} />
+  <Plain text={PLAIN_ADAPTER} />
 
   ### Книжная версия: адаптер наследует то, что адаптирует
 
@@ -152,9 +125,8 @@ import {
   eyebrow="Раздел 3"
   title="Фасад"
   lead="Фасад прячет несколько объектов и порядок работы с ними за одним простым методом. Пример: чтобы отправить уведомление, надо найти шаблон, отправить его и записать в журнал — три сервиса. Снаружи остаётся одно `send`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FACADE} />
+  <Plain text={PLAIN_FACADE} />
 
   <CodeBlock code={FACADE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -176,9 +148,8 @@ import {
   eyebrow="Раздел 4"
   title="Заместитель"
   lead="Заместитель (proxy) стоит перед объектом с тем же интерфейсом и решает, пускать ли вызов дальше: проверить доступ, отдать ответ из кеша, отложить дорогую загрузку. Пример — API платежей, чьи данные видит не каждый пользователь. В JS у паттерна есть встроенный родственник — `Proxy`, — и ведут они себя противоположно."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+  <Plain text={PLAIN_PROXY} />
 
   <CodeBlock code={PROXY_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -202,9 +173,8 @@ import {
   eyebrow="Раздел 5"
   title="Декоратор"
   lead="Декоратор оборачивает объект и добавляет поведение, не меняя интерфейса: журнал, кеш, повтор при ошибке. Обёртки складываются стопкой, и каждая не знает о соседних. Слово «декоратор» в JS занято ещё и синтаксисом `@` — это тот же паттерн, применённый к классу."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DECORATOR_PATTERN} />
+  <Plain text={PLAIN_DECORATOR_PATTERN} />
 
   ### Книжная версия
 
@@ -232,9 +202,8 @@ import {
   eyebrow="Раздел 6"
   title="Мост"
   lead="Сервис уведомлений доставляет их в Telegram и WhatsApp, а сами уведомления бывают мгновенные и отложенные. Если каждое сочетание делать отдельным классом, их число — произведение вариантов. Мост разводит две оси: «как и когда отправить» и «через кого»."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BRIDGE} />
+  <Plain text={PLAIN_BRIDGE} />
 
   <CodeBlock code={BRIDGE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
@@ -264,7 +233,6 @@ import {
   eyebrow="Раздел 8"
   title="Источники"
   lead="Книга «банды четырёх» описывает обёртки для C++ и Smalltalk; источники ниже показывают те же идеи на TypeScript и встроенные механизмы, которые их заменяют."
-  leadWidth={72}
 >
   <Card title="Где это написано" titleSize={18} pad={22} gap={14}>
     <SourceList items={SOURCES} />

@@ -4,7 +4,6 @@ heading: "Unicode и Intl: символы, графемы и сравнение 
 headingWidth: 24
 order: 6
 lead: "`'👨‍👩‍👧'.length` равно 8, `'straße'.toUpperCase()` длиннее исходной строки, `sort()` ставит «ёлку» после «яблока», а `n === 1 ? 'файл' : 'файлов'` пишет «21 файлов». Каждая из этих ошибок — про то, что «символ», «буква» и «по алфавиту» в JS означают не то, что видит человек. Как устроены три единицы текста и что `Intl` знает о языке."
-leadWidth: 66
 summary: "Кодовые единицы UTF-16, кодовые точки и суррогатные пары; графемы по правилам UAX #29 — учебная функция, сверенная с `Intl.Segmenter`; одинокий суррогат, `isWellFormed` и обрезка по графемам; нормализация для поиска; регистр: «ß», турецкая «i»; `Intl.Collator`: уровни сравнения, `numeric`, `sensitivity`, языки; `Intl.PluralRules` для русского по правилам CLDR; `NumberFormat`, `ListFormat`, `RelativeTimeFormat`; байты UTF-8; разные версии ICU в Node и Chromium."
 verifiedOn: "Node 24.11.0 (ICU 77.1, Unicode 16.0, CLDR 47.0), Node 26.8.2 (ICU 78.3, Unicode 17.0, CLDR 48.0) и Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: один набор проб в трёх средах, ~200 значений совпали, расходятся только знаки Юникода 17 (Node 24 их не знает); учебная разбивка на графемы сверена с Intl.Segmenter полным перебором пар кодовых точек и 100 000 случайных строк, правила CLDR — с Intl.PluralRules на 270 000 чисел. Всё повторяет tests/unit/unicode-intl.test.ts"
 nav:
@@ -32,6 +31,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import GraphemeLab from '@/widgets/unicode-lab/ui/GraphemeLab.vue';
@@ -117,48 +119,20 @@ import {
   заглавные отдельно от строчных. Пишут «файлов» после любого числа, кроме единицы. Чтобы
   не гадать, надо знать, что именно считает каждый инструмент.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYERS} />
+  <Plain text={PLAIN_LAYERS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Кодовые единицы и кодовые точки"
   lead="Юникод нумерует знаки от `U+0000` до `U+10FFFF`, а строка JS хранит их в 16-битных ячейках, где помещается номер не больше `U+FFFF`. Знаку с большим номером нужны две ячейки — суррогатная пара. Все эмодзи, кроме самых старых, живут именно там."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SURROGATE} />
+  <Plain text={PLAIN_SURROGATE} />
 
   <Card title="Одна пара по ячейкам" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={UNITS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -188,9 +162,8 @@ import {
   eyebrow="Раздел 2"
   title="Графемы: где кончается символ"
   lead="Графема — кусок текста, который человек видит одним символом и который курсор перепрыгивает целиком. Её границы не записаны в строке: их вычисляют по правилам UAX #29 из вида соседних кодовых точек. Эти правила и исполняет `Intl.Segmenter`."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GRAPHEME} />
+  <Plain text={PLAIN_GRAPHEME} />
 
   <Table
     head={['строка', '`length`', 'точки', 'графемы', 'байт UTF-8', 'что склеивает']}
@@ -228,9 +201,8 @@ import {
   eyebrow="Раздел 3"
   title="Половинка символа"
   lead="`slice`, индексы и `substring` режут по ячейкам и не знают о парах. Разрез посередине пары оставляет одинокий суррогат — половинку, которая знаком не является. JS такую строку принимает, ошибка появляется позже, там, где текст превращается в байты."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BROKEN} />
+  <Plain text={PLAIN_BROKEN} />
 
   <Card title="Откуда берётся и где ломается" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={BROKEN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -260,7 +232,6 @@ import {
   eyebrow="Раздел 4"
   title="Нормализация для поиска"
   lead="Одну и ту же букву можно записать одной кодовой точкой или основой и значком. Пока строки не приведены к одной форме, `===`, `includes`, ключи `Map` и уникальные индексы считают такие записи разными."
-  leadWidth={72}
 >
   Коротко о формах: NFC собирает букву со значком в одну точку, NFD раскладывает обратно,
   NFKC ещё и заменяет «оформление» на суть (`ﬁ` на `fi`). Подробно — в [«Строках в V8»,
@@ -287,7 +258,6 @@ import {
   eyebrow="Раздел 5"
   title="Регистр: не буква в букву"
   lead="`toUpperCase` и `toLowerCase` выглядят как замена каждой буквы парной. На деле это таблица правил Юникода, где одна буква может стать двумя, результат зависит от соседей, а у некоторых языков правила свои."
-  leadWidth={72}
 >
   <Card title="Пять неожиданностей" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CASE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -327,7 +297,6 @@ import {
   eyebrow="Раздел 6"
   title="Сортировка для человека"
   lead="`sort()` без функции сравнения упорядочивает строки по номерам кодовых единиц. Для машины это верно, для человека — нет. `Intl.Collator` сравнивает по правилам языка из CLDR и умеет то, чего нет в номерах: читать цифры числом и не замечать регистр."
-  leadWidth={72}
 >
   <Card title="Один список — три порядка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SORT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -345,7 +314,7 @@ import {
 
   ### Уровни сравнения
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LEVELS} />
+  <Plain text={PLAIN_LEVELS} />
 
   Коллатор сравнивает строки в несколько проходов. На первом уровне — только буквы: «е»
   и «ё», «е» и «Е» здесь равны. На втором — значки над буквами, на третьем — регистр.
@@ -391,9 +360,8 @@ import {
   eyebrow="Раздел 7"
   title="Форма слова при числе"
   lead="«1 файл, 2 файла, 5 файлов» — три формы, и выбор между ними зависит от последних цифр числа. Правила для каждого языка лежат в CLDR, а `Intl.PluralRules` по ним говорит, какая категория у числа. Слова для категорий остаются за вами."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PLURAL} />
+  <Plain text={PLAIN_PLURAL} />
 
   <Card title="Правила CLDR для русского" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PLURAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -448,7 +416,6 @@ import {
   eyebrow="Раздел 8"
   title="Байты: UTF-8 против UTF-16"
   lead="Внутри JS строка — кодовые единицы UTF-16. Наружу — в сеть, в файл, в базу — она уходит в UTF-8, где знак занимает от одного до четырёх байт в зависимости от номера."
-  leadWidth={72}
 >
   <Table
     head={['номера', 'примеры', 'байт UTF-8', 'единиц UTF-16', 'что там']}
@@ -474,7 +441,6 @@ import {
   eyebrow="Раздел 9"
   title="Node и браузер: разные ICU"
   lead="`Intl` и классы `\p{…}` в Node и Chromium отвечают по таблицам библиотеки ICU, а она обновляется вместе с Юникодом — раз в год. Один и тот же набор проб на стенде совпал во всём, кроме знаков, добавленных в последней версии Юникода."
-  leadWidth={72}
 >
   <Table
     head={['что', 'Node 24.11', 'Node 26.8', 'Chromium 153']}

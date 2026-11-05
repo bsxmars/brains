@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DomScenario, GraphScenario } from '@/widgets/mini-signals';
 
 /**
@@ -272,7 +272,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Сигнал — табло на вокзале. Кто хоть раз на него посмотрел, попал в список: при смене расписания табло не пересказывает новость каждому, а только мигает «изменилось» тем, кто в списке. Посмотреть заново каждый приходит сам — и только если ему ещё нужно ехать.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'Сигнал',
     d: 'Ячейка со значением, номером версии и списком подписчиков. `get()` отдаёт значение и записывает читающего в подписчики, `set()` меняет значение и будит подписчиков.',
@@ -311,7 +311,7 @@ export const GLOSSARY = [
 // Перед началом
 // ---------------------------------------------------------------------------
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что эффект подписывается тем, что прочитал',
     d: 'Запуск эффекта объявляет его «текущим», каждое чтение записывает его в подписчики, запись будит записанных. Здесь это переписано для сигналов, а подробный разбор на `Proxy` и таблице зависимостей — там.',
@@ -623,7 +623,7 @@ export const PITFALLS: Pitfall[] = [
 // Раздел 10 · источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'TC39 · proposal-signals',
     href: 'https://github.com/tc39/proposal-signals',

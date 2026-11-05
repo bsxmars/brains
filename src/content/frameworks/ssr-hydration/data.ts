@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * «SSR и гидратация: React и Vue».
@@ -38,7 +38,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 export const INTRO_NOTE =
   'Приложение, собранное только на клиенте, показывает белый экран, пока не скачан и не выполнен весь бандл: на телефоне в дороге это секунды. SSR закрывает эту дыру — контент приходит прямо в HTML. Но появляется новая: страница уже видна, а кнопки ещё не нажимаются, и сервер с браузером могут нарисовать её по-разному. Тема — о том, что происходит в этот промежуток.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'SSR',
     d: 'Server-side rendering — тот же код компонентов выполняется на сервере и отдаёт **строку HTML**. Браузер показывает её сразу, ещё до того как скачал хоть один скрипт.',
@@ -73,7 +73,7 @@ export const GLOSSARY = [
 // Перед началом
 // ---------------------------------------------------------------------------
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Первый рендер React',
     d: 'Функция каждого компонента на первом рендере вызывается всегда: `memo` помогает на обновлении, а не на загрузке. Сервер проходит дерево **один раз** и эффектов не выполняет.',
@@ -704,7 +704,7 @@ export const PITFALLS: Pitfall[] = [
 // Источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'React · hydrateRoot',
     href: 'https://react.dev/reference/react-dom/client/hydrateRoot',

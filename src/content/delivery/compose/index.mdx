@@ -3,7 +3,6 @@ title: 'Docker Compose: несколько сервисов'
 order: 2
 kicker: доставка
 lead: "Compose — это файл, где записано, **из каких частей состоит система и какой части что нужно**. Сеть между частями Compose создаёт сам, а имя каждой части становится её адресом. Главная ловушка — `depends_on`: он задаёт **порядок запуска**, но не ждёт, пока база будет готова отвечать."
-leadWidth: 66
 summary: "Сервисы, сеть и имена; почему `depends_on` без `condition: service_healthy` не ждёт базу и чем это кончается, когда база создаётся с нуля; проверка готовности, тома и то, какая переменная окружения кого перебивает."
 verifiedOn: Docker Engine 27.4.0 и Docker Compose v2.31.0-desktop.2 (macOS, arm64), сентябрь 2026; образы postgres:16-alpine (PostgreSQL 16.15), redis:7-alpine (7.4.11), nginx:alpine
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import NetworkDiagram from '@/widgets/compose-network-diagram/ui/NetworkDiagram.astro';
 import HealthTimeline from '@/widgets/compose-health-diagram/ui/HealthTimeline.astro';
@@ -137,48 +139,22 @@ import {
     </Card>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEPENDS} />
+  <Plain text={PLAIN_DEPENDS} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Сервис, сеть и имена"
   lead="В файле ниже нет ни слова про сеть, но сеть есть. Compose создаёт её сам, подключает к ней все сервисы и даёт каждому имя. По этому имени сервисы обращаются друг к другу — его и пишут в строке подключения к базе."
-  leadWidth={72}
 >
   <CodeBlock code={STACK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_NETWORK} />
+  <Plain text={PLAIN_NETWORK} />
 
   <CardGrid min={280} gap={14}>
     {NAME_FACTS.map((fact) => (
@@ -254,9 +230,8 @@ import {
   eyebrow="Раздел 2"
   title="Проверка готовности (healthcheck)"
   lead="«Запущен» Docker видит сам, а «готов» — нет: об этом знает только сервис. Healthcheck — способ спросить. Это команда, которую Docker по расписанию выполняет внутри контейнера; код выхода 0 значит «готов». Числа ниже — из записи двух запусков, которая разобрана в разделе «`depends_on` задаёт порядок запуска»."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HEALTHCHECK} />
+  <Plain text={PLAIN_HEALTHCHECK} />
 
   <CodeBlock code={HEALTH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -277,7 +252,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_HEALTH_FIELDS} />
+  <Plain text={PLAIN_HEALTH_FIELDS} />
 
   Коротко, в одну таблицу:
 
@@ -348,7 +323,6 @@ import {
   eyebrowTone="demo"
   title="`depends_on` задаёт порядок запуска, а не ожидание"
   lead={STARTUP_DEMO_NOTE}
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Так пишут чаще всего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -465,9 +439,8 @@ import {
   eyebrow="Раздел 4"
   title="Тома и данные, которые переживают контейнер"
   lead="Контейнер одноразовый: его удаляют и создают заново по любому поводу. Всё, что должно это пережить, хранят в томе — отдельной папке, которой управляет Docker. От того, лежат ли данные в томе, зависит, чем кончится перезапуск: база на месте или база потеряна."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VOLUME} />
+  <Plain text={PLAIN_VOLUME} />
 
   <CodeBlock code={VOLUME_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -505,7 +478,6 @@ import {
   eyebrow="Раздел 5"
   title="Переменные окружения: какой источник кого перебивает"
   lead="Одну и ту же переменную можно задать четырьмя способами: в файле `.env`, в файле из `env_file`, в секции `environment` и в оболочке, из которой запускают Compose. Если значение задано в нескольких местах, одно перебивает другое. Порядок проверен запуском: у четырёх сервисов разный набор источников и одна переменная `GREETING`."
-  leadWidth={72}
 >
   <CodeBlock code={ENV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -525,7 +497,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ENV} />
+  <Plain text={PLAIN_ENV} />
 
   Что показал каждый сервис листинга:
 

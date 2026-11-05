@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ConditionEnv, ExportsPreset, ExportsValue } from '@/widgets/exports-lab/model/types';
 
 /**
@@ -483,7 +483,7 @@ export const LINT_TABLE: Record<string, { publint: string[]; attw: string[] | nu
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`exports`',
     d: 'Поле `package.json`: карта «подпуть → файл». Всё, чего в карте нет, снаружи пакета недоступно, даже если файл лежит в архиве.',
@@ -520,7 +520,7 @@ export const PLAIN_EXPORTS =
 export const PREREQ_NOTE =
   'Тема опирается на три темы сайта и на одно понятие, которое объяснено прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'ESM и CommonJS',
     d: '`import` и `require` — два разных механизма загрузки. ESM связывает модули до запуска, CommonJS исполняет файл в момент вызова `require`. Там же — как они стыкуются и откуда берётся двойной `default`.',
@@ -1152,7 +1152,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Node.js — Modules: Packages',
     href: 'https://nodejs.org/api/packages.html',

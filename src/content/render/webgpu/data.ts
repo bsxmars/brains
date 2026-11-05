@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { GpuPreset } from '@/widgets/gpu-compute/model/types';
 
 /**
@@ -45,7 +45,7 @@ import type { GpuPreset } from '@/widgets/gpu-compute/model/types';
 export const PLAIN_MODEL =
   'WebGL похож на разговор с мастером по телефону: «возьми эту кисть», «теперь синюю краску», «рисуй» — и каждая фраза уходит сразу, а мастер помнит, что вы сказали раньше. WebGPU — это заказ-наряд: вы заранее заполняете бланк целиком (какой станок, какие детали, в каком порядке), сдаёте пачку бланков в окошко и потом забираете готовое. Бланк проверяют один раз при приёме, а не на каждой фразе.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'адаптер (adapter)',
     d: 'Описание видеокарты, которую браузер готов дать странице: производитель, возможности, пределы. Сам по себе ничего не делает — из него запрашивают устройство. `navigator.gpu.requestAdapter()` может вернуть `null`, и это не ошибка, а ответ «видеокарты для вас нет».',
@@ -94,7 +94,7 @@ export const GLOSSARY = [
 
 // ---- Перед началом ----
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Что такое конвейер GPU и шейдер',
     d: 'Вершины → вершинный шейдер → растеризация → фрагментный шейдер → пиксели. WebGPU рисует **тем же конвейером**: меняется то, как вы его настраиваете, а не он сам.',
@@ -758,7 +758,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ---- Источники ----
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'WebGPU — спецификация W3C',
     href: 'https://www.w3.org/TR/webgpu/',

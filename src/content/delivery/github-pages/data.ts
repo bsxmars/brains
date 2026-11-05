@@ -1,6 +1,6 @@
 import type { BaseOption, PathRow } from '@/widgets/base-path-lab/model/types';
 import type { SizeBar } from '@/widgets/image-size/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «GitHub Pages: публикация статики».
@@ -998,7 +998,7 @@ export const DOC_ONLY = [
 // Раздел 8. Источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'GitHub Pages limits',
     href: 'https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits',
@@ -1064,7 +1064,7 @@ export const SOURCES = [
  * Отдельный случай — `CDN`: аббревиатура встречалась в первом же перечислении того, что
  * не удалось снять прогоном, и дальше работала как известная, хотя расшифровки не было нигде.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'сайт пользователя и сайт проекта',
     d: 'Сайт пользователя живёт на `user.github.io`, то есть в **корне домена**. Сайт проекта — на `user.github.io/repo/`, в подкаталоге. Вся тема растёт из этой разницы: у сайта проекта корень сайта и корень домена — разные места.',
@@ -1122,7 +1122,7 @@ export const BASE_DEMO_NOTE =
 export const PREREQ_NOTE =
   'На Pages кешем можно управлять только через имена файлов, а публикует сайт конвейер GitHub Actions. Как устроены кеш и конвейер, тема считает известным.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как работает кеш и его заголовки',
     d: 'На Pages нельзя задать заголовки ответа, поэтому остаётся один рычаг — имя файла. Чтобы понять, почему он работает, нужно знать, по каким правилам браузер и промежуточные кеши решают, скачивать ли файл заново.',

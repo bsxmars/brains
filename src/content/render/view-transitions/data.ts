@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { VtScenario } from '@/widgets/vt-lab/model/types';
 
 /**
@@ -106,7 +106,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Фотограф снимает комнату «до», вы переставляете мебель, он снимает «после», и зрителю показывают плавный переход с одной фотографии на другую. Пока идёт показ, комната за ним уже новая, но дотянуться до неё нельзя — рука упирается в фотографию. А пока вы двигаете мебель, зритель видит застывший снимок «до», и если двигать слишком долго, показ отменяют.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'снимок (snapshot)',
     d: 'Изображение элемента, которое браузер сохраняет до и после изменения. Это картинка, а не элемент: у неё нет DOM, событий и текста, её можно только растянуть, сдвинуть и сделать прозрачной.',
@@ -141,7 +141,7 @@ export const GLOSSARY = [
   },
 ];
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Из каких шагов состоит кадр',
     d: 'Когда браузер вызывает `requestAnimationFrame`, считает стили и раскладку, рисует и отдаёт кадр композитору. Переход вклинивается в эти шаги: снимки делаются в момент отрисовки, а не в момент вызова.',
@@ -615,7 +615,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Источники ──────────────────── */
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'CSS View Transitions Module Level 1',
     href: 'https://www.w3.org/TR/css-view-transitions-1/',

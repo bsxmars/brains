@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Связь объектов: наблюдатель, посредник, цепочка обязанностей».
@@ -39,7 +39,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
 
 /* ──────────────────── Вводный раздел · словарь ──────────────────── */
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'связность',
     d: 'Сколько один объект знает о других: чьи методы зовёт, в каком порядке, что они возвращают. Чем больше знает, тем больше правок в нём при каждом изменении соседей. По-английски — coupling. Все три паттерна темы её уменьшают.',
@@ -74,7 +74,7 @@ export const GLOSSARY = [
 
 export const PREREQ_NOTE = 'Тема опирается на четыре вещи, и все четыре разобраны на сайте.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Функция как значение',
     d: 'Подписчик — это функция, которую отдали издателю на хранение. Что значит «передать функцию» и что она при этом помнит — основа всех трёх паттернов.',
@@ -689,7 +689,7 @@ export const PITFALLS: Pitfall[] = [
 /* ──────────────────── Раздел 6 · источники ──────────────────── */
 
 /** ⚠️ Без разметки: `SourceList` печатает `title` и `what` как есть. */
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Refactoring Guru — поведенческие паттерны',
     href: 'https://refactoring.guru/ru/design-patterns/behavioral-patterns',

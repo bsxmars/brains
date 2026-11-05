@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { MeasuredRow, Scenario } from '@/widgets/vapor-lab/model/types';
 
 /**
@@ -549,7 +549,7 @@ export const INTRO_NOTE =
 export const PLAIN_INTRO =
   'Обычный Vue на каждое изменение перерисовывает эскиз всей комнаты и сличает его с прошлым, чтобы найти, какую лампочку поменять. Vapor при сборке сразу записывает: «лампочка над столом зависит от выключателя `count`» — и при щелчке идёт прямо к ней. Сама комната собирается не по кирпичу, а копируется с готового трафарета.';
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'VNode и виртуальный DOM',
     d: 'Обычный JS-объект, описывающий элемент: тег, свойства, дети. Дерево VNode строит render-функция, а рендерер сравнивает новое дерево со старым и переносит разницу в DOM. Подробно — в [«Vue 3 изнутри: рендерер и patch»](/frameworks/vue-patch-internals/#s1).',
@@ -592,7 +592,7 @@ export const GLOSSARY = [
 // Перед началом
 // ---------------------------------------------------------------------------
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Как `ref` будит эффект',
     d: 'Чтение `ref` внутри эффекта записывает эффект в подписчики, запись будит подписчиков. Vapor стоит целиком на этом механизме и ничего к нему не добавляет.',
@@ -1015,7 +1015,7 @@ export const PITFALLS: Pitfall[] = [
 // Раздел 10 · источники
 // ---------------------------------------------------------------------------
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: '`runtime-vapor` · `apiTemplate.ts`, `dom/prop.ts`, `renderEffect.ts`',
     href: 'https://github.com/vuejs/core/tree/main/packages/runtime-vapor/src',

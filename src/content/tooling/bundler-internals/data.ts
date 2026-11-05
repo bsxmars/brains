@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { BundleScenario } from '@/widgets/bundler-lab/model/types';
 
 /**
@@ -46,7 +46,7 @@ import type { BundleScenario } from '@/widgets/bundler-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'граф модулей',
     d: 'Список «кто кого импортирует», который сборщик строит, читая `import` в каждом файле. Код при этом не выполняется: импорты видны из текста.',
@@ -87,7 +87,7 @@ export const PLAIN_BUNDLER =
 export const PREREQ_NOTE =
   'Три вещи тема берёт из «Модулей и сборки» и разбирает дальше, четвёртая объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Импорты известны до запуска',
     d: '`import` стоит только на верхнем уровне файла и только со строкой в кавычках. Поэтому все зависимости видны из текста, и сборщик может обойти проект, не выполнив ни строчки.',
@@ -1133,7 +1133,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'Rolldown — документация',
     href: 'https://rolldown.rs/',

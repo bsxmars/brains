@@ -3,7 +3,6 @@ title: Реактивность Vue
 order: 10
 kicker: фреймворки изнутри
 lead: "Vue сам узнаёт, какой код от каких данных зависит: он замечает каждое чтение реактивного значения и запоминает, кто читал. Когда значение меняется, Vue перезапускает этот код. Граф зависимостей, очередь обновлений и `nextTick` вырастают из одного этого правила."
-leadWidth: 66
 summary: "Живой граф зависимостей, очередь обновлений и три режима `flush`, шесть причин «почему не обновляется» — всё на настоящем `@vue/reactivity`."
 verifiedOn: Vue 3.5.42 · Node 24.11
 nav:
@@ -26,6 +25,9 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ReactiveGraph from '@/widgets/reactive-graph/ui/ReactiveGraph.vue';
@@ -52,48 +54,21 @@ import {
   variant="intro"
   eyebrow="Зачем тема отдельно"
   lead={INTRO_NOTE}
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TRACK} />
+  <Plain text={PLAIN_TRACK} />
 
-  <CardGrid min={240} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} min={240} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Что именно перехвачено"
   lead="Чтобы знать, кто что прочитал, Vue обязан видеть каждое чтение и каждую запись. Vue 2 делал это через `Object.defineProperty`: заранее ставил геттер и сеттер **на каждый существующий ключ**, и ключ, добавленный позже, оставался без присмотра. Отсюда известные дыры Vue 2 и костыли `Vue.set` и `Vue.delete`. Vue 3 заворачивает объект в `Proxy`. Прокси перехватывает любую операцию **над объектом целиком** в момент, когда она происходит, — в том числе с ключом, которого вчера не было."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PROXY} />
+  <Plain text={PLAIN_PROXY} />
 
   <Table
     head={['дырка Vue 2', 'как закрывается в Vue 3']}
@@ -121,7 +96,7 @@ import {
     <Md text={TRACK_NOTE} />
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ACTIVE_SUB} />
+  <Plain text={PLAIN_ACTIVE_SUB} />
 
   ### Зачем `ref`, если есть `reactive`
 
@@ -161,7 +136,6 @@ import {
   eyebrowTone="demo"
   title="Живой граф: связь появляется при чтении"
   lead="Ниже работают настоящие `reactive`, `computed` и `effect` из `@vue/reactivity` — прямо в вашем браузере. Стрелка «кто от кого зависит» появляется, когда код прочитал значение, а не когда его объявили."
-  leadWidth={72}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={GRAPH_DEMO_NOTE} />
@@ -178,7 +152,7 @@ import {
 
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_COMPUTED} />
+  <Plain text={PLAIN_COMPUTED} />
 
   <CardGrid min={290} gap={14} align="start">
     {GRAPH_FACTS.map((fact) => (
@@ -217,7 +191,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BRANCH} />
+  <Plain text={PLAIN_BRANCH} />
 </Section>
 
 <Section
@@ -226,9 +200,8 @@ import {
   eyebrowTone="demo"
   title="Очередь обновлений: почему три записи дают одну перерисовку"
   lead="Три записи подряд — а компонент перерисовался один раз; записали значение и сразу замерили DOM — а там ещё старое. Обе вещи делает одна очередь. Сама реактивность ничего не откладывает: запись в `ref` сразу оповещает подписчиков. Откладывает другая часть Vue — та, что управляет компонентами. Она отдаёт эффекты планировщику: очереди, которая копит задания и выполняет их одной пачкой."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLUSH} />
+  <Plain text={PLAIN_FLUSH} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={QUEUE_DEMO_NOTE} />
@@ -260,7 +233,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FLUSH_THREE} />
+  <Plain text={PLAIN_FLUSH_THREE} />
 
   Коротко, в одну таблицу:
 
@@ -327,7 +300,6 @@ import {
   eyebrowTone="demo"
   title="Почему не обновляется"
   lead="Шесть ловушек, в которые попадают чаще всего. Пять из них — не ошибки Vue, а обычные правила JavaScript, которые срабатывают в неожиданном месте."
-  leadWidth={72}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={TRAPS_DEMO_NOTE} />
@@ -395,7 +367,6 @@ import {
   eyebrow="Раздел 5"
   title="Жизнь эффекта и тонкие места"
   lead="Эффект работает, пока его не остановят. Компонент останавливает сам только то, что создано синхронно. Из этого и из того, что `activeSub` указывает на эффект только до первого `await`, растёт большинство мест, где интуиция раз за разом ошибается."
-  leadWidth={72}
 >
   <Card tone="ok" title="Что останавливается само" titleSize={17} pad={20} gap={12} size={16} lh={1.6}>
 
@@ -438,7 +409,6 @@ import {
   eyebrow="Раздел 6"
   title="Источники"
   lead="Документация отвечает на вопрос «как пользоваться», исходники — на вопрос «почему так себя ведёт». Тонкие места этой темы есть только во вторых."
-  leadWidth={72}
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

@@ -5,7 +5,6 @@ headingWidth: 22
 order: 10
 kicker: алгоритмы во фронтенде
 lead: "У любого кеша кончается место, и тогда кто-то должен уйти. LRU выбрасывает давно не нужное и проваливается на одном проходе по большому списку. LFU держит популярное и не может забыть вчерашних звёзд. W-TinyLFU пускает новичка, только если тот популярнее жертвы. Все четыре политики написаны здесь по шагам, LRU сверен с `lru-cache` по каждому вытеснению, а доли попаданий сняты на одних и тех же трассах."
-leadWidth: 66
 summary: "Зачем кешу предел; LRU на `Map` и почему вытеснять надо одним итератором; `lru-cache` изнутри — список на массивах индексов, ленивый TTL, `maxSize`, `fetchMethod`; провал LRU на скане и цикле; LFU за O(1) и старение; ARC; W-TinyLFU — count-min sketch, окно и допуск; SIEVE; доли попаданий четырёх политик на синтетических трассах."
 verifiedOn: "lru-cache 11.5.3, reselect 5.3.0, Node 24.11.0, октябрь 2026: учебный LRU сверен с lru-cache по каждому шагу на случайных трассах с TTL и без, внутренние массивы lru-cache и примеры с ним исполняются в tests/unit/eviction.test.ts; доли попаданий LFU, W-TinyLFU и SIEVE на трассах с зерном 1 закреплены там же"
 nav:
@@ -33,6 +32,9 @@ import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import EvictionSteps from '@/widgets/eviction-lab/ui/EvictionSteps.vue';
@@ -120,46 +122,18 @@ import {
   Растущий без предела словарь — это утечка. Словарь с пределом — кеш, и ему нужно правило,
   кого выбрасывать.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EVICTION} />
+  <Plain text={PLAIN_EVICTION} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        {item.href && (
-          <CardNote tone={item.tone}>
-            <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-          </CardNote>
-        )}
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Память кончается раньше ключей"
   lead="Во фронтенде кешей больше, чем кажется, и у каждого свой ответ на вопрос «что будет, когда место кончится». Иногда ответ — «ничего»: кеш растёт, пока не кончится память вкладки."
-  leadWidth={72}
 >
   <Table
     head={['где', 'что хранит', 'чем ограничен']}
@@ -172,7 +146,7 @@ import {
 
   <Md text={WHERE_NOTE} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_WEAK} />
+  <Plain text={PLAIN_WEAK} />
 
   ### Селектор на трёх аргументах
 
@@ -196,9 +170,8 @@ import {
   eyebrow="Раздел 2"
   title="LRU на `Map`: порядок даром"
   lead="LRU выбрасывает ключ, который дольше всех не спрашивали. Нужны две вещи: найти запись по ключу и знать, какая из записей самая давняя. `Map` даёт обе — и поиск по хешу, и порядок."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LRU} />
+  <Plain text={PLAIN_LRU} />
 
   <Card title="LRU с TTL на `Map`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LRU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -231,9 +204,8 @@ import {
   eyebrow="Раздел 3"
   title="`lru-cache` изнутри: массивы вместо узлов"
   lead="Классический LRU — хеш-таблица плюс двусвязный список: таблица находит запись, список держит порядок. `lru-cache` устроен так же, но список у него собран не из объектов, а из чисел в типизированных массивах."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LIST} />
+  <Plain text={PLAIN_LIST} />
 
   <Md text={LAYOUT_NOTE} />
 
@@ -294,9 +266,8 @@ import {
   eyebrow="Раздел 4"
   title="Где LRU ломается: скан и цикл"
   lead="LRU верит, что недавнее повторится. Чаще всего так и есть, но есть две формы спроса, на которых эта вера оборачивается против него. Чтобы их увидеть, нужны трассы — и одни и те же для всех политик."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ZIPF} />
+  <Plain text={PLAIN_ZIPF} />
 
   <Card title="Трассы и прогон" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TRACE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -308,7 +279,7 @@ import {
 
   ### Скан вымывает горячее
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCAN} />
+  <Plain text={PLAIN_SCAN} />
 
   <Table
     head={['кеш на 100', 'из 20 самых популярных в кеше после скана', 'попаданий в следующих 500 запросах']}
@@ -331,9 +302,8 @@ import {
   eyebrow="Раздел 5"
   title="LFU: частота и старая слава"
   lead="Если LRU смотрит на давность, LFU смотрит на частоту. Ключ, который спросили один раз, не вытеснит ключ, который спрашивают постоянно, — и скан ему не страшен. Зато у него своя беда: частота копится годами."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LFU} />
+  <Plain text={PLAIN_LFU} />
 
   <Card title="LFU на корзинах частот" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LFU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -364,9 +334,8 @@ import {
   eyebrow="Раздел 6"
   title="W-TinyLFU: фильтр на входе"
   lead="LRU и LFU решают, кого выгнать. TinyLFU задаёт другой вопрос: стоит ли вообще пускать новичка. Для ответа нужна частота каждого ключа — в том числе тех, кого в кеше нет. Хранить счётчик на каждый ключ, который когда-либо спрашивали, дорого, поэтому частоту оценивают приближённо."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SKETCH} />
+  <Plain text={PLAIN_SKETCH} />
 
   <Card title="Count-min sketch" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SKETCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -378,7 +347,7 @@ import {
 
   ### Окно, допуск, две части памяти
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ADMISSION} />
+  <Plain text={PLAIN_ADMISSION} />
 
   <Card title="W-TinyLFU" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TINYLFU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -401,9 +370,8 @@ import {
   eyebrow="Раздел 7"
   title="SIEVE: стрелка вместо перестановок"
   lead="LRU на каждом попадании переставляет запись. Это запись в общую структуру при каждом чтении — и блокировка, если кеш читают из многих потоков. SIEVE обходится одним битом на запись и стрелкой, которая ищет жертву."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SIEVE} />
+  <Plain text={PLAIN_SIEVE} />
 
   <Card title="SIEVE" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SIEVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -420,7 +388,6 @@ import {
   eyebrowTone="demo"
   title="Четыре политики на одной трассе"
   lead="Одна и та же трасса, один и тот же размер — и четыре разных набора ключей в кеше. На коротких трассах видно, кого и почему выгоняет каждая политика. На длинных — во что это складывается."
-  leadWidth={72}
 >
   ### Пошагово, кеш на четыре
 
@@ -446,7 +413,6 @@ import {
   eyebrow="Раздел 9"
   title="Кто что использует"
   lead="Готовые кеши редко пишут сами. Но знать, какая политика внутри, нужно: от неё зависит, что случится на скане, на цикле и при смене горячего."
-  leadWidth={72}
 >
   <Table
     head={['где', 'политика', 'как устроено']}

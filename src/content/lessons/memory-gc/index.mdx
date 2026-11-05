@@ -2,7 +2,6 @@
 title: Память и GC
 order: 33
 lead: "Объект живёт, пока до него можно дойти по ссылкам от корней — глобального объекта, стека, активных таймеров. Сборщик проверяет, достижим ли объект, а не нужен ли он, — и в этой разнице живут все утечки."
-leadWidth: 64
 summary: "Как объект переезжает по куче, шесть типовых утечек, почему замыкание держит больше, чем использует, как WeakMap отпускает записи и как читать график памяти."
 verifiedOn: "Node 24.11 и 26.8 · V8 13.6 и 14.6 · arm64 без pointer compression"
 nav:
@@ -26,6 +25,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import ContextSlots from '@/widgets/context-slots/ui/ContextSlots.astro';
 import EphemeronSim from '@/widgets/ephemeron-sim/ui/EphemeronSim.vue';
 import GenerationCopy from '@/widgets/generation-copy/ui/GenerationCopy.vue';
@@ -121,16 +122,9 @@ import {
   variant="intro"
   eyebrow="Откуда вообще берутся утечки"
   lead="Движок не может знать, понадобится ли объект программе дальше: в общем виде это неразрешимая задача, родственная вопросу «остановится ли программа». Поэтому он проверяет условие попроще — можно ли до объекта дойти по ссылкам — и не трогает всё, до чего дойти можно."
-  leadWidth={72}
   gap={24}
 >
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 
   <CardGrid min={260} gap={14}>
     <Card tone="ok" color="tone" label="что движок умеет доказать" labelTone="tone" labelSize={11} pad={20} gap={10} size={17} lh={1.35}>
@@ -152,7 +146,7 @@ import {
     </Callout>
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_REACHABILITY} />
+  <Plain text={PLAIN_REACHABILITY} />
 
   <CardGrid min={250} gap={12}>
     {ROOTS.map((root) => (
@@ -188,7 +182,6 @@ import {
   eyebrow="Перед началом"
   title="Граница наблюдаемого"
   lead="Сборщик работает молча: о сборке узнают только задним числом, а спросить у объекта, где он лежит, нельзя. Видно немногое — и почти всё только в Node."
-  leadWidth={72}
 >
   <CardGrid min={290} gap={16} align="start">
     <Card tone="err" title="Не наблюдаемо из JS вообще" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
@@ -325,9 +318,8 @@ import {
   eyebrowTone="demo"
   title="Путь объекта: от создания до вечной жизни в куче"
   lead="Большинство объектов умирает вскоре после создания — это наблюдение называют гипотезой поколений. Поэтому V8 делит кучу на две части и убирает их по-разному: молодую — часто и дёшево, старую — редко и дорого."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SCAVENGE} />
+  <Plain text={PLAIN_SCAVENGE} />
 
   <CodeBlock code={GC_STEPS_CODE} size={12} />
 
@@ -434,12 +426,12 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FOUR_MODES} />
+  <Plain text={PLAIN_FOUR_MODES} />
 
   Orinoco сочетает их: большую пометку V8 ведёт в фоне и по частям, сборку молодых и уплотнение —
   в несколько потоков внутри паузы.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_BARRIER} />
+  <Plain text={PLAIN_BARRIER} />
 
   <Card tone="warn" color="tone" pad={16} radius={4} size={16} lh={1.6}>
 
@@ -502,7 +494,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_THREE_BARRIERS} />
+  <Plain text={PLAIN_THREE_BARRIERS} />
 
   Коротко, в одну таблицу:
 
@@ -588,7 +580,6 @@ import {
   eyebrowTone="demo"
   title="Шесть классов утечек"
   lead="Любая утечка — это цепочка ссылок от корня до ненужного объекта. Поэтому у каждого случая три части: **как течёт → по какой цепочке ссылок → как чинится**. Чинит не удаление строки, а разрыв одного конкретного звена цепочки."
-  leadWidth={70}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={LEAKS_DEMO_NOTE} />
@@ -622,9 +613,8 @@ import {
   eyebrow="Раздел 3"
   title="Замыкание держит не переменную, а весь Context"
   lead="Самое частое заблуждение: «функция удерживает только то, что использует». Но V8 создаёт **один Context на скоуп** — объект с захваченными переменными, — и все функции, созданные в этом скоупе, ссылаются на него целиком."
-  leadWidth={70}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+  <Plain text={PLAIN_CONTEXT} />
 
   <CardGrid min={300} gap={20} align="start">
     <Card pad={0} radius={0} gap={14} size={16} lh={1.6}>
@@ -679,7 +669,6 @@ import {
   eyebrowTone="demo"
   title="Слабые ссылки"
   lead="Обычная ссылка говорит: «этот объект нужен мне, держите его». Иногда это неправда: вы хотите **привязать данные к объекту, временем жизни которого управляет кто-то другой**. Слабая ссылка говорит: «этот объект мне интересен, но удерживать его я не буду»."
-  leadWidth={72}
 >
   <Table
     head={['инструмент', 'держит', 'видна ли сборка', 'когда брать']}
@@ -690,7 +679,7 @@ import {
     minWidth={660}
   />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_EPHEMERON} />
+  <Plain text={PLAIN_EPHEMERON} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={EPHEMERON_DEMO_NOTE} />
@@ -794,9 +783,8 @@ import {
   eyebrow="Раздел 5"
   title="`using`: освобождение в известной точке"
   lead="Слабая ссылка отпускает объект, когда решит сборщик, — то есть неизвестно когда. Файл, сокет, подписку, таймер так отпускать нельзя: сборщик о них не знает, и закрыть их надо в определённый момент. `using` привязывает освобождение к выходу из блока, и выполняет его сам язык — при любом выходе."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_USING} />
+  <Plain text={PLAIN_USING} />
 
   <CodeBlock code={USING_CODE} size={12} />
 
@@ -861,7 +849,6 @@ import {
   eyebrowTone="demo"
   title="Пилообразный график — это норма"
   lead="Между сборками память растёт, на каждой сборке падает. Утечка выглядит иначе: после нескольких сборок график **не возвращается к прежнему минимуму**. Поэтому смотреть надо на линию по нижним точкам графика (нижнюю огибающую), а не на пики."
-  leadWidth={70}
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={HEAP_DEMO_NOTE} />

@@ -1,5 +1,5 @@
 import type { PrerenderDiagramData } from '@/widgets/instant-navigation-prerender-diagram/model/types';
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 
 /**
  * Данные темы «Навигации без ожидания: bfcache, Speculation Rules и prerender».
@@ -129,7 +129,7 @@ import type { Pitfall } from '@/widgets/pitfalls/model/types';
  * Слова, которые тема употребляет раньше, чем объясняет. `persisted` и активация всплывают
  * уже в первом разделе, а «сайт» против «источника» решает, будет ли предрендер вовсе.
  */
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'навигация',
     d: 'Смена документа во вкладке: клик по ссылке, ввод адреса, `location.href = …`, кнопки «назад» и «вперёд». Переход внутри SPA, где JS подменил содержимое и адрес через History API, — **не** навигация: документ тот же самый.',
@@ -169,7 +169,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'bfcache, предрендер и их события объясняются здесь с нуля. Известными считаются четыре вещи — у каждой есть свой разбор на сайте.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Состояния страницы: hidden, frozen, discarded',
     d: 'Что браузер делает с невидимой вкладкой, чем заморозка отличается от выгрузки и где среди них bfcache. Здесь это продолжается: в каком порядке приходят события и что мешает страницу заморозить.',
@@ -965,7 +965,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Раздел 9 · источники ──────────────────── */
 
-export const SOURCES: { t: string; items: string[] }[] = [
+export const SOURCES: SourceGroup[] = [
   {
     t: 'Спецификации',
     items: [

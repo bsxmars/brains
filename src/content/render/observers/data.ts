@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { RoScene, ThresholdOption } from '@/widgets/observer-lab/model/types';
 
 /**
@@ -62,7 +62,7 @@ import type { RoScene, ThresholdOption } from '@/widgets/observer-lab/model/type
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'наблюдатель (observer)',
     d: 'Объект с колбэком, который браузер зовёт сам, когда у элемента что-то поменялось: видимость, размер или содержимое. Вы не спрашиваете — вам сообщают.',
@@ -95,7 +95,7 @@ export const PLAIN_OBSERVER =
 export const PREREQ_NOTE =
   'Сам кадр, очереди задач и цена принудительной раскладки разобраны в своих темах. Здесь — только то, что из них нужно, чтобы понять, куда в этот порядок встают наблюдатели.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Кадр по шагам',
     d: 'Между двумя кадрами браузер выполняет задачи, а в момент отрисовки — `requestAnimationFrame`, стили, раскладку и отрисовку. Наблюдатели встроены в этот же список.',
@@ -834,7 +834,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'HTML Standard — Update the rendering',
     href: 'https://html.spec.whatwg.org/multipage/webappapis.html#update-the-rendering',

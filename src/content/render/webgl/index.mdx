@@ -3,7 +3,6 @@ title: WebGL и конвейер GPU
 order: 7
 kicker: браузер и рендеринг
 lead: "Для браузера WebGL-канвас — отдельный слой: готовая картинка, которую композитор выводит на экран вместе с остальной страницей. Всё, что внутри, рисуется **мимо style, layout и paint** — без стилей, раскладки и браузерной отрисовки. Рисуете вы сами, каждый кадр и целиком, а браузер только показывает результат."
-leadWidth: 66
 summary: "Где кончается конвейер браузера и начинается конвейер GPU: вершины и фрагменты, цена вызова отрисовки, почему время здесь почти нечем померить и что происходит при потере контекста."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), рендерер ANGLE · Vulkan · SwiftShader — программный растеризатор; сентябрь 2026"
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ContextLoss from '@/widgets/context-loss/ui/ContextLoss.vue';
@@ -107,44 +109,18 @@ import {
   содержимое канваса не проходит ни через стили, ни через раскладку, ни через браузерную
   отрисовку.
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYER} />
+  <Plain text={PLAIN_LAYER} />
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Где кончается браузер"
   lead="Одно и то же действие — «поменять то, что видно» — по разные стороны границы устроено совершенно по-разному. Слева работает браузер, справа не работает никто, кроме вас."
-  leadWidth={72}
 >
   <Table
     head={BOUNDARY.head}
@@ -217,9 +193,8 @@ import {
   eyebrowTone="demo"
   title="Конвейер: вершины, шейдеры, фрагменты"
   lead="Семь шагов от массива чисел до пикселей на экране. Два из них — ваши программы, и одна из них выполняется по разу на каждый пиксель."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SHADERS} />
+  <Plain text={PLAIN_SHADERS} />
 
   <Card title="Что происходит между `bufferData` и картинкой" titleSize={18} pad={22} gap={14}>
     <NumberedList items={PIPELINE_STEPS} size={15.5} />
@@ -263,7 +238,7 @@ import {
 
   <Md text={DEPTH_LEAD} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DEPTH} />
+  <Plain text={PLAIN_DEPTH} />
 
   <CardGrid min={280} gap={14} align="start">
     {DEPTH_FACTS.map((fact) => (
@@ -328,7 +303,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_GLASS} />
+  <Plain text={PLAIN_GLASS} />
 
   <Card title="Прозрачное: порядок решает цвет" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <Table
@@ -347,7 +322,7 @@ import {
 
   ### Текстуры: почему далёкое рябит
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_MIPMAP} />
+  <Plain text={PLAIN_MIPMAP} />
 
   <Card title="Шахматка 512×512 из клеток в пиксель, уменьшенная до 60×60" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <Table
@@ -403,9 +378,8 @@ import {
   eyebrowTone="demo"
   title="Что здесь стоит дорого"
   lead="Одна и та же тысяча квадратов, нарисованная тремя способами. Картинка во всех трёх побитово одинаковая. Различается только число обращений к драйверу — программе, которая управляет видеокартой, — и дорого стоят именно они."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_DRAW_CALL} />
+  <Plain text={PLAIN_DRAW_CALL} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={DRAW_DEMO_NOTE} />
@@ -464,7 +438,6 @@ import {
   eyebrow="Раздел 4"
   title="Почему время здесь мерить трудно"
   lead="Процессор (CPU) и видеокарта (GPU) работают независимо друг от друга. Почти каждый способ узнать «сколько занял кадр» либо меряет не то, либо ломает ту самую независимость, которую пытается измерить."
-  leadWidth={72}
 >
   <Callout size={18.5} pad="22px 24px">
 
@@ -474,7 +447,7 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_QUEUE} />
+  <Plain text={PLAIN_QUEUE} />
 
   <Table
     head={MEASURE_ROWS.head}
@@ -546,9 +519,8 @@ import {
   eyebrowTone="demo"
   title="Потеря контекста"
   lead="Пользователь пишет: «картинка почернела и больше не появилась», а у вас всё работает. Так выглядит потеря контекста — единственное событие этой темы, которое случается у пользователей само и почти всегда обрабатывается неверно."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT_LOSS} />
+  <Plain text={PLAIN_CONTEXT_LOSS} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={LOSS_DEMO_NOTE} />
@@ -602,7 +574,6 @@ import {
   eyebrow="Раздел 6"
   title="Тонкие места"
   lead="Пятнадцать штук, и почти все молчат: ошибки нет, исключения нет, картинка просто не та или её нет вовсе."
-  leadWidth={72}
 >
   <Pitfalls items={PITFALLS} />
 </Section>
@@ -613,7 +584,6 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
   lead="Всё, на чём стоит разбор. Спецификации — чтобы проверить формулировку, остальное — чтобы понять, почему формулировка такая."
-  leadWidth={72}
 >
   <SourceList items={SOURCES} />
 

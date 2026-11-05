@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { StrategyCase, StrategyStep, SwScenario, SwSnapshot, SwStep } from '@/widgets/sw-lab/model/types';
 
 /**
@@ -83,7 +83,7 @@ import type { StrategyCase, StrategyStep, SwScenario, SwSnapshot, SwStep } from 
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'Service Worker',
     d: 'Ваш скрипт, который браузер запускает отдельно от страниц. Он получает событие `fetch` на каждый запрос страниц своей области и решает, чем ответить: сетью, кешем или собранным на месте ответом.',
@@ -116,7 +116,7 @@ export const PLAIN_SW =
 export const PREREQ_NOTE =
   'Тема углубляет то, что разобрано обзорно в других темах. Зачем нужен воркер и какие бывают стратегии кеширования, здесь повторяется одной фразой.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Зачем нужен Service Worker',
     d: 'Скрипт-посредник между страницей и сетью: работа без сети, push-уведомления, своя логика кеша. Для простого «чтобы быстрее грузилось» обычно хватает заголовков кеширования.',
@@ -683,7 +683,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Service Workers',
     href: 'https://w3c.github.io/ServiceWorker/',

@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LanesScenario } from '@/widgets/mini-lanes/model/types';
 import { STEP_ELEMENT } from '../react-internals/data';
 
@@ -683,7 +683,7 @@ export const DEMO_NOTE =
 
 /* ───────────────────────────── Текст темы ───────────────────────────── */
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'полоса (lane)',
     d: 'Приоритет обновления, записанный одним битом числа: `SyncLane` — 2, `DefaultLane` — 32, полосы переходов — от 256. Набор полос — то же число, в котором поднято несколько битов.',
@@ -721,7 +721,7 @@ export const GLOSSARY = [
 export const PREREQ_NOTE =
   'Конкурентность — надстройка над рабочим циклом, а не новый рендерер: всё, что ниже, меняет только то, **когда** цикл запускается, **какие** обновления он учитывает и **выбрасывает** ли он результат.';
 
-export const PREREQ = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Файбер и прерываемый цикл',
     d: 'Рендер — обход дерева файберов по одному, с закладкой `workInProgress`: между любыми двумя файберами цикл может остановиться. Здесь этот цикл получает приоритеты.',
@@ -1000,7 +1000,7 @@ export const PITFALLS: Pitfall[] = [
 
 /* ───────────────────────────── Источники ───────────────────────────── */
 
-export const SOURCES = [
+export const SOURCES: Source[] = [
   {
     title: 'Initial Lanes implementation — Andrew Clark, PR #18796',
     href: 'https://github.com/facebook/react/pull/18796',

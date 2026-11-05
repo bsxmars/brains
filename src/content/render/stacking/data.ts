@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { PropOption, StackScene } from '@/widgets/stacking-lab/model/types';
 
 /**
@@ -41,7 +41,7 @@ import type { PropOption, StackScene } from '@/widgets/stacking-lab/model/types'
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'контекст наложения (stacking context)',
     d: 'Группа элементов, которую браузер рисует целиком, как одну стопку. `z-index` детей сравнивается только внутри неё, а снаружи вся стопка стоит на одном месте — там, где стоит её корень.',
@@ -82,7 +82,7 @@ export const PLAIN_CONTEXT =
 export const PREREQ_NOTE =
   'Тема опирается на одну вещь из других тем и на две, которые на сайте не разбираются отдельно, — они объяснены прямо на карточках.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Кадр: стиль, раскладка, отрисовка',
     d: 'Браузер сначала вычисляет стили, потом раскладывает блоки по местам, потом рисует их. Порядок отрисовки — правило третьего шага: что класть на экран раньше, что позже.',
@@ -598,7 +598,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'CSS 2.1, Appendix E — Elaborate description of Stacking Contexts',
     href: 'https://www.w3.org/TR/CSS21/zindex.html',

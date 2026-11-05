@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AstExample } from '@/widgets/ast-lab/model/types';
 
 /**
@@ -45,7 +45,7 @@ import type { AstExample } from '@/widgets/ast-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'токен',
     d: 'Неделимый кусок текста программы: слово `if`, имя `code`, строка `\'SALE\'`, знак `==`. Первое, что делает парсер, — режет текст на токены и выбрасывает пробелы.',
@@ -86,7 +86,7 @@ export const PLAIN_AST =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем и на одну, которой на сайте отдельно нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Текст программы разбирают в дерево',
     d: 'Прежде чем что-то делать с кодом, инструмент превращает текст в дерево узлов и дальше работает с деревом. Как это выглядит на маленьком языке шаблонов — разбор, анализ, генерация кода — показано на учебном компиляторе.',
@@ -780,7 +780,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'ESLint — Custom Rules',
     href: 'https://eslint.org/docs/latest/extend/custom-rules',

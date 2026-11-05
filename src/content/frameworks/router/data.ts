@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { GuardRun, GuardScenario, RouterCodes, ShopLevel, Strategy } from '@/widgets/router-lab/model/types';
 
 /**
@@ -59,7 +59,7 @@ import type { GuardRun, GuardScenario, RouterCodes, ShopLevel, Strategy } from '
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'History API',
     d: '`history.pushState`, `history.replaceState` и событие `popstate`. Позволяет сменить адрес во вкладке без загрузки нового документа. Каждый переход добавляет **запись истории** — шаг, на который вернёт кнопка «назад».',
@@ -108,7 +108,7 @@ export const PLAIN_ROUTER =
 export const PREREQ_NOTE =
   'Роутер стоит на трёх вещах из браузера: событиях DOM, истории вкладки и динамическом `import()`. Ещё нужны промисы — каждый guard может быть асинхронным, и роутер ждёт их по очереди.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Действие по умолчанию и делегирование',
     d: 'Клик по ссылке — событие, у которого есть действие браузера: переход. `preventDefault()` его отменяет. Один слушатель на `document` ловит клики по всем ссылкам — через всплытие и `closest`.',
@@ -1952,7 +1952,7 @@ export const PITFALLS: Pitfall[] = [
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'HTML Standard — The History interface',
     href: 'https://html.spec.whatwg.org/multipage/nav-history-apis.html#the-history-interface',

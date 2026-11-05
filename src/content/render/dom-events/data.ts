@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Scenario } from '@/widgets/event-path-lab/model/types';
 
 /**
@@ -53,7 +53,7 @@ import type { Scenario } from '@/widgets/event-path-lab/model/types';
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'событие и слушатель',
     d: 'Событие — объект, который браузер (или ваш код) отправляет узлу: «по тебе кликнули», «нажата клавиша». Слушатель — функция, которую повесили на узел через `addEventListener` и которую вызовут, когда событие пройдёт через этот узел.',
@@ -86,7 +86,7 @@ export const PLAIN_EVENT =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из других тем и на одну, которая объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'DOM — дерево узлов',
     d: 'У каждого элемента один родитель: `b` лежит в `button`, тот в `li`, тот в `ul`, и так до `html`. Над `html` стоит `document`, а над ним, для событий, — `window`. Путь события — это цепочка родителей.',
@@ -1062,7 +1062,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'DOM Standard — Events',
     href: 'https://dom.spec.whatwg.org/#events',

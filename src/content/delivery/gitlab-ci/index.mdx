@@ -3,7 +3,6 @@ title: 'GitLab CI: из чего собирается конвейер'
 order: 5
 kicker: доставка
 lead: "Файл `.gitlab-ci.yml` легко прочитать как список шагов сверху вниз. Выполняется он иначе. Между тем, что написано, и тем, что произойдёт, стоят четыре вопроса: **чего джоб — одна задача конвейера — на самом деле ждёт, какие файлы доживут до следующего джоба, какое значение получит переменная и попадёт ли джоб в конвейер вообще**."
-leadWidth: 68
 summary: "Почему стадия — не зависимость и что меняет `needs`, чем артефакт отличается от кеша, какая переменная сильнее, почему в `rules` решает первое совпавшее правило и что `extends` делает с массивами."
 verifiedOn: "gitlab-ci-local 4.75.1 (исполняет `.gitlab-ci.yml` в Docker Engine 27.4.0, macOS arm64), образ alpine:3, сентябрь 2026; правила GitLab сверены с документацией 17.7. Что снять прогоном не удалось — помечено в тексте"
 nav:
@@ -28,6 +27,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PipelineGraph from '@/widgets/pipeline-graph/ui/PipelineGraph.vue';
@@ -141,44 +143,18 @@ import {
     </Card>
   </CardGrid>
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Стадии и джобы, и почему стадия — не зависимость"
   lead="Конвейер описывают списком стадий: собрали, проверили, выложили. Кажется, что это и есть порядок зависимостей. На самом деле стадия — барьер: джоб следующей стадии ждёт, пока закончатся все джобы предыдущей, а не только тот, чей результат ему нужен."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STAGE_BARRIER} />
+  <Plain text={PLAIN_STAGE_BARRIER} />
 
   <CodeBlock code={STAGES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -266,7 +242,6 @@ import {
   eyebrowTone="demo"
   title="`needs`: джоб ждёт только тех, кто ему нужен"
   lead="Ключ `needs` снимает ожидание стадии — но только у того джоба, где он написан. Такой джоб стартует, как только готовы джобы, названные в `needs`. Конвейер из лестницы стадий превращается в граф зависимостей, и выясняется, что половина ожидания была ни за чем."
-  leadWidth={72}
 >
   <CodeBlock code={NEEDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -308,9 +283,8 @@ import {
   eyebrow="Раздел 3"
   title="Артефакты и кеш: какие файлы доживут до следующего джоба"
   lead="Оба ключа переносят файлы из одного джоба в другой, поэтому их путают. Но задачи у них разные: артефакт передаёт результат работы дальше, а кеш экономит время на повторной работе."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_ART_CACHE} />
+  <Plain text={PLAIN_ART_CACHE} />
 
   <CodeBlock code={ARTIFACTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -343,7 +317,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_FILES} />
+  <Plain text={PLAIN_FILES} />
 
   Коротко, в одну таблицу:
 
@@ -405,9 +379,8 @@ import {
   eyebrow="Раздел 4"
   title="Переменные и их приоритеты"
   lead="Одну и ту же переменную можно задать в семи местах — слоях. Выигрывает не тот слой, что ближе к джобу, а тот, что старше. Ниже одна переменная задана в пяти слоях, а `printenv` изнутри контейнера показывает, какое значение победило."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_VAR_PRIORITY} />
+  <Plain text={PLAIN_VAR_PRIORITY} />
 
   <CodeBlock code={VARS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -449,9 +422,8 @@ import {
   eyebrowTone="demo"
   title="`rules` и `only`: какое правило решает, запустится ли джоб"
   lead="Список условий хочется читать как «запустить, если совпадёт хоть одно». Работает он иначе. GitLab проверяет правила по порядку и останавливается на первом совпавшем. Это правило и решает всё: его `when` (запускать ли и как), его `allow_failure` (можно ли джобу упасть) и его переменные."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RULES} />
+  <Plain text={PLAIN_RULES} />
 
   <CodeBlock code={RULES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
@@ -474,7 +446,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_RULES_WALK} />
+  <Plain text={PLAIN_RULES_WALK} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={RULES_DEMO_NOTE} />
@@ -586,7 +558,6 @@ import {
   eyebrow="Раздел 6"
   title="`extends` и `include`: почему шаблон даёт не тот результат"
   lead="Шаблоны кажутся безобидными: вынесли общее в `.base`, унаследовали его и поменяли пару полей. Правило слияния при этом одно: словари сливаются, а массивы заменяются целиком. Из-за этой простоты результат часто оказывается не тем, что имели в виду."
-  leadWidth={72}
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Что написали" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

@@ -3,7 +3,6 @@ title: "Docker: образ и слои"
 order: 1
 kicker: доставка
 lead: "Образ Docker — не архив с приложением, а стопка слоёв. Каждый слой хранит только то, что изменила одна строка Dockerfile, а короткий JSON-файл перечисляет, какие слои входят в образ. Отсюда следует всё остальное: почему удаление файла не уменьшает образ, почему от порядка строк в Dockerfile зависит скорость сборки и почему ваше приложение вместе с зависимостями — всего три процента того, что уезжает на сервер."
-leadWidth: 66
 summary: "Из чего состоит образ; как Docker решает, какой шаг сборки взять из кеша; почему важен порядок строк в Dockerfile; как многоступенчатая сборка оставляет инструменты сборки за бортом и откуда на самом деле берётся вес образа."
 verifiedOn: "Docker 27.4.0 (BuildKit), платформа arm64/linux, macOS, сентябрь 2026. Базовые образы node:22, node:22-slim, node:22-alpine (Node 22.23.2, Alpine 3.24.1). Числа сняты на arm64 — на amd64 веса другие. Реестры, опись и подпись образов, сканирование уязвимостей, bake и права контейнера при запуске замером не закрыты — описаны по документации."
 nav:
@@ -30,6 +29,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import LayersDiagram from '@/widgets/docker-layers-diagram/ui/LayersDiagram.astro';
 import StagesDiagram from '@/widgets/docker-stages-diagram/ui/StagesDiagram.astro';
@@ -110,7 +112,7 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_LAYER} />
+  <Plain text={PLAIN_LAYER} />
 
   <Card tone="warn" title="Одно правило, из которого выводится вся тема" titleSize={17} pad={20} gap={11} size={16} lh={1.6}>
 
@@ -129,42 +131,16 @@ import {
     </CardNote>
   </Card>
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Что такое образ на самом деле"
   lead="Реестр — хранилище, откуда образы скачивают. Под одним именем образа там лежат три разных объекта: манифест, конфиг и слои. Если их путать, непонятны даже простые вещи — например, почему `docker images` и `docker system df` показывают разный размер."
-  leadWidth={72}
 >
   <CodeBlock code={MANIFEST_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
@@ -253,7 +229,7 @@ import {
 
   <Md text={SUPPLY_LEAD} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SUPPLY} />
+  <Plain text={PLAIN_SUPPLY} />
 
   <CodeBlock code={SUPPLY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
@@ -273,9 +249,8 @@ import {
   eyebrow="Раздел 2"
   title="Как кеш решает, пересобирать ли слой"
   lead="Перед каждым шагом Docker решает: взять готовый слой из прошлой сборки или выполнить шаг заново. Решает он по ключу кеша, и для разных инструкций ключ считается по-разному. Зная эти правила, можно заранее сказать, что пересоберётся."
-  leadWidth={72}
 >
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE} />
+  <Plain text={PLAIN_CACHE} />
 
   <NumberedList items={CACHE_RULES} size={15} />
 
@@ -296,7 +271,7 @@ import {
 
   <Md text={CACHE_SCENE_FOOT} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CACHE_SCENE} />
+  <Plain text={PLAIN_CACHE_SCENE} />
 
   <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
 
@@ -321,7 +296,7 @@ import {
     </CardNote>
   </Card>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CONTEXT} />
+  <Plain text={PLAIN_CONTEXT} />
 
   <Card tone="info" title="Контекст сборки уезжает демону целиком — ещё до первой инструкции" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CONTEXT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
@@ -336,7 +311,6 @@ import {
   eyebrowTone="demo"
   title="Почему от порядка инструкций зависит скорость сборки"
   lead={ORDER_DEMO_NOTE}
-  leadWidth={72}
 >
   <LayerCache client:visible variants={BUILD_VARIANTS} changes={BUILD_CHANGES} caption={DEMO_CAPTION} />
 
@@ -407,13 +381,12 @@ import {
   eyebrow="Раздел 4"
   title="Многоступенчатая сборка"
   lead="Компилятор и другие инструменты сборки нужны, чтобы получить готовый код, но не нужны, чтобы его запускать. Многоступенчатая сборка делит Dockerfile на части: в одной код собирают, в другую переносят только результат. Компилятор в итоговый образ тогда просто не попадает."
-  leadWidth={72}
 >
   <CodeBlock code={MULTISTAGE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
   <StagesDiagram {...STAGES_DIAGRAM} />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STAGE} />
+  <Plain text={PLAIN_STAGE} />
 
   <Card title="Что из этого доехало до финального образа" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
     <CodeBlock code={MULTI_HISTORY_CODE} size={11} lh={1.7} pad="16px 18px" />
@@ -455,7 +428,6 @@ import {
   eyebrow="Раздел 5"
   title="Размер образа и откуда он берётся"
   lead="Одно и то же приложение упаковано четырьмя способами. Размер образа — от 165.9 МБ до 1166.5 МБ, то есть различается в семь раз. И почти вся эта разница — не ваш код."
-  leadWidth={72}
 >
   <ImageSize client:visible bars={SIZE_BARS} unit="МБ" caption={SIZE_CAPTION} />
 
@@ -493,7 +465,6 @@ import {
   eyebrow="Раздел 6"
   title="Запуск: первый процесс и сигналы"
   lead={RUN_LEAD}
-  leadWidth={72}
 >
   <Card title="Что происходит при `docker stop`" titleSize={17} pad={20} gap={13}>
     <NumberedList items={STOP_STEPS} size={15} />
@@ -537,7 +508,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_STOP} />
+  <Plain text={PLAIN_STOP} />
 
   ### `HEALTHCHECK`: проверка, записанная в образ
 
@@ -553,7 +524,7 @@ import {
 
   <CodeBlock code={HARDEN_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CAPS} />
+  <Plain text={PLAIN_CAPS} />
 
   <CardGrid min={290} gap={14}>
     {HARDEN_FACTS.map((fact) => (
@@ -579,7 +550,6 @@ import {
   eyebrow="Раздел 8"
   title="Источники"
   lead="Спецификации OCI меняются медленно и объясняют, как устроен образ. Документация Docker описывает поведение конкретного сборщика. Статьи о практике устаревают быстрее всего."
-  leadWidth={72}
 >
   <CardGrid min={320} gap={16} align="start">
     {SOURCES.map((group) => (

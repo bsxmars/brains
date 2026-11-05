@@ -3,7 +3,6 @@ title: Безопасность фронтенда
 order: 7
 kicker: сеть и безопасность
 lead: "Три механизма безопасности браузера постоянно путают друг с другом. **SOP — правило одного источника — запрещает чужому сайту читать ваши ответы, но не отправлять вам запросы. CORS не защищает ваш сервер, а разрешает чужому сайту читать ваши ответы. CSP не чинит XSS, а ограничивает, что внедрённый скрипт сможет сделать.** Почти вся путаница в теме — от незнания этих трёх фраз."
-leadWidth: 66
 summary: "Что такое источник и правило одного источника, когда браузер спрашивает разрешение перед запросом, как CSP отличает свои скрипты от внедрённых, как устроены XSS и CSRF, что фронт знает о куках и JWT — с демо, где политику применяет сам браузер, а не таблица на странице."
 verifiedOn: "Демо CSP — настоящий браузерный прогон: внутри страницы поднимается документ со своим Content-Security-Policy, и видно то, что решил браузер читателя. Проверено в Chromium 153.0.8010.12 (Playwright 1.63, headless) на Node 24.11, сентябрь 2026: семь наборов директив, шесть проб. Конструктор запроса — модель по WHATWG Fetch, закрытая tests/unit/preflight.test.ts, а не замер. Раздел «Куки и JWT» снят отдельным прогоном: разбор JWT — в Node 26.8 и в том же Chromium, невидимость httpOnly-куки и очередь navigator.locks — в Chromium через Playwright. Умолчание SameSite, префиксы __Host-/__Secure- и исключение «Lax + POST» сняты в том же Chromium на двух настоящих сайтах. CSRF в живой сессии, CDN-кеш и SRI запуском не проверялись; Trusted Types, COOP/COEP при переводе сайта на изоляцию и запросы в локальную сеть сняты отдельными прогонами в том же Chromium"
 nav:
@@ -31,6 +30,9 @@ import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import CspSandbox from '@/widgets/csp-sandbox/ui/CspSandbox.vue';
 import CorsPreflight from '@/widgets/cors-preflight/ui/CorsPreflight.vue';
@@ -210,42 +212,16 @@ import {
   preflight — это **лишний поход на сервер и обратно** и как он кешируется — в [«Сети
   и кешировании»](/platform/network/#s3).
 
-  <CardGrid min={250} gap={12}>
-    {GLOSSARY.map((term) => (
-      <Card label={term.k} labelSize={12.5} pad={16} radius={4} gap={8} size={15} text={term.d} />
-
-    ))}
-
-  </CardGrid>
+  <Glossary items={GLOSSARY} />
 </Section>
 
-<Section
-  id="s0"
-  eyebrow="Перед началом"
-  title="Что тема считает известным"
-  lead={PREREQ_NOTE}
-  leadWidth={72}
->
-  <CardGrid min={290} gap={16} align="start">
-    {PREREQ.map((item) => (
-      <Card tone={item.tone} title={item.t} titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-        <Md text={item.d} />
-        <CardNote tone={item.tone}>
-          <Md text={`Где разобрано: [${item.hrefLabel}](${item.href}).`} />
-        </CardNote>
-      </Card>
-
-    ))}
-
-  </CardGrid>
-</Section>
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Origin и правило одного источника"
   lead="Источник (origin) — это не URL и не домен, а три значения вместе: протокол, домен и порт. Все решения о доверии браузер принимает, сравнивая такие тройки. И каждая из трёх частей закрывает конкретную атаку, а не стоит для красоты."
-  leadWidth={72}
 >
   <CodeBlock code={`origin  =  scheme  +  host             +  port
            https      app.example.com     443     ← кортеж, а не строка URL`} size={12} lh={1.7} pad="16px 18px" />
@@ -277,7 +253,7 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SOP} />
+  <Plain text={PLAIN_SOP} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SOP_SPECTRE} />
 
@@ -334,13 +310,12 @@ import {
   eyebrowTone="demo"
   title="CORS и preflight"
   lead="Одни запросы браузер отправляет сразу, другие — только после разрешения сервера. Граница выводится из одного вопроса: мог ли это отправить обычный <form> в 2005 году."
-  leadWidth={72}
 >
   <Callout size={18} pad="20px 22px">
     <Md text={SIMPLE_IDEA} />
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_PREFLIGHT} />
+  <Plain text={PLAIN_PREFLIGHT} />
 
   <Card title="Точные условия «простого» запроса" titleSize={18} pad={22} gap={14}>
 
@@ -473,7 +448,6 @@ import {
   eyebrowTone="demo"
   title="CSP"
   lead="CSP (Content Security Policy) — заголовок, в котором сервер перечисляет, откуда странице можно брать скрипты и другие ресурсы. Применяет его сам браузер, ещё до сети, и о каждом отказе он умеет отчитаться именем нарушенной директивы."
-  leadWidth={72}
 >
   <Callout size={18} pad="20px 22px">
     <Md text={CSP_WHY} />
@@ -583,7 +557,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CSP_POLICIES} />
+  <Plain text={PLAIN_CSP_POLICIES} />
 
   <Table
     head={['политика', '(1) свой скрипт', '(2) свой чанк', '(3) чужой `<script>`', '(4) чужой `onerror`']}
@@ -645,7 +619,6 @@ import {
   eyebrow="Раздел 4"
   title="XSS"
   lead="Чужой код, попавший на вашу страницу, для браузера не «скрипт со стороны» — он и есть ваша страница, со всеми её правами. Поэтому вопрос не в том, как такой код отфильтровать, а в том, как не дать данным попасть туда, где браузер прочитает их как код."
-  leadWidth={72}
 >
   <Callout size={18} pad="20px 22px">
     <Md text={XSS_DEF} />
@@ -739,13 +712,12 @@ import {
   eyebrow="Раздел 5"
   title="CSRF и кликджекинг"
   lead="Две атаки, в которых нет ни одной ошибки в вашем коде. Обе построены на том, что браузер по умолчанию готов действовать от имени пользователя на чужом сайте — и обе поэтому лечатся не исправлением бага, а явными заголовками."
-  leadWidth={72}
 >
   <Callout size={18} pad="20px 22px">
     <Md text={AMBIENT_AUTHORITY} />
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_CSRF} />
+  <Plain text={PLAIN_CSRF} />
 
   ### Как проходит атака
 
@@ -763,7 +735,7 @@ import {
 
   ### `SameSite`: барьер на стороне браузера
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SITE} />
+  <Plain text={PLAIN_SITE} />
 
   <CodeBlock code={SAMESITE_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
@@ -781,7 +753,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_SAMESITE} />
+  <Plain text={PLAIN_SAMESITE} />
 
   <Card title="`SameSite`: что именно делает каждое значение" titleSize={18} pad={22} gap={14}>
 
@@ -861,7 +833,6 @@ import {
   eyebrow="Раздел 6"
   title="Куки и JWT глазами фронтендера"
   lead="Куки и токены со стороны того, кто пишет фронт: что у него в руках, чего он про куку не узнает никогда и во что это обходится в коде."
-  leadWidth={72}
 >
   <Callout size={18} pad="20px 22px">
 
@@ -871,7 +842,7 @@ import {
 
   </Callout>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_JWT} />
+  <Plain text={PLAIN_JWT} />
 
   ### JWT: что в нём и кто его читает
 
@@ -921,7 +892,7 @@ import {
 
   </CardGrid>
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={PLAIN_TOKEN_STORAGE} />
+  <Plain text={PLAIN_TOKEN_STORAGE} />
 
   <Card title="Где хранить токен: у каждого места своя цена" titleSize={18} pad={22} gap={14}>
     <Table
@@ -1023,7 +994,6 @@ import {
   eyebrowTone="demo"
   title="Изоляция страницы: COOP и COEP"
   lead="Общая память между потоками (`SharedArrayBuffer`) и точные часы `performance.now()` браузер выдаёт только изолированной странице: в её процессе не должно быть чужих данных без их согласия. Изоляцию включают два заголовка ответа, и она ломает часть привычного: окна входа через OAuth и чужие ресурсы без разрешения."
-  leadWidth={72}
 >
   ### Почему браузеры отключали `SharedArrayBuffer`: атака Spectre
 
@@ -1093,7 +1063,6 @@ import {
   eyebrow="Раздел 9"
   title="Источники"
   lead="Спецификации меняются медленно, и в спорном вопросе последнее слово за ними. Статьи и инструменты устаревают быстро, зато объясняют, зачем что-то придумано, — в спецификации этого нет."
-  leadWidth={72}
 >
   <CardGrid min={320} gap={16} align="start">
     {SOURCES.map((group) => (

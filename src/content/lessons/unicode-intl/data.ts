@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { NumberSample, StringSample } from '@/widgets/unicode-lab/model/types';
 
 /**
@@ -44,7 +44,7 @@ import type { NumberSample, StringSample } from '@/widgets/unicode-lab/model/typ
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'кодовая точка',
     d: 'Номер знака в таблице Юникода: `U+0439` — «й», `U+1F600` — 😀. Пишется в шестнадцатеричной системе. Номеров больше миллиона, занята примерно четверть.',
@@ -77,7 +77,7 @@ export const PLAIN_LAYERS =
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из других тем и на одну, которой на сайте нет, — она объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Строка в JS — ряд 16-битных ячеек',
     d: '`length` считает ячейки, а не символы, и у 😀 он равен 2. Отсюда же разница между длиной строки, байтами в памяти и байтами UTF-8.',
@@ -681,7 +681,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'UAX #29 — Unicode Text Segmentation',
     href: 'https://www.unicode.org/reports/tr29/',

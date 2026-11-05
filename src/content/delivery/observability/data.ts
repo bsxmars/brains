@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Hop, LatencySet, LogLine, StandSpan, TraceScenario } from '@/widgets/trace-lab/model/types';
 
 /**
@@ -53,7 +53,7 @@ import type { Hop, LatencySet, LogLine, StandSpan, TraceScenario } from '@/widge
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'телеметрия',
     d: 'Данные, которые работающая программа сообщает о себе: записи логов, числа метрик, спаны трасс. Её пишет сам код сервиса, а читают люди и алерты.',
@@ -86,7 +86,7 @@ export const PLAIN_SIGNALS =
 export const PREREQ_NOTE =
   'Тема опирается на три вещи. Две разобраны в других темах, третья объяснена прямо на карточке.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'Сервисы зовут друг друга по HTTP',
     d: 'Один клик в браузере — это запрос к api, а api по ходу дела спрашивает другие сервисы: склад, оплату, базу. Каждый из них — отдельный процесс со своими логами и своими часами.',
@@ -720,7 +720,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'W3C — Trace Context',
     href: 'https://www.w3.org/TR/trace-context/',

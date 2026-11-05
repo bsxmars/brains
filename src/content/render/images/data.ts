@@ -1,4 +1,4 @@
-import type { Pitfall } from '@/widgets/pitfalls/model/types';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ImageFile, Scenario, StandPick } from '@/widgets/srcset-lab/model/types';
 
 /**
@@ -66,7 +66,7 @@ import type { ImageFile, Scenario, StandPick } from '@/widgets/srcset-lab/model/
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
 
-export const GLOSSARY = [
+export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'CSS-пиксель и DPR',
     d: 'Ширины в CSS — в CSS-пикселях. На экране телефона в одном CSS-пикселе 2–3 физических точки: это число и есть `devicePixelRatio` (DPR). Картинке в 300 CSS-пикселей на таком экране нужно 600–900 точек по ширине, чтобы не мылиться.',
@@ -95,7 +95,7 @@ export const PLAIN_IMAGES =
 export const PREREQ_NOTE =
   'Тема опирается на четыре вещи из соседних тем. Метрики LCP и CLS здесь не объясняются заново — только то, что делают с ними картинки.';
 
-export const PREREQ: { t: string; d: string; href?: string; hrefLabel?: string; tone: 'info' }[] = [
+export const PREREQ: Prereq[] = [
   {
     t: 'LCP и из чего он складывается',
     d: 'LCP — момент, когда нарисован самый крупный элемент первого экрана, часто картинка. Его время делят на четыре части: ожидание сервера, задержку до старта загрузки, саму загрузку и отрисовку.',
@@ -527,7 +527,7 @@ export const PITFALLS: Pitfall[] = [
   },
 ];
 
-export const SOURCES: { title: string; href: string; what: string }[] = [
+export const SOURCES: Source[] = [
   {
     title: 'HTML Standard — Images',
     href: 'https://html.spec.whatwg.org/multipage/images.html',
