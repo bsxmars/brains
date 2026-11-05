@@ -1,4 +1,5 @@
 import type { GraphScenario, GraphStep, MiniSignals, SignalsApi, TraceEntry } from './types';
+export { patchCode } from '@/shared/lib/patch-code';
 
 /**
  * Сборка реализаций из строк и прогон сценариев графа.
@@ -17,19 +18,6 @@ export const API_NAMES = ['signal', 'computed', 'effect', 'batch'] as const sati
 /** Свежий экземпляр: у каждого свой граф, своя очередь и свой счётчик пакетов. */
 export function loadSignals(code: string): MiniSignals {
   return new Function(code)() as MiniSignals;
-}
-
-/**
- * Применить подмены по одной строке. Каждый подменяемый текст обязан существовать: иначе
- * «сломанный вариант» молча совпал бы с оригиналом и доказывал бы несуществующее.
- */
-export function patchCode(code: string, patches: readonly (readonly [find: string, replace: string])[]): string {
-  let out = code;
-  for (const [find, replace] of patches) {
-    if (!out.includes(find)) throw new Error(`В коде нет строки «${find.trim()}» — шаг переписан, подмена устарела`);
-    out = out.replace(find, replace);
-  }
-  return out;
 }
 
 /**

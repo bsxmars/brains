@@ -15,6 +15,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadNegotiate } from '../model/run';
 import type { AePreset, LabFile } from '../model/types';
+import { fmtNumber as fmt } from '@/shared/lib/format';
 
 const props = defineProps<{
   negotiateCode: string;
@@ -64,7 +65,6 @@ const value = computed<string | null>(() => (absent.value ? null : header.value)
 const list = computed(() => (value.value === null ? [] : api.parseAcceptEncoding(value.value)));
 const pick = computed(() => api.negotiate(value.value, offers.value));
 
-const fmt = (x: number) => x.toLocaleString('ru-RU');
 const sizeOf = (coding: string) =>
   coding === 'identity' ? file.value.raw : file.value.sizes[coding as 'br' | 'zstd' | 'gzip'];
 

@@ -1,4 +1,5 @@
 import type { Api, ApiCodes, ByteSpan, ResolverMap, ResolverRun, Tables, WireRequest } from './types';
+import { hexByte as hex } from '@/shared/lib/format';
 
 /**
  * Демо и тест спрашивают одни и те же функции — строки кода из темы «REST, GraphQL и gRPC-web».
@@ -100,7 +101,6 @@ export function wireGrpc(api: Api, orders: unknown[]): { requests: WireRequest[]
 
 /** Байты сообщения с ролями — разбор `decodeRaw`, имена полей — из схемы `PROTO`. */
 export function annotateProto(api: Api, bytes: number[], type: string, start = 0, end = bytes.length, prefix = ''): ByteSpan[] {
-  const hex = (b: number) => b.toString(16).padStart(2, '0');
   const out: ByteSpan[] = [];
   for (const f of api.decodeRaw(bytes, start, end)) {
     const def = api.PROTO[type].find((d) => d[0] === f.field);

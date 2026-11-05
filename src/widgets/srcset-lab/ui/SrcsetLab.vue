@@ -14,6 +14,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadSrcset } from '../model/run';
 import type { ImageFile, Scenario } from '../model/types';
+import { fmtNumber as fmt } from '@/shared/lib/format';
 
 const props = defineProps<{
   code: string;
@@ -66,7 +67,6 @@ const choice = computed(() =>
 const axis = computed(() => Math.max(Number(dpr.value), ...choice.value.list.map((c) => c.density)) * 1.08);
 const pct = (x: number) => `${Math.min(100, (x / axis.value) * 100)}%`;
 
-const fmt = (n: number) => n.toLocaleString('ru-RU');
 const mb = (n: number) => `${(n / 1e6).toFixed(2)} МБ`;
 
 function state(url: string, density: number): 'pick' | 'shown' | 'short' | 'spare' {

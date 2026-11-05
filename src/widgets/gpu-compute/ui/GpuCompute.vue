@@ -20,6 +20,7 @@ import { Button, SegmentedControl } from '@/shared/ui';
 import { absenceNote, detect, emptyStages, runModel, runOnGpu } from '../model/run';
 import type { Absence } from '../model/run';
 import type { GpuPreset, RunResult, Stage } from '../model/types';
+import { fmtNumber as hex } from '@/shared/lib/format';
 
 const props = defineProps<{
   presets: GpuPreset[];
@@ -106,7 +107,6 @@ const sumLine = computed(() => {
   );
 });
 
-const hex = (v: number) => v.toLocaleString('ru-RU');
 </script>
 
 <template>

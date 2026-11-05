@@ -15,6 +15,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { highlight, loadSearch, loadSubsequence, naiveWork, positionsToMarks, terms, toEntries } from '../model/run';
 import type { SearchTopic } from '../model/types';
+import { fmtNumber as fmt } from '@/shared/lib/format';
 
 const props = defineProps<{
   topics: SearchTopic[];
@@ -66,7 +67,6 @@ const result = computed<{ rows: Row[]; total: number; work: string }>(() => {
     const r = api.search(index, q, typos);
     const ranked = r.hits.map((h) => ({ h, s: api.rank(h, entries[h.id]) })).sort((a, b) => b.s - a.s);
     const naive = naiveWork(words, q, typos);
-    const fmt = (x: number) => x.toLocaleString('ru-RU');
     const work = typos
       ? `Trie: **${fmt(r.visited)}** узлов — спуск по префиксу и строки таблицы Левенштейна (${terms(q).map((t) => t.length).join(' + ')} клеток в строке). Перебор: ${fmt(naive.checks)} проверок \`startsWith\` и **${fmt(naive.cells)}** клеток полных таблиц.`
       : `Trie: **${fmt(r.visited)}** узлов. Перебор: **${fmt(naive.checks)}** проверок \`startsWith\` — каждое из ${fmt(words.length)} слов на каждое слово запроса.`;

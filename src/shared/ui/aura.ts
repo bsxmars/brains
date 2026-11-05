@@ -10,4 +10,4 @@
  * замене имя обязано стать ошибкой типов здесь, в одном файле, а не всплыть на странице,
  * куда никто не зашёл. Нужен компонент, которого нет в списке, — добавить строку сюда.
  */
-export { Badge, Button, Card, Chip, SegmentedControl, Tooltip } from '@ilomee/aura-vue';
+export { Button, SegmentedControl } from '@ilomee/aura-vue';

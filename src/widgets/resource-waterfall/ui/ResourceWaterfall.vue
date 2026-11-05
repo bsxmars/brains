@@ -27,6 +27,7 @@ import ChartFrame from '@/shared/ui/ChartFrame.vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { Button, SegmentedControl } from '@/shared/ui';
 import type { WaterfallRow } from '../model/types';
+import { fmtKb as kb } from '@/shared/lib/format';
 
 const props = withDefaults(defineProps<{ limit?: number }>(), { limit: 20 });
 
@@ -186,7 +187,6 @@ function segmentsOf(row: WaterfallRow) {
     });
 }
 
-const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} КБ`;
 
 const stats = computed(() => {
   const list = visible.value;

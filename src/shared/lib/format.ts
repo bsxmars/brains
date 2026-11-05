@@ -18,7 +18,7 @@ const ESCAPE: Record<string, string> = {
   '"': '&quot;',
 };
 
-export function escapeHtml(text: string): string {
+function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (ch) => ESCAPE[ch] ?? ch);
 }
 
@@ -46,7 +46,7 @@ const LINK = /\[([^\]]+)\]\(((?:\/|#)[^)\s]*)\)/g;
  * в полстроки (замечание автора курса 2026-10-27). Режем только по пробелам вне тегов,
  * чтобы не разорвать `<code>` и `<b>`.
  */
-export function splitWords(label: string): string {
+function splitWords(label: string): string {
   const out: string[] = [];
   let word = '';
   let depth = 0;
@@ -134,3 +134,12 @@ export function topics(n: number): string {
   if (mod10 >= 2 && mod10 <= 4) return `${n} темы`;
   return `${n} тем`;
 }
+
+/** Число с разрядами по-русски: `12 345`. Разделитель — неразрывный пробел, строку не разорвёт. */
+export const fmtNumber = (n: number): string => n.toLocaleString('ru-RU');
+
+/** Байт двумя шестнадцатеричными цифрами: `0a`, `ff`. */
+export const hexByte = (b: number): string => b.toString(16).padStart(2, '0');
+
+/** Размер в килобайтах с одним знаком: `1.5 КБ`. */
+export const fmtKb = (bytes: number): string => `${(bytes / 1024).toFixed(1)} КБ`;

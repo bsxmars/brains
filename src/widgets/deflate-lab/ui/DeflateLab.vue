@@ -15,6 +15,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { charStarts, describeReads, gzipText, litLenLabel, loadDeflate, tokenStarts, type ReadRow } from '../model/run';
 import type { DeflateCodes, DeflatePreset, LabTab, ReadEvent, Token } from '../model/types';
+import { fmtNumber as n, hexByte as hex } from '@/shared/lib/format';
 
 const props = defineProps<{
   codes: DeflateCodes;
@@ -49,7 +50,6 @@ const modes = [
   { value: 'greedy', label: 'жадно' },
 ];
 
-const n = (x: number) => x.toLocaleString('ru-RU');
 /** «1 пара», «3 пары», «5 пар». */
 function plural(x: number, one: string, few: string, many: string) {
   const d = x % 10;
@@ -207,7 +207,6 @@ const parsed = computed(() => {
   }
 });
 
-const hex = (b: number) => b.toString(16).padStart(2, '0');
 const headRows = computed(() => {
   const g = gz.value;
   const p = parsed.value?.res;

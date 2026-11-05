@@ -1,5 +1,6 @@
 import { bindingData, bindingLength, compare, compileReference, makeInputs, workgroupCount } from './input';
 import type { Absence, GpuPreset, RunResult, Stage, StageKey, StageState } from './types';
+import { fmtNumber as num } from '@/shared/lib/format';
 
 export type { Absence };
 
@@ -55,7 +56,6 @@ function stepper(report: Report) {
 }
 
 const kb = (bytes: number) => (bytes >= 1024 ? `${Math.round(bytes / 1024).toLocaleString('ru-RU')} КБ` : `${bytes} Б`);
-const num = (n: number) => n.toLocaleString('ru-RU');
 
 /** Первая содержательная строка сообщения: у Dawn дальше идёт цепочка «While …». */
 const firstLine = (msg: string) => msg.split('\n').map((l) => l.trim()).find(Boolean) ?? msg;

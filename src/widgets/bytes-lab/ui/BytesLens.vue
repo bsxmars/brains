@@ -13,6 +13,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadRead } from '../model/run';
 import type { LensPreset, LensType } from '../model/types';
+import { hexByte as hex } from '@/shared/lib/format';
 
 const props = defineProps<{
   readCode: string;
@@ -45,7 +46,6 @@ const bytes = computed(() => (preset.value.bytes.length ? Uint8Array.from(preset
 const size = computed(() => api.TYPES[type.value].size);
 const values = computed(() => api.readAs(bytes.value, type.value, order.value === 'le'));
 
-const hex = (b: number) => b.toString(16).padStart(2, '0');
 const show = (v: number) => (Number.isInteger(v) ? v.toLocaleString('ru') : String(v));
 
 /** Байты, разложенные по элементам; хвост, которому не хватило байт, — отдельно. */

@@ -42,6 +42,7 @@ import { ladder, reachable, retainedBy, weigh } from '../model/retain';
 import { DEFAULT_ROWS, applyVariant, makeScene, weakProbe } from '../model/scene';
 import type { Scene } from '../model/scene';
 import type { ObjectGraph, ProbeCut } from '../model/types';
+import { fmtNumber as num } from '@/shared/lib/format';
 
 const props = withDefaults(
   defineProps<{
@@ -129,7 +130,6 @@ const held = computed(() => (graph.value ? retainedBy(graph.value, 'held') : nul
 const array = computed(() => (graph.value ? retainedBy(graph.value, 'rows') : null));
 const arrayRow = computed(() => ladderRows.value.find((row) => row.id === 'rows') ?? null);
 
-const num = (value: number) => value.toLocaleString('ru-RU');
 
 /** Подпись столбца Shallow: у группы — вес одного объекта на их число. */
 const shallowOf = (per: number, count: number, shallow: number) =>

@@ -29,6 +29,7 @@ import Md from '@/shared/ui/Md.vue';
 import { Button, SegmentedControl } from '@/shared/ui';
 import { countingContext, emptyCounters, type GlCounters } from '../lib/counter';
 import type { DrawMode, DrawModeKey } from '../model/types';
+import { fmtKb as kb } from '@/shared/lib/format';
 
 const props = withDefaults(defineProps<{ modes: DrawMode[]; count?: number; frames?: number }>(), {
   count: 1000,
@@ -393,7 +394,6 @@ const pick = (key: string) => {
   renderOnce();
 };
 
-const kb = (value: number) => `${(value / 1024).toFixed(1)} КБ`;
 </script>
 
 <template>

@@ -1,3 +1,5 @@
+import { hexByte as hex } from '@/shared/lib/format';
+
 /**
  * Демо и тест разбирают кадр WebSocket одним и тем же кодом — строкой `FRAME_CODE`.
  *
@@ -93,7 +95,6 @@ function stretch(text: string, size: FrameSize): string {
   return new TextDecoder().decode(bytes);
 }
 
-const hex = (b: number) => b.toString(16).padStart(2, '0');
 
 export function buildFrame(api: FrameApi, input: FrameInput): FrameView {
   const text = stretch(input.text, input.size);

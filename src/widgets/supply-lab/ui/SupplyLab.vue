@@ -15,6 +15,7 @@ import Md from '@/shared/ui/Md.vue';
 import { Button, SegmentedControl } from '@/shared/ui';
 import { fill, fromBase64, loadSri, npmOutcome, upperAlg } from '../model/run';
 import type { IntegrityCheck, SupplyDemo } from '../model/types';
+import { hexByte as hex } from '@/shared/lib/format';
 
 const props = defineProps<{
   sriCode: string;
@@ -58,7 +59,6 @@ function reset() {
   flips.value[artifact.value] = [];
 }
 
-const hex = (n: number) => n.toString(16).padStart(2, '0');
 const PER_ROW = 16;
 const rows = computed(() => {
   const b = bytes.value;

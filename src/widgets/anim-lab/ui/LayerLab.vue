@@ -13,6 +13,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadLayers } from '../model/run';
 import type { LayerScene } from '../model/types';
+import { fmtNumber as fmt } from '@/shared/lib/format';
 
 const props = defineProps<{
   planCode: string;
@@ -55,7 +56,6 @@ const cells = computed(() =>
   }),
 );
 
-const fmt = (n: number) => n.toLocaleString('ru-RU');
 </script>
 
 <template>

@@ -15,6 +15,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadDecide } from '../model/run';
 import type { CompatTable, CustomRange, FeatureRow, TranspilePreset } from '../model/types';
+import { fmtNumber as fmt } from '@/shared/lib/format';
 
 const props = defineProps<{
   decideCode: string;
@@ -118,7 +119,6 @@ const counts = computed(() => ({
   add: rows.value.filter((r) => r.verdict === 'add').length,
 }));
 
-const fmt = (n: number) => n.toLocaleString('ru-RU');
 const ratio = (n: number) => `×${(n / props.sourceMin).toFixed(1).replace('.', ',')}`;
 </script>
 

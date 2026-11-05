@@ -15,6 +15,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadScanner } from '../model/run';
 import type { TwFile } from '../model/types';
+import { fmtNumber as fmt } from '@/shared/lib/format';
 
 const props = defineProps<{
   scanCode: string;
@@ -59,7 +60,6 @@ const utilities = computed(() => unique.value.filter((c) => c in props.rules));
 const others = computed(() => unique.value.filter((c) => !(c in props.rules)));
 
 const css = computed(() => utilities.value.map((u) => props.rules[u]).join('\n'));
-const fmt = (n: number) => n.toLocaleString('ru-RU');
 const plural = (n: number, [one, few, many]: [string, string, string]) => {
   const d = n % 10;
   const dd = n % 100;

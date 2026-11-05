@@ -1,4 +1,5 @@
-import type { CodePatch, MiniWatch, WatchApi } from './types';
+import type { MiniWatch, WatchApi } from './types';
+export { patchCode } from '@/shared/lib/patch-code';
 
 /**
  * Сборка мини-реализации из строки и её вариантов.
@@ -31,19 +32,6 @@ export const apiArgs = (api: Partial<WatchApi>): unknown[] => API_NAMES.map((nam
 /** Свежий экземпляр: у каждого своя очередь, свои версии и свой `activeScope`. */
 export function loadMiniWatch(code: string): MiniWatch {
   return new Function(code)() as MiniWatch;
-}
-
-/**
- * Применить подмены по одной строке. Каждый подменяемый текст обязан существовать: иначе
- * «вариант» молча совпал бы с оригиналом, и демо показывало бы разницу, которой нет.
- */
-export function patchCode(code: string, patches: readonly Pick<CodePatch, 'find' | 'replace'>[]): string {
-  let out = code;
-  for (const { find, replace } of patches) {
-    if (!out.includes(find)) throw new Error(`В коде нет строки «${find.trim()}» — шаг переписан, подмена устарела`);
-    out = out.replace(find, replace);
-  }
-  return out;
 }
 
 /** Дождаться, пока улягутся микрозадачи и очередь: без таймеров, только промисы. */

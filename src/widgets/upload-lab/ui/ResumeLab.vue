@@ -13,6 +13,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadTusClient, loadTusServer, makeLossyFetch } from '../model/run';
 import type { TusLogRow } from '../model/types';
+import { fmtNumber as fmt } from '@/shared/lib/format';
 
 const props = defineProps<{
   clientCode: string;
@@ -59,7 +60,6 @@ async function run() {
   result.value = text;
 }
 
-const fmt = (n: number) => n.toLocaleString('ru-RU');
 watch([chunk, cutAt], run, { immediate: true });
 
 const cutLabel = () => (cutAt.value >= props.size ? 'без обрыва' : `обрыв после ${fmt(cutAt.value)} байт тела`);
