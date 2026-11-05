@@ -10,7 +10,11 @@
     "preview": "astro preview",
     "check": "astro check && vue-tsc --noEmit",
     "test": "vitest run",
+    "test:fast": "vitest run --project unit",
+    "test:heavy": "vitest run --project heavy",
     "e2e": "playwright test",
+    "e2e:fast": "playwright test --project chromium --project firefox-nav",
+    "e2e:engines": "playwright test --project engines",
     "lint": "eslint .",
     "legacy:extract": "node scripts/legacy/extract.mjs"
   },

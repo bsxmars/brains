@@ -454,8 +454,12 @@ Astro 7 (MDX, пререндер, острова) · Vue 3.5 · `@ilomee/aura-*`
 npm run dev      # дев-сервер — ДЕМОН: npx astro dev status|logs|stop
 npm run build
 npm run check    # astro check + vue-tsc --noEmit
-npm test         # vitest
+npm test         # vitest: сперва лёгкие (2 потока), потом тяжёлые по одному
+npm run test:fast    # только лёгкие — быстро и без нагрузки
+npm run test:heavy   # только тяжёлые: браузер, PGlite, процессы, замеры
 npm run e2e      # playwright; сборку и предпросмотр на 4329 поднимает tests/e2e/global-setup.ts
+npm run e2e:fast     # без спеков, которые сами поднимают Firefox/WebKit
+npm run e2e:engines  # только они, по одному
 npm run lint     # eslint: границы слоёв и шов к библиотеке
 npm run legacy:extract   # перераспаковать оригиналы из JS/
 ```
@@ -468,8 +472,13 @@ npx vitest related src/content/<коллекция>/<slug>/data.ts
 npx playwright test tests/e2e/<проверка>.spec.ts
 ```
 
-Полный `npm test` и `npm run e2e` — один раз, перед коммитом. `maxWorkers: 2` и `workers: 2`
-в конфигах не поднимать: полный прогон грел ноутбук.
+Полный `npm test` и `npm run e2e` — один раз, перед коммитом. **Тесты разделены по нагрузке**:
+в `vitest.config.ts` проект `unit` (2 воркера) идёт первым, проект `heavy` — после него и по одному
+файлу; в `playwright.config.ts` проект `engines` (спеки, которые сами запускают браузеры) — `workers: 1`.
+Новый тест, который запускает браузер, процесс или меряет время, — в `HEAVY` или `ENGINE_SPECS`.
+Пределы воркеров не поднимать: полный прогон грел ноутбук.
+⚠️ Тесты гонять на **официальном** Node 26.8.2 (`~/.nvm/versions/node/v26.8.2`): Homebrew-Node
+(`/opt/homebrew/bin/node`) даёт около 30 красных в compression, deflate, time-dates и соседях.
 
 ### Тесты
 

@@ -9,6 +9,12 @@ const PORT = 4329;
  * Гоняется собранный сайт (`astro preview`), а не дев-сервер: в проде отдаётся именно он,
  * а дев-сервер собирает стили другим путём.
  */
+/** Спеки, которые поднимают браузеры сами, мимо проекта. */
+const ENGINE_SPECS = [
+  'browser-engines', 'clipboard-dnd', 'device-hardware', 'media-audio', 'media-outside',
+  'media-video', 'media-voice', 'os-integration', 'task-scheduling-engines',
+].map((name) => new RegExp(`/${name}\\.spec\\.ts$`));
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -19,7 +25,15 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', testIgnore: ENGINE_SPECS, use: { ...devices['Desktop Chrome'] } },
+
+    /**
+     * Спеки, которые сами запускают браузеры — Firefox, WebKit, Chromium с флагами, — и часто
+     * по несколько за проверку. Два таких рядом грели ноутбук сильнее всего набора, поэтому
+     * они идут по одному (`workers: 1`), а рядом с ними — не больше одной обычной проверки.
+     * Отдельно: `npm run e2e:engines`.
+     */
+    { name: 'engines', testMatch: ENGINE_SPECS, workers: 1, use: { ...devices['Desktop Chrome'] } },
 
     /**
      * Второй движок — только для полосы навигации, и это не перестраховка.
