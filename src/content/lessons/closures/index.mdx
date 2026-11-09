@@ -4,18 +4,17 @@ heading: "Замыкания и области видимости"
 headingWidth: 24
 order: 1
 lead: "Функция в JavaScript помнит место, где её создали: какие там были переменные и что снаружи от этого места. Поэтому она видит эти переменные, даже когда её вызывают совсем в другом месте. Из этого следуют три частых сюрприза. `var` в цикле с таймером печатает `3 3 3`, а `let` — `0 1 2`. `typeof` для необъявленного имени безопасен, а для имени, объявленного через `let` строкой ниже, бросает ошибку. А маленькая стрелочная функция может держать в памяти чужой мегабайт."
-summary: "Окружения и цепочка `outer`; какие окружения создают программа, модуль, функция и блок; подъём `var` и `function`, мёртвая зона `let` и `const`, `typeof`; замыкание как функция плюс `[[Environment]]`; `for (let …)` и копия в окружение итерации; что V8 кладёт в Context, почему `eval` тащит туда всё и чего не видит отладчик; модульный паттерн и приватность до `#`-полей."
-verifiedOn: "Node 24.11.0 (V8 13.6), Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: учебный интерпретатор сверен с vm в Node и с Chromium на программах темы и двух десятках своих; состав Context снят снимком кучи, удержание — v8.queryObjects, видимость имён — отладчиком через node:inspector. Всё повторяет tests/unit/closures.test.ts"
+summary: "Окружения и цепочка `outer`; какие окружения создают программа, модуль, функция и блок; подъём `var` и `function`, мёртвая зона `let` и `const`, `typeof`; замыкание как функция плюс `[[Environment]]`: переменная, а не снимок значения, устаревшее замыкание, `this` у стрелки; `for (let …)` и копия в окружение итерации; приватность через замыкание, `once` и `memoize`, и чем она отличается от `#`-полей."
+verifiedOn: "Node 26.8.2 (V8 14.6), Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: учебный интерпретатор сверен с vm в Node и с Chromium на программах темы и двух десятках своих; контексты циклов сняты %DebugPrint и байткодом. Всё повторяет tests/unit/closures.test.ts"
 nav:
   - { id: s0, label: Перед началом }
   - { id: s1, label: Окружения }
   - { id: s2, label: Подъём и TDZ }
   - { id: s3, label: Замыкание }
   - { id: s4, label: Цикл for }
-  - { id: s5, label: Что держит V8 }
-  - { id: s6, label: Приватность }
-  - { id: s7, label: Тонкие места }
-  - { id: s8, label: Источники }
+  - { id: s5, label: Приватность }
+  - { id: s6, label: Тонкие места }
+  - { id: s7, label: Источники }
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
@@ -23,8 +22,6 @@ import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -62,12 +59,12 @@ import {
   INTERPRETER_CODES,
   PROGRAMS,
   DEMO_CAPTION,
-  EVAL_CODE,
   LOOP_VAR_PROGRAM,
   LOOP_LET_PROGRAM,
   LOOP_VAR_NOTE,
   LOOP_LET_NOTE,
-  LOOP_CODE,
+  NEXT_ITERATION_CODE,
+  NEXT_ITERATION_NOTE,
   FOR_STEPS,
   BODY_INC_PROGRAM,
   BODY_INC_OUT,
@@ -75,23 +72,17 @@ import {
   IIFE_PROGRAM,
   IIFE_NOTE,
   LOOP_V8_NOTE,
-  CONTEXT_CODE,
-  CONTEXT_ROWS,
-  CONTEXT_NOTE,
-  RETAIN_CODE,
-  RETAIN_OUT,
-  RETAIN_NOTE,
-  LEAK_CODE,
-  CONTEXT_STEPS,
-  CONTEXT_FIX_CODE,
-  CONTEXT_WAYS,
-  PLAIN_CONTEXT_STEPS,
-  DEBUG_CODE,
-  DEBUG_ROWS,
-  DEBUG_NOTE,
-  EVAL_FACTS,
-  MODULE_CODE,
-  MODULE_NOTE,
+  STORE_CODE,
+  LIVE_CODE,
+  LIVE_NOTE,
+  STALE_CODE,
+  STALE_FIX_CODE,
+  STALE_NOTE,
+  ARROW_THIS_CODE,
+  ARROW_THIS_NOTE,
+  ONCE_MEMO_CODE,
+  ONCE_MEMO_NOTE,
+  STORE_NOTE,
   FACTORY_CODE,
   PRIVACY_ROWS,
   PRIVACY_NOTE,
@@ -139,7 +130,9 @@ import {
 
   Окружений много, но устроены они одинаково, и поиск имени умещается в четыре десятка
   строк. Это первый кусок учебного интерпретатора темы: он исполняет небольшое подмножество
-  JavaScript и ведёт окружения так, как их описывает спецификация.
+  JavaScript и ведёт окружения так, как их описывает спецификация. На этом интерпретаторе
+  работает демо «Окружения по шагам» в разделе «Замыкание», а куски его кода, которые ведут
+  окружения, стоят в разделах там, где объясняют механизм.
 
   <Card title="Окружение изнутри" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ENV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -156,7 +149,7 @@ import {
   ложатся в отдельную таблицу, которой у глобального объекта нет. Обе половины общие для всех
   обычных `<script>` страницы.
 
-  <CodeBlock code={GLOBAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="html" code={GLOBAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['во втором скрипте', 'ответ', 'почему']}
@@ -191,7 +184,7 @@ import {
     minWidth={720}
   />
 
-  ### Мёртвая зона — время, а не место
+  ### Мёртвая зона `let` и `const`: имя есть, значения ещё нет
 
   <Plain text={PLAIN_TDZ} />
 
@@ -209,7 +202,7 @@ import {
 
   <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TYPEOF_NOTE} />
 
-  ### Один тип — три текста
+  ### Тип ошибки во всех движках один, текст у каждого свой
 
   <Table
     head={['что случилось', 'V8: Chromium, Node', 'Firefox 155', 'WebKit 26.6']}
@@ -253,19 +246,50 @@ import {
 
   </CardGrid>
 
+  ### Замыкание видит переменную, а не снимок значения
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Переменная, а не значение" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={LIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LIVE_NOTE} />
+  </CardGrid>
+
+  ### Устаревшее замыкание
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Подписались один раз" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STALE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Читать из общего места" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STALE_FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={STALE_NOTE} />
+
+  ### `this` у стрелки — по цепочке, как переменная
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Стрелка и обычная функция в колбэке" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ARROW_THIS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ARROW_THIS_NOTE} />
+  </CardGrid>
+
+  У этого правила есть цена в памяти. В V8 переменные вызова, которые нужны хоть одному
+  замыканию, лежат в куче одним объектом — Context, — и все функции этого вызова ссылаются
+  на него целиком. Поэтому безобидная соседняя функция держит чужой большой массив, пока
+  жива сама, а прямой `eval` делает захваченным всё, что видно из функции. Что именно
+  попадает в Context и как это проверить снимком кучи и отладчиком, разобрано в
+  [«Памяти и GC», раздел «Замыкания»](/js/memory-gc/#s3).
+
   ### Окружения по шагам
 
   <ScopeLab client:visible codes={INTERPRETER_CODES} programs={PROGRAMS} caption={DEMO_CAPTION} />
-
-  ### Остальной интерпретатор
-
-  Инструкции, выражения и запуск программы. Окружений здесь нет: только перебор видов
-  узлов дерева и вызовы функций, показанных выше. Таймеры интерпретатор выполняет после
-  всей программы, по возрастанию задержки, — как и движок для таких простых случаев.
-
-  <Card pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={EVAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
 </Section>
 
 <Section
@@ -286,8 +310,12 @@ import {
     </Card>
   </CardGrid>
 
-  <Card title="Цикл for в интерпретаторе" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={LOOP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <Card title="Новое окружение на каждую итерацию" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NEXT_ITERATION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={NEXT_ITERATION_NOTE} />
+    </CardNote>
   </Card>
 
   <CardGrid min={240} gap={14} align="start">
@@ -324,117 +352,15 @@ import {
 <Section
   id="s5"
   eyebrow="Раздел 5"
-  title="Что на самом деле держит V8"
-  lead="По спецификации окружение хранит все свои имена, и замыкание держит его целиком. V8 экономнее: переменные, которые не нужны ни одному замыканию, остаются на стеке и пропадают с вызовом. В объект Context в куче попадают только захваченные. Отсюда два сюрприза: соседняя функция держит чужие данные, а `eval` делает захваченным всё сразу."
->
-  Как Context устроен по слотам и как он выглядит в снимке кучи, разобрано в
-  [«Памяти и GC», раздел «Замыкания»](/js/memory-gc/#s3).
-
-  ### Что лежит в Context
-
-  <CodeBlock code={CONTEXT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-
-  <Table
-    head={['функция', 'имена в её Context', 'почему']}
-    rows={CONTEXT_ROWS.map((r) => [r.fn, r.slots, r.why])}
-    tones={CONTEXT_ROWS.map((r) => r.tone)}
-    kinds={['prose', 'prose', 'prose']}
-    cols="minmax(120px,.6fr) minmax(200px,1fr) minmax(320px,2fr)"
-    minWidth={680}
-  />
-
-  <Md text={CONTEXT_NOTE} />
-
-  ### Кого держат десять одинаковых стрелок
-
-  <CardGrid min={300} gap={16} align="start">
-    <Card pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RETAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={RETAIN_OUT.join('\n')} tone="ok" size={11.5} lh={1.6} pad="10px 14px" />
-    </Card>
-
-    <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={RETAIN_NOTE} />
-  </CardGrid>
-
-  ### Колбэк держит чужие данные: по шагам
-
-  Колбэк ниже не трогает большой массив — и всё равно держит его в памяти, пока висит
-  подписка.
-
-  <CodeBlock code={LEAK_CODE} />
-
-  <CardGrid min={250} gap={12} align="start">
-    {CONTEXT_STEPS.map((step) => (
-      <Card label={`шаг ${step.n}`} labelSize={12} title={step.t} titleSize={16} pad={16} radius={5} gap={8} size={15} lh={1.6}>
-        <Md text={step.d} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
-  Два выхода — на том же примере. Первый переносит массив туда, где нет долгоживущих
-  колбэков:
-
-  <CodeBlock code={CONTEXT_FIX_CODE} />
-
-  <CardGrid min={280} gap={14} align="start">
-    {CONTEXT_WAYS.map((way) => (
-      <Card tone={way.tone} color="tone" label={way.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
-        <Md text={way.what} />
-        <Md text={`**Чем платит:** ${way.cost}`} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
-  <Plain text={PLAIN_CONTEXT_STEPS} />
-
-  ### Что видит отладчик
-
-  <CardGrid min={300} gap={16} align="start">
-    <Card pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DEBUG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={DEBUG_ROWS.map((r) => `${r.expr.padEnd(4)}→ ${r.out}`).join('\n')} tone="ok" size={11.5} lh={1.6} pad="10px 14px" />
-    </Card>
-
-    <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DEBUG_NOTE} />
-  </CardGrid>
-
-  ### eval и with
-
-  <CardGrid min={260} gap={14} align="start">
-    {EVAL_FACTS.map((fact) => (
-      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
-    ))}
-
-  </CardGrid>
-
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
-
-      **Замыкание держит не переменные, которые использует, а весь Context своего вызова.**
-      Тяжёлые данные и долгоживущие функции разводят по разным функциям или обнуляют данные
-      перед возвратом. А `eval` в коде, который создаёт замыкания, — повод переписать код,
-      а не только вопрос безопасности.
-
-    </DarkText>
-  </DarkPanel>
-</Section>
-
-<Section
-  id="s6"
-  eyebrow="Раздел 6"
-  title="Приватность до #-полей"
-  lead="До классов с `#`-полями спрятать состояние можно было только замыканием. Переменная живёт в окружении функции, и снаружи к ней ведут только функции, созданные там же. На этом стоит модульный паттерн, и работает он до сих пор."
+  title="Приватность через замыкание"
+  lead="Замыкание — рабочий способ спрятать состояние и сегодня, рядом с `#`-полями классов. На нём стоят фабрики без классов вроде `createStore` в Redux, переменные на верхнем уровне ES-модуля и колбэки, которые помнят свои данные. Переменная живёт в окружении функции или модуля, и снаружи к ней ведут только функции, созданные там же."
 >
   <CardGrid min={300} gap={16} align="start">
-    <Card title="Модульный паттерн" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={MODULE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Card title="Хранилище на замыкании" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={STORE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
-    <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={MODULE_NOTE} />
+    <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={STORE_NOTE} />
   </CardGrid>
 
   <Card title="Фабрика против класса" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -442,21 +368,31 @@ import {
   </Card>
 
   <Table
-    head={['где состояние', 'лежит', 'цена', 'проверка «наш объект»']}
-    rows={PRIVACY_ROWS.map((r) => [r.k, r.where, r.cost, r.check])}
-    kinds={['prose', 'prose', 'prose', 'prose']}
-    cols="minmax(150px,.7fr) minmax(170px,.9fr) minmax(220px,1.2fr) minmax(180px,1fr)"
-    minWidth={740}
+    head={['где состояние', 'лежит', 'цена', '`this`', 'проверка «наш объект»']}
+    rows={PRIVACY_ROWS.map((r) => [r.k, r.where, r.cost, r.self, r.check])}
+    kinds={['prose', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(150px,.7fr) minmax(170px,.9fr) minmax(220px,1.2fr) minmax(170px,.9fr) minmax(180px,1fr)"
+    minWidth={900}
   />
 
   <Md text={PRIVACY_NOTE} />
+
+  ### Каждый день: `once` и `memoize`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Обёртки с памятью" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={ONCE_MEMO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ONCE_MEMO_NOTE} />
+  </CardGrid>
 </Section>
 
-<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+<Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
 </Section>
 
-<Section id="s8" eyebrow="Раздел 8" title="Источники">
+<Section id="s7" eyebrow="Раздел 7" title="Источники">
   <Card title="Источники" titleSize={18} pad={22} gap={14}>
 
     <SourceList items={SOURCES} />

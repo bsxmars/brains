@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
 import { chromium, type Browser } from 'playwright';
+import { legacy_createStore } from 'redux';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/lessons/closures/data';
 import { parse } from '@/widgets/scope-lab/model/parser';
@@ -13,8 +14,9 @@ import type { Trace } from '@/widgets/scope-lab/model/types';
 /**
  * Тема «Замыкания и области видимости».
  *
- * Учебный интерпретатор — пять строк темы (`ENV_CODE` … `EVAL_CODE`), их печатает страница
- * и исполняет демо. Здесь он сверяется с настоящим V8: на программах темы и на наборе своих
+ * Учебный интерпретатор — шесть строк темы (`INTERPRETER_CODES`); их исполняет демо, а страница
+ * печатает четыре: `ENV_CODE`, `HOIST_CODE`, `CALL_CODE`, `NEXT_ITERATION_CODE`. Обвязку
+ * (`LOOP_DRIVER_CODE`, `EVAL_CODE`) со страницы сняли — механизма в ней нет. Здесь он сверяется с настоящим V8: на программах темы и на наборе своих
  * программ вывод и тексты ошибок совпадают с `vm` в Node (строгий режим, настоящие таймеры)
  * и с Chromium. Утверждения о V8 — состав Context, удержание, отладчик — исполняются в
  * отдельных процессах Node: снимок кучи, `queryObjects` и `node:inspector` в процессе vitest
@@ -183,7 +185,6 @@ describe('мёртвая зона, typeof и тексты ошибок V8', () =
 
   it('with в строгом режиме — SyntaxError', () => {
     expect(runStrict('with ({}) {}')).toBe('SyntaxError: Strict mode code may not include a with statement');
-    expect(t.EVAL_FACTS[1].d).toContain('`SyntaxError`');
   });
 });
 
@@ -282,44 +283,12 @@ function node(name: string, code: string, flags: string[] = []): string {
   return execFileSync(process.execPath, [...flags, file], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 }
 
-describe('что V8 кладёт в Context и что из-за этого живёт', () => {
-  it('состав Context по снимку кучи — как в CONTEXT_ROWS', () => {
-    const reader = `
-const v8 = require('node:v8');
-const chunks = [];
-const s = v8.getHeapSnapshot();
-s.on('data', (c) => chunks.push(c));
-s.on('end', () => {
-  const snap = JSON.parse(Buffer.concat(chunks).toString());
-  const m = snap.snapshot.meta, nf = m.node_fields.length, ef = m.edge_fields.length;
-  const N = snap.nodes, E = snap.edges, S = snap.strings, ec = m.node_fields.indexOf('edge_count');
-  const first = []; let e = 0;
-  for (let i = 0; i < N.length; i += nf) { first.push(e); e += N[i + ec] * ef; }
-  const edges = (i) => { const o = []; for (let k = 0; k < N[i * nf + ec]; k++) { const b = first[i] + k * ef; const ty = m.edge_types[0][E[b]]; o.push({ ty, nm: ty === 'element' || ty === 'hidden' ? E[b + 1] : S[E[b + 1]], to: E[b + 2] / nf }); } return o; };
-  const out = {};
-  for (let i = 0; i < N.length / nf; i++) {
-    const name = S[N[i * nf + 1]];
-    if (m.node_types[0][N[i * nf]] !== 'closure' || !/^from[A-Z]/.test(name)) continue;
-    const ctx = edges(i).find((x) => x.nm === 'context').to;
-    out[name] = edges(ctx).filter((x) => x.ty === 'context').map((x) => x.nm);
-  }
-  console.log(JSON.stringify(out));
-});`;
-    const slots = JSON.parse(node('context.cjs', `${t.CONTEXT_CODE}\nglobalThis.kept = kept;\n${reader}`)) as Record<string, string[]>;
-    expect(slots.fromPlain).toEqual(['x']);
-    expect(slots.fromSibling).toEqual(['big', 'x']);
-    expect(slots.fromEval).toEqual(['this', '.new.target', 'big', 'x', 'unused', 'arguments']);
-    // Своего Context нет: у функции контекст модуля, в нём нет ни big, ни x.
-    expect(slots.fromIndirect).not.toContain('big');
-    expect(slots.fromIndirect).not.toContain('x');
-    expect(t.CONTEXT_ROWS.map((r) => r.slots)).toEqual([
-      '`x`',
-      '`big`, `x`',
-      '`this`, `.new.target`, `big`, `x`, `unused`, `arguments`',
-      'своего Context нет',
-    ]);
-  });
-
+/**
+ * Состав Context, удержание (`queryObjects`) и отладчик переехали вместе с разделом «Что на самом
+ * деле держит V8» в «Память и GC» (2026-11-05) — их проверки теперь в `memory-gc.test.ts`.
+ * Здесь остались контексты циклов: о них говорит `LOOP_V8_NOTE` этой темы.
+ */
+describe('V8: контексты циклов for', () => {
   it('%DebugPrint: итерации for (let) — разные BlockContext, for (var) — один FunctionContext', () => {
     const out = node(
       'loop.js',
@@ -349,50 +318,58 @@ noClosure(); withClosure();`,
     expect(bytecode('withClosure')).toContain('CreateBlockContext');
     expect(t.LOOP_V8_NOTE).toContain('живёт в регистре');
   });
-
-  it('queryObjects: сосед и eval держат все десять Big, одиночка и обнулённый — ни одного', () => {
-    const out = node('retain.cjs', t.RETAIN_CODE).trim().split('\n');
-    expect(out).toEqual(t.RETAIN_OUT);
-  });
-
-  it('отладчик в паузе внутри замыкания: x есть, big — not defined', () => {
-    const harness = `
-const inspector = require('node:inspector');
-const s = new inspector.Session();
-s.connect();
-const seen = {};
-s.on('Debugger.paused', (msg) => {
-  const id = msg.params.callFrames[0].callFrameId;
-  for (const expression of ${JSON.stringify(t.DEBUG_ROWS.map((r) => r.expr))}) {
-    s.post('Debugger.evaluateOnCallFrame', { callFrameId: id, expression }, (err, r) => {
-      seen[expression] = r.exceptionDetails ? r.result.description.split('\\n')[0] : String(r.result.value);
-    });
-  }
-  s.post('Debugger.resume');
-});
-s.post('Debugger.enable');
-${t.DEBUG_CODE}
-console.log(JSON.stringify(seen));`;
-    const seen = JSON.parse(node('debug.cjs', harness)) as Record<string, string>;
-    for (const r of t.DEBUG_ROWS) expect(seen[r.expr], r.expr).toBe(r.out);
-  });
 });
 
 describe('приватность', () => {
-  it('модульный паттерн: count не достать, ключи — только методы', () => {
-    const [value, hidden, keys] = new Function(`${t.MODULE_CODE}\nreturn [counter.value, counter.count, Object.keys(counter)];`)();
-    expect(value).toBe(2);
+  it('хранилище на замыкании: состояния среди ключей нет, getState его отдаёт', () => {
+    const [state, hidden, keys] = new Function(`${t.STORE_CODE}\nreturn [store.getState(), store.state, Object.keys(store)];`)();
+    expect(state).toBe(1);
     expect(hidden).toBeUndefined();
-    expect(keys).toEqual(['inc', 'value']);
-    expect(t.MODULE_CODE).toContain("// ['inc', 'value']");
+    expect(keys).toEqual(['getState', 'dispatch', 'subscribe']);
+    expect(t.STORE_CODE).toContain('store.getState();                      // 1');
+    expect(t.STORE_CODE).toContain("// ['getState', 'dispatch', 'subscribe']");
   });
 
-  it('фабрика даёт свои методы каждому объекту, класс — общие', () => {
-    const [factory, klass] = new Function(
-      `${t.FACTORY_CODE}\nreturn [makeCounter().inc === makeCounter().inc, new Counter().inc === new Counter().inc];`,
-    )();
+  // STORE_NOTE: «так устроен createStore в Redux» — у настоящего Redux состояние тоже не в объекте.
+  it('настоящий Redux: состояние живёт в замыкании, не в объекте хранилища', () => {
+    const store = legacy_createStore((s: number = 0, a: { type: string }) => (a.type === 'inc' ? s + 1 : s));
+    store.dispatch({ type: 'inc' });
+    expect(store.getState()).toBe(1);
+    expect(Object.keys(store)).not.toContain('state');
+    expect(Object.keys(store)).not.toContain('currentState');
+    expect(Object.values(store).every((v) => typeof v === 'function')).toBe(true);
+    expect(t.STORE_NOTE).toContain('`createStore` в Redux');
+  });
+
+  it('фабрика: свои функции у каждого объекта и без this; класс: метод общий, оторванный — TypeError', () => {
+    const last = /\nmethod\(\);[^\n]*$/;
+    expect(t.FACTORY_CODE, 'последней строкой листинга должен быть вызов method()').toMatch(last);
+    // Строка `inc();  // 1` листинга — её значение и берём, а не зовём inc второй раз.
+    const call = /\ninc\(\);/;
+    expect(t.FACTORY_CODE, 'в листинге нет строки inc();').toMatch(call);
+    const body = t.FACTORY_CODE.replace(last, '').replace(call, '\nconst detached = inc();');
+    const [factory, klass, detached, method] = new Function(
+      `${body}\nreturn [makeCounter().inc === makeCounter().inc, new Counter().inc === new Counter().inc, detached, method];`,
+    )() as [boolean, boolean, number, () => number];
     expect(factory).toBe(false);
     expect(klass).toBe(true);
+    expect(detached).toBe(1);
+    expect(() => method()).toThrow(TypeError);
+    expect(t.FACTORY_CODE).toContain('// TypeError');
+    expect(t.PRIVACY_ROWS[2].self).toContain('`TypeError`');
+  });
+
+  it('PRIVACY_NOTE: ни ключи, ни JSON.stringify не видят ни переменную замыкания, ни #-поле', () => {
+    const [closureKeys, closureJson, classKeys, classJson] = new Function(
+      `${t.FACTORY_CODE.replace(/\nmethod\(\);[^\n]*$/, '')}
+const c = makeCounter(), k = new Counter();
+return [Object.keys(c), JSON.stringify(c), Object.keys(k), JSON.stringify(k)];`,
+    )();
+    expect(closureKeys).toEqual(['inc']);
+    expect(closureJson).toBe('{}');
+    expect(classKeys).toEqual([]);
+    expect(classJson).toBe('{}');
+    expect(t.PRIVACY_NOTE).toContain('`JSON.stringify`');
   });
 });
 
@@ -414,5 +391,49 @@ describe('числа в тексте', () => {
     for (let i = 0, init = (fs.push(() => 'init:' + i), 0); fs.push(() => String(i)), i < 3; i++) void init;
     expect(fs.map((f) => f())).toEqual(['init:0', '0', '1', '2', '3']);
     expect(t.LOOP_LET_NOTE).toContain('окружений пять');
+  });
+});
+
+/**
+ * Примеры «переменная, а не значение», устаревшее замыкание, `this` у стрелки, `once` и `memoize`.
+ *
+ * Каждая строка верхнего уровня вида `выражение;   // значение…` исполняется там, где стоит,
+ * и её результат сравнивается со значением в начале комментария. Так подписи в листинге —
+ * не пересказ, а то, что вернул движок; сломав пример, тест покажет строку и оба значения.
+ */
+describe('строки «// значение» в новых примерах совпадают с движком', () => {
+  const LITERAL = /^('[^']*'|\[[^\]]*\]|-?\d+|undefined|true|false)/;
+
+  function check(code: string) {
+    const expected: unknown[] = [];
+    const lines: string[] = [];
+    const body = code
+      .split('\n')
+      .map((line) => {
+        const m = line.match(/^([^\s/][^;]*);\s+\/\/\s*(.+)$/);
+        if (!m || /^(let|const|var|function|return|if)\b/.test(m[1])) return line;
+        const lit = m[2].match(LITERAL);
+        if (!lit) return line;
+        expected.push(new Function(`return ${lit[1]};`)());
+        lines.push(m[1]);
+        return `__out.push(${m[1]});`;
+      })
+      .join('\n');
+    const got: unknown[] = [];
+    new Function('__out', `"use strict";\n${body}`)(got);
+    expect(lines.length, 'в примере нет ни одной строки с // значением').toBeGreaterThan(0);
+    lines.forEach((line, i) => expect(got[i], line).toEqual(expected[i]));
+  }
+
+  it('LIVE_CODE: say() видит последнее присваивание, snapshot — нет', () => check(t.LIVE_CODE));
+  it('STALE_CODE: функция первого вызова видит count = 0', () => check(t.STALE_CODE));
+  it('STALE_FIX_CODE: общее место отдаёт последний count', () => check(t.STALE_FIX_CODE));
+  it('ARROW_THIS_CODE: стрелка берёт this метода, обычная функция — undefined', () => check(t.ARROW_THIS_CODE));
+  it('ONCE_MEMO_CODE: once вызывает один раз, memoize считает один раз', () => check(t.ONCE_MEMO_CODE));
+
+  it('подписи говорят то, что показывают примеры', () => {
+    expect(t.STALE_NOTE).toContain('окружения первого вызова');
+    expect(t.ARROW_THIS_NOTE).toContain('в строгом режиме `this` там `undefined`');
+    expect(t.PITFALLS.some((p) => p.t === 'Устаревшее замыкание')).toBe(true);
   });
 });

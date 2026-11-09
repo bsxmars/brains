@@ -185,7 +185,7 @@ import {
       Из-за второго поля колбэк «помнит» переменные — и из-за него же бывают утечки. Пока
       чужой код хранит вашу функцию, он через `[[Environment]]` держит в памяти **весь
       Context** скоупа, а не только те переменные, которые функция использует. Пример с замером
-      и лечение — в [«Замыканиях», раздел «Что на самом деле держит V8»](/js/closures/#s5).
+      и лечение — в [«Памяти и GC», раздел «Замыкания»](/js/memory-gc/#s3).
 
     </Card>
   </CardGrid>
@@ -219,7 +219,7 @@ import {
   </Card>
 
   <Card tone="err" title="Сколько аргументов получит колбэк, решаете не вы" titleSize={17} pad={20} gap={14}>
-    <CodeBlock code={"['1','2','3'].map(parseInt)   →   [1, NaN, NaN]"} size={12.5} />
+    <CodeBlock lang="text" code={"['1','2','3'].map(parseInt)   →   [1, NaN, NaN]"} size={12.5} />
 
     <CardGrid min={190} gap={10}>
       <Card tone="ok" color="tone" pad={12} radius={4} size={15}>
@@ -593,11 +593,11 @@ import {
   <CardGrid min={290} gap={16} align="start">
     <Card label="Node EventEmitter" labelSize={12.5} pad={18} gap={11} size={15.5}>
 
-      <CodeBlock code={DISPATCH_EMITTER} size={11.5} lh={1.7} />
+      <CodeBlock lang="text" code={DISPATCH_EMITTER} size={11.5} lh={1.7} />
     </Card>
     <Card label="DOM EventTarget" labelSize={12.5} pad={18} gap={11} size={15.5}>
 
-      <CodeBlock code={DISPATCH_DOM} size={11.5} lh={1.7} />
+      <CodeBlock lang="text" code={DISPATCH_DOM} size={11.5} lh={1.7} />
     </Card>
   </CardGrid>
 

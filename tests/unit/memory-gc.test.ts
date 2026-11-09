@@ -3,13 +3,18 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import v8 from 'node:v8';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import {
+  CONTEXT_CASES_CODE,
+  CONTEXT_CASES_ROWS,
   CONTEXT_CODE,
   CONTEXT_PROBE,
   CONTEXT_PROBE_OUT,
+  DEBUG_CODE,
+  DEBUG_ROWS,
   EPHEMERON_PROBE,
   EPHEMERON_PROBE_OUT,
+  EVAL_FACTS,
   EXPOSE_GC_CODE,
   GC_KEPT_PROBE,
   GC_KEPT_PROBE_OUT,
@@ -20,6 +25,8 @@ import {
   GC_YIELD_PROBE_OUT,
   OBSERVABLE_NODE,
   PITFALLS,
+  RETAIN_CODE,
+  RETAIN_OUT,
   ROOTS,
   SPACES_ROWS,
   USING_BROWSER_CODE,
@@ -874,6 +881,90 @@ describe('3 · Context · листинги `CONTEXT_PROBE` и `CONTEXT_CODE`', (
     expect(whileAlive, `${WHERE}: huge собрался при живом keepSmall`).toBe(false);
     expect(afterDrop, `${WHERE}: huge не собрался и без keepSmall`).toBe(true);
   }, 30_000);
+});
+
+/**
+ * Перенесено из `closures.test.ts` вместе с разделом «Что на самом деле держит V8» (2026-11-05):
+ * те же проверки, теперь против строк этой темы. Каждый листинг — в отдельном файле и процессе:
+ * снимок кучи, `queryObjects` и отладчик должны видеть только свой код.
+ */
+describe('3 · что V8 кладёт в Context · четыре случая, удержание, отладчик, eval', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'memory-gc-context-'));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  const inFile = (name: string, code: string): string => {
+    const file = join(dir, name);
+    writeFileSync(file, code);
+    return execFileSync(process.execPath, [file], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  };
+
+  it('состав Context по снимку кучи — как в CONTEXT_CASES_ROWS', () => {
+    const reader = `
+const v8 = require('node:v8');
+const chunks = [];
+const s = v8.getHeapSnapshot();
+s.on('data', (c) => chunks.push(c));
+s.on('end', () => {
+  const snap = JSON.parse(Buffer.concat(chunks).toString());
+  const m = snap.snapshot.meta, nf = m.node_fields.length, ef = m.edge_fields.length;
+  const N = snap.nodes, E = snap.edges, S = snap.strings, ec = m.node_fields.indexOf('edge_count');
+  const first = []; let e = 0;
+  for (let i = 0; i < N.length; i += nf) { first.push(e); e += N[i + ec] * ef; }
+  const edges = (i) => { const o = []; for (let k = 0; k < N[i * nf + ec]; k++) { const b = first[i] + k * ef; const ty = m.edge_types[0][E[b]]; o.push({ ty, nm: ty === 'element' || ty === 'hidden' ? E[b + 1] : S[E[b + 1]], to: E[b + 2] / nf }); } return o; };
+  const out = {};
+  for (let i = 0; i < N.length / nf; i++) {
+    const name = S[N[i * nf + 1]];
+    if (m.node_types[0][N[i * nf]] !== 'closure' || !/^from[A-Z]/.test(name)) continue;
+    const ctx = edges(i).find((x) => x.nm === 'context').to;
+    out[name] = edges(ctx).filter((x) => x.ty === 'context').map((x) => x.nm);
+  }
+  console.log(JSON.stringify(out));
+});`;
+    const slots = JSON.parse(inFile('context.cjs', `${CONTEXT_CASES_CODE}\nglobalThis.kept = kept;\n${reader}`)) as Record<string, string[]>;
+    expect(slots.fromPlain).toEqual(['x']);
+    expect(slots.fromSibling).toEqual(['big', 'x']);
+    expect(slots.fromEval).toEqual(['this', '.new.target', 'big', 'x', 'unused', 'arguments']);
+    // Своего Context нет: у функции контекст модуля, в нём нет ни big, ни x.
+    expect(slots.fromIndirect).not.toContain('big');
+    expect(slots.fromIndirect).not.toContain('x');
+    expect(CONTEXT_CASES_ROWS.map((r) => r.slots)).toEqual([
+      '`x`',
+      '`big`, `x`',
+      '`this`, `.new.target`, `big`, `x`, `unused`, `arguments`',
+      'своего Context нет',
+    ]);
+  });
+
+  it('queryObjects: сосед и eval держат все десять Big, одиночка и обнулённый — ни одного', () => {
+    const out = inFile('retain.cjs', RETAIN_CODE).trim().split('\n');
+    expect(out).toEqual(RETAIN_OUT);
+  });
+
+  it('отладчик в паузе внутри замыкания: x есть, big — not defined', () => {
+    const harness = `
+const inspector = require('node:inspector');
+const s = new inspector.Session();
+s.connect();
+const seen = {};
+s.on('Debugger.paused', (msg) => {
+  const id = msg.params.callFrames[0].callFrameId;
+  for (const expression of ${JSON.stringify(DEBUG_ROWS.map((r) => r.expr))}) {
+    s.post('Debugger.evaluateOnCallFrame', { callFrameId: id, expression }, (err, r) => {
+      seen[expression] = r.exceptionDetails ? r.result.description.split('\\n')[0] : String(r.result.value);
+    });
+  }
+  s.post('Debugger.resume');
+});
+s.post('Debugger.enable');
+${DEBUG_CODE}
+console.log(JSON.stringify(seen));`;
+    const seen = JSON.parse(inFile('debug.cjs', harness)) as Record<string, string>;
+    for (const r of DEBUG_ROWS) expect(seen[r.expr], r.expr).toBe(r.out);
+  });
+
+  it('with в строгом режиме — SyntaxError, как сказано в карточке EVAL_FACTS', () => {
+    expect(() => new Function('"use strict"; with ({}) {}')).toThrow(SyntaxError);
+    expect(EVAL_FACTS[1].d).toContain('`SyntaxError`');
+  });
 });
 
 describe('4 · эфемерон · листинг `EPHEMERON_PROBE`', () => {

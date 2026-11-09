@@ -2,7 +2,7 @@
 title: Память и GC
 order: 33
 lead: "Объект живёт, пока до него можно дойти по ссылкам от корней — глобального объекта, стека, активных таймеров. Сборщик проверяет, достижим ли объект, а не нужен ли он, — и в этой разнице живут все утечки."
-summary: "Как объект переезжает по куче, шесть типовых утечек, почему замыкание держит больше, чем использует, как WeakMap отпускает записи и как читать график памяти."
+summary: "Как объект переезжает по куче, шесть типовых утечек, почему замыкание держит больше, чем использует, и что с этим делает `eval`, как WeakMap отпускает записи и как читать график памяти."
 verifiedOn: "Node 24.11 и 26.8 · V8 13.6 и 14.6 · arm64 без pointer compression"
 nav:
   - { id: s0, label: Что наблюдаемо }
@@ -65,6 +65,20 @@ import {
   CONTEXT_PROBE,
   CONTEXT_PROBE_OUT,
   CONTEXT_FACTS,
+  CONTEXT_CASES_CODE,
+  CONTEXT_CASES_ROWS,
+  CONTEXT_CASES_NOTE,
+  RETAIN_CODE,
+  RETAIN_OUT,
+  RETAIN_NOTE,
+  LEAK_CODE,
+  CONTEXT_STEPS,
+  CONTEXT_FIX_CODE,
+  CONTEXT_WAYS,
+  DEBUG_CODE,
+  DEBUG_ROWS,
+  DEBUG_NOTE,
+  EVAL_FACTS,
   WEAK_TOOLS,
   WEAK_TOOLS_TONES,
   WEAKREF_CACHE_CODE,
@@ -294,7 +308,7 @@ import {
 
   ### Что делает `--expose-gc` и почему им не лечат утечку
 
-  <CodeBlock code={EXPOSE_GC_CODE} size={11.5} />
+  <CodeBlock lang="bash" code={EXPOSE_GC_CODE} size={11.5} />
 
   Флаг делает одно: кладёт в глобальный объект функцию `gc`. Вызов `gc()` сразу запускает
   полную сборку всей кучи (по умолчанию Mark-Compact — пометить живое и уплотнить)
@@ -662,6 +676,90 @@ import {
     только по знакомым именам.
 
   </Card>
+
+  ### Что V8 кладёт в Context: четыре случая
+
+  По спецификации окружение вызова хранит все свои имена, и замыкание держит его целиком.
+  V8 экономнее: переменные, которые не нужны ни одному замыканию, остаются на стеке и
+  пропадают с вызовом. Ниже четыре функции с одинаковыми переменными; что попало в Context
+  каждой, снято снимком кучи по именам слотов.
+
+  <CodeBlock code={CONTEXT_CASES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['функция', 'имена в её Context', 'почему']}
+    rows={CONTEXT_CASES_ROWS.map((r) => [r.fn, r.slots, r.why])}
+    tones={CONTEXT_CASES_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(120px,.6fr) minmax(200px,1fr) minmax(320px,2fr)"
+    minWidth={680}
+  />
+
+  <Md text={CONTEXT_CASES_NOTE} />
+
+  ### Кого держат десять одинаковых стрелок
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RETAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={RETAIN_OUT.join('\n')} tone="ok" size={11.5} lh={1.6} pad="10px 14px" />
+    </Card>
+
+    <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={RETAIN_NOTE} />
+  </CardGrid>
+
+  ### Колбэк держит чужие данные: по шагам
+
+  Колбэк ниже не трогает большой массив — и всё равно держит его в памяти, пока висит
+  подписка.
+
+  <CodeBlock code={LEAK_CODE} />
+
+  <CardGrid min={250} gap={12} align="start">
+    {CONTEXT_STEPS.map((step) => (
+      <Card label={`шаг ${step.n}`} labelSize={12} title={step.t} titleSize={16} pad={16} radius={5} gap={8} size={15} lh={1.6}>
+        <Md text={step.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Два выхода — на том же примере. Первый переносит массив туда, где нет долгоживущих
+  колбэков:
+
+  <CodeBlock code={CONTEXT_FIX_CODE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {CONTEXT_WAYS.map((way) => (
+      <Card tone={way.tone} color="tone" label={way.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={way.what} />
+        <Md text={`**Чем платит:** ${way.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  ### Что видит отладчик
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={DEBUG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={DEBUG_ROWS.map((r) => `${r.expr.padEnd(4)}→ ${r.out}`).join('\n')} tone="ok" size={11.5} lh={1.6} pad="10px 14px" />
+    </Card>
+
+    <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DEBUG_NOTE} />
+  </CardGrid>
+
+  ### eval и with
+
+  <CardGrid min={260} gap={14} align="start">
+    {EVAL_FACTS.map((fact) => (
+      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
 </Section>
 
 <Section

@@ -3,9 +3,9 @@
  * «Окружения по шагам»: программа, текущая строка, окружения на этом шаге — цепочка от
  * текущего наружу и те, что живы только благодаря замыканиям, — и вывод.
  *
- * Шаги и окружения считает не компонент, а строки `ENV_CODE` … `EVAL_CODE` из темы,
- * собранные `new Function` (`model/run.ts`). Те же строки напечатаны на странице и сверены
- * `tests/unit/closures.test.ts` с V8. Вторую колонку вывода даёт движок браузера читателя:
+ * Шаги и окружения считает не компонент, а строки `INTERPRETER_CODES` из темы, собранные
+ * `new Function` (`model/run.ts`). Механизм из них напечатан на странице, обвязка
+ * (`LOOP_DRIVER_CODE`, `EVAL_CODE`) — нет; все строки сверены `tests/unit/closures.test.ts` с V8. Вторую колонку вывода даёт движок браузера читателя:
  * та же программа через `new Function` в строгом режиме (`runReal`).
  */
 import { computed, onMounted, ref, shallowRef, watch } from 'vue';
@@ -17,9 +17,11 @@ import StepToolbar from '@/shared/ui/StepToolbar.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { parseError, runReal, traceProgram } from '../model/run';
 import type { EnvView, EsNode, OutLine, ScopeProgram, Trace } from '../model/types';
+import { useHighlight } from '@/shared/lib/useHighlight';
+import CodeLine from '@/shared/ui/CodeLine.vue';
 
 const props = defineProps<{
-  /** Пять строк интерпретатора из темы, по порядку. */
+  /** Строки интерпретатора из темы (`INTERPRETER_CODES`), по порядку. */
   codes: string[];
   programs: ScopeProgram[];
   /** Подпись под демо. Строчная разметка. */
@@ -57,6 +59,8 @@ watch(trace, () => reset());
 
 const current = computed(() => trace.value?.steps[index.value]);
 const lines = computed(() => text.value.split('\n'));
+/** Строки программы с подсветкой; `null`, пока Shiki не загружен. */
+const hl = useHighlight(() => text.value);
 
 const ROLE: Record<EnvView['role'], string> = {
   current: 'текущее',
@@ -112,7 +116,7 @@ const verdict = computed(() => {
           <pre class="cl-code"><template v-for="(line, i) in lines" :key="i"><span
             class="cl-line"
             :data-on="current && current.line === i + 1 ? 'yes' : 'no'"
-          ><span class="cl-ln">{{ String(i + 1).padStart(2, ' ') }}</span>{{ line }}</span>{{ '\n' }}</template></pre>
+          ><span class="cl-ln">{{ String(i + 1).padStart(2, ' ') }}</span><CodeLine :html="hl?.[i]" :text="line" /></span>{{ '\n' }}</template></pre>
           <details class="cl-edit">
             <summary>Изменить программу</summary>
             <CodeInput v-model="text" label="программа" :rows="9" />
@@ -181,11 +185,12 @@ const verdict = computed(() => {
   padding: 20px;
   min-width: 0;
 }
+/* Проза демо — ступенью текста карточек, а не подписей (просьба автора 2026-11-05: `--fs-3` читалось мелко). */
 .cl-note,
 .cl-caption,
 .cl-step-note,
 .cl-verdict {
-  font-size: var(--fs-3);
+  font-size: var(--fs-6);
   line-height: 1.6;
   color: var(--prose);
 }
