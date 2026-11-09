@@ -85,7 +85,7 @@ export const IC_CASES: IcCaseSpec[] = [
     key: 'poly2',
     label: '2 формы',
     shapes: 2,
-    what: 'Площадка хранит список форм и перебирает его.',
+    what: 'Кеш хранит список форм и при каждом чтении перебирает его.',
     tone: 'err',
   },
   {
@@ -99,7 +99,7 @@ export const IC_CASES: IcCaseSpec[] = [
     key: 'mega5',
     label: '5 форм',
     shapes: 5,
-    what: 'Формы больше не хранятся у площадки — обращение идёт в общую хеш-таблицу.',
+    what: 'Формы больше не хранятся в кеше на месте чтения — обращение идёт в общую хеш-таблицу.',
     tone: 'err',
   },
   {
@@ -132,7 +132,7 @@ export const DEFAULTS: BenchOptions = {
  */
 export const READ_LOOP_CODE = `function read(ring, n, mask) {
   let s = 0;
-  for (let i = 0; i < n; i++) s += ring[i & mask].x;   // площадка .x
+  for (let i = 0; i < n; i++) s += ring[i & mask].x;   // место чтения .x
   return s;
 }`;
 
@@ -170,6 +170,15 @@ export function warmupSink(): number {
 /** Есть ли в среде часы. Ветка «среды нет» честная: числа не выдумываются, а не показываются. */
 export function timerReady(): boolean {
   return typeof performance !== 'undefined' && typeof performance.now === 'function';
+}
+
+/**
+ * Формы случая словами — какие объекты лежат в кольце. Берутся из тех же `SHAPES`, что и само
+ * кольцо: `{ x, a00 }`, `{ x, a01 }`… Длинный список сокращается многоточием.
+ */
+export function shapeExample(shapes: number): string[] {
+  const names = SHAPES.slice(0, shapes).map((make) => `{ ${Object.keys(make(0)).join(', ')} }`);
+  return shapes > 5 ? [...names.slice(0, 2), '…', names.at(-1)!] : names;
 }
 
 /**

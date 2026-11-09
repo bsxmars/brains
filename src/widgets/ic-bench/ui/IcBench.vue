@@ -26,7 +26,7 @@ import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import { Button } from '@/shared/ui';
-import { DEFAULTS, IC_CASES, benchRound, prepare, summarise, timerReady, unavailable } from '../model/bench';
+import { DEFAULTS, IC_CASES, benchRound, prepare, shapeExample, summarise, timerReady, unavailable } from '../model/bench';
 import type { BenchOptions, IcBenchResult, RoundResult } from '../model/types';
 
 const props = withDefaults(
@@ -42,7 +42,7 @@ const props = withDefaults(
     ring: DEFAULTS.ring,
     runs: DEFAULTS.runs,
     warmups: DEFAULTS.warmups,
-    note: '«1 форма» и «20 форм» — это то, что мы **положили в кольцо**, а не ответ движка: состояние площадки со страницы не спросить. Видно только следствие — сколько стоят одинаковые чтения.',
+    note: '«1 форма» и «20 форм» — это то, что мы **положили в кольцо**, а не ответ движка: состояние кеша на месте чтения со страницы не спросить. Видно только следствие — сколько стоят одинаковые чтения.',
   },
 );
 
@@ -209,6 +209,9 @@ const axisNote =
           <ul class="ib-cases">
             <li v-for="item in IC_CASES" :key="item.key" class="ib-case">
               <b class="ib-case__label">{{ item.label }}</b>
+              <span class="ib-case__shapes">
+                <span v-for="(shape, k) in shapeExample(item.shapes)" :key="k" class="ib-case__shape">{{ shape }}</span>
+              </span>
               <span class="ib-case__what">{{ item.what }}</span>
             </li>
           </ul>
@@ -422,6 +425,17 @@ const axisNote =
   font-family: var(--mono);
   font-size: var(--fs-3);
   color: var(--ink);
+}
+.ib-case__shapes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+  color: var(--prose);
+}
+.ib-case__shape {
+  white-space: nowrap;
 }
 .ib-case__what {
   font-size: var(--fs-4);

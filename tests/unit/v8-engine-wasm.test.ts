@@ -1,18 +1,19 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { TIERS_GUESS, TIERS_NOTE } from '@/content/lessons/wasm-threads/data';
 
 /**
- * «Движок V8», раздел «Четыре яруса и петля обратно»: подразделы про WebAssembly и песочницу.
+ * Ярусы WebAssembly («WebAssembly», раздел «Модуль и экземпляр», подраздел «Как V8 исполняет
+ * модуль») и песочница V8 («Движок V8», раздел «Четыре яруса и петля обратно»).
  *
  * Отдельным файлом, а не в `v8-engine.test.ts`: тот замерный и под нагрузкой мигает, а здесь
  * нет ни одного таймера — только ярус функции (`%IsLiftoffFunction`, `%IsTurboFanFunction`),
  * строка `--trace-deopt` и флаги сборки. Всё детерминировано.
  *
- * Зачем тест. Тема раньше утверждала «у Wasm деоптимизации нет вообще» — верно для Node 24
- * (V8 13.6: `--no-wasm-deopt` по умолчанию), неверно для Node 26 (V8 14.6): спекулятивное
- * встраивание косвенных вызовов принесло с собой откат. Текст говорит обе половины по версиям,
- * и проверка держит обе — движок и текст.
+ * Зачем тест. Тема раньше утверждала «у Wasm деоптимизации нет вообще». В Node 26 (V8 14.6)
+ * это неверно: спекулятивное встраивание косвенных вызовов принесло с собой откат. Текст
+ * называет это исключение, проверка держит и движок, и текст.
  *
  * Модуль собран руками, байт в байт: три функции, таблица на две, `run(sel, x)` зовёт
  * `call_indirect` по индексу `sel`. Цель 0 — `x + 1`, цель 1 — `x * 2`.
@@ -75,58 +76,25 @@ describe('WebAssembly: ярусы и откат — движок', () => {
     expect(json.afterTierUp).toBe('turbofan');
   });
 
-  /**
-   * В Node 26 откат включён по умолчанию. В Node 24 оба флага по умолчанию выключены (это
-   * отдельный тест ниже и текст темы), поэтому механизм V8 13.6 здесь включают явно — а что
-   * без флагов отката нет, проверяется на настоящих умолчаниях.
-   */
-  const NODE26 = Number(process.versions.node.split('.')[0]) >= 26;
-  const ENABLE_DEOPT = NODE26 ? [] : ['--wasm-deopt', '--wasm-inlining-call-indirect'];
-
-  it('настоящие умолчания этого Node: откат есть в Node 26, нет в Node 24', () => {
-    const { json, raw } = probe(['--trace-deopt']);
-    expect(json.result).toBe(10);
-    expect(json.afterOtherTarget).toBe(NODE26 ? 'liftoff' : 'turbofan');
-    expect(raw.includes('reason: wrong call target, type: Wasm')).toBe(NODE26);
-    expect(MDX).toContain('В Node 24 этого нет: там по умолчанию стоят `--no-wasm-deopt`');
-  });
-
   it('смена цели косвенного вызова откатывает функцию на Liftoff', () => {
-    const { json, raw } = probe(['--trace-deopt', ...ENABLE_DEOPT]);
+    const { json, raw } = probe(['--trace-deopt']);
     expect(json.result, 'цель 1 — это x * 2').toBe(10);
     expect(json.afterOtherTarget).toBe('liftoff');
     expect(raw).toContain('reason: wrong call target, type: Wasm');
   });
 
   it('с --no-wasm-deopt отката нет: функция остаётся в TurboFan', () => {
-    const { json } = probe([...ENABLE_DEOPT, '--no-wasm-deopt']);
+    const { json } = probe(['--no-wasm-deopt']);
     expect(json.afterOtherTarget).toBe('turbofan');
-  });
-
-  /**
-   * Умолчания Node 24 (V8 13.6): `--no-wasm-deopt` и `--no-wasm-inlining-call-indirect`
-   * (сверено `node --v8-options` на 24.11). Тест идёт на том Node, что запустил Vitest,
-   * поэтому умолчания Node 24 задаются флагами: цель не встраивается, откатываться нечему.
-   */
-  it('с умолчаниями Node 24 цель не встраивается и отката нет', () => {
-    const { json, raw } = probe(['--trace-deopt', '--no-wasm-deopt', '--no-wasm-inlining-call-indirect']);
-    expect(json.result).toBe(10);
-    expect(json.afterOtherTarget).toBe('turbofan');
-    expect(raw).not.toContain('wrong call target');
   });
 });
 
 describe('WebAssembly и песочница — текст темы', () => {
-  it('тема не утверждает, что у Wasm нет деоптимизации, и цитирует настоящую строку трассы', () => {
-    expect(MDX).toContain('reason: wrong call target, type: Wasm');
-    expect(MDX).toContain('--no-wasm-deopt');
-    expect(MDX).not.toMatch(/деоптимизации нет вообще/);
-  });
-
-  it('тема разводит Node 24 и Node 26, а не подаёт откат как общее правило', () => {
-    expect(MDX).toContain('В Node 26 TurboFan встраивает ту цель');
-    expect(MDX).toContain('В Node 24 этого нет');
-    expect(MDX).toContain('--no-wasm-inlining-call-indirect');
+  it('текст не утверждает, что у Wasm нет отката, и называет исключение', () => {
+    expect(TIERS_GUESS).toContain('Исключение одно: косвенный вызов');
+    expect(TIERS_GUESS).toContain('откатывает код на Liftoff');
+    expect(TIERS_NOTE).toContain('нижний ярус — **Liftoff**');
+    expect(TIERS_NOTE).toContain('при первом вызове');
   });
 
   it('песочница V8 в этой сборке Node выключена — как и пишет тема', () => {

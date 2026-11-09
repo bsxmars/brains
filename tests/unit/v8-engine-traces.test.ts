@@ -10,7 +10,7 @@ import {
   MYTHS,
   PIPELINE,
   PIPELINE_CODE,
-  STILL_TRUE,
+  TIPS,
 } from '@/content/lessons/v8-engine/data';
 
 /**
@@ -204,9 +204,10 @@ describe('защитные ячейки: что гасит их, а что не�
   });
 
   it('тема говорит это же, а не «`Array.prototype.foo` бьёт по всей программе»', () => {
-    const claim = STILL_TRUE.find((s) => s.includes('защитные ячейки'));
+    const claim = TIPS.map((s) => `${s.t} ${s.d}`).find((s) => s.includes('защитные ячейки'));
     expect(claim).toBeDefined();
-    expect(claim).toContain('`Array.prototype.foo = 1`, ни одной ячейки не гасит');
+    // Смысловая подстрока: свойство с именем ячейку не гасит.
+    expect(claim).toContain('`Array.prototype.foo = 1` ни одной ячейки не гасит');
   });
 });
 

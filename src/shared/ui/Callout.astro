@@ -39,6 +39,11 @@ const { size = 17, lh = 1.5, pad = '18px 20px', fg = 'on-ink' } = Astro.props;
   .callout[data-fg='code'] {
     color: var(--code-fg);
   }
+  /* Жирное на чернилах — цвета текста плашки. Без этого правило `Card` красит его чернилами,
+     когда плашка стоит внутри карточки, и слова пропадают на фоне. */
+  .callout.callout[data-fg] :global(:is(b, strong)) {
+    color: inherit;
+  }
   .callout :global(code) {
     color: var(--tone-info-on-ink);
     font-size: 0.82em;

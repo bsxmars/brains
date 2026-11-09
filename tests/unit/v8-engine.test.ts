@@ -5,9 +5,12 @@ import {
   BENCH_LIES,
   BENCH_SNIPPETS,
   IC_STATES,
+  INTERP_ONLY,
+  INTERP_ONLY_NOTE,
+  JITLESS_CODE,
   MYTHS,
   SHAPE_TREE_CODE,
-  STILL_TRUE,
+  TIPS,
 } from '@/content/lessons/v8-engine/data';
 
 /**
@@ -400,7 +403,7 @@ describe('форма объекта — это дерево переходов, 
   });
 
   it('тема называет порядок полей среди того, что осталось правдой', () => {
-    const claim = STILL_TRUE.find((s) => s.includes('Порядок инициализации полей'));
+    const claim = TIPS.map((s) => `${s.t} ${s.d}`).find((s) => s.includes('в одном порядке'));
     expect(claim, 'утверждения про порядок полей на странице нет').toBeDefined();
     expect(claim).toContain('дерево');
   });
@@ -414,7 +417,7 @@ describe('словарный режим · `delete` и его цена', () => {
   `);
 
   /**
-   * ⚠️ ЭТОТ ТЕСТ ИСПРАВИЛ ОШИБКУ ТЕМЫ. Страница (и `STILL_TRUE`, и карточка «Dictionary
+   * ⚠️ ЭТОТ ТЕСТ ИСПРАВИЛ ОШИБКУ ТЕМЫ. Страница (и список «что осталось правдой», и карточка «Dictionary
    * mode») обещала: «если удаляют **последнее добавленное** свойство, V8 умеет откатить
    * форму на шаг назад по дереву — словаря не будет». Запуском это не подтвердилось, и текст
    * приведён к тому, что делает движок. Важная деталь: утверждение **внесли при переносе** —
@@ -763,5 +766,65 @@ describe('ярусы · оптимизирующие компиляторы ра
     const mdx = readFileSync('src/content/lessons/v8-engine/index.mdx', 'utf8');
     expect(mdx).not.toContain('платит за неё тот же поток');
     expect(mdx).toContain('Maglev и TurboFan делают её в фоновом потоке');
+  });
+});
+
+describe('«только интерпретатор»: --jitless против обычного Node (отдельные процессы)', () => {
+  /** Медиана трёх прогонов каждого замера в одном процессе. */
+  const run = (flags: string[]) => {
+    const code =
+      `${JITLESS_CODE}\n` +
+      'const t = (f) => { const r = []; f(); for (let i = 0; i < 3; i++) { const s = performance.now(); f(); r.push(performance.now() - s); } return r.sort((x, y) => x - y)[1]; };\n' +
+      'console.log(JSON.stringify({ loop: t(loop), map: t(map), parse: t(parse) }));';
+    return JSON.parse(execFileSync(process.execPath, [...flags, '-e', code], { encoding: 'utf8' })) as Record<'loop' | 'map' | 'parse', number>;
+  };
+
+  it('цикл — в разы медленнее, .map — заметно, JSON.parse — так же', () => {
+    const jit = run([]);
+    const interp = run(['--jitless']);
+    // Текст говорит «примерно в 16 раз» и «в 3–4 раза»; держим порядок, а не цифру.
+    expect(interp.loop / jit.loop).toBeGreaterThan(8);
+    expect(interp.map / jit.map).toBeGreaterThan(2);
+    expect(interp.parse / jit.parse).toBeLessThan(1.6);
+    expect(INTERP_ONLY).toContain('в 16 раз');
+    expect(INTERP_ONLY_NOTE).toContain('в 3–4 раза');
+  });
+});
+
+/**
+ * «Что делать в горячем коде»: комментарии в примерах — утверждения о движке. Каждый пример
+ * исполняется как есть, следом движок отвечает на вопрос, о котором говорит комментарий.
+ */
+describe('советы TIPS: примеры говорят правду о движке', () => {
+  const tip = (start: string) => {
+    const found = TIPS.find((t) => t.t.startsWith(start));
+    if (!found?.code) throw new Error(`нет совета с кодом «${start}»`);
+    return found.code;
+  };
+  const ask = (code: string, question: string) => natives(`${code}\nconsole.log(${question});`);
+
+  it('поля сразу и в одном порядке: p1 и p2 — разные формы, a и b — одна', () => {
+    expect(ask(tip('Заводите все поля'), '%HaveSameMap(p1, p2), %HaveSameMap(a, b)')).toBe('false true');
+  });
+
+  it('delete уводит в словарь, присваивание undefined — нет', () => {
+    expect(ask(tip('Не удаляйте'), '%HasFastProperties(user), %HasFastProperties(user2)')).toBe('false true');
+  });
+
+  it('new Array(3) — с дырами; смешанный — не «только целые»; push — плотный малых целых', () => {
+    expect(
+      ask(tip('Держите массивы'), '%HasHoleyElements(holes), %HasSmiElements(mixed), %HasHoleyElements(list), %HasSmiElements(list)'),
+    ).toBe('true false false true');
+  });
+
+  it('нормализация на входе: у raw разные формы, у items — одна', () => {
+    expect(
+      ask(tip('Приводите данные'), '%HaveSameMap(raw[0], raw[1]), items.every((o) => %HaveSameMap(o, items[0]))'),
+    ).toBe('false true');
+  });
+
+  it('setPrototypeOf после создания даёт другую форму, чем Object.create', () => {
+    const code = `${tip('Задавайте прототип')}\nconst early2 = Object.create(proto); early2.name = 'y';`;
+    expect(ask(code, '%HaveSameMap(late, early), %HaveSameMap(early, early2), late.hi()')).toBe('false true привет');
   });
 });
