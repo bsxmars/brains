@@ -10,6 +10,7 @@ import {
   FLATTEN_LEAVES,
   FLATTEN_ORDER,
   FLATTEN_STEPS,
+  INTERLEAVE_STEPS,
   INTERN_NO,
   INTERN_YES,
   PITFALLS,
@@ -943,5 +944,24 @@ describe('шаги расплющивания', () => {
     const asked = FLATTEN_STEPS.find((step) => step.title === 'понадобился символ')!;
     expect(asked.allocated && asked.copied === 0, 'шаг «выделяет буфер» показывает выделенный пустой буфер').toBe(true);
     expect(asked.message).toContain('выделяет буфер');
+  });
+});
+
+/** «Склейка вперемешку с чтением»: три кода из карточек исполняются, числа текста — арифметика. */
+describe('INTERLEAVE_STEPS: три места чтения', () => {
+  const lines = Array.from({ length: 1000 }, (_, i) => `${String(i).padStart(99, '.')}\n`);
+
+  it.each(INTERLEAVE_STEPS)('$k: код исполняется и собирает ту же строку', (step) => {
+    const run = new Function('lines', `${step.code}\nreturn s;`) as (l: string[]) => string;
+    expect(run(lines)).toBe(lines.join(''));
+  });
+
+  it('сумма копирования при чтении на каждом витке — около 50 млн, после цикла — 100 000', () => {
+    let copied = 0;
+    for (let k = 1; k <= 1000; k++) copied += 100 * k;
+    expect(copied).toBe(50_050_000);
+    expect(INTERLEAVE_STEPS[0].cost).toContain('Около 50 млн');
+    expect(Math.round(copied / 100_000)).toBe(501);
+    expect(INTERLEAVE_STEPS[1].cost).toContain('в пятьсот раз меньше');
   });
 });

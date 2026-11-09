@@ -101,16 +101,19 @@ for (let e = Math.ceil(lo); e <= Math.floor(hi); e++) {
     margin: 0;
   }
 
+  /* Колонки общие для всех строк (subgrid): иначе колонка значений в каждой строке своей
+     ширины, трек тоже, и деления шкалы стоят криво. */
   .rows {
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
+    display: grid;
+    grid-template-columns: minmax(0, 230px) minmax(0, 1fr) auto;
+    gap: 9px 11px;
   }
 
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 160px) minmax(0, 1fr) auto;
-    gap: 11px;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    row-gap: 11px;
     align-items: center;
   }
   .row__label {
@@ -193,7 +196,7 @@ for (let e = Math.ceil(lo); e <= Math.floor(hi); e++) {
 
   /* На узком экране колонка подписей съедает полосу — складываем строку в две. */
   @media (max-width: 560px) {
-    .row {
+    .rows {
       grid-template-columns: minmax(0, 1fr) auto;
     }
     .row__label {
