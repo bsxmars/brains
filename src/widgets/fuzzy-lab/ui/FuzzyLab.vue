@@ -18,7 +18,11 @@ import type { SearchTopic } from '../model/types';
 import { fmtNumber as fmt } from '@/shared/lib/format';
 
 const props = defineProps<{
-  topics: SearchTopic[];
+  /**
+   * Снимок тем — JSON-строкой. Массивом Astro кодирует каждое значение обёрткой `[0, …]`,
+   * и 23 КБ данных превращались в 84 КБ атрибута `props` в HTML страницы.
+   */
+  topicsJson: string;
   trieCode: string;
   fuzzyCode: string;
   searchCode: string;
@@ -32,7 +36,7 @@ const props = defineProps<{
 
 const api = loadSearch({ trie: props.trieCode, fuzzy: props.fuzzyCode, search: props.searchCode, rank: props.rankCode });
 const subseq = loadSubsequence(props.subseqCode);
-const entries = toEntries(props.topics);
+const entries = toEntries(JSON.parse(props.topicsJson) as SearchTopic[]);
 const index = api.buildIndex(entries);
 const words = [...index.where.keys()];
 

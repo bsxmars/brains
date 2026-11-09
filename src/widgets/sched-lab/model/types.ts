@@ -73,3 +73,17 @@ export interface SchedScenario {
 }
 
 export type RunScenario = (jobs: Job[]) => LogEntry[];
+
+/**
+ * Работа с правилом повтора — так сценарий едет в остров. 1500 одинаковых задач «голодания»
+ * развёрнутым массивом весили 135 КБ в атрибуте `props` острова; правилом — одну строку.
+ * Разворачивает `expandJobs` (`model/expand.ts`).
+ */
+export interface JobSpec extends Job {
+  /** `count` копий, первая в `at`, следующие — через `every` мс. */
+  repeat?: { count: number; every: number };
+}
+
+export interface SchedScenarioSpec extends Omit<SchedScenario, 'jobs'> {
+  jobs: JobSpec[];
+}

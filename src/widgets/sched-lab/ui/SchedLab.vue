@@ -13,7 +13,8 @@ import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadMiniScheduler, loadRunner, toSlices } from '../model/run';
-import type { Job, Priority, SchedScenario, SliceEntry } from '../model/types';
+import { expandScenario } from '../model/expand';
+import type { Job, Priority, SchedScenario, SchedScenarioSpec, SliceEntry } from '../model/types';
 
 const props = defineProps<{
   heapCode: string;
@@ -21,7 +22,8 @@ const props = defineProps<{
   hostCode: string;
   jobCode: string;
   scenarioCode: string;
-  scenarios: SchedScenario[];
+  /** Сценарии с правилами повтора — разворачиваются здесь, а не в HTML страницы. */
+  scenarios: SchedScenarioSpec[];
   /** Подпись под демо. Строчная разметка. */
   caption: string;
 }>();
@@ -36,12 +38,13 @@ const runScenario = loadRunner(
 const PRIORITY_NAME: Record<Priority, string> = { 1: 'Immediate', 2: 'UserBlocking', 3: 'Normal', 4: 'Low', 5: 'Idle' };
 const TONES = ['info', 'warn', 'ok', 'err'] as const;
 
-const picked = ref(props.scenarios[0].id);
-const options = props.scenarios.map((s) => ({ value: s.id, label: s.label }));
-const scenario = computed(() => props.scenarios.find((s) => s.id === picked.value) ?? props.scenarios[0]);
+const scenarios: SchedScenario[] = props.scenarios.map(expandScenario);
+const picked = ref(scenarios[0].id);
+const options = scenarios.map((s) => ({ value: s.id, label: s.label }));
+const scenario = computed(() => scenarios.find((s) => s.id === picked.value) ?? scenarios[0]);
 
 const initialPick = (s: SchedScenario) => String(s.jobs.find((j) => j.name === s.pickPriorityOf)?.priority ?? 2);
-const pickedPriority = ref(initialPick(props.scenarios[0]));
+const pickedPriority = ref(initialPick(scenarios[0]));
 const priorityOptions = ([1, 2, 3, 4, 5] as Priority[]).map((p) => ({ value: String(p), label: PRIORITY_NAME[p] }));
 watch(scenario, (s) => {
   pickedPriority.value = initialPick(s);

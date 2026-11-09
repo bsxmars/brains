@@ -8,7 +8,7 @@
  * Те же строки напечатаны на странице и прогоняются `tests/unit/spatial-index.test.ts` против
  * `rbush`, `flatbush` и перебора. Компонент только рисует узлы, фигуры и счётчики.
  */
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
@@ -26,6 +26,14 @@ const props = defineProps<{
 }>();
 
 const api = loadSpatial(props.codes);
+
+/**
+ * Фигуры и узлы рисуются только в браузере. Серверный рендер печатал их все — две тысячи
+ * `<circle>` на два острова, и страница весила полмегабайта HTML, который тут же заменяла
+ * гидратация. До монтирования на месте поля пустая рамка тех же размеров.
+ */
+const mounted = ref(false);
+onMounted(() => (mounted.value = true));
 const gen = loadShapes(props.shapesCode);
 
 const POINTS = 1000;
@@ -274,6 +282,8 @@ const pointR = 5;
         >
           <rect class="sl-bg" x="0" y="0" width="1000" height="1000" />
 
+          <template v-if="mounted">
+
           <rect
             v-for="(c, i) in gridCells"
             :key="`c${i}`"
@@ -341,6 +351,7 @@ const pointR = 5;
             :height="qbox.maxY - qbox.minY"
           />
           <circle v-if="!dragging" class="sl-cursor" :cx="cursor.x" :cy="cursor.y" r="7" />
+          </template>
         </svg>
 
         <div class="sl-pane">

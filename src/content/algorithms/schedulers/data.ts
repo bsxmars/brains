@@ -1,5 +1,5 @@
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
-import type { HeapScenario, Job, SchedScenario } from '@/widgets/sched-lab/model/types';
+import type { HeapScenario, Job, JobSpec, SchedScenario, SchedScenarioSpec } from '@/widgets/sched-lab/model/types';
 
 /**
  * Данные темы «Планировщики: очередь с приоритетом и нарезка времени».
@@ -628,6 +628,21 @@ export const SCHED_SCENARIOS: SchedScenario[] = [
     jobs: STARVE_JOBS,
   },
 ];
+
+/** То же «голодание» правилом повтора — для острова. Что оно разворачивается в `STARVE_JOBS`, сверяет тест. */
+const STARVE_SPEC: JobSpec[] = [
+  { name: 'U', priority: 2, units: [5] },
+  { name: 'N', priority: 3, at: 1, units: [1] },
+  { name: 'U', priority: 2, at: 4, units: [5], repeat: { count: 1499, every: 4 } },
+];
+
+/**
+ * Сценарии в том виде, в каком их получает `SchedLab`: развёрнутые 1500 задач весили 135 КБ
+ * в HTML страницы, правилом повтора — сотню байт. Остров разворачивает их сам (`expandScenario`).
+ */
+export const SCHED_SCENARIOS_WIRE: SchedScenarioSpec[] = SCHED_SCENARIOS.map((s) =>
+  s.jobs === STARVE_JOBS ? { ...s, jobs: STARVE_SPEC } : s,
+);
 
 export const SCHED_CAPTION =
   'Полосы — куски работы на виртуальной шкале, вертикальные черты — начала квантов, то есть макрозадач, в которых шла работа. Точка над полосой — момент, когда работа появилась. Кусок, выполненный с `didTimeout = true`, обведён тёмно-красным. Журнал считает мини-планировщик темы; у настоящего пакета `scheduler` 0.28 на тех же часах он тот же.';

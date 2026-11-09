@@ -354,3 +354,12 @@ describe('unstable_mock — второй оракул порядка', () => {
     }
   });
 });
+
+/** Остров получает сценарии правилом повтора; развёрнутые, они обязаны совпасть с теми, что проверены выше. */
+describe('SCHED_SCENARIOS_WIRE разворачивается ровно в SCHED_SCENARIOS', () => {
+  it('каждый сценарий — те же работы в том же порядке', async () => {
+    const { expandScenario } = await import('@/widgets/sched-lab/model/expand');
+    expect(t.SCHED_SCENARIOS_WIRE.map(expandScenario)).toEqual(t.SCHED_SCENARIOS);
+    expect(JSON.stringify(t.SCHED_SCENARIOS_WIRE).length).toBeLessThan(JSON.stringify(t.SCHED_SCENARIOS).length / 10);
+  });
+});
