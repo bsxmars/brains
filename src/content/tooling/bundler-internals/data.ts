@@ -694,7 +694,7 @@ export const SCENARIOS: BundleScenario[] = [
     label: 'Магазин',
     files: APP_FILES,
     entry: 'src/main.js',
-    note: 'Четыре модуля из раздела «Граф модулей». `formatDate` и `track` никому не нужны и выпадают, а две функции `label` встречаются в одной области видимости — одна становится `label$1`.',
+    note: 'Четыре модуля из раздела [«Граф модулей»](#s1). `formatDate` и `track` никому не нужны и выпадают, а две функции `label` встречаются в одной области видимости — одна становится `label$1`.',
     rolldown: BASE_ROLLDOWN,
   },
   {

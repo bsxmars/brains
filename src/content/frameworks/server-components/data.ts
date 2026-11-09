@@ -144,7 +144,7 @@ export const SERVER_REACT_NOTE =
   'Серверный компонент исполняется другой сборкой React. Под условием `react-server` в объекте `React` **нет** `useState`, `useEffect`, `useReducer`, `useContext` и `useLayoutEffect` — зато есть `cache`, `use`, `useId`, `useMemo`. Вызов `useState` в серверном компоненте — не предупреждение, а `TypeError: useState is not a function`: имени просто не существует.';
 
 export const SSR_FROM_FLIGHT_NOTE =
-  'SSR и Server Components не соперничают — они стоят друг за другом. Сервер получает поток Flight, тут же разбирает его клиентской частью пакета и отдаёт получившееся дерево в `renderToString` из `react-dom/server`: HTML выходит сразу с результатом серверных компонентов и с первой отрисовкой клиентских. Ниже — ровно то, что вернул `renderToString` для потока из раздела «Формат потока» с настоящим клиентским `Like` (у него `useState`).';
+  'SSR и Server Components не соперничают — они стоят друг за другом. Сервер получает поток Flight, тут же разбирает его клиентской частью пакета и отдаёт получившееся дерево в `renderToString` из `react-dom/server`: HTML выходит сразу с результатом серверных компонентов и с первой отрисовкой клиентских. Ниже — ровно то, что вернул `renderToString` для потока из раздела [«Формат потока»](#s2) с настоящим клиентским `Like` (у него `useState`).';
 
 /** Что вернул `renderToString` для дерева, собранного из `FLIGHT_SAMPLE` (сверено тестом). */
 export const SSR_FROM_FLIGHT_HTML =

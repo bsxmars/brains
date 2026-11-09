@@ -618,7 +618,7 @@ export const SOURCES: Source[] = [
   {
     title: 'MDN · `Performance.measureUserAgentSpecificMemory()`',
     href: 'https://developer.mozilla.org/en-US/docs/Web/API/Performance/measureUserAgentSpecificMemory',
-    what: 'Требование изоляции и форма результата: `bytes` и `breakdown`. Остальное в разделе «В браузере» — замер в Chromium 153.',
+    what: 'Требование изоляции и форма результата: `bytes` и `breakdown`. Остальное в разделе [«В браузере»](#s6) — замер в Chromium 153.',
   },
   {
     title: 'Grafana Pyroscope · Node.js',

@@ -1259,7 +1259,7 @@ export const SOURCES: Source[] = [
   {
     title: 'GitLab CI/CD variables',
     href: 'https://docs.gitlab.com/ee/ci/variables/',
-    what: 'полная таблица приоритетов слоёв — раздел «Переменные и их приоритеты» сверялся с ней',
+    what: 'полная таблица приоритетов слоёв — раздел [«Переменные и их приоритеты»](#s4) сверялся с ней',
   },
   {
     title: 'Predefined CI/CD variables reference',

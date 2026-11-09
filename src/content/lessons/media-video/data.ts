@@ -197,7 +197,7 @@ export const PLAY_ERRORS_OUT = `передумали: AbortError
 нет файла: NotSupportedError error.code = 4`;
 
 export const PLAY_REJECT_ROWS: { k: string; v: string; tone: 'warn' | 'err' }[] = [
-  { k: '`NotAllowedError`', v: 'браузер не разрешил играть: обычно звук без жеста пользователя — раздел «Автоплей»', tone: 'warn' },
+  { k: '`NotAllowedError`', v: 'браузер не разрешил играть: обычно звук без жеста пользователя — раздел [«Автоплей»](#s3)', tone: 'warn' },
   { k: '`AbortError`', v: 'ролик остановили или сменили `src` раньше, чем он пошёл. Частый случай — `pause()` сразу после `play()`', tone: 'warn' },
   { k: '`NotSupportedError`', v: 'файл не открылся: формат не поддержан, файл битый **или сервер ответил 404**', tone: 'err' },
 ];
@@ -497,7 +497,7 @@ export const NETWORK_ROWS: { k: string; v: string }[] = [
 ];
 
 export const READY_NOTE =
-  '`readyState` отвечает на вопрос «сколько у меня есть», `networkState` — «что я сейчас делаю». Они независимы. Целиком скачанный файл — это `readyState` 4 и `networkState` 1: качать больше нечего. Каждый переход `readyState` вверх приходит своим событием из раздела «Первый ролик». Вниз событие одно — `waiting`.';
+  '`readyState` отвечает на вопрос «сколько у меня есть», `networkState` — «что я сейчас делаю». Они независимы. Целиком скачанный файл — это `readyState` 4 и `networkState` 1: качать больше нечего. Каждый переход `readyState` вверх приходит своим событием из раздела [«Первый ролик»](#s1). Вниз событие одно — `waiting`.';
 
 /** Исполняется после `MSE_SETUP_CODE` той же страницей. */
 export const STALL_CODE = `  const once = (name) => new Promise((done) => video.addEventListener(name, done, { once: true }));

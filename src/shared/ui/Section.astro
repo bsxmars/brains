@@ -90,6 +90,10 @@ const hasHeader = Boolean(eyebrow || title || lead);
     gap: var(--section-gap, 30px);
     scroll-margin-top: 124px;
   }
+  /* Подзаголовок с якорем — та же липкая стопка, тот же отступ. */
+  .section :global(h3[id]) {
+    scroll-margin-top: 124px;
+  }
 
   .section--intro {
     border-top: 1px solid var(--hairline);

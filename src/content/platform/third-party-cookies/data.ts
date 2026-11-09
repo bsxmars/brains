@@ -195,7 +195,7 @@ export const TWO_FILTERS_STEPS: { k: string; when: string; what: string; cost: s
     k: 'WebKit 26.6',
     when: 'неразделённая сторонняя кука не ставится и не уходит',
     what: '`uid=42` во фрейм не уходит, `seen` отвергнута при установке — как в Chromium с ограничением. Переход на сам `embed.test` уносит `uid`.',
-    cost: 'тем же, что и ограниченный Chromium. Расходятся они в атрибутах: кука без `SameSite` и `None` без `Secure` — их разбирает раздел «Уйдёт ли кука».',
+    cost: 'тем же, что и ограниченный Chromium. Расходятся они в атрибутах: кука без `SameSite` и `None` без `Secure` — их разбирает раздел [«Уйдёт ли кука»](#s3).',
   },
 ];
 
@@ -550,7 +550,7 @@ export const CHIPS_FACTS: { t: string; d: string; tone?: 'ok' | 'warn' | 'err' |
   },
   {
     t: '`Partitioned` без `Secure` отвергается',
-    d: 'Во всех трёх движках — даже на https-странице. `SameSite=None` рядом с `Partitioned` формально не обязателен, но без него Chromium считает куку `Lax`, а `Lax` из стороннего фрейма не принимается вовсе — это видно в таблице атрибутов раздела «Уйдёт ли кука».',
+    d: 'Во всех трёх движках — даже на https-странице. `SameSite=None` рядом с `Partitioned` формально не обязателен, но без него Chromium считает куку `Lax`, а `Lax` из стороннего фрейма не принимается вовсе — это видно в таблице атрибутов раздела [«Уйдёт ли кука»](#s3).',
     tone: 'err',
   },
 ];
@@ -845,7 +845,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '08',
     t: '`await hasStorageAccess()` перед запросом съедает жест в WebKit',
-    d: 'Связка «сначала `await document.hasStorageAccess()`, потом `requestStorageAccess()`» в WebKit 26.6 дала `NotAllowedError` два прогона из двух, а тот же вызов первой строкой обработчика — доступ. `await Promise.resolve()` жест не съел: теряет его настоящий асинхронный вызов. Firefox выдал доступ в обоих вариантах, поэтому в одном движке ошибка не видна. Проверку делайте при загрузке фрейма, а в обработчике клика — сразу `requestStorageAccess()`, как в коде раздела «Storage Access API».',
+    d: 'Связка «сначала `await document.hasStorageAccess()`, потом `requestStorageAccess()`» в WebKit 26.6 дала `NotAllowedError` два прогона из двух, а тот же вызов первой строкой обработчика — доступ. `await Promise.resolve()` жест не съел: теряет его настоящий асинхронный вызов. Firefox выдал доступ в обоих вариантах, поэтому в одном движке ошибка не видна. Проверку делайте при загрузке фрейма, а в обработчике клика — сразу `requestStorageAccess()`, как в коде раздела [«Storage Access API»](#s5).',
     tone: 'err',
   },
 ];
