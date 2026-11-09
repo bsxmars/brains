@@ -26,6 +26,13 @@ const { title, description } = Astro.props;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {/* GitHub Pages не отдаёт своих заголовков — что можно, задаётся здесь. Полный CSP
+        невозможен: демо строят код через `new Function`, острова Astro — инлайн-скрипты.
+        Закрыто то, что не нужно сайту вовсе: плагины и чужой `<base>`. ⚠️ Рамки `srcdoc`
+        наследуют эту политику, поэтому `form-action` здесь нет: демо «Iframe» отправляет
+        форму внутри рамки на `about:blank` и проверяет `allow-forms`. */}
+    <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>{title}</title>
     {description && <meta name="description" content={plainMd(description)} />}
   </head>

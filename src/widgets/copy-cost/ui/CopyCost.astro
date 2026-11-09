@@ -66,21 +66,21 @@ const ticks = niceTicks([0, max], 4).filter((value) => value <= max);
         </div>
       ))
     }
-  </div>
 
-  <div class="axis">
-    <span aria-hidden="true"></span>
-    <div class="axis__track">
-      {
-        ticks.map((value) => (
-          <span class="axis__tick" style={`left:${(value / max) * 100}%`}>
-            {value}
-          </span>
-        ))
-      }
+    <div class="axis">
+      <span aria-hidden="true"></span>
+      <div class="axis__track">
+        {
+          ticks.map((value) => (
+            <span class="axis__tick" style={`left:${(value / max) * 100}%`}>
+              {value}
+            </span>
+          ))
+        }
+      </div>
+      <span class="axis__unit">МБ</span>
+      <span aria-hidden="true"></span>
     </div>
-    <span class="axis__unit">МБ</span>
-    <span aria-hidden="true"></span>
   </div>
 
   {caption && <div class="caption">{caption}</div>}
@@ -98,9 +98,13 @@ const ticks = niceTicks([0, max], 4).filter((value) => value <= max);
     background: var(--surface);
   }
 
+  /* Одна сетка на все строки, строки и ось — её подсетки. Пока у каждой строки была своя
+     сетка, колонки `auto` мерились по своему вердикту: «✓ копия» короче «✗ держит родителя»,
+     и дорожки зелёных, красных и контроля начинались в разных местах, а шкала — в третьем. */
   .rows {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr) auto auto;
+    column-gap: 12px;
   }
 
   /* Дорожка — главная колонка, а не остаток от кода.
@@ -109,13 +113,13 @@ const ticks = niceTicks([0, max], 4).filter((value) => value <= max);
      диаграммой. Код переносится — у него для этого есть `overflow-wrap`. */
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr) auto auto;
-    gap: 12px;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
     padding: 9px 0;
     border-bottom: 1px solid var(--rule);
   }
-  .row:last-child {
+  .row:nth-last-child(2) {
     border-bottom: 0;
   }
   /* Контроль отбит снизу линией потемнее: всё, что ниже, сравнивается именно с ним. */
@@ -172,6 +176,10 @@ const ticks = niceTicks([0, max], 4).filter((value) => value <= max);
     white-space: nowrap;
     color: var(--tone-ok-strong);
   }
+  /* Числа выровнены по правому краю — разряды встают друг под другом. */
+  .row__mb {
+    text-align: end;
+  }
   .row[data-ok='no'] .row__mb,
   .row[data-ok='no'] .row__verdict {
     color: var(--tone-err-strong);
@@ -181,13 +189,13 @@ const ticks = niceTicks([0, max], 4).filter((value) => value <= max);
     color: var(--text-faint);
   }
 
-  /* Ось повторяет сетку строки, чтобы деления встали ровно под дорожками. */
+  /* Ось — та же подсетка, поэтому деления стоят ровно под дорожками. */
   .axis {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr) auto auto;
-    gap: 12px;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     align-items: start;
-    padding-top: 7px;
+    padding-top: 12px;
   }
   .axis__track {
     position: relative;
@@ -217,7 +225,12 @@ const ticks = niceTicks([0, max], 4).filter((value) => value <= max);
 
   /* На узком экране четыре колонки не живут: код занимает строку целиком, цифры уходят вниз. */
   @media (max-width: 620px) {
+    .rows {
+      display: flex;
+      flex-direction: column;
+    }
     .row {
+      column-gap: 12px;
       grid-template-columns: minmax(0, 1fr) auto;
       row-gap: 7px;
     }

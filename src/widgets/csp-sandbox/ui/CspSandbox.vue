@@ -80,8 +80,8 @@ function run() {
 function onMessage(event: MessageEvent) {
   const data = event.data as SandboxMessage | null;
   if (!data || data.__csp !== true) return;
-  // Сообщение принимается только от своей рамки.
-  if (frame.value && event.source !== frame.value.contentWindow) return;
+  // Сообщение принимается только от своей рамки; нет рамки — нет и сообщений.
+  if (!frame.value || event.source !== frame.value.contentWindow) return;
 
   ran.value = Array.isArray(data.ran) ? (data.ran as string[]) : [];
   violations.value = Array.isArray(data.violations) ? (data.violations as CspViolation[]) : [];

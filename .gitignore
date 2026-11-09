@@ -9,3 +9,6 @@ test-results/
 playwright-report/
 .DS_Store
 .vitest/
+
+# Локальные переменные окружения не попадают в репозиторий.
+.env*

@@ -28,6 +28,14 @@ interface Props {
 }
 
 const { items } = Astro.props;
+
+// Источник — внешняя ссылка, и `href` уходит в разметку как есть. Всё, что не `http(s)://`
+// (`javascript:`, `data:`, относительный путь по ошибке), останавливает сборку.
+for (const item of items) {
+  if (!/^https?:\/\//.test(item.href)) {
+    throw new Error(`Источник «${item.title}»: адрес не http(s) — ${item.href} (${Astro.url.pathname})`);
+  }
+}
 ---
 
 <ul class="list">

@@ -1,0 +1,7 @@
+# Действия в workflow закреплены по SHA коммита — Dependabot поднимает их вместе с комментарием-тегом.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

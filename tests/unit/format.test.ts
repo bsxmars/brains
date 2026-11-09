@@ -34,7 +34,7 @@ describe('inlineMd', () => {
   });
 
   it('не пускает наружу сайта и в опасные схемы', () => {
-    for (const href of ['https://example.com', 'javascript:alert(1)', 'data:text/html,x']) {
+    for (const href of ['https://example.com', 'javascript:alert(1)', 'data:text/html,x', '//example.com']) {
       const out = inlineMd(`[текст](${href})`);
       expect(out, `адрес ${href} не должен становиться ссылкой`).not.toContain('<a ');
     }
