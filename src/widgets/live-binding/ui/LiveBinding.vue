@@ -14,6 +14,7 @@ import { onMounted, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { Button } from '@/shared/ui';
 import { runLiveBinding, type LiveRun, type Readings } from '../model/run';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const ROWS: { key: keyof Readings; expr: string; what: string }[] = [
   { key: 'binding', expr: 'count', what: 'прямой импорт — привязка к чужой ячейке' },
@@ -47,7 +48,7 @@ onMounted(go);
       <div class="split">
         <div v-for="file in run?.sources ?? []" :key="file.name" class="pane">
           <div class="t-label">{{ file.name }}</div>
-          <pre class="code" data-code>{{ file.code }}</pre>
+          <CodeView class="code" :code="file.code" />
         </div>
       </div>
 

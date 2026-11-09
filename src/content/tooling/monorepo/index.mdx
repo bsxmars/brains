@@ -120,11 +120,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Репозиторий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LAYOUT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={LAYOUT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="apps/web/package.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={WEB_MANIFEST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="json" code={WEB_MANIFEST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -134,11 +134,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="npm" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={NPM_TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={NPM_TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="pnpm" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PNPM_TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={PNPM_TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -146,7 +146,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="pnpm-lock.yaml, фрагмент" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LOCK_IMPORTERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={LOCK_IMPORTERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LOCK_NOTE} />
@@ -198,11 +198,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="npm: работает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PHANTOM_NPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={PHANTOM_NPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="pnpm: падает сразу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PHANTOM_PNPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={PHANTOM_PNPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -214,11 +214,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="npm ls" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DUP_NPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={DUP_NPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="pnpm why" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DUP_PNPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={DUP_PNPM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -237,11 +237,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="npm: по списку воркспейсов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={NPM_ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={NPM_ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="pnpm -r: по графу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PNPM_PARALLEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={PNPM_PARALLEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 

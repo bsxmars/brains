@@ -13,6 +13,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { allowedOrders, joinOut, loadLoop } from '../model/run';
 import type { LoopScenario, LoopStep } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   code: string;
@@ -92,7 +93,7 @@ const realRows = computed(() =>
       <div class="ll-cols">
         <div class="ll-col">
           <span class="ll-label">сценарий</span>
-          <pre class="ll-code" data-code>{{ scenario.code }}</pre>
+          <CodeView class="ll-code" :code="scenario.code" />
         </div>
 
         <div class="ll-col">

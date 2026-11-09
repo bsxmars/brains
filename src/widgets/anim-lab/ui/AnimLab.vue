@@ -18,6 +18,7 @@ import { Button, SegmentedControl } from '@/shared/ui';
 import { useReducedMotion } from '@/shared/lib/useReducedMotion';
 import { agrees, loadPlan, standStages } from '../model/run';
 import type { AnimCase } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   planCode: string;
@@ -165,7 +166,7 @@ onBeforeUnmount(stop);
       <div class="al-split">
         <div class="al-pane">
           <span class="al-label">код</span>
-          <pre class="al-code">{{ current.code }}</pre>
+          <CodeView class="al-code" :lang="current.id === 'raf' ? 'js' : 'css'" :code="current.code" />
         </div>
 
         <div class="al-pane">

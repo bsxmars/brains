@@ -143,7 +143,7 @@ const sumLine = computed(() => {
       </div>
 
       <div class="gpu-pane gpu-pane--right">
-        <CodeListing :lines="lines" label="шейдер (WGSL)" />
+        <CodeListing lang="wgsl" :lines="lines" label="шейдер (WGSL)" />
 
         <div v-if="result && result.sample.length" class="gpu-sample">
           <div class="t-label">{{ result.mode === 'gpu' ? (result.mismatches ? 'первые расхождения' : 'первые элементы') : 'эталон на JS' }}</div>

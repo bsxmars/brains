@@ -6,6 +6,8 @@ import react from '@astrojs/react';
 import vue from '@astrojs/vue';
 import { compileStyle } from '@vue/compiler-sfc';
 import { defineConfig } from 'astro/config';
+import { createCssVariablesTheme } from 'shiki';
+import { fencedTransformer, THEME_OPTIONS } from './src/shared/lib/highlight-theme.ts';
 
 /**
  * Выключатель React Fast Refresh.
@@ -154,11 +156,14 @@ export default defineConfig({
   ],
 
   /**
-   * Подсветки синтаксиса в оригинальных уроках нет: `<pre>` монохромный, #E9E6DE на #17150F.
-   * Добавить её — значит сменить вид, поэтому выключаем, и fenced-блоки получают стиль
-   * элемента `pre` из `shared/styles/base.css`.
+   * Подсветка fenced-блоков — та же, что у `CodeBlock` (решение автора курса 2026-11-05):
+   * css-variables-тема, цвета — токенами `--code-*` из `theme.ts`. Трансформер снимает фон,
+   * который Astro ставит атрибутом, — его даёт `pre` из `shared/styles/base.css`.
    */
-  markdown: { syntaxHighlight: false },
+  markdown: {
+    syntaxHighlight: 'shiki',
+    shikiConfig: { theme: createCssVariablesTheme(THEME_OPTIONS), transformers: [fencedTransformer] },
+  },
 
   vite: {
     plugins: [disableReactRefresh, vueScopedStylesInDev],

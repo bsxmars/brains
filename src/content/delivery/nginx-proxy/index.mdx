@@ -133,7 +133,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Восемь server на двух портах" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SERVER_CONF} size={11} lh={1.6} pad="14px 16px" />
+      <CodeBlock lang="nginx" code={SERVER_CONF} size={11} lh={1.6} pad="14px 16px" />
     </Card>
 
     <Card title="Кто ответил на какой Host" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -173,7 +173,7 @@ import {
   <Plain text={PLAIN_LOCATION} />
 
   <Card title="Конфиг на всю тему" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={LOC_CONF} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="nginx" code={LOC_CONF} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -257,11 +257,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Конфиг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REGEX_PASS_CONF} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="nginx" code={REGEX_PASS_CONF} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="err" title="Проверка конфига" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REGEX_PASS_ERROR} size={11} lh={1.6} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={REGEX_PASS_ERROR} size={11} lh={1.6} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -277,7 +277,7 @@ import {
   <Plain text={PLAIN_FORWARDED} />
 
   <Card title="Три location — три набора заголовков" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={HEADER_CONF} size={11} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="nginx" code={HEADER_CONF} size={11} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -328,7 +328,7 @@ import {
     </Card>
 
     <Card title="Location для потока" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={STREAM_CONF} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="nginx" code={STREAM_CONF} size={11} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -369,11 +369,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Два сервера одной статики" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SPA_CONF} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="nginx" code={SPA_CONF} size={11} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Что лежит на диске" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SPA_FILES} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={SPA_FILES} size={11} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -400,7 +400,7 @@ import {
   <Plain text={PLAIN_PROXY_CACHE} />
 
   <Card title="Один кеш, три location" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CACHE_CONF} size={11} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="nginx" code={CACHE_CONF} size={11} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -443,7 +443,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Конфиг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={GZIP_CONF} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="nginx" code={GZIP_CONF} size={11} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="JSON из 60 записей" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

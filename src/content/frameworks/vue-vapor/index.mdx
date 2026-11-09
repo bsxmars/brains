@@ -65,7 +65,7 @@ import {
   title="Один компонент — два вывода"
   lead="Компонент `Cart` — заголовок, счётчик с классом, список с ключами, условный абзац и кнопка. Отличается от обычного одним словом — `vapor` в теге `<script setup>`."
 >
-  <CodeBlock code={CART_SFC} />
+  <CodeBlock lang="vue" code={CART_SFC} />
 
   <Plain text={PLAIN_TEMPLATE} />
 
@@ -75,7 +75,7 @@ import {
 
   ### Vapor-вывод: шаблон и эффекты
 
-  <CodeBlock code={VAPOR_CODE} />
+  <CodeBlock lang="jsx" code={VAPOR_CODE} />
 
   <Card pad={18} gap={11} size={15.5} lh={1.6} text={OUTPUT_NOTE} />
 
@@ -169,7 +169,7 @@ import {
   <CodeBlock code={STEP_COMPILER} />
 
   <Card title="Что мини-компилятор выдаёт для `Cart`" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={MINI_OUT} />
+    <CodeBlock lang="jsx" code={MINI_OUT} />
 
     <Md text={MINI_NOTE} />
   </Card>
@@ -238,7 +238,7 @@ import {
   title="Как включить и смешать"
   lead="Режим выбирается на уровне компонента, приложение — на уровне точки входа. Смешивать можно в обе стороны, но только через плагин."
 >
-  <CodeBlock code={ENABLE_CODE} />
+  <CodeBlock lang="html" code={ENABLE_CODE} />
 
   <CardGrid min={260} gap={14} align="start">
     {ENABLE_FACTS.map((fact) => (
@@ -289,7 +289,7 @@ import {
   />
 
   <Card title="Приложение для замера сборки" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={BUNDLE_APP} />
+    <CodeBlock lang="vue" code={BUNDLE_APP} />
   </Card>
 
   <Table

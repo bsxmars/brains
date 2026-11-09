@@ -158,7 +158,7 @@ import {
   <Plain text={PLAIN_INLINE} />
 
   <Card title=".env фикстуры" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={BUNDLE_ENV} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={BUNDLE_ENV} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   ### Девять сборок одного файла
@@ -167,7 +167,7 @@ import {
     {BUNDLE_ROWS.map((row) => (
       <Card tone={row.tone} pad={18} radius={5} gap={10} size={15.5} lh={1.6}>
         <CodeBlock code={'// src/main.js' + (row.config?.envPrefix ? " + envPrefix: ['VITE_', 'DB_']" : row.config?.leakConfig ? ' + vite.config.js ниже' : '') + '\n' + row.src} size={11.5} lh={1.65} pad="12px 14px" />
-        <CodeBlock code={'// в бандле\n' + row.out} size={11.5} lh={1.65} pad="12px 14px" />
+        <CodeBlock lang="text" code={'// в бандле\n' + row.out} size={11.5} lh={1.65} pad="12px 14px" />
         <Md text={row.verdict} />
       </Card>
 
@@ -186,7 +186,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="envPrefix: ''" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ENVPREFIX_ERROR} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={ENVPREFIX_ERROR} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ENVPREFIX_NOTE} />
@@ -264,16 +264,16 @@ import {
 
   <Card title="Файл конфига из окружения" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RENDER_CONFIG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-    <CodeBlock code={'// renderConfig(env) в контейнере с API_URL, SENTRY_DSN, FEATURE_NEW_CART, DB_PASSWORD, HOME\n' + RUNTIME_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={'// renderConfig(env) в контейнере с API_URL, SENTRY_DSN, FEATURE_NEW_CART, DB_PASSWORD, HOME\n' + RUNTIME_OUT} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Страница и приложение" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RUNTIME_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={RUNTIME_HTML} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Старт контейнера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ENTRYPOINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="bash" code={ENTRYPOINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -321,7 +321,7 @@ import {
   ### /proc и docker inspect
 
   <Card title="Контейнер с паролем в окружении" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PROC_TRANSCRIPT} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={PROC_TRANSCRIPT} size={11.5} lh={1.65} pad="14px 16px" />
     <Md text={PROC_NOTE} />
   </Card>
 
@@ -336,14 +336,14 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Secret" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SECRET_YAML} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={SECRET_YAML} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SECRET_YAML_NOTE} />
   </CardGrid>
 
   <Card title="Переменной и файлом в одном поде" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={POD_YAML} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="yaml" code={POD_YAML} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -367,7 +367,7 @@ import {
   ### История git
 
   <Card title="Удалили файл — и нашли его" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={GIT_TRANSCRIPT} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={GIT_TRANSCRIPT} size={11.5} lh={1.65} pad="14px 16px" />
     <Md text={GIT_NOTE} />
   </Card>
 

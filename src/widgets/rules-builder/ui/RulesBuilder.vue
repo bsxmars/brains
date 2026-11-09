@@ -21,6 +21,7 @@ import { decide } from '../model/rules';
 import { resolveVar, shadowed } from '../model/vars';
 import type { PipelineCtx, PipelineSource, Rule } from '../model/types';
 import type { VarLayer, VarSource } from '../model/vars';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 /** Слой переменной вместе с подписью для кнопки. */
 type RichLayer = VarLayer & { label: string };
@@ -238,7 +239,7 @@ const ruleVars = computed(() => Object.entries(decision.value.variables));
                 </button>
               </span>
             </div>
-            <pre class="rule__code">{{ row.rule.text }}</pre>
+            <CodeView class="rule__code" lang="yaml" tone="light" :code="row.rule.text" />
           </div>
         </div>
 
@@ -261,7 +262,7 @@ const ruleVars = computed(() => Object.entries(decision.value.variables));
             <code v-for="[key, value] in ruleVars" :key="key">{{ key }}={{ value }}</code>
           </p>
 
-          <pre class="yaml">{{ yaml }}</pre>
+          <CodeView class="yaml" lang="yaml" tone="light" :code="yaml" />
         </div>
       </div>
     </div>

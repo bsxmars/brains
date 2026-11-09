@@ -18,6 +18,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { classify, contentTypeValue, headerName } from '../model/preflight';
 import type { CorsContentType, CorsCredentials, CorsHeader, CorsMethod } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const method = ref<CorsMethod>('GET');
 const contentType = ref<CorsContentType>('none');
@@ -118,7 +119,7 @@ const snippet = computed(() => {
     </template>
 
     <div class="body">
-      <pre class="snippet">{{ snippet }}</pre>
+      <CodeView class="snippet" :code="snippet" />
 
       <div class="verdict" :data-tone="verdict.simple ? 'warn' : 'info'">
         <span class="verdict__head">{{

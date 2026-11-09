@@ -288,13 +288,13 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Две формы и четыре правила порядка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LAYER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={LAYER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       <NumberedList items={LAYER_ORDER_RULES} />
     </Card>
 
     <Card tone="err" title="Совет про слои, который перестаёт работать" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={OVERRIDES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={OVERRIDES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       <CardNote tone="err">
         <Md text={OVERRIDES_NOTE} />
@@ -304,14 +304,14 @@ import {
 
   ### Одна кнопка и чужой `!important`
 
-  <CodeBlock code={LAYER_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="css" code={LAYER_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
   <Md text={LAYER_SCENE_NOTE} />
 
   <CardGrid min={290} gap={14} align="start">
     {LAYER_SCENE_STEPS.map((l) => (
       <Card tone={l.result === 'синяя' ? 'ok' : 'err'} title={l.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
-        <CodeBlock code={l.code} size={11.5} lh={1.7} pad="12px 14px" />
+        <CodeBlock lang="css" code={l.code} size={11.5} lh={1.7} pad="12px 14px" />
         <Md text={`**Кнопка:** ${l.result}.`} />
         <Md text={l.why} />
       </Card>
@@ -324,7 +324,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="`revert-layer` — исключение внутри своего слоя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={REVERT_LAYER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={REVERT_LAYER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       Возвращает свойству значение из **предыдущего слоя** того же этажа (origin). Если
       предыдущего слоя нет, работает как `revert` и спускается на этаж ниже. Так делают
@@ -336,7 +336,7 @@ import {
   ### Слои в живом проекте: чужой CSS и старый код
 
   <Card title="Раскладка, с которой начинают" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={LAYER_PROJECT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="css" code={LAYER_PROJECT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
   </Card>
 
   <CardGrid min={280} gap={14} align="start">
@@ -353,7 +353,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Начальное значение для того, чего ещё не было" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={STARTING_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={STARTING_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" title="Каскад решает, куда ехать, а `@starting-style` — откуда" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
@@ -388,7 +388,7 @@ import {
   <Plain text={PLAIN_COMPOSITION} />
 
   <Card title="Два трека и значение из каскада" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={ANIM_COMPOSE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="css" code={ANIM_COMPOSE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
   </Card>
 
   <Table
@@ -409,7 +409,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="`@scope` задаёт корень и, если нужно, нижнюю границу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCOPE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={SCOPE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" title="Куда он встал в порядке критериев" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
@@ -488,7 +488,7 @@ import {
   </CardGrid>
 
   <Card title="Функциональные псевдоклассы: где берётся разряд" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={FUNCTIONAL_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+    <CodeBlock lang="text" code={FUNCTIONAL_CODE} size={11.5} lh={1.7} pad="15px 17px" />
 
     <CardNote tone="prose">
 
@@ -512,7 +512,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Список через запятую — это несколько отдельных правил" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={LIST_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={LIST_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       С точки зрения каскада это два независимых правила. Для элемента с классом `card`
       специфичность первого равна `(0,1,0)`, и `#hero` рядом не значит ничего.
@@ -520,7 +520,7 @@ import {
     </Card>
 
     <Card tone="warn" title="А вложенность через `&` специфичность поднимает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={NESTING_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={NESTING_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       Правило с `&` выигрывает у `.a.b.c .title`, написанного позже, — потому что взяло разряд
       от `#promo` из родительского списка. Заметить это по коду сложно: разряд
@@ -569,13 +569,13 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Пример, на котором ошибаются чаще всего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={CASCADE_VS_INHERIT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="html" code={CASCADE_VS_INHERIT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       <Md text={CASCADE_VS_INHERIT_NOTE} />
     </Card>
 
     <Card tone="err" title="Наследуется вычисленное значение, а не то, что написано" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={LINE_HEIGHT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={LINE_HEIGHT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       <CardNote tone="err">
         <Md text={LINE_HEIGHT_NOTE} />
@@ -621,7 +621,7 @@ import {
 
   ### Три свойства одного элемента по стадиям
 
-  <CodeBlock code={STAGE_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="css" code={STAGE_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
   <Md text={STAGE_SCENE_NOTE} />
 
@@ -652,7 +652,7 @@ import {
   </CardGrid>
 
   <Card title="Типовой приём — и почему он работает" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={GCS_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+    <CodeBlock lang="text" code={GCS_CODE} size={11.5} lh={1.7} pad="15px 17px" />
 
     <Md text={GCS_CODE_NOTE} />
   </Card>
@@ -681,7 +681,7 @@ import {
   <Plain text={PLAIN_IACVT} />
 
   <Card tone="err" title="Неподходящее значение в `var()` обнуляет свойство (IACVT)" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={IACVT_CODE} size={11.5} lh={1.7} pad="15px 17px" />
+    <CodeBlock lang="css" code={IACVT_CODE} size={11.5} lh={1.7} pad="15px 17px" />
 
     <NumberedList items={IACVT_STEPS} />
 
@@ -698,13 +698,13 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="ok" title="`@property` чинит сразу три вещи" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={PROPERTY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={PROPERTY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       <Md text={PROPERTY_NOTE} />
     </Card>
 
     <Card title="Тема через переменные против темы через атрибут" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={THEME_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={THEME_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       <CardNote tone="prose">
 
@@ -731,7 +731,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Запрос по значению свойства: `@container style()`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CQ_STYLE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={CQ_STYLE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="info" title="Почему это про каскад, а не про раскладку" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
@@ -819,7 +819,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Правила печати в одном месте" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PRINT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="css" code={PRINT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
   </CardGrid>
 

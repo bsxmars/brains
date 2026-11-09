@@ -15,6 +15,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { elementRow, loadAx, sceneElements } from '../model/run';
 import type { AxNode, AxScene, AxStates, NameFrom } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   /** Строки кода темы в порядке `HIDDEN_CODE`, `ROLE_CODE`, `NAME_CODE`, `FOCUS_CODE`, `TREE_CODE`. */
@@ -191,7 +192,7 @@ const verdict = computed(() => {
       <div class="ax-split">
         <div class="ax-pane">
           <span class="ax-label">разметка</span>
-          <pre class="ax-code">{{ scene.html }}</pre>
+          <CodeView class="ax-code" lang="html" :code="scene.html" />
         </div>
 
         <div class="ax-pane">

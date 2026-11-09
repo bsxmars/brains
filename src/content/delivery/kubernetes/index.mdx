@@ -168,7 +168,7 @@ import {
 
   ### Манифест: главное в YAML-описании Deployment
 
-  <CodeBlock code={MANIFEST_CODE} />
+  <CodeBlock lang="yaml" code={MANIFEST_CODE} />
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={SELECTOR_NOTE} />
@@ -210,7 +210,7 @@ import {
     minWidth={WORKLOADS.minWidth}
   />
 
-  <CodeBlock code={CRONJOB_CODE} />
+  <CodeBlock lang="yaml" code={CRONJOB_CODE} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={CRONJOB_NOTE} />
@@ -231,7 +231,7 @@ import {
     <Md text={SERVICE_WHY} />
   </Card>
 
-  <CodeBlock code={SERVICE_CODE} />
+  <CodeBlock lang="yaml" code={SERVICE_CODE} />
 
   <ServiceDiagram {...SERVICE_DIAGRAM} />
 
@@ -277,7 +277,7 @@ import {
   Если взломают витрину магазина, из неё откроется прямой путь к базе платежей. Закрывают
   этот путь сетевой политикой.
 
-  <CodeBlock code={NETPOL_CODE} />
+  <CodeBlock lang="yaml" code={NETPOL_CODE} />
 
   <Plain text={PLAIN_NETPOL} />
 
@@ -361,7 +361,7 @@ import {
     <Md text={LIVENESS_MEASURE_NOTE} />
   </Callout>
 
-  <CodeBlock code={PROBE_CODE} />
+  <CodeBlock lang="yaml" code={PROBE_CODE} />
 
   <Card title="Пять правил настройки проб" titleSize={17} pad={20} gap={13}>
     <NumberedList items={PROBE_RULES} size={15.5} />
@@ -425,7 +425,7 @@ import {
     <Md text={ROLLOUT_MEASURE_NOTE} />
   </Card>
 
-  <CodeBlock code={ROLLOUT_STATUS_CODE} />
+  <CodeBlock lang="shellsession" code={ROLLOUT_STATUS_CODE} />
 
   <Callout size={17} lh={1.55} pad="20px 22px">
     <Md text={STATUS_NOTE} />
@@ -476,7 +476,7 @@ import {
   Администратор выводит узел на обслуживание — и все поды с него выселяются разом. Если все
   четыре реплики стояли на этом узле, сервис на время ляжет, хотя выката никто не затевал.
 
-  <CodeBlock code={PDB_CODE} />
+  <CodeBlock lang="yaml" code={PDB_CODE} />
 
   <Plain text={PLAIN_PDB} />
 
@@ -592,7 +592,7 @@ import {
   Днём нагрузка втрое выше, чем ночью. Держать реплики под пик круглые сутки дорого, а под
   ночную нагрузку — опасно. HPA меняет число реплик сам, по загрузке.
 
-  <CodeBlock code={HPA_CODE} />
+  <CodeBlock lang="yaml" code={HPA_CODE} />
 
   <CardGrid min={280} gap={14}>
     {HPA_FACTS.map((fact) => (

@@ -13,6 +13,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadPlanner } from '../model/run';
 import type { PlanColumn, ScanNode } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   plannerCode: string;
@@ -99,7 +100,7 @@ const fmt = (n: number) => n.toFixed(2);
 
     <div class="pl-body">
       <Md class="pl-note" :text="column.note" />
-      <pre class="pl-sql">{{ sql }}</pre>
+      <CodeView class="pl-sql" lang="sql" :code="sql" />
       <Md class="pl-line" :text="rowsLine" />
 
       <div class="pl-bars" role="table" aria-label="Цены трёх вариантов плана">

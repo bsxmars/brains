@@ -16,6 +16,7 @@ import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import type { ThrashMode, ThrashOp, ThrashSize } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   modes: ThrashMode[];
@@ -104,7 +105,7 @@ function groups(n: number): string {
     </template>
 
     <div class="body">
-      <pre class="code">{{ mode.code }}</pre>
+      <CodeView class="code" :code="mode.code" />
 
       <div class="ops">
         <div class="t-label">первые операции цикла</div>

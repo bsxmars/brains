@@ -80,7 +80,7 @@ import {
   title="Зачем: где рождается объект"
   lead="Страховой агент отправляет заявки двум партнёрам — «ТФ» и «АБ». У каждого свой API и своя анкета, но остальной код хочет работать с полисом вообще, не зная, чей он. Проблема видна сразу: решение «какой класс создать» оказывается в каждом месте, где нужен полис."
 >
-  <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   Порождающие паттерны собирают это решение в одно место. Но в JavaScript у каждого из них
   уже есть встроенный ответ, и книжная версия нужна не всегда:
@@ -102,7 +102,7 @@ import {
 >
   ### Книжная версия: фабричный метод
 
-  <CodeBlock code={FACTORY_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={FACTORY_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   Иерархия окупается, когда у фабрик есть **общая логика** — здесь `saveHistory`, учёт
   выпущенных полисов, — и когда наследнику нужно что-то своё кроме создания. Если фабрика
@@ -110,7 +110,7 @@ import {
 
   ### Реестр: класс как значение
 
-  <CodeBlock code={FACTORY_REGISTRY_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={FACTORY_REGISTRY_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Почему сошёлся только третий вариант" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={FACTORY_REGISTRY_NOTES} size={14.5} />
@@ -118,7 +118,7 @@ import {
 
   ### Фабричная функция
 
-  <CodeBlock code={FACTORY_FN_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={FACTORY_FN_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card title="Что даёт замыкание и чем за него платят" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={FACTORY_FN_NOTES} size={14.5} />
@@ -126,7 +126,7 @@ import {
 
   ### Ключ из адреса
 
-  <CodeBlock code={REGISTRY_KEY_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={REGISTRY_KEY_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card tone="err" title="Реестр на объекте наследует лишние ключи" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
     <Md text={REGISTRY_KEY_NOTE} />
@@ -141,15 +141,15 @@ import {
 >
   <Plain text={PLAIN_BUILDER} />
 
-  <CodeBlock code={BUILDER_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={BUILDER_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <CardGrid min={320} gap={16} align="start">
     <Card tone="ok" title="Неизменяемый строитель" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={FROZEN_BUILDER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={FROZEN_BUILDER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="`build()` только после обоих шагов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={STRICT_BUILDER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="tsx" code={STRICT_BUILDER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -168,7 +168,7 @@ import {
 >
   <Plain text={PLAIN_PROTOTYPE} />
 
-  <CodeBlock code={CLONE_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={CLONE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Table
     head={['способ', 'класс и методы', '`#`-поля', 'вложенные объекты']}
@@ -185,7 +185,7 @@ import {
 
   ### Общий `Date`
 
-  <CodeBlock code={SHARED_DATE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={SHARED_DATE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={SHARED_DATE_NOTE} />
 </Section>
@@ -210,7 +210,7 @@ import {
 
   ### Одиночка на сервере
 
-  <CodeBlock code={SSR_LEAK_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={SSR_LEAK_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card title="Четыре способа получить второго одиночку — или одного на всех" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={SINGLETON_NOTES} size={14.5} />

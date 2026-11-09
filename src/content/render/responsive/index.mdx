@@ -119,7 +119,7 @@ import {
 >
   <Plain text={PLAIN_VIEWPORTS} />
 
-  <CodeBlock code={META_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="html" code={META_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['мета-тег', 'ширина вёрстки', 'масштаб', 'что видно']}
@@ -176,7 +176,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Высота «на весь экран»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={VH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="css" code={VH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={VH_NOTE} />
@@ -184,7 +184,7 @@ import {
 
   ### `100vw` и полоса прокрутки
 
-  <CodeBlock code={VW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="css" code={VW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['страница', '100vw', 'clientWidth', 'scrollWidth']}
@@ -206,7 +206,7 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Диапазон вместо min и max" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RANGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="css" code={RANGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={RANGE_NOTE} />
@@ -214,7 +214,7 @@ import {
 
   ### `em` в медиазапросе — от шрифта браузера
 
-  <CodeBlock code={EM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="css" code={EM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['условия', '40em', '40rem', '640px']}
@@ -249,7 +249,7 @@ import {
   title="Контейнерные запросы: место, а не окно"
   lead="Карточка в узкой боковой колонке и та же карточка в широкой ленте живут в одном окне. Медиазапрос их не различает, контейнерный — различает: он спрашивает ширину предка, которого объявили контейнером."
 >
-  <CodeBlock code={CQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="css" code={CQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Md text={CQ_LEAD_NOTE} />
 
@@ -308,7 +308,7 @@ import {
 
   ### Карточка в окне и в контейнере
 
-  <CodeBlock code={CARD_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="css" code={CARD_CSS} size={11.5} lh={1.65} pad="14px 16px" />
 
   <ResponsiveLab client:visible code={RESOLVE_CODE} css={CARD_CSS} fonts={FONT_CHOICES} caption={DEMO_CAPTION} />
 </Section>

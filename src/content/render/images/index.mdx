@@ -114,7 +114,7 @@ import {
 >
   <Plain text={PLAIN_SRCSET} />
 
-  <CodeBlock code={MARKUP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="html" code={MARKUP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   Дескриптор `800w` — ширина файла в пикселях. `sizes` читается слева направо: первое условие,
   которое подошло, задаёт ширину слота. Потом для каждого файла считается плотность — сколько
@@ -158,7 +158,7 @@ import {
   title="x-дескрипторы и файл, который уже скачан"
   lead="Когда ширина картинки на странице известна и не меняется, слот не нужен: плотность пишут прямо в `srcset`. А когда подходящий файл не совпадает с тем, что уже лежит в кеше, браузер может взять скачанный."
 >
-  <CodeBlock code={X_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="html" code={X_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Md text={X_NOTE} />
 
@@ -184,7 +184,7 @@ import {
 >
   <Plain text={PLAIN_PICTURE} />
 
-  <CodeBlock code={PICTURE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="html" code={PICTURE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['случай', 'разметка', 'что запросил Chromium']}
@@ -196,7 +196,7 @@ import {
   />
 
   <Card title="Accept у запроса картинки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={`Accept: ${ACCEPT_HEADER}`} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="http" code={`Accept: ${ACCEPT_HEADER}`} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Md text={ACCEPT_NOTE} />
@@ -229,7 +229,7 @@ import {
 >
   <Plain text={PLAIN_LAZY} />
 
-  <CodeBlock code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="html" code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['где картинка', 'тип сети', 'запрос ещё уходит, px', 'уже не уходит, px']}

@@ -988,6 +988,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '04',
     t: 'VDOM-компонент в `createVaporApp` без плагина — пустота без ошибок',
+    lang: 'jsx',
     code: "createVaporApp(App).mount('#app')   // внутри App — обычный компонент\n// prod: <div></div>, в консоли ничего",
     d: 'Продакшен-сборка 3.6.0-rc.9 не предупреждает и не бросает — компонент просто не рендерится. В dev есть предупреждение «setup() returned non-block value». → в любом смешанном дереве ставить `vaporInteropPlugin`.',
     tone: 'err',

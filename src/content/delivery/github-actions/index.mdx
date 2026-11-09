@@ -154,7 +154,7 @@ import {
   title="Событие и триггер"
   lead="Конвейер не запускается сам. Он ждёт событий в репозитории — push, пул-реквест, нажатие кнопки, — и только список в `on:` решает, начнётся прогон или нет."
 >
-  <CodeBlock code={TRIGGER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={TRIGGER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Table
     head={['чем запускали', 'что увидел конвейер', 'о чём это']}
@@ -227,7 +227,7 @@ import {
   </Card>
 
   <Card title="Что стоит за меткой `runs-on`" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={RUNNER_PROBE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={RUNNER_PROBE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="warn">
 
@@ -252,7 +252,7 @@ import {
 
   ### Свои раннеры
 
-  <CodeBlock code={SELF_HOSTED_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={SELF_HOSTED_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {SELF_HOSTED_FACTS.map((fact) => (
@@ -266,7 +266,7 @@ import {
 
   ### Порядок джобов: `needs`
 
-  <CodeBlock code={NEEDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={NEEDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {NEEDS_FACTS.map((fact) => (
@@ -284,9 +284,9 @@ import {
   репозитории. Поправили в одном месте — забыли в пяти других. Вынести повтор можно на двух
   уровнях: шаги — в составное действие, джобы целиком — в вызываемый конвейер.
 
-  <CodeBlock code={COMPOSITE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={COMPOSITE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
-  <CodeBlock code={CALL_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={CALL_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {REUSE_FACTS.map((fact) => (
@@ -383,7 +383,7 @@ import {
 
   ### Артефакт: как файлы переезжают на другую машину
 
-  <CodeBlock code={ARTIFACT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={ARTIFACT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {ARTIFACT_FACTS.map((fact) => (
@@ -396,7 +396,7 @@ import {
   </CardGrid>
 
   <Card title="Ещё два служебных канала: сводка и пометки" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={SUMMARY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="yaml" code={SUMMARY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <Md text={SUMMARY_NOTE} />
   </Card>
@@ -421,11 +421,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Как это выглядит в файле" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={INJECT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={INJECT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="err" emphasis title="И что из этого получилось на раннере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={INJECT_RENDERED} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="bash" code={INJECT_RENDERED} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -504,7 +504,7 @@ import {
 >
   <Plain text={PLAIN_CACHE_KEY} />
 
-  <CodeBlock code={CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   ### Один ключ на четырёх прогонах
 
@@ -575,7 +575,7 @@ import {
   title="Матрицы и параллелизм"
   lead="Матрица выглядит как цикл: «повтори для Node 24 и Node 26». Но GitHub превращает её в набор отдельных джобов, по одному на каждое сочетание значений, и каждый платит полную цену: своя машина, свои границы. Поэтому на долгой работе матрица очень выгодна, а на короткой бессмысленна."
 >
-  <CodeBlock code={MATRIX_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={MATRIX_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Table
     head={['что написано', 'что вышло', 'почему']}
@@ -613,7 +613,7 @@ import {
 >
   <Plain text={PLAIN_MASK} />
 
-  <CodeBlock code={SECRET_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={SECRET_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Table
     head={['что напечатали', 'что в логе', 'почему']}
@@ -653,7 +653,7 @@ import {
 
   <Plain text={PLAIN_ENVIRONMENT} />
 
-  <CodeBlock code={ENVIRONMENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={ENVIRONMENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {ENVIRONMENT_FACTS.map((fact) => (

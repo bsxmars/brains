@@ -288,7 +288,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Правило в разметке" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RULES_CODE} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={RULES_CODE} size={11} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="prose">
 
@@ -300,7 +300,7 @@ import {
     </Card>
 
     <Card title="Правило заголовком" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RULES_HEADER_CODE} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="http" code={RULES_HEADER_CODE} size={11} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -330,7 +330,7 @@ import {
 
   ### Что видит сервер и где правила не работают
 
-  <CodeBlock code={HEADERS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="http" code={HEADERS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
   <CardGrid min={280} gap={14} align="start">
     {SPEC_LIMITS.map((fact) => (

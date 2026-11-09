@@ -14,6 +14,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { LIMIT, runIteration } from '../model/run';
 import type { IterScenario } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{ scenarios: IterScenario[]; caption: string }>();
 
@@ -35,7 +36,7 @@ const run = computed(() => runIteration(scenario.value.code));
     <div class="mi-split">
       <div class="mi-pane">
         <div class="t-label">код</div>
-        <pre class="mi-code" data-code>{{ scenario.code }}</pre>
+        <CodeView class="mi-code" :code="scenario.code" />
       </div>
 
       <div class="mi-pane mi-pane--right">

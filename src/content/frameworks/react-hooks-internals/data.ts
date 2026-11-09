@@ -1358,6 +1358,7 @@ export const PITFALLS: Pitfall[] = [
     n: '03',
     t: 'Объект в `value` провайдера без `useMemo` будит всех читателей',
     d: '`updateProvider` сравнивает значение через `Object.is`. Литерал `{ theme, lang }` на каждом рендере новый, и любой `setState` в компоненте провайдера помечает работой всех, кто читает контекст, — сквозь любой `memo` между ними.',
+    lang: 'jsx',
     code: `// каждый рендер App — новый объект, все читатели Settings вызваны
 <Settings value={{ theme, lang }}>
 

@@ -113,7 +113,7 @@ import {
   и как для подкаталога, с `--base /repo/`. Обе сборки прошли молча, а сколько путей во второй
   ведут мимо сайта — посчитано в разделе «Базовый путь».
 
-  <CodeBlock code={BUILD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="shellsession" code={BUILD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={270} gap={14}>
     <Card title="Pages отдаёт файлы, и только" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
@@ -160,7 +160,7 @@ import {
   </CardGrid>
 
   <Card title="Что именно публикуется" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={WHAT_IS_SERVED} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={WHAT_IS_SERVED} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="prose">
 
@@ -195,7 +195,7 @@ import {
   title="Базовый путь: почему ломается всё сразу"
   lead={BASE_DEMO_NOTE}
 >
-  <CodeBlock code={BASE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="jsx" code={BASE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <BasePathLab client:visible rows={PATH_ROWS} bases={BASES} caption={DEMO_CAPTION} />
 
@@ -210,7 +210,7 @@ import {
   </CardGrid>
 
   <Card title="Та же страница из двух сборок" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={DIFF_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={DIFF_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="err">
 
@@ -274,7 +274,7 @@ import {
   title="Маршрутизация без сервера: 404 и клиентские маршруты"
   lead="На статическом хостинге адрес превращается в путь к файлу по жёсткому правилу, и поменять его вы не можете. Поэтому иначе, чем на своём сервере, устроены две вещи: ответ на несуществующий адрес и адрес, который должен обработать роутер в браузере."
 >
-  <CodeBlock code={PROBE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="shellsession" code={PROBE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Table
     head={['адрес', 'что произошло', 'чем проверено']}
@@ -318,7 +318,7 @@ import {
   <Plain text={PLAIN_SPA_VARIANTS} />
 
   <Card title="Клиентские маршруты и приём с `404.html`" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={SPA_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="bash" code={SPA_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardGrid min={290} gap={14}>
       {FOUR_OH_FOUR.map((item) => (
@@ -467,7 +467,7 @@ import {
     minWidth={700}
   />
 
-  <CodeBlock code={WORKFLOW_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={WORKFLOW_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Card title="Что делает каждая часть" titleSize={18} pad={22} gap={14}>
     <NumberedList items={WORKFLOW_STEPS} size={14.5} />
@@ -550,7 +550,7 @@ import {
   </Card>
 
   <Card title="Где заголовки и редиректы есть: `_headers` и `_redirects`" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={HOSTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={HOSTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <Md text={HOSTS_NOTE} />
   </Card>

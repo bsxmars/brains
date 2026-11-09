@@ -5,6 +5,7 @@
  * Импортировать только как тип (`import type`): вход `@/entities/lesson` тянет `astro:content`,
  * которого нет в процессе vitest.
  */
+import type { CodeLang } from '@/shared/lib/highlight';
 
 /** Слово словаря во вводном разделе: термин и его объяснение. */
 export interface GlossaryTerm {
@@ -42,6 +43,8 @@ export interface Pitfall {
   d: string;
   /** Пример, если тонкое место видно только в коде. */
   code?: string;
+  /** Язык примера, если не JS: `yaml`, `shellsession`… `text` — вывод или схема, не код. */
+  lang?: CodeLang;
   /** Без тона — просто факт; `warn` — где легко ошибиться; `err` — где ошибка молчит. */
   tone?: 'warn' | 'err';
 }

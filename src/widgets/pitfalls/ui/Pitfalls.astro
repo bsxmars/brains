@@ -41,7 +41,7 @@ const glueArrow = (text: string) => text.replace(/→ /g, '→\u00A0');
   {
     items.map((item) => (
       <Card tone={item.tone ?? 'neutral'} index={item.n} title={item.t} titleSize={17} gap={12} size={15.5} lh={1.6}>
-        {item.code && <CodeBlock code={item.code} />}
+        {item.code && <CodeBlock code={item.code} lang={item.lang} />}
         {/* Через `Md`, а не слотом: в описании тонкого места почти всегда есть имя метода
             в обратных кавычках, и слот доставил бы его на страницу вместе с кавычками. */}
         <Md text={glueArrow(item.d)} />

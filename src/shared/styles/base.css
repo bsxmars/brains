@@ -85,7 +85,7 @@
     box-decoration-break: clone;
   }
 
-  /* Блок кода: монохромный, без подсветки. Fenced-блоки MDX приходят сюда же. */
+  /* Блок кода. Цвета токенов подсветки — `--code-*` из `theme.ts` (`shared/lib/highlight-theme.ts`). */
   pre {
     margin: 0;
     padding: 13px 15px;
@@ -103,6 +103,16 @@
     padding: 0;
     border-radius: 0;
     background: none;
+  }
+
+  /* Код на светлой подложке (листинги демо): та же подсветка светлыми токенами. */
+  [data-code-tone='light'] {
+    --code-keyword: var(--code-light-keyword);
+    --code-string: var(--code-light-string);
+    --code-comment: var(--code-light-comment);
+    --code-function: var(--code-light-function);
+    --code-constant: var(--code-light-constant);
+    --code-parameter: var(--code-light-parameter);
   }
 
   /*

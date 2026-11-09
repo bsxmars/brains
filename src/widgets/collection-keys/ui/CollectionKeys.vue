@@ -15,6 +15,7 @@ import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { KEYS, runKey } from '../model/run';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{ notes: Record<string, string>; caption: string }>();
 
@@ -36,7 +37,7 @@ const options = KEYS.map((k) => ({ value: k.value, label: k.label }));
     <div class="ck-grid">
       <div v-for="r in runs" :key="r.kind" class="ck-store">
         <div class="ck-store__title">{{ r.title }}</div>
-        <pre class="ck-code" data-code>{{ r.code.join('\n') }}</pre>
+        <CodeView class="ck-code" :code="r.code.join('\n')" />
 
         <div class="ck-row" :data-tone="r.leaked ? 'warn' : undefined">
           <span class="ck-row__k">до записи</span>

@@ -156,12 +156,12 @@ import {
 >
   <Plain text={PLAIN_STAGE_BARRIER} />
 
-  <CodeBlock code={STAGES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={STAGES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <StageBarrierDiagram data={STAGE_DIAGRAM} />
 
   <Card title="Что из этого вышло в прогоне" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={STAGE_TIMELINE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={STAGE_TIMELINE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="err">
 
@@ -223,7 +223,7 @@ import {
   Джоб висит в `pending` и не стартует, хотя в файле всё верно. Почти всегда дело не в файле,
   а в том, какая машина согласна этот джоб взять.
 
-  <CodeBlock code={RUNNER_TAGS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={RUNNER_TAGS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {RUNNER_FACTS.map((fact) => (
@@ -243,7 +243,7 @@ import {
   title="`needs`: джоб ждёт только тех, кто ему нужен"
   lead="Ключ `needs` снимает ожидание стадии — но только у того джоба, где он написан. Такой джоб стартует, как только готовы джобы, названные в `needs`. Конвейер из лестницы стадий превращается в граф зависимостей, и выясняется, что половина ожидания была ни за чем."
 >
-  <CodeBlock code={NEEDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={NEEDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={GRAPH_DEMO_NOTE} />
@@ -286,10 +286,10 @@ import {
 >
   <Plain text={PLAIN_ART_CACHE} />
 
-  <CodeBlock code={ARTIFACTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={ARTIFACTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Card title="Что напечатали джобы" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={WORKSPACE_LOG} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={WORKSPACE_LOG} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="err">
 
@@ -368,7 +368,7 @@ import {
   </Card>
 
   <Card title="Кеш между раннерами" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={SHARED_CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={SHARED_CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <Md text={SHARED_CACHE_NOTE} />
   </Card>
@@ -382,7 +382,7 @@ import {
 >
   <Plain text={PLAIN_VAR_PRIORITY} />
 
-  <CodeBlock code={VARS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={VARS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Table
     head={['какие слои заданы', '`printenv WHO`', 'почему так']}
@@ -425,7 +425,7 @@ import {
 >
   <Plain text={PLAIN_RULES} />
 
-  <CodeBlock code={RULES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={RULES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Card title="Как читается этот список" titleSize={18} pad={22} gap={14}>
     <NumberedList items={RULE_STEPS} size={14.5} />
@@ -487,7 +487,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="`changes`: с чем сравнивается ветка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CHANGES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="text" code={CHANGES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       <CardNote tone="warn">
 
@@ -523,7 +523,7 @@ import {
   вдвое больше очереди и минут раннера. Причина — в том, что конвейеры бывают разных видов,
   и правила видят у них разные переменные.
 
-  <CodeBlock code={MR_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={MR_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {MR_FACTS.map((fact) => (
@@ -540,7 +540,7 @@ import {
   Выкат в production не должен уезжать сам после каждого merge, а два выката не должны идти
   одновременно. Обе вещи задаются в файле, но ведут себя не так очевидно, как выглядят.
 
-  <CodeBlock code={DEPLOY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={DEPLOY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {DEPLOY_FACTS.map((fact) => (
@@ -561,11 +561,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Что написали" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={EXTENDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={EXTENDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="err" title="Что получилось" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={EXTENDS_RESULT} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="text" code={EXTENDS_RESULT} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -580,11 +580,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="ok" title="`!reference` добавляет, а не заменяет" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REFERENCE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={REFERENCE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" title="Джоб из `include` сливается с вашим" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={INCLUDE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={INCLUDE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -614,15 +614,15 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="`parallel:matrix`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={MATRIX_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={MATRIX_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card title="Компонент с входами и версией" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={COMPONENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={COMPONENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
   </CardGrid>
 
-  <CodeBlock code={CHILD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={CHILD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {SCALE_FACTS.map((fact) => (

@@ -198,6 +198,7 @@ const FOOTER_NOTE =
       </ul>
 
       <CodeListing
+        lang="css"
         label="правила демо · соперник стоит позже"
         :lines="listing"
         :active="predicted === 'mine' ? 0 : 1"

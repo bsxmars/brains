@@ -139,11 +139,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Корень и TLD" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ZONE_ROOT_TEXT + '\n\n' + ZONE_TLD_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={ZONE_ROOT_TEXT + '\n\n' + ZONE_TLD_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Магазин и CDN" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ZONE_SHOP_TEXT + '\n\n' + ZONE_CDN_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={ZONE_SHOP_TEXT + '\n\n' + ZONE_CDN_TEXT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -158,7 +158,7 @@ import {
   <CardGrid min={300} gap={14} align="start">
     {DIG_STEPS.map((step) => (
       <Card title={step.t} titleSize={16} pad={18} radius={5} gap={10} size={15.5} lh={1.6}>
-        <CodeBlock code={'$ ' + step.cmd + '\n' + step.out} size={11} lh={1.6} pad="12px 14px" />
+        <CodeBlock lang="text" code={'$ ' + step.cmd + '\n' + step.out} size={11} lh={1.6} pad="12px 14px" />
         <Md text={step.d} />
       </Card>
 
@@ -167,7 +167,7 @@ import {
   </CardGrid>
 
   <Card title="Тот же вопрос рекурсивному резолверу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={'$ ' + DIG_RECURSIVE.cmd + '\n' + DIG_RECURSIVE.out} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={'$ ' + DIG_RECURSIVE.cmd + '\n' + DIG_RECURSIVE.out} size={11.5} lh={1.65} pad="14px 16px" />
 
     <Md text={DIG_RECURSIVE_NOTE} />
   </Card>
@@ -259,7 +259,7 @@ import {
   <Md text={CACHE_NOTE} />
 
   <Card title="Из кеша — с остатком срока" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={'$ ' + DIG_TTL.cmd + '\n' + DIG_TTL.out} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={'$ ' + DIG_TTL.cmd + '\n' + DIG_TTL.out} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   ### Негативный кеш
@@ -268,11 +268,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Ответ «такого нет»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={'$ ' + DIG_NEGATIVE.cmd + '\n' + DIG_NEGATIVE.out} size={11} lh={1.6} pad="12px 14px" />
+      <CodeBlock lang="text" code={'$ ' + DIG_NEGATIVE.cmd + '\n' + DIG_NEGATIVE.out} size={11} lh={1.6} pad="12px 14px" />
     </Card>
 
     <Card title="Двести секунд спустя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DIG_NEGATIVE.later} size={11} lh={1.6} pad="12px 14px" />
+      <CodeBlock lang="text" code={DIG_NEGATIVE.later} size={11} lh={1.6} pad="12px 14px" />
     </Card>
   </CardGrid>
 
@@ -369,7 +369,7 @@ import {
   />
 
   <Card title="Тип, которого dig 9.10 не знает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={'$ ' + DIG_HTTPS.cmd + '\n' + DIG_HTTPS.out} size={11} lh={1.6} pad="12px 14px" />
+    <CodeBlock lang="text" code={'$ ' + DIG_HTTPS.cmd + '\n' + DIG_HTTPS.out} size={11} lh={1.6} pad="12px 14px" />
   </Card>
 
   <Md text={HTTPS_NOTE} />
@@ -395,7 +395,7 @@ import {
     </Card>
 
     <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={NODE_RESOLVE_OUT} size={11} lh={1.6} pad="12px 14px" />
+      <CodeBlock lang="text" code={NODE_RESOLVE_OUT} size={11} lh={1.6} pad="12px 14px" />
     </Card>
   </CardGrid>
 
@@ -407,7 +407,7 @@ import {
     </Card>
 
     <Card title="UV_THREADPOOL_SIZE=2" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={'$ UV_THREADPOOL_SIZE=2 node probe.cjs\n' + POOL_PROBE_OUT} size={11} lh={1.6} pad="12px 14px" />
+      <CodeBlock lang="text" code={'$ UV_THREADPOOL_SIZE=2 node probe.cjs\n' + POOL_PROBE_OUT} size={11} lh={1.6} pad="12px 14px" />
     </Card>
   </CardGrid>
 

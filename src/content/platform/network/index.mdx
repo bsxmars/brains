@@ -156,7 +156,7 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сколько стоит первый запрос к новому серверу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RTT_BUDGET_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="text" code={RTT_BUDGET_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       Четыре RTT уходят только на то, чтобы **начать** получать HTML. Дальше браузер его
       разбирает, находит CSS и JS — и если они лежат на другом домене, снова платит 3 RTT
@@ -247,7 +247,7 @@ import {
 
   ### Одна потеря под тремя версиями HTTP
 
-  <CodeBlock code={HOL_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={HOL_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Md text={HOL_SCENE_NOTE} />
 
@@ -328,7 +328,7 @@ import {
 >
   <Plain text={PLAIN_FRESHNESS} />
 
-  <CodeBlock code={FRESHNESS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="text" code={FRESHNESS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
   <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
 
@@ -346,7 +346,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Что на самом деле уходит по сети" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CONDITIONAL_CODE} size={11} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="http" code={CONDITIONAL_CODE} size={11} lh={1.7} pad="14px 16px" />
 
       <CardNote tone="prose">
 
@@ -367,7 +367,7 @@ import {
   </CardGrid>
 
   <Card title="Докачка: `Range`, `206` и `If-Range`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={RANGE_CODE} size={11} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="http" code={RANGE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
     <Md text={RANGE_NOTE} />
   </Card>
@@ -423,7 +423,7 @@ import {
   <Card tone="ok" title="Сжатие со словарём: прошлая версия файла как подсказка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <Md text={DICTIONARY_NOTE} />
 
-    <CodeBlock code={DICTIONARY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={DICTIONARY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <Table
       head={DICTIONARY_MEASURED.head}
@@ -447,7 +447,7 @@ import {
     прежним**. Решение — вписать в URL хеш содержимого: поменялось содержимое — поменялся хеш,
     а с ним и URL. Для браузера это просто другой файл, и сбрасывать старый кеш не нужно вообще.
 
-    <CodeBlock code={HASH_CONFIG_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="nginx" code={HASH_CONFIG_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CheckList items={HASH_TODO} tone="ok" size={14.5} />
 
@@ -484,7 +484,7 @@ import {
 >
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={PREFLIGHT_WHEN} />
 
-  <CodeBlock code={PREFLIGHT_RTT_CODE} />
+  <CodeBlock lang="text" code={PREFLIGHT_RTT_CODE} />
 
   <Plain text={PLAIN_PREFLIGHT} />
 
@@ -546,7 +546,7 @@ import {
     </Card>
 
     <Card tone="warn" title="`fetchpriority`: подсказка, а не приказ" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={FETCHPRIORITY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="html" code={FETCHPRIORITY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       <CardNote tone="warn">
 
@@ -584,7 +584,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="ok" title="`103 Early Hints` вместо Server Push" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={EARLY_HINTS_CODE} size={11} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="http" code={EARLY_HINTS_CODE} size={11} lh={1.7} pad="14px 16px" />
 
       Браузер получил `103` — и начал грузить CSS, **пока сервер ещё собирает HTML**. Выигрыш
       равен времени сборки ответа: на медленном серверном рендеринге (SSR) это сотни миллисекунд.
@@ -676,7 +676,7 @@ import {
 
   ### Обновление и аварийная кнопка
 
-  <CodeBlock code={SW_DEPLOY_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={SW_DEPLOY_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Md text={SW_DEPLOY_SCENE_NOTE} />
 

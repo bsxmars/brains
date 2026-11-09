@@ -82,7 +82,7 @@ import {
   title="Зачем: где живёт «как именно»"
   lead="Сервис авторизации проверяет пользователя через JWT. Потом заказчик просит вход через GitHub, потом через Google. Каждый новый способ — ещё одна ветка `if` в каждом методе класса, и класс знает обо всех провайдерах сразу."
 >
-  <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   Поведенческие паттерны выносят такое «как именно» в отдельную вещь, которую передают
   и подменяют. В JavaScript у каждого из них есть встроенная форма попроще:
@@ -106,11 +106,11 @@ import {
 
   ### Книжная версия
 
-  <CodeBlock code={STRATEGY_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={STRATEGY_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   ### Стратегия — это функция
 
-  <CodeBlock code={STRATEGY_FN_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={STRATEGY_FN_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card title="Что осталось от классов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={STRATEGY_FN_NOTES} size={14.5} />
@@ -118,7 +118,7 @@ import {
 
   ### Компаратор: стратегия, встроенная в язык
 
-  <CodeBlock code={SORT_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={SORT_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Что требует sort от стратегии" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={SORT_NOTES} size={14.5} />
@@ -126,7 +126,7 @@ import {
 
   ### Метод класса как стратегия
 
-  <CodeBlock code={THIS_STRATEGY_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={THIS_STRATEGY_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card tone="err" title="`this`-параметр защищает не с той стороны" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
     <Md text={THIS_STRATEGY_NOTE} />
@@ -143,11 +143,11 @@ import {
 
   ### Книжная версия
 
-  <CodeBlock code={COMMAND_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={COMMAND_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   ### Команда-замыкание и момент отката
 
-  <CodeBlock code={COMMAND_CAPTURE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={COMMAND_CAPTURE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card title="Что важно в команде с откатом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={COMMAND_NOTES} size={14.5} />
@@ -155,7 +155,7 @@ import {
 
   ### Команда, которая уходит из процесса
 
-  <CodeBlock code={COMMAND_DATA_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={COMMAND_DATA_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={COMMAND_DATA_NOTE} />
 </Section>
@@ -170,17 +170,17 @@ import {
 
   ### Книжная версия
 
-  <CodeBlock code={TM_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={TM_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   ### Где шаблон ломается
 
   <CardGrid min={320} gap={16} align="start">
     <Card tone="err" title="Асинхронный шаг под `void`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TM_ASYNC_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="tsx" code={TM_ASYNC_CODE} size={10.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" title="Переименованный шаг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TM_OVERRIDE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={TM_OVERRIDE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -190,7 +190,7 @@ import {
 
   ### Шаги объектом вместо наследников
 
-  <CodeBlock code={TM_HOOKS_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="tsx" code={TM_HOOKS_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={TM_HOOKS_NOTE} />
 </Section>
@@ -205,11 +205,11 @@ import {
 
   ### Книжная версия: класс на состояние
 
-  <CodeBlock code={STATE_CLASS_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={STATE_CLASS_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   ### Одно состояние на всех
 
-  <CodeBlock code={SHARED_STATE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={SHARED_STATE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card title="Обратная ссылка и её цена" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={STATE_CLASS_NOTES} size={14.5} />
@@ -217,11 +217,11 @@ import {
 
   ### Размеченное объединение
 
-  <CodeBlock code={STATE_UNION_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={STATE_UNION_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   ### Таблица переходов
 
-  <CodeBlock code={STATE_TABLE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={STATE_TABLE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card title="Что даёт состояние в типе" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={STATE_UNION_NOTES} size={14.5} />

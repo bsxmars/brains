@@ -19,6 +19,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { KINDS, KIND_LABEL, OPS, SOURCE, runEnum } from '../model/probe';
 import type { EnumOp, EnumRun } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 withDefaults(defineProps<{ note?: string }>(), {
   note: '`Reflect.ownKeys` — единственный полный ответ на вопрос «какие ключи есть у объекта»: это и есть внутренний метод `[[OwnPropertyKeys]]`.',
@@ -48,7 +49,7 @@ const seen = computed(() => new Set((run.value?.hits ?? []).map((hit) => hit.kin
     </template>
 
     <!-- `data-code` — листинг подопытного: кавычки и скобки внутри принадлежат коду. -->
-    <pre class="source" data-code>{{ SOURCE.join('\n') }}</pre>
+    <CodeView class="source" :code="SOURCE.join('\n')" />
 
     <div class="split">
       <div class="pane">

@@ -159,23 +159,23 @@ import {
     <Md text={KUSTOMIZE_WHY} />
   </Card>
 
-  <CodeBlock code={KUSTOMIZE_TREE} />
+  <CodeBlock lang="text" code={KUSTOMIZE_TREE} />
 
   ### База
 
-  <CodeBlock code={FILES['base/kustomization.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['base/kustomization.yaml']} />
 
-  <CodeBlock code={FILES['base/deployment.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['base/deployment.yaml']} />
 
-  <CodeBlock code={FILES['base/service.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['base/service.yaml']} />
 
-  <CodeBlock code={FILES['base/ingress.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['base/ingress.yaml']} />
 
   ### Слой prod
 
-  <CodeBlock code={FILES['overlays/prod/kustomization.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['overlays/prod/kustomization.yaml']} />
 
-  <CodeBlock code={FILES['overlays/prod/app.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['overlays/prod/app.yaml']} />
 
   <Table
     head={KUSTOMIZE_FIELDS.head}
@@ -191,7 +191,7 @@ import {
 
   ### Образ без патча: `images`
 
-  <CodeBlock code={IMAGES_CODE} />
+  <CodeBlock lang="yaml" code={IMAGES_CODE} />
 
   <Table
     head={IMAGES_TABLE.head}
@@ -227,7 +227,7 @@ import {
 
   ### Приставка к именам и ссылки
 
-  <CodeBlock code={PREFIX_CODE} />
+  <CodeBlock lang="yaml" code={PREFIX_CODE} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={PREFIX_NOTE} />
@@ -252,11 +252,11 @@ import {
     <Md text={DEV_PATCH_NOTE} />
   </Card>
 
-  <CodeBlock code={FILES['overlays/dev/kustomization.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['overlays/dev/kustomization.yaml']} />
 
-  <CodeBlock code={FILES['overlays/dev/app.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['overlays/dev/app.yaml']} />
 
-  <CodeBlock code={FILES['overlays/dev/host.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['overlays/dev/host.yaml']} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={JSON6902_WHY} />
@@ -297,19 +297,19 @@ import {
 
   <Plain text={PLAIN_TEMPLATE} />
 
-  <CodeBlock code={CHART_TREE} />
+  <CodeBlock lang="text" code={CHART_TREE} />
 
-  <CodeBlock code={FILES['chart/Chart.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['chart/Chart.yaml']} />
 
-  <CodeBlock code={FILES['chart/values.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['chart/values.yaml']} />
 
-  <CodeBlock code={FILES['chart/templates/deployment.yaml']} />
+  <CodeBlock lang="text" code={FILES['chart/templates/deployment.yaml']} />
 
-  <CodeBlock code={FILES['chart/templates/configmap.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['chart/templates/configmap.yaml']} />
 
-  <CodeBlock code={FILES['chart/templates/service.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['chart/templates/service.yaml']} />
 
-  <CodeBlock code={FILES['chart/templates/ingress.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['chart/templates/ingress.yaml']} />
 
   <CardGrid min={270} gap={14} align="start">
     {TEMPLATE_FACTS.map((fact) => (
@@ -369,13 +369,13 @@ import {
 
   ### Файлы окружений
 
-  <CodeBlock code={FILES['values-dev.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['values-dev.yaml']} />
 
-  <CodeBlock code={FILES['values-stage.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['values-stage.yaml']} />
 
-  <CodeBlock code={FILES['values-prod.yaml']} />
+  <CodeBlock lang="yaml" code={FILES['values-prod.yaml']} />
 
-  <CodeBlock code={[COMMANDS.dev, COMMANDS.stage, COMMANDS.prod].join('\n')} />
+  <CodeBlock lang="bash" code={[COMMANDS.dev, COMMANDS.stage, COMMANDS.prod].join('\n')} />
 
   ### Как собираются values: функция
 
@@ -418,7 +418,7 @@ import {
     <Md text={RELEASE_WHY} />
   </Card>
 
-  <CodeBlock code={RELEASE_CODE} />
+  <CodeBlock lang="shellsession" code={RELEASE_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {RELEASE_FACTS.map((fact) => (
@@ -435,7 +435,7 @@ import {
   Новой версии приложения нужна новая схема базы. Миграция должна пройти до того, как поды
   начнут обновляться, а не одновременно с ними, — и если она упала, обновляться нельзя вовсе.
 
-  <CodeBlock code={HOOK_CODE} />
+  <CodeBlock lang="yaml" code={HOOK_CODE} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={HOOK_NOTE} />
@@ -524,7 +524,7 @@ import {
 
   ### Argo CD
 
-  <CodeBlock code={ARGO_CODE} />
+  <CodeBlock lang="yaml" code={ARGO_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {ARGO_FACTS.map((fact) => (
@@ -538,7 +538,7 @@ import {
 
   ### Flux
 
-  <CodeBlock code={FLUX_CODE} />
+  <CodeBlock lang="yaml" code={FLUX_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {FLUX_FACTS.map((fact) => (
@@ -577,11 +577,11 @@ import {
 
   ### SealedSecret
 
-  <CodeBlock code={SEALED_CODE} />
+  <CodeBlock lang="yaml" code={SEALED_CODE} />
 
   ### Файл SOPS
 
-  <CodeBlock code={SOPS_CODE} />
+  <CodeBlock lang="yaml" code={SOPS_CODE} />
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
     <Md text={SECRET_NOTE} />

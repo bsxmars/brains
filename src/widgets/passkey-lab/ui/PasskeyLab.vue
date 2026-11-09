@@ -19,6 +19,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { FLAG_BITS, loadWebAuthn, runScenario, withFlags } from '../model/run';
 import type { Check, PasskeyScenario, VerifyResult } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   authDataCode: string;
@@ -139,7 +140,7 @@ const verdict = computed(() => {
       <div class="pk-split">
         <div class="pk-pane">
           <span class="pk-label">clientDataJSON — собрал браузер</span>
-          <pre class="pk-code">{{ clientData }}</pre>
+          <CodeView class="pk-code" lang="json" :code="clientData" />
         </div>
 
         <div class="pk-pane">

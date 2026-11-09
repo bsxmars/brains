@@ -13,6 +13,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadApi, runResolvers } from '../model/run';
 import type { ApiCodes, ResolverRun, ResolverScenario, Tables } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   codes: ApiCodes;
@@ -89,7 +90,7 @@ const response = computed(() => clip(JSON.stringify(run.value?.result ?? {}, nul
 
       <div class="rl-pane">
         <span class="rl-label">запрос</span>
-        <pre class="rl-code rl-code--wrap">{{ scenario.query }}</pre>
+        <CodeView class="rl-code rl-code--wrap" lang="graphql" :code="scenario.query" />
       </div>
 
       <div class="rl-pair">
@@ -99,7 +100,7 @@ const response = computed(() => clip(JSON.stringify(run.value?.result ?? {}, nul
         </div>
         <div class="rl-pane">
           <span class="rl-label">ответ</span>
-          <pre class="rl-code">{{ response }}</pre>
+          <CodeView class="rl-code" lang="json" :code="response" />
         </div>
       </div>
 

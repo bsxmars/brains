@@ -103,11 +103,11 @@ import {
 
   ### Книжная версия: адаптер наследует то, что адаптирует
 
-  <CodeBlock code={ADAPTER_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={ADAPTER_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   ### Адаптер под интерфейс
 
-  <CodeBlock code={ADAPTER_IFACE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={ADAPTER_IFACE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card title="Почему курсу понадобился `extends`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={ADAPTER_NOTES} size={14.5} />
@@ -115,7 +115,7 @@ import {
 
   ### Адаптер, который даёт платформа
 
-  <CodeBlock code={PROMISIFY_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={PROMISIFY_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={PROMISIFY_NOTE} />
 </Section>
@@ -128,7 +128,7 @@ import {
 >
   <Plain text={PLAIN_FACADE} />
 
-  <CodeBlock code={FACADE_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={FACADE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Что фасад решает за вызывающего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={FACADE_NOTES} size={14.5} />
@@ -136,7 +136,7 @@ import {
 
   ### Фасад над `fetch`
 
-  <CodeBlock code={FETCH_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={FETCH_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Чего `fetch` не делает сам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={FETCH_NOTES} size={14.5} />
@@ -151,7 +151,7 @@ import {
 >
   <Plain text={PLAIN_PROXY} />
 
-  <CodeBlock code={PROXY_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={PROXY_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Закрыт по умолчанию или открыт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={PROXY_NOTES} size={14.5} />
@@ -159,7 +159,7 @@ import {
 
   ### Кеширующий заместитель
 
-  <CodeBlock code={CACHE_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={CACHE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <CodeBlock code={CACHE_FIX_CODE} size={11} lh={1.7} pad="12px 16px" />
 
@@ -178,11 +178,11 @@ import {
 
   ### Книжная версия
 
-  <CodeBlock code={DECORATOR_COURSE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="ts" code={DECORATOR_COURSE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   ### Обёртка и порядок в стопке
 
-  <CodeBlock code={DECORATOR_WRAP_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={DECORATOR_WRAP_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Что отличает декоратор от функции, которая меняет объект" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={DECORATOR_NOTES} size={14.5} />
@@ -190,7 +190,7 @@ import {
 
   ### Синтаксис `@`
 
-  <CodeBlock code={DECORATOR_SYNTAX_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={DECORATOR_SYNTAX_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Паттерн и синтаксис" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={DECORATOR_SYNTAX_NOTES} size={14.5} />
@@ -205,7 +205,7 @@ import {
 >
   <Plain text={PLAIN_BRIDGE} />
 
-  <CodeBlock code={BRIDGE_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={BRIDGE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Table
     head={['вариантов', 'наследованием', 'мостом']}

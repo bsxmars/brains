@@ -126,11 +126,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Исходник: Todos.svelte" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TODOS_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="svelte" code={TODOS_SRC} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Вывод компилятора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TODOS_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={TODOS_OUT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -146,11 +146,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="App.svelte" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PARENT_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="svelte" code={PARENT_SRC} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Вывод компилятора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PARENT_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={PARENT_OUT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -256,11 +256,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Cart.svelte" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CART_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="svelte" code={CART_SRC} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Вывод компилятора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CART_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={CART_OUT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -295,7 +295,7 @@ import {
     </Card>
 
     <Card title="Журнал Svelte 5.57.1" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SYNC_SCENARIO.svelte.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={SYNC_SCENARIO.svelte.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -317,7 +317,7 @@ import {
     </Card>
 
     <Card title="Журнал Svelte 5.57.1" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CLEANUP_SCENARIO.svelte.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={CLEANUP_SCENARIO.svelte.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -351,19 +351,19 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="let и $:" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LEGACY_SRC} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={ORDER_LEGACY.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={LEGACY_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={ORDER_LEGACY.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Руны" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RUNES_SRC} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={ORDER_RUNES.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="svelte" code={RUNES_SRC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={ORDER_RUNES.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
   ### Вывод в режиме совместимости
 
-  <CodeBlock code={LEGACY_OUT} />
+  <CodeBlock lang="jsx" code={LEGACY_OUT} />
 
   <CardGrid min={290} gap={14} align="start">
     {LEGACY_OUT_NOTES.map((note) => (

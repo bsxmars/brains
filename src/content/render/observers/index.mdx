@@ -123,7 +123,7 @@ import {
   lead="Проще всего увидеть порядок, поставив всех в одну задачу: поменять размер блока, сдвинуть цель в окно и параллельно поставить микрозадачу, таймер и `requestAnimationFrame`. Каждый колбэк пишет в журнал номер кадра."
 >
   <Card title="Разметка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={ORDER_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="html" code={ORDER_HTML} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Card title="Эксперимент" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
@@ -131,7 +131,7 @@ import {
   </Card>
 
   <Card title="Журнал в Chromium 153" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={ORDER_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={ORDER_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={ORDER_NOTE} />
@@ -284,7 +284,7 @@ import {
     </Card>
 
     <Card tone="ok" title="То же средствами CSS" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RO_LOOP_FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="css" code={RO_LOOP_FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -301,7 +301,7 @@ import {
   lead="MutationObserver сообщает о правках дерева: узлы, атрибуты, текст. Колбэк — микрозадача: он выполнится, когда закончится текущий код, ещё до любого таймера и до кадра, и получит все записи разом."
 >
   <Card title="Разметка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={MO_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="html" code={MO_HTML} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Card title="Шесть правок и одно отключение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
@@ -309,7 +309,7 @@ import {
   </Card>
 
   <Card title="Журнал в Chromium 153" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={MO_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={MO_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={MO_NOTE} />

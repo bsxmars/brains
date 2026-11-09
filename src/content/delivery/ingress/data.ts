@@ -1272,6 +1272,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '01',
     t: 'Ingress создан, адреса нет, ничего не происходит',
+    lang: 'shellsession',
     code: '$ kubectl get ingress shop\nNAME   CLASS   HOSTS              ADDRESS   PORTS     AGE\nshop   nginx   shop.example.com             80, 443   10m',
     d: 'Пустой `ADDRESS` означает, что объект не взял ни один контроллер. Причин три: контроллера в кластере нет вовсе; `ingressClassName` не совпадает ни с одним `IngressClass`; класс не указан, а класса по умолчанию нет. Ошибки не будет ни в одном из трёх случаев: API-сервер проверяет только схему. Первым делом — `kubectl get ingressclass` и поды контроллера. ⚠️ Вывод выше показывает форму, а не снят с кластера.',
     tone: 'err',

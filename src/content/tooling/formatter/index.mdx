@@ -145,7 +145,7 @@ import {
   </Card>
 
   <Card title="Его Doc: prettier.__debug.formatDoc" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={DOC_NEST_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={DOC_NEST_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={DOC_NEST_NOTE} />
@@ -209,7 +209,7 @@ import {
   />
 
   <Card title="printWidth: 79" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={OUTER_79} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={OUTER_79} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   ### breakParent: изнутри наружу
@@ -366,11 +366,11 @@ import {
 
   <CardGrid min={240} gap={16} align="start">
     <Card title="Вход" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={UNSTABLE_IN} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={UNSTABLE_IN} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" title="1-й прогон" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={UNSTABLE_PASS1} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={UNSTABLE_PASS1} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="2-й и дальше" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -390,7 +390,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Проверка и версия" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CHECK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="bash" code={CHECK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CHECK_NOTE} />

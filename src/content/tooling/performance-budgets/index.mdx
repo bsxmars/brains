@@ -163,8 +163,8 @@ import {
   />
 
   <Card title="Как weight.spec находит импорты и обходит граф" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={WEIGHT_SPEC_EXCERPT} size={11.5} lh={1.65} pad="14px 16px" />
-    <CodeBlock code={WEIGHT_SPEC_WALK} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="ts" code={WEIGHT_SPEC_EXCERPT} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="ts" code={WEIGHT_SPEC_WALK} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={280} gap={14} align="start">
@@ -199,7 +199,7 @@ import {
     </Card>
 
     <Card title="Что нашлось" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PARSE_RESULT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={PARSE_RESULT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -218,7 +218,7 @@ import {
     </Card>
 
     <Card title="Vite: dist/.vite/manifest.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={VITE_MANIFEST_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="json" code={VITE_MANIFEST_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -228,7 +228,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="esbuild: fromMetafile(result.metafile)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ESBUILD_GRAPH_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="json" code={ESBUILD_GRAPH_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={MANIFEST_NOTE} />
@@ -270,11 +270,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Lighthouse CI: lighthouserc.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LHCI_CONFIG} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="json" code={LHCI_CONFIG} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="size-limit: .size-limit.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SIZE_LIMIT_CONFIG} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="json" code={SIZE_LIMIT_CONFIG} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -304,11 +304,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="ok" title="«Цикл событий»: вчера против сегодня" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CI_REPORT_EVENT_LOOP} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={CI_REPORT_EVENT_LOOP} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="err" title="Если бы в тему попал React" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CI_REPORT_LEAK} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={CI_REPORT_LEAK} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -319,7 +319,7 @@ import {
   ### Конвейер
 
   <Card title="Схема: .github/workflows/budget.yml" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={WORKFLOW_YAML} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="yaml" code={WORKFLOW_YAML} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={260} gap={14} align="start">

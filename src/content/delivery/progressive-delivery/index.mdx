@@ -151,7 +151,7 @@ import {
 
   <BlueGreenDiagram data={BG_DIAGRAM} />
 
-  <CodeBlock code={BLUEGREEN_CODE} />
+  <CodeBlock lang="yaml" code={BLUEGREEN_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {BG_FACTS.map((fact) => (
@@ -312,9 +312,9 @@ import {
 
   ### Argo Rollouts
 
-  <CodeBlock code={ROLLOUT_CODE} />
+  <CodeBlock lang="yaml" code={ROLLOUT_CODE} />
 
-  <CodeBlock code={ANALYSIS_CODE} />
+  <CodeBlock lang="yaml" code={ANALYSIS_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {ARGO_FACTS.map((fact) => (
@@ -332,7 +332,7 @@ import {
 
   ### Flagger
 
-  <CodeBlock code={FLAGGER_CODE} />
+  <CodeBlock lang="yaml" code={FLAGGER_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {FLAGGER_FACTS.map((fact) => (

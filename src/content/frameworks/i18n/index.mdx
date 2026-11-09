@@ -229,7 +229,7 @@ import {
     <Card title="Модуль функций: messageformat" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={MF_MODULE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-      <CodeBlock code={MF_MODULE_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={MF_MODULE_OUT} size={11.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="prose">
         <Md text={MF_MODULE_NOTE} />
@@ -267,7 +267,7 @@ import {
   lead="Вторая версия языка сообщений, закреплённая в стандарте Unicode, исправляет главное неудобство первой: ветки больше не прячутся внутри фразы. Браузеры её пока не исполняют, а из библиотек её понимает `messageformat` 4 — преемник `@messageformat/core`; пример написан по тексту спецификации."
 >
   <Card title="То же сообщение на MF2" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={MF2_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={MF2_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -376,7 +376,7 @@ import {
   </CardGrid>
 
   <Card title="hreflang: версии одной страницы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={HREFLANG_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="html" code={HREFLANG_HTML} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={HREFLANG_NOTE} />
@@ -393,7 +393,7 @@ import {
     </Card>
 
     <Card title="Логические свойства" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LOGICAL_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="css" code={LOGICAL_CSS} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 

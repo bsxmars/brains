@@ -15,6 +15,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { journal, outputOf, replaceOnce } from '../model/run';
 import type { JournalLine, ReactiveApi, ReactiveScenario } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   code: string;
@@ -81,7 +82,7 @@ const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, 
     </template>
 
     <div class="pr-body">
-      <pre class="pr-code">{{ scenario.code }}</pre>
+      <CodeView class="pr-code" :code="scenario.code" />
 
       <div class="pr-split">
         <div class="pr-pane">

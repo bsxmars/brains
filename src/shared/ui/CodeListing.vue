@@ -7,25 +7,36 @@
  * при переходе между шагами.
  *
  * Тёмный вариант нужен там, где листинг лежит внутри чернильной панели.
+ *
+ * Строки подсвечены (`useHighlight`), язык по умолчанию — JS (с JSX); не-код — `lang="text"`.
+ * Цвета токенов остаются и на активной строке, её выделяют только заливка и черта.
  */
+import { useHighlight, type IslandLang } from '@/shared/lib/useHighlight';
+
 interface Props {
   lines: string[];
   /** Индекс активной строки; `-1` — активной нет. */
   active?: number;
   tone?: 'light' | 'dark';
   label?: string;
+  lang?: IslandLang;
 }
 
-withDefaults(defineProps<Props>(), { active: -1, tone: 'light', label: '' });
+const props = withDefaults(defineProps<Props>(), { active: -1, tone: 'light', label: '', lang: 'js' });
+const html = useHighlight(() => props.lines.join('\n'), () => props.lang);
 </script>
 
 <template>
   <!-- `data-code` помечает поддерево как код: обратные кавычки внутри листинга настоящие
        (шаблонные строки в примерах), и проверка разметки обязана их пропускать. -->
-  <div class="listing" data-code :data-tone="tone">
+  <div class="listing" data-code :data-tone="tone" :data-code-tone="tone">
     <div v-if="label" class="t-label">{{ label }}</div>
     <div class="lines">
-      <div v-for="(line, i) in lines" :key="i" class="line" :class="{ active: i === active }">{{ line || ' ' }}</div>
+      <template v-for="(line, i) in lines" :key="i">
+        <!-- eslint-disable-next-line vue/no-v-html -- tokensToLines экранирует текст, свои только <span style="color:var(…)"> -->
+        <div v-if="html?.[i]" class="line" :class="{ active: i === active }" v-html="html[i]" />
+        <div v-else class="line" :class="{ active: i === active }">{{ line || ' ' }}</div>
+      </template>
     </div>
   </div>
 </template>

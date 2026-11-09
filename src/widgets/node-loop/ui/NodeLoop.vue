@@ -15,6 +15,7 @@ import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import PlayerToolbar from '@/shared/ui/PlayerToolbar.vue';
 import { SegmentedControl } from '@/shared/ui';
 import type { NodePhase, NodeStep } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   phases: NodePhase[];
@@ -79,7 +80,7 @@ const step = computed(() => steps.value[Math.min(index.value, total.value - 1)])
       </div>
 
       <div class="pane">
-        <pre class="code">{{ code }}</pre>
+        <CodeView class="code" :code="code" />
         <div class="message" :data-tone="step.tone ?? 'info'">{{ step.message }}</div>
         <ConsoleView :chips="step.out" label="вывод" :min-height="52" empty-label="пока пусто" />
       </div>

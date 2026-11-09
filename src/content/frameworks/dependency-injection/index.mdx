@@ -126,16 +126,16 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Сама создаёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CART_PLAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={CART_PLAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="Просит у инжектора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CART_DI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={CART_DI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
   <Card title="Тест: подделка под тем же токеном" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CART_SPEC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="ts" code={CART_SPEC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={WHY_NOTE} />
@@ -160,7 +160,7 @@ import {
   <Plain text={PLAIN_PROVIDES} />
 
   <Card title="Одно приложение, четыре компонента" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={VUE_CHAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="ts" code={VUE_CHAIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CodeBlock code={VUE_CHAIN_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
@@ -191,7 +191,7 @@ import {
   ### Реактивность — не от inject
 
   <Card title="Число и ref рядом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={VUE_REACTIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="ts" code={VUE_REACTIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CodeBlock code={VUE_REACTIVE_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -215,7 +215,7 @@ import {
   lead="Контекст в React — та же схема поиска, что во Vue, без прототипов: компонент читает значение ближайшего провайдера над собой, а если провайдеров нет — значение, переданное в `createContext`. Создавать объекты React не умеет: провайдер отдаёт то, что ему передали."
 >
   <Card title="Свой провайдер не виден, use — после условия" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={REACT_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="tsx" code={REACT_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CodeBlock code={REACT_USE_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -265,7 +265,7 @@ import {
   lead="Провайдер в Angular — рецепт: отдать готовое значение, создать экземпляр класса, вызвать функцию или сослаться на другой токен. Флаги в `inject` меняют, где начать поиск, где его закончить и что вернуть, если ничего не нашлось."
 >
   <Card title="Четыре рецепта и multi" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TOKENS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="tsx" code={TOKENS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CodeBlock code={TOKENS_OUT.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
@@ -330,7 +330,7 @@ import {
     </Card>
 
     <Card title="React: ближайший провайдер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REACT_CONTEXT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={REACT_CONTEXT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="prose">
         <Md text={REACT_MINI_NOTE} />

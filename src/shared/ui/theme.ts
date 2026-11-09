@@ -70,6 +70,23 @@ export const LESSON_VARS: Record<`--${string}`, string> = {
   '--chip-text': '#443F58', // текст моно-чипов и невыбранных переключателей
   '--on-ink': '#F5F3FF', // текст на чернилах
   '--code-fg': '#E8E4F7', // текст в <pre>
+  // Подсветка кода (`shared/lib/highlight.ts`): палитра github-dark, переложенная на чернила курса.
+  // Контраст на `--ink` и `--ink-deep`: от 5.2:1 (комментарий) до 11.6:1.
+  '--code-keyword': '#F97583',
+  '--code-string': '#9ECBFF',
+  '--code-comment': '#8B86A5', // = `--ink-faint`: серый GitHub (#6A737D) давал 3.75:1
+  '--code-function': '#B392F0',
+  '--code-constant': '#79B8FF',
+  '--code-parameter': '#FFAB70',
+  // Та же подсветка в светлых листингах демо (github-light). Контраст на белом, `--surface-2`
+  // и подложке активной строки `--tone-info-bg`: от 4.58:1. Красный и оранжевый темнее, чем
+  // у GitHub (#D73A49 и #E36209 давали 4.09 и 3.12 на активной строке).
+  '--code-light-keyword': '#CB2431',
+  '--code-light-string': '#032F62',
+  '--code-light-comment': '#6F6A88', // = `--text-faint`
+  '--code-light-function': '#6F42C1',
+  '--code-light-constant': '#005CC5',
+  '--code-light-parameter': '#B34C00',
   '--selection': '#DDD6FE',
 
   // Текст и линии на тёмной панели.

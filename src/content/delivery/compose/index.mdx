@@ -169,7 +169,7 @@ import {
   <NetworkDiagram {...NETWORK_DIAGRAM} />
 
   <Card title="Как имя превращается в адрес внутри контейнера" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={RESOLV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={RESOLV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <Table
       head={['что', 'что происходит', 'почему']}
@@ -193,7 +193,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Одно имя, несколько адресов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCALE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={SCALE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
       <CardNote tone="warn">
 
@@ -233,7 +233,7 @@ import {
 >
   <Plain text={PLAIN_HEALTHCHECK} />
 
-  <CodeBlock code={HEALTH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={HEALTH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   ### Четыре поля на одной шкале запуска
 
@@ -326,11 +326,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Так пишут чаще всего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DEPENDS_SHORT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={DEPENDS_SHORT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="Так приложение ждёт готовности базы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DEPENDS_HEALTH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="yaml" code={DEPENDS_HEALTH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -338,11 +338,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Что напечатало приложение без ожидания" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={APP_FAIL_LOG} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="text" code={APP_FAIL_LOG} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="И оно же — с ожиданием готовности" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={APP_OK_LOG} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="text" code={APP_OK_LOG} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -442,7 +442,7 @@ import {
 >
   <Plain text={PLAIN_VOLUME} />
 
-  <CodeBlock code={VOLUME_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="shellsession" code={VOLUME_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Table
     head={['команда', 'что удаляет', 'что с данными']}
@@ -479,7 +479,7 @@ import {
   title="Переменные окружения: какой источник кого перебивает"
   lead="Одну и ту же переменную можно задать четырьмя способами: в файле `.env`, в файле из `env_file`, в секции `environment` и в оболочке, из которой запускают Compose. Если значение задано в нескольких местах, одно перебивает другое. Порядок проверен запуском: у четырёх сервисов разный набор источников и одна переменная `GREETING`."
 >
-  <CodeBlock code={ENV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={ENV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   ### Два момента, когда Compose читает переменные
 
@@ -515,7 +515,7 @@ import {
   </Card>
 
   <Card tone="err" title="Отсутствующая переменная не ломает запуск" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
-    <CodeBlock code={ENV_MISSING} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={ENV_MISSING} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="err">
 
@@ -539,7 +539,7 @@ import {
   любой контейнер. Если в базу или в её образ попадёт чужой код, ему будет куда отправить
   данные. Закрыть этот путь можно одной строкой.
 
-  <CodeBlock code={NET_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={NET_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Table
     head={NET_RUNS.head}
@@ -560,7 +560,7 @@ import {
   а если тот не ушёл за отведённое время — убивает. Два сервиса ниже отличаются только тем,
   слышат ли они просьбу.
 
-  <CodeBlock code={STOP_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={STOP_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Table
     head={STOP_RUNS.head}
@@ -588,7 +588,7 @@ import {
   замедлит запуск. Держать ради этого два почти одинаковых файла — значит однажды поправить
   один и забыть второй.
 
-  <CodeBlock code={PROFILE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={PROFILE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Table
     head={PROFILE_RUNS.head}
@@ -607,7 +607,7 @@ import {
   Пока образ берётся из реестра, `image:` достаточно. Когда сервис — ваш собственный код,
   образ собирают из Dockerfile, и описать сборку можно прямо в `compose.yml`.
 
-  <CodeBlock code={BUILD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={BUILD_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {BUILD_FACTS.map((fact) => (
@@ -621,7 +621,7 @@ import {
 
   ### Разработка: свежий код в контейнере без пересборки
 
-  <CodeBlock code={WATCH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="shellsession" code={WATCH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
     <Md text={WATCH_NOTE} />

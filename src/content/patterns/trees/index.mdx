@@ -76,7 +76,7 @@ import {
   title="Зачем: глубина, которую не знаешь заранее"
   lead="Магазин доставляет заказ: товары лежат в коробках, коробки — в других коробках, а магазин берёт плату за доставку. Покупатель хочет увидеть итоговую цену. Пока вложенность известна, хватает циклов. Но коробку в коробку может положить любой, и код с циклом на каждый этаж молча ошибается на следующем."
 >
-  <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   Деревья во фронтенде повсюду: DOM, дерево компонентов, меню с подменю, файловый менеджер,
   ветка комментариев. Два паттерна решают две половины задачи — что спросить у узла и как пройти
@@ -101,7 +101,7 @@ import {
 
   ### Книжная версия: абстрактный класс
 
-  <CodeBlock code={COMPOSITE_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={COMPOSITE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Что получилось и где цена" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={COMPOSITE_NOTES} size={14.5} />
@@ -109,7 +109,7 @@ import {
 
   ### Дерево из обычных объектов
 
-  <CodeBlock code={UNION_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={UNION_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Почему во фронтенде это чаще удобнее" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={UNION_NOTES} size={14.5} />
@@ -117,7 +117,7 @@ import {
 
   ### DOM — готовый компоновщик
 
-  <CodeBlock code={DOM_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="jsx" code={DOM_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={DOM_NOTE} />
 </Section>
@@ -132,7 +132,7 @@ import {
 
   ### Книжная версия
 
-  <CodeBlock code={COURSE_ITER_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={COURSE_ITER_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card tone="err" title="Три поломки книжной версии" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={COURSE_ITER_NOTES} size={14.5} />
@@ -140,7 +140,7 @@ import {
 
   ### На протоколе JS
 
-  <CodeBlock code={NATIVE_ITER_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={NATIVE_ITER_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Что дал протокол" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={NATIVE_ITER_NOTES} size={14.5} />
@@ -159,7 +159,7 @@ import {
 
   Обход идёт по дереву заказа из раздела «Компоновщик» — тому, что собрано обычными объектами.
 
-  <CodeBlock code={WALK_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="jsx" code={WALK_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Обход отдельно, задачи отдельно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={WALK_NOTES} size={14.5} />
@@ -167,15 +167,15 @@ import {
 
   ### Явный стек и очередь
 
-  <CodeBlock code={FLAT_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="jsx" code={FLAT_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   ### Глубокое дерево
 
   <Plain text={PLAIN_CALL_STACK} />
 
-  <CodeBlock code={DEEP_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={DEEP_CODE} size={11} lh={1.7} pad="16px 18px" />
 
-  <CodeBlock code={COST_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={COST_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Что зависит от глубины" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={DEEP_NOTES} size={14.5} />
@@ -188,9 +188,9 @@ import {
   title="Типы для дерева"
   lead="Тип узла, который ссылается сам на себя, TypeScript принимает без оговорок. Вычисления по такому дереву — например, список всех id меню — тоже работают, но это уже рекурсия типов со своим пределом. И у рекурсивного генератора есть своё требование к типам."
 >
-  <CodeBlock code={MENU_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={MENU_CODE} size={11} lh={1.7} pad="16px 18px" />
 
-  <CodeBlock code={GEN_TYPE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="tsx" code={GEN_TYPE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Card title="Где типы помогают, а где упираются" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={TYPES_NOTES} size={14.5} />

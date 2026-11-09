@@ -29,6 +29,7 @@ import { Button, SegmentedControl } from '@/shared/ui';
 import { REACH_CASES } from '../model/cases';
 import { DEFAULTS, runReachCase } from '../model/run';
 import type { ReachCaseKey, ReachResult } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -148,7 +149,7 @@ const facts = computed(() => {
           <Md as="span" class="rl-holder__value" :text="spec.holder" />
         </div>
 
-        <pre class="rl-code" data-code>{{ spec.code }}</pre>
+        <CodeView class="rl-code" :code="spec.code" />
 
         <ConsoleView
           label="протокол попыток"

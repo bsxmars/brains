@@ -129,7 +129,7 @@ import {
   </CardGrid>
 
   <Card tone="err" title="Что напечатал сервер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={SERVER_GLOBAL_LOG} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={SERVER_GLOBAL_LOG} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   Последняя строка — про корзину, но с id профиля. Запрос `r-1` в логах закончился
@@ -155,7 +155,7 @@ import {
     </Card>
 
     <Card tone="ok" title="Тот же клиент — другой лог" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SERVER_ALS_LOG} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={SERVER_ALS_LOG} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -369,7 +369,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Vue: исходник" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={VUE_SRC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="vue" code={VUE_SRC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Vue: после компилятора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

@@ -112,7 +112,7 @@ import {
   title="Первый ролик: play, pause и события"
   lead="Ролик в две секунды и слушатели на все события загрузки и показа. Когда браузер готов, код зовёт `play()` и ждёт его промис."
 >
-  <CodeBlock code={FIRST_CODE} />
+  <CodeBlock lang="html" code={FIRST_CODE} />
 
   <CodeBlock code={FIRST_OUT} tone="ok" />
 
@@ -132,7 +132,7 @@ import {
 
   ### Когда `play()` отказывает
 
-  <CodeBlock code={PLAY_ERRORS_CODE} />
+  <CodeBlock lang="html" code={PLAY_ERRORS_CODE} />
 
   <CodeBlock code={PLAY_ERRORS_OUT} tone="ok" />
 
@@ -201,7 +201,7 @@ import {
   title="Автоплей: без звука можно, со звуком — после жеста"
   lead="Ролик пробует запуститься сам, со звуком. Если браузер откажет, код выключает звук и пробует снова, а кнопка включает звук обратно."
 >
-  <CodeBlock code={AUTOPLAY_CODE} />
+  <CodeBlock lang="html" code={AUTOPLAY_CODE} />
 
   <CodeBlock code={AUTOPLAY_OUT} tone="ok" />
 
@@ -233,9 +233,9 @@ import {
 
   ### Плейлист HLS
 
-  <CodeBlock code={MASTER_M3U8} />
+  <CodeBlock lang="text" code={MASTER_M3U8} />
 
-  <CodeBlock code={MEDIA_M3U8} />
+  <CodeBlock lang="text" code={MEDIA_M3U8} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={HLS_NOTE} />
@@ -243,9 +243,9 @@ import {
 
   ### Куски в буфер
 
-  <CodeBlock code={MSE_SETUP_CODE} />
+  <CodeBlock lang="html" code={MSE_SETUP_CODE} />
 
-  <CodeBlock code={MSE_FEED_CODE} />
+  <CodeBlock lang="jsx" code={MSE_FEED_CODE} />
 
   <CodeBlock code={MSE_OUT} tone="ok" />
 
@@ -290,7 +290,7 @@ import {
 
   <Md text="Та же подготовка, что в разделе «MediaSource», — `video`, `append` и `ranges`, — но куски приходят с опозданием, а посреди ролика — перемотка туда, где данных нет." />
 
-  <CodeBlock code={STALL_CODE} />
+  <CodeBlock lang="jsx" code={STALL_CODE} />
 
   <CodeBlock code={STALL_OUT} tone="ok" />
 
@@ -315,7 +315,7 @@ import {
   title="Кадр за кадром: requestVideoFrameCallback"
   lead="Чтобы обработать каждый кадр — нарисовать его на холсте, наложить эффект, подписать время, — нужен колбэк на кадр ролика, а не на кадр экрана."
 >
-  <CodeBlock code={FRAME_CODE} />
+  <CodeBlock lang="html" code={FRAME_CODE} />
 
   <CodeBlock code={FRAME_OUT} tone="ok" />
 

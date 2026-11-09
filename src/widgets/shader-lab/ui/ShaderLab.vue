@@ -29,6 +29,7 @@ import Md from '@/shared/ui/Md.vue';
 import { Button, SegmentedControl } from '@/shared/ui';
 import { badLines, firstError, parseShaderLog, type ShaderIssue } from '../lib/parse-log';
 import type { ShaderPreset } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{ presets: ShaderPreset[]; vertexNote: string }>();
 
@@ -310,7 +311,7 @@ onBeforeUnmount(() => {
     <template #footer>
       <div class="disclaimer">
         <Md :text="vertexNote" />
-        <pre class="vertex">{{ VERTEX }}</pre>
+        <CodeView class="vertex" lang="wgsl" :code="VERTEX" />
       </div>
     </template>
   </DemoFrame>

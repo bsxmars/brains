@@ -18,6 +18,8 @@ import { planItems, summaryLine, type Tone } from '../model/render';
 import { loadPlanner } from '../model/run';
 import { buildScenario } from '../model/scenario';
 import type { Action, Config, Schema, StateInstance, Toggles } from '../model/types';
+import { useHighlight } from '@/shared/lib/useHighlight';
+import CodeLine from '@/shared/ui/CodeLine.vue';
 
 const props = defineProps<{
   planCode: string;
@@ -102,6 +104,7 @@ const hclLines = computed(() => {
     .split('\n')
     .map((text) => ({ text, fresh: text.trim() !== '' && !before.has(text) }));
 });
+const hl = useHighlight(() => hclLines.value.map((l) => l.text).join('\n'), 'hcl');
 
 // ─── План ─────────────────────────────────────────────────────────────────────────────────
 const countRes = computed(
@@ -186,7 +189,7 @@ const STEP_TONE: Record<string, Tone> = { create: 'ok', update: 'warn', destroy:
       <div class="ia-split">
         <div class="ia-pane">
           <span class="ia-label">main.tf</span>
-          <pre class="ia-code"><template v-for="(l, i) in hclLines" :key="i"><span :class="{ 'ia-fresh': l.fresh }">{{ l.text }}</span>{{ '\n' }}</template></pre>
+          <pre class="ia-code"><template v-for="(l, i) in hclLines" :key="i"><span :class="{ 'ia-fresh': l.fresh }"><CodeLine :html="hl?.[i]" :text="l.text" /></span>{{ '\n' }}</template></pre>
         </div>
 
         <div class="ia-pane">

@@ -36,7 +36,7 @@
 <summary><b>Детали</b> — не учить, смотреть в теме</summary>
 
 - Медианы сжатия: gzip до 40%, Brotli до 36%; файлы < 4096 байт Vite встраивает в CSS → «раздел Какие байты».
-- `tests/e2e/weight.spec.ts`: `LEAN_BUDGET_KB` 190, `HEAVY_BUDGET_KB` 400, `/kit/labs/` 355 из 360; признак React — `__REACT_DEVTOOLS_GLOBAL_HOOK__` → «раздел Живой бюджет».
+- `tests/e2e/weight.spec.ts`: `LEAN_BUDGET_KB` 190, `HEAVY_BUDGET_KB` 400, `/kit/labs/` 363 из 370 (было 355 из 360, подсветка кода добавила 3,4 КБ); признак React — `__REACT_DEVTOOLS_GLOBAL_HOOK__` → «раздел Живой бюджет».
 - `build.manifest: true`, `metafile` с `kind` → «раздел Граф чанков».
 - `stripHash`, допуск, `if: always()`, `pull-requests: write` → «раздел Бюджет в CI».
 

@@ -24,6 +24,13 @@ interface Props {
 }
 
 const { href = '/', label = 'все уроки', sticky = false, stickyTop = 0 } = Astro.props;
+
+/**
+ * Слот `end` — действие у правого края той же строки (на странице темы — «↓ .md»). Липнет вместе
+ * со стрелкой; на 1024–1399px, где липнет одна стрелка, стоит ещё и в её полоске, поэтому
+ * отрисован строкой и вставлен дважды.
+ */
+const end = Astro.slots.has('end') ? await Astro.slots.render('end') : '';
 ---
 
 {
@@ -32,6 +39,7 @@ const { href = '/', label = 'все уроки', sticky = false, stickyTop = 0 }
       <a class="pin__link" href={href} aria-label={label}>
         ←
       </a>
+      {end && <div class="pin__end" set:html={end} />}
     </div>
   )
 }
@@ -42,11 +50,19 @@ const { href = '/', label = 'все уроки', sticky = false, stickyTop = 0 }
   <a class="back" href={href}>
     <span class="back__arrow" aria-hidden="true">←</span>{label}
   </a>
+  {end && <div class="row__end" set:html={end} />}
 </div>
 
 <style>
   .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     padding: 28px 0 0;
+  }
+  .row__end {
+    flex-shrink: 0;
   }
 
   /* Липнет только там, где ссылке хватает поля слева от колонки текста (решение автора курса
@@ -100,8 +116,16 @@ const { href = '/', label = 'все уроки', sticky = false, stickyTop = 0 }
       color: var(--ink);
       transform: translateX(-3px);
     }
-    .row--sticky .back__arrow {
+    .row--sticky .back__arrow,
+    .row--sticky .row__end {
       visibility: hidden;
+    }
+    .pin__end {
+      position: absolute;
+      top: var(--pin-y, 28px);
+      right: 0;
+      /* Середина кнопки — на середине стрелки (`--fs-8`, `line-height: 1`). */
+      transform: translateY(calc(var(--fs-8) / 2 - 50%));
     }
   }
 

@@ -124,7 +124,7 @@ import {
 
     <CodeBlock code={SSR_FROM_FLIGHT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
-    <CodeBlock code={SSR_FROM_FLIGHT_HTML} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="html" code={SSR_FROM_FLIGHT_HTML} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="prose">
 
@@ -178,7 +178,7 @@ import {
   <CardGrid min={290} gap={14} align="start">
     {FLIGHT_READ_STEPS.map((st) => (
       <Card title={st.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
-        <CodeBlock code={st.line} size={11.5} lh={1.6} pad="10px 12px" />
+        <CodeBlock lang="text" code={st.line} size={11.5} lh={1.6} pad="10px 12px" />
         <Md text={st.what} />
       </Card>
 

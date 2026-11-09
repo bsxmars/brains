@@ -252,7 +252,7 @@ import {
   <CardGrid min={290} gap={16} align="start">
     {GC_SAMPLES.map((sample) => (
       <Card tone={sample.tone} color="tone" title={sample.t} titleSize={16.5} pad={18} gap={10} size={15} lh={1.55}>
-        <CodeBlock code={sample.code} size={11} tone={sample.tone === 'ok' ? 'ok' : 'ink'} />
+        <CodeBlock lang="text" code={sample.code} size={11} tone={sample.tone === 'ok' ? 'ok' : 'ink'} />
         <Md text={sample.d} />
       </Card>
 
@@ -372,7 +372,7 @@ import {
 
     </CardGrid>
 
-    <CodeBlock code={FATAL_LOG} size={11} tone="deep" />
+    <CodeBlock lang="text" code={FATAL_LOG} size={11} tone="deep" />
 
     <DarkText>
       <b>Страховка, пока ищете причину:</b> перезапускать процесс, когда он перерос порог
@@ -429,7 +429,7 @@ import {
 
   ### У предела кучи снимок снимает флаг, а не человек
 
-  <CodeBlock code={NEAR_LIMIT_FLAG} size={11.5} />
+  <CodeBlock lang="text" code={NEAR_LIMIT_FLAG} size={11.5} />
 
   Вместо «под перезапустился ночью, воспроизвести не можем» у вас остаётся файл на диске.
   Он больше кучи, с которой снят, — это текстовый JSON: процесс с потолком кучи 128 МБ
@@ -438,7 +438,7 @@ import {
   Вручную у предела лучше не снимать: чтобы записать снимок, движок строит полный граф
   объектов, и память на это, как видно по таблице выше, берётся **в том же процессе**:
 
-  <CodeBlock code={SNAPSHOT_KILL} size={11} />
+  <CodeBlock lang="text" code={SNAPSHOT_KILL} size={11} />
 
   Флагу тоже нужно место: на диске — подключённый том, потому что рабочая директория
   исчезает вместе с подом, и в памяти — в тесном контейнере тот же запуск оставил файл

@@ -110,7 +110,7 @@ import {
 >
   <Plain text={PLAIN_LAZY} />
 
-  <CodeBlock code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="css" code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['случай', 'что на странице', 'запрос шрифта']}
@@ -210,7 +210,7 @@ import {
     </Card>
 
     <Card title="Что получилось для Newsreader и Georgia" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={FALLBACK_FACE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="css" code={FALLBACK_FACE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -225,7 +225,7 @@ import {
 >
   <Plain text={PLAIN_RANGE} />
 
-  <CodeBlock code={SUBSET_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="css" code={SUBSET_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Card title="Какие файлы скачать" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RANGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -248,7 +248,7 @@ import {
   title="preload и document.fonts"
   lead="Браузер узнаёт о шрифте поздно, после HTML, CSS и стилей. `preload` называет файл прямо в HTML, и запрос уходит сразу. А `document.fonts` даёт скрипту увидеть и запустить загрузку самому."
 >
-  <CodeBlock code={PRELOAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="html" code={PRELOAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['страница', 'запросы по порядку', 'итог']}
@@ -262,7 +262,7 @@ import {
   <Md text={PRELOAD_NOTE} />
 
   <Card title="Что написал Chromium в консоль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={PRELOAD_WARNING} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={PRELOAD_WARNING} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   ### document.fonts

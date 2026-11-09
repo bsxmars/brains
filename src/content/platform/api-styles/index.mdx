@@ -133,7 +133,7 @@ import {
   <Md text={SCREEN_NOTE} />
 
   <Card title="Что получает экран: первый заказ из пяти" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SCREEN_FIRST} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="json" code={SCREEN_FIRST} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -192,11 +192,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Схема (SDL)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SDL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="graphql" code={SDL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Запрос экрана" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCREEN_QUERY} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="graphql" code={SCREEN_QUERY} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -307,7 +307,7 @@ import {
     </Card>
 
     <Card title="Ответ: 200, data и errors" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={FAIL_RESPONSE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={FAIL_RESPONSE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -326,7 +326,7 @@ import {
   lead="gRPC описывает API файлом `.proto`: сервис, методы и сообщения, у каждого поля — номер. По проводу едет protobuf — двоичное сообщение, в котором вместо имён полей стоят эти номера. Прочитать его может только тот, у кого есть схема."
 >
   <Card title="shop.proto" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PROTO_FILE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={PROTO_FILE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Plain text={PLAIN_VARINT} />

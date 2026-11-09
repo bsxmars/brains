@@ -113,7 +113,7 @@ import {
 
   ### Что получилось
 
-  <CodeBlock code={MINI_COUNTER_OUT} />
+  <CodeBlock lang="jsx" code={MINI_COUNTER_OUT} />
 
   <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={MINI_OUT_NOTE} />
 
@@ -132,13 +132,13 @@ import {
 
   ### Исходник
 
-  <CodeBlock code={REACT_COUNTER_SRC} />
+  <CodeBlock lang="jsx" code={REACT_COUNTER_SRC} />
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={15} lh={1.55} text={TRACK_NOTE} />
 
   ### Вывод `babel-plugin-react-compiler` 1.0.0
 
-  <CodeBlock code={REACT_COUNTER_OUT} />
+  <CodeBlock lang="jsx" code={REACT_COUNTER_OUT} />
 
   <CardGrid min={290} gap={16} align="start">
     {REACT_OUT_NOTES.map((note) => (
@@ -167,9 +167,9 @@ import {
 
   ### Число из дорогого расчёта
 
-  <CodeBlock code={REACT_SUM_SRC} />
+  <CodeBlock lang="jsx" code={REACT_SUM_SRC} />
 
-  <CodeBlock code={REACT_SUM_OUT} />
+  <CodeBlock lang="jsx" code={REACT_SUM_OUT} />
 </Section>
 
 <Section
@@ -203,13 +203,13 @@ import {
 
   ### Исходник: `Counter.svelte` и `Hint.svelte`
 
-  <CodeBlock code={SVELTE_COUNTER_SRC} />
+  <CodeBlock lang="svelte" code={SVELTE_COUNTER_SRC} />
 
-  <CodeBlock code={SVELTE_HINT_SRC} />
+  <CodeBlock lang="html" code={SVELTE_HINT_SRC} />
 
   ### Вывод `svelte/compiler` 5.57.1 для `Counter`
 
-  <CodeBlock code={SVELTE_COUNTER_OUT} />
+  <CodeBlock lang="jsx" code={SVELTE_COUNTER_OUT} />
 
   <CardGrid min={290} gap={16} align="start">
     {SVELTE_OUT_NOTES.map((note) => (
@@ -221,9 +221,9 @@ import {
 
   ### Объект в `$state` и `$effect`
 
-  <CodeBlock code={SVELTE_PROXY_SRC} />
+  <CodeBlock lang="svelte" code={SVELTE_PROXY_SRC} />
 
-  <CodeBlock code={SVELTE_PROXY_OUT} />
+  <CodeBlock lang="jsx" code={SVELTE_PROXY_OUT} />
 
   <Card pad={18} gap={11} size={15.5} lh={1.6} text={SVELTE_PROXY_NOTE} />
 </Section>
@@ -238,11 +238,11 @@ import {
 
   ### Исходник
 
-  <CodeBlock code={SOLID_COUNTER_SRC} />
+  <CodeBlock lang="jsx" code={SOLID_COUNTER_SRC} />
 
   ### Вывод `babel-preset-solid` 1.9.15
 
-  <CodeBlock code={SOLID_COUNTER_OUT} />
+  <CodeBlock lang="jsx" code={SOLID_COUNTER_OUT} />
 
   <CardGrid min={290} gap={16} align="start">
     {SOLID_OUT_NOTES.map((note) => (

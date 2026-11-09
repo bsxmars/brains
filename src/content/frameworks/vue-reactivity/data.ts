@@ -734,6 +734,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '5.8',
     t: '`provide` ничего не оборачивает',
+    lang: 'ts',
     code: "provide('count', 0)        // ❌ снимок навсегда\nprovide('count', count)    // ✅ ref\nprovide('s', readonly(s))  // ✅ и защищено от записи",
     d: 'Значение передаётся как есть, и реактивность зависит только от того, что вы передали. Ловушка та же, что везде: `provide(\'count\', count.value)` передаст число. И второе: `inject` вне `setup()` не сработает — `currentInstance` там снят ровно так же, как `activeSub` и `activeEffectScope`.',
   },

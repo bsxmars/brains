@@ -14,6 +14,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadPrinter, outline, ruler } from '../model/run';
 import type { FormatSnippet } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   printerCode: string;
@@ -77,7 +78,7 @@ const stats = computed(() => {
 
       <div class="fl-pane">
         <span class="fl-label">исходник</span>
-        <pre class="fl-code fl-code--src">{{ snippet.code }}</pre>
+        <CodeView class="fl-code fl-code--src" :code="snippet.code" />
       </div>
 
       <div class="fl-split">

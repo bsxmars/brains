@@ -164,7 +164,7 @@ import {
   title="Рукопожатие: HTTP, который перестаёт быть HTTP"
   lead="WebSocket открывается обычным HTTP-запросом. Клиент просит сменить протокол, сервер соглашается ответом `101` — и с этого байта по тому же TCP идут уже кадры WebSocket. Всё, что браузер знает о безопасности соединения, решается в этом единственном обмене."
 >
-  <CodeBlock code={HANDSHAKE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="http" code={HANDSHAKE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
   <Plain text={PLAIN_ACCEPT} />
 
@@ -401,7 +401,7 @@ import {
   <Card title="Таймаут простоя на пути" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <Md text={IDLE_NOTE} />
 
-    <CodeBlock code={PROXY_CODE} size={11} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="nginx" code={PROXY_CODE} size={11} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={280} gap={14} align="start">

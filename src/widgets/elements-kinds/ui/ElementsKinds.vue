@@ -13,6 +13,7 @@ import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import type { ElementsCase, ElementsRow } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{ cases: ElementsCase[]; grid: ElementsRow[] }>();
 
@@ -35,7 +36,7 @@ const noteTone = computed(() => {
 
     <div class="split">
       <div class="pane">
-        <pre class="code">{{ current.code }}</pre>
+        <CodeView class="code" :code="current.code" />
         <Md class="note" :data-tone="noteTone" :text="current.note" />
       </div>
 

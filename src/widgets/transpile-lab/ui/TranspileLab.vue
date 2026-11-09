@@ -16,6 +16,7 @@ import { SegmentedControl } from '@/shared/ui';
 import { loadDecide } from '../model/run';
 import type { CompatTable, CustomRange, FeatureRow, TranspilePreset } from '../model/types';
 import { fmtNumber as fmt } from '@/shared/lib/format';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   decideCode: string;
@@ -202,7 +203,7 @@ const ratio = (n: number) => `×${(n / props.sourceMin).toFixed(1).replace('.', 
 
         <div class="tp-out">
           <span class="tp-label">cart.js после preset-env, без полифилов</span>
-          <pre class="tp-pre">{{ preset.code }}</pre>
+          <CodeView class="tp-pre" :code="preset.code" />
         </div>
       </template>
 

@@ -17,6 +17,7 @@ import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { runCycle } from '../model/run';
 import type { CycleRun, CycleVariant } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const OPTIONS = [
   { value: 'fn' as const, label: 'function' },
@@ -55,7 +56,7 @@ const broken = computed(() => Boolean(current.value?.error));
         <div class="split">
           <div v-for="file in current.sources" :key="file.name" class="pane">
             <div class="t-label">{{ file.name }}</div>
-            <pre class="code" data-code>{{ file.code }}</pre>
+            <CodeView class="code" :code="file.code" />
           </div>
         </div>
 

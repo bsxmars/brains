@@ -365,6 +365,7 @@ const FOOTER_NOTE =
       </ol>
 
       <CodeListing
+        lang="css"
         label="таблица стилей демо"
         :lines="listing"
         :active="winner && index >= criteria.length ? active.indexOf(winner) + 1 : -1"

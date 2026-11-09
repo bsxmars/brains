@@ -168,7 +168,7 @@ lead="**React отвечает на вопрос «что теперь долж�
   ### Когда выполняются эффекты
 
   <Card title="Порядок на первом монтировании" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
-    <CodeBlock code={EFFECTS_ORDER} />
+    <CodeBlock lang="jsx" code={EFFECTS_ORDER} />
 
     <Md text={EFFECTS_NOTE} />
   </Card>
@@ -179,7 +179,7 @@ lead="**React отвечает на вопрос «что теперь долж�
 
   #### Одна подсказка, три способа появиться
 
-  <CodeBlock code={EFFECT_SCENE_CODE} />
+  <CodeBlock lang="jsx" code={EFFECT_SCENE_CODE} />
 
   <Md text={EFFECT_SCENE_NOTE} />
 
@@ -287,7 +287,7 @@ lead="**React отвечает на вопрос «что теперь долж�
 
   #### Три условия на дереве из демо
 
-  <CodeBlock code={BAILOUT_SCENE_CODE} />
+  <CodeBlock lang="text" code={BAILOUT_SCENE_CODE} />
 
   <Md text={BAILOUT_SCENE_NOTE} />
 
@@ -305,7 +305,7 @@ lead="**React отвечает на вопрос «что теперь долж�
   ### Приём, о котором знают меньше: `children` как проп
 
   <Card title="Пропуск компонента без `memo` и без затрат" titleSize={17} pad={20} gap={13}>
-    <CodeBlock code={CHILDREN_TRICK} />
+    <CodeBlock lang="jsx" code={CHILDREN_TRICK} />
 
 
     В `Good` элемент `<Slow />` создаётся в `Good`, а не в `Wrapper`. Когда `Wrapper`
@@ -368,7 +368,7 @@ lead="**React отвечает на вопрос «что теперь долж�
   ### Компонент, объявленный внутри компонента
 
   <Card tone="err" title="Самая дорогая опечатка в React" titleSize={17} pad={20} gap={13}>
-    <CodeBlock code={NESTED_COMPONENT} />
+    <CodeBlock lang="jsx" code={NESTED_COMPONENT} />
 
 
     При каждом вызове `Parent` создаётся новая функция `Row`, значит `oldType === newType`
@@ -495,7 +495,7 @@ lead="**React отвечает на вопрос «что теперь долж�
   </CardGrid>
 
   <Card tone="ok" title="Смена `key` как приём — работает в обратную сторону" titleSize={17} pad={20} gap={13}>
-    <CodeBlock code={KEY_RESET} />
+    <CodeBlock lang="jsx" code={KEY_RESET} />
 
 
     Это лучше, чем `useEffect(() => resetEverything(), [userId])`: не нужно перечислять, что
@@ -658,7 +658,7 @@ lead="**React отвечает на вопрос «что теперь долж�
 
   <CardGrid min={290} gap={16} align="start">
     <Card tone="err" title="Классическая ошибка" titleSize={16.5} pad={18} gap={11}>
-      <CodeBlock code={MEMO_TRAP} />
+      <CodeBlock lang="jsx" code={MEMO_TRAP} />
 
 
       `memo` сравнивает пропсы как положено: `onClick` — новая функция, `Object.is` даёт
@@ -690,7 +690,7 @@ lead="**React отвечает на вопрос «что теперь долж�
   </Card>
 
   <Card title="React Compiler забирает эту рутину в сборку" titleSize={17} pad={20} gap={13}>
-    <CodeBlock code={COMPILER_CODE} />
+    <CodeBlock lang="jsx" code={COMPILER_CODE} />
 
 
     Идея: компилятор при сборке разбирает, какие данные откуда берутся внутри компонента.

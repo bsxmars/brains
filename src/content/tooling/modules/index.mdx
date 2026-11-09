@@ -327,7 +327,7 @@ import {
   <Plain text={PLAIN_IMPORTMAP} />
 
   <Card title="Одна карта, три правила" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={IMPORTMAP_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="html" code={IMPORTMAP_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CodeBlock code={IMPORTMAP_OUT} size={11.5} lh={1.7} pad="12px 16px" tone="ok" />
 
@@ -563,7 +563,7 @@ import {
   ### Поле `exports`: карта пакета и забор вокруг него
 
   <Card title="Как выглядит карта" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={EXPORTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="json" code={EXPORTS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <NumberedList items={EXPORTS_RULES} size={14.5} />
 
@@ -637,7 +637,7 @@ import {
     <CardGrid min={260} gap={14} align="start">
       {PHANTOM_LAYOUTS.map((layout) => (
         <Card tone={layout.tone} radius={4} title={layout.t} titleSize={15.5} pad={16} gap={9} size={15} lh={1.55}>
-          <CodeBlock code={layout.tree} size={10.5} lh={1.65} pad="12px 14px" />
+          <CodeBlock lang="text" code={layout.tree} size={10.5} lh={1.65} pad="12px 14px" />
           <CodeBlock code={layout.out.join('\n')} size={10.5} lh={1.65} pad="10px 14px" tone="ok" />
         </Card>
 
@@ -917,7 +917,7 @@ import {
   нужно поддерживать всерьёз, собирают **второй** бандл и отдают его только им. Выбирает
   бандл сам браузер — по двум атрибутам.
 
-  <CodeBlock code={NOMODULE_HTML} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="html" code={NOMODULE_HTML} size={11.5} lh={1.7} pad="14px 16px" />
 
   <CardGrid min={280} gap={14}>
     {LEGACY_FACTS.map((fact) => (

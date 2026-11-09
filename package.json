@@ -30,6 +30,7 @@
     "d3-shape": "^3.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "shiki": "^4.4.3",
     "vue": "^3.5.42"
   },
   "devDependencies": {
@@ -43,6 +44,7 @@
     "@babel/preset-env": "^7.29.7",
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.1",
+    "@math.gl/web-mercator": "^4.1.0",
     "@messageformat/core": "^3.4.0",
     "@openfeature/server-sdk": "^1.23.0",
     "@opentelemetry/api": "^1.9.1",
@@ -97,6 +99,7 @@
     "redux": "^5.0.1",
     "solid-js": "^1.9.15",
     "ssri": "^13.0.1",
+    "supercluster": "^9.1.0",
     "svelte": "^5.57.1",
     "swr": "^2.5.1",
     "tailwindcss": "^4.3.3",

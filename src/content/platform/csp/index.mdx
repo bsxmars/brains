@@ -134,7 +134,7 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Страница: двенадцать проб в разметке" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PAGE_HTML} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={PAGE_HTML} size={11} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="И пять — из кода после загрузки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -185,7 +185,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Как считается хеш инлайн-скрипта" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={HASH_CODE} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={HASH_CODE} size={11} lh={1.65} pad="14px 16px" />
     </Card>
 
     <CardGrid min={260} gap={12} align="start">
@@ -198,7 +198,7 @@ import {
 
   ### `'unsafe-inline'` рядом с nonce
 
-  <CodeBlock code={CONSOLE_UNSAFE_INLINE} size={11} lh={1.6} pad="14px 16px" />
+  <CodeBlock lang="text" code={CONSOLE_UNSAFE_INLINE} size={11} lh={1.6} pad="14px 16px" />
 
   <Md text={UNSAFE_INLINE_NOTE} />
 
@@ -213,7 +213,7 @@ import {
     minWidth={560}
   />
 
-  <CodeBlock code={CONSOLE_STRICT_DYNAMIC} size={11} lh={1.6} pad="14px 16px" />
+  <CodeBlock lang="text" code={CONSOLE_STRICT_DYNAMIC} size={11} lh={1.6} pad="14px 16px" />
 
   <Md text={STRICT_DYNAMIC_NOTE} />
 
@@ -225,7 +225,7 @@ import {
     </Card>
 
     <Card title="Шаблон с меткой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={NONCE_TEMPLATE} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={NONCE_TEMPLATE} size={11} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -255,11 +255,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="До" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REFACTOR_BEFORE} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={REFACTOR_BEFORE} size={11} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="После" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REFACTOR_AFTER} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={REFACTOR_AFTER} size={11} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -274,15 +274,15 @@ import {
   title="Отчёты и поэтапное внедрение"
   lead="Report-only — способ узнать, что сломает политика, не ломая ничего. Браузер выполняет всё как раньше и присылает отчёт о каждом скрипте, который заблокировал бы."
 >
-  <CodeBlock code={REPORT_HEADERS_CODE} size={11} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="text" code={REPORT_HEADERS_CODE} size={11} lh={1.65} pad="14px 16px" />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Тело отчёта report-uri" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REPORT_URI_BODY} size={11} lh={1.6} pad="14px 16px" />
+      <CodeBlock lang="json" code={REPORT_URI_BODY} size={11} lh={1.6} pad="14px 16px" />
     </Card>
 
     <Card title="Тот же отчёт в формате report-to" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REPORT_TO_BODY} size={11} lh={1.6} pad="14px 16px" />
+      <CodeBlock lang="json" code={REPORT_TO_BODY} size={11} lh={1.6} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -299,7 +299,7 @@ import {
 
   ### Две политики сразу
 
-  <CodeBlock code={TWO_HEADERS_CODE} size={11} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="text" code={TWO_HEADERS_CODE} size={11} lh={1.65} pad="14px 16px" />
 
   <Md text={TWO_HEADERS_NOTE} />
 
@@ -316,7 +316,7 @@ import {
   title="Заголовок или <meta>"
   lead='Политику можно положить и в разметку: `<meta http-equiv="Content-Security-Policy">`. Скрипты она ограничивает так же, но часть директив в ней не работает, а действует она только с того места, где браузер её прочитал.'
 >
-  <CodeBlock code={META_PAGE_HTML} size={11} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="html" code={META_PAGE_HTML} size={11} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['что', 'что сделал Chromium', 'консоль']}
@@ -340,7 +340,7 @@ import {
 >
   <Plain text={PLAIN_TT} />
 
-  <CodeBlock code={TT_HEADER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="http" code={TT_HEADER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
   ### Места вставки
 
@@ -357,7 +357,7 @@ import {
   ### Политика и имена
 
   <Card title="Своя политика" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={TT_POLICY_CODE} size={11} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="jsx" code={TT_POLICY_CODE} size={11} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -375,11 +375,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Код" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DEFAULT_POLICY_CODE} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={DEFAULT_POLICY_CODE} size={11} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Консоль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DEFAULT_POLICY_LOG} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={DEFAULT_POLICY_LOG} size={11} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -413,7 +413,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="React 19: TrustedHTML в dangerouslySetInnerHTML" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REACT_TT_CODE} size={11} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={REACT_TT_CODE} size={11} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={REACT_NOTE} />

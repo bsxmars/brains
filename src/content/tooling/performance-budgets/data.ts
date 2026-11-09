@@ -187,7 +187,7 @@ export const WEIGHT_TIERS: { name: string; kb: number; pages: string; now: strin
   { name: 'LEAN_BUDGET_KB', kb: 190, pages: 'все остальные', now: 'самая тяжёлая — `/js/callbacks/`, 174' },
   { name: 'INTERACTIVE_BUDGET_KB', kb: 230, pages: '`/js/object-model/`, `/js/event-loop/`', now: '201 и 175' },
   { name: 'SHOWCASE_BUDGET_KB', kb: 200, pages: '`/kit/`', now: '133' },
-  { name: 'LABS_BUDGET_KB', kb: 360, pages: '`/kit/labs/`', now: '355 — запас 5 КБ', tone: 'warn' },
+  { name: 'LABS_BUDGET_KB', kb: 370, pages: '`/kit/labs/`', now: '363 — запас 7 КБ', tone: 'warn' },
   { name: 'HEAVY_BUDGET_KB', kb: 400, pages: '`/frameworks/react-rerender/`, `/frameworks/react-vs-vue/`', now: '234 и 346', tone: 'info' },
 ];
 
@@ -231,7 +231,7 @@ export const WEIGHT_FACTS: { t: string; d: string; tone?: 'warn' | 'err' | 'info
   },
   {
     t: 'Порог сработал — витрину разделили',
-    d: 'Витрина `/kit/` выросла до 233 КБ при пороге 200. Число не подвинули: демо уехали на `/kit/labs/`, витрина стала весить 16 КБ (сегодня 133). Ради такого разговора порог и стоит. Следующий такой разговор близко: `/kit/labs/` весит 355 КБ из 360.',
+    d: 'Витрина `/kit/` выросла до 233 КБ при пороге 200. Число не подвинули: демо уехали на `/kit/labs/`, витрина стала весить 16 КБ (сегодня 133). Ради такого разговора порог и стоит. Следующий такой разговор уже случился: `/kit/labs/` весил 355 КБ из 360, подсветка кода добавила общий загрузчик на 3,4 КБ — и сторож покраснел. Порог подняли до 370, страница весит 363.',
     tone: 'ok',
   },
 ];
@@ -471,9 +471,9 @@ export const BUDGET_PAGES: BudgetPage[] = [
     route: '/kit/labs/',
     label: 'Лаборатории',
     entries: ['LockLab.DuqOTwG1.js', 'client.CCGqtgYw.js', 'EnumProbe.xj9UIWyt.js', 'KeyOrder.DuoqwOts.js', 'IterProtocol.C5TFJb3Y.js', 'InstanceofLab.DfOJzjfr.js', 'PollutionLab.BJOcMBuA.js', 'DispatchLab.CTP5bcqt.js', 'TransferRules.BWEVUUBu.js', 'MicroProbe.Dtmj0LIb.js', 'TimerClamp.BTZfcacA.js', 'ResolveCost.Chnp4kML.js', 'YieldMeter.CpKfbiyg.js', 'ThreadProbe.CNKEYAHd.js', 'IcBench.9uZsFsZx.js', 'StringWeight.Ivkvh_m3.js', 'ReachabilityLab.BRwaDfJB.js', 'RetainGraph.CLPkSz7z.js'],
-    budgetKb: 360,
+    budgetKb: 370,
     budgetName: 'LABS_BUDGET_KB',
-    note: 'Семнадцать островов-лабораторий — 355 КБ при пороге 360. Ещё один стенд средней руки, и сторож покраснеет.',
+    note: 'Семнадцать островов-лабораторий — 363 КБ при пороге 370. Порог был 360: его превысил не новый стенд, а общий загрузчик подсветки кода — 3,4 КБ, которые получил каждый остров с листингом.',
   },
 ];
 
@@ -724,7 +724,7 @@ export const FALSE_ROWS: { k: string; how: string; fix: string; tone?: 'warn' | 
   { k: 'общий чанк', how: '`Md` вырос на 69 байт — и вырос вес 135 страниц сразу. Отчёт по страницам повторит одну правку 135 раз', fix: 'печатать общий чанк один раз со списком задетых страниц' },
   { k: 'одноимённые файлы', how: 'Три `client.*.js` на одной странице; склейка прячет React DOM в строке рендерера Vue', fix: 'группа плюс цепочка `whyIncluded` для выросших' },
   { k: 'разные сборки базы', how: 'База собрана другой версией сборщика или с другим lock-файлом — разница в чанках не от вашей правки', fix: 'база из того же конвейера и того же `npm ci`', tone: 'err' },
-  { k: 'порог впритык', how: '`/kit/labs/` — 355 из 360. Любая правка общего слоя на 5 КБ покраснит чужую страницу', fix: 'запас в пороге и отдельная строка отчёта «близко к порогу»', tone: 'warn' },
+  { k: 'порог впритык', how: '`/kit/labs/` было 355 из 360 — и загрузчик подсветки кода (3,4 КБ в общем слое) покраснил чужую страницу', fix: 'запас в пороге и отдельная строка отчёта «близко к порогу»', tone: 'warn' },
 ];
 
 // ─── Тонкие места ──────────────────────────────────────────────────────────────────────────

@@ -30,6 +30,7 @@ import { Button, SegmentedControl } from '@/shared/ui';
 import { countingContext, emptyCounters, type GlCounters } from '../lib/counter';
 import type { DrawMode, DrawModeKey } from '../model/types';
 import { fmtKb as kb } from '@/shared/lib/format';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = withDefaults(defineProps<{ modes: DrawMode[]; count?: number; frames?: number }>(), {
   count: 1000,
@@ -420,7 +421,7 @@ const pick = (key: string) => {
         </div>
 
         <div class="pane">
-          <pre class="code">{{ current.code }}</pre>
+          <CodeView class="code" :code="current.code" />
 
           <div class="metrics">
             <div class="metric">

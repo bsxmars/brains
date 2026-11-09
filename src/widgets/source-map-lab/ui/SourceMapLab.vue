@@ -14,6 +14,8 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadLookup, loadVlq } from '../model/run';
 import type { MapExample, Segment } from '../model/types';
+import { useHighlight } from '@/shared/lib/useHighlight';
+import CodeLine from '@/shared/ui/CodeLine.vue';
 
 const props = defineProps<{
   vlqCode: string;
@@ -122,6 +124,7 @@ const position = computed(() => {
 const sourceIndex = computed(() => (segment.value && segment.value.length > 1 ? segment.value[1] : 0));
 const sourceName = computed(() => example.value.map.sources[sourceIndex.value].replace(/^(\.\.\/)+/, ''));
 const sourceLines = computed(() => example.value.map.sourcesContent[sourceIndex.value].replace(/\n$/, '').split('\n'));
+const hl = useHighlight(() => sourceLines.value.join('\n'));
 
 /** Подсветка в исходнике: от колонки сегмента до конца слова или одного знака. */
 function mark(text: string, col: number) {
@@ -179,7 +182,7 @@ function pick(li: number, si: number) {
           <span class="sm-label">исходник: {{ sourceName }}</span>
           <pre class="sm-code sm-code--src"><template v-for="(text, i) in sourceLines" :key="i"><span class="sm-ln">{{ String(i + 1).padStart(2, ' ') }}</span><template
             v-if="position && segment && segment[2] === i"
-          ><span class="sm-line-on">{{ mark(text, segment[3]).before }}<mark class="sm-hit">{{ mark(text, segment[3]).hit }}</mark>{{ mark(text, segment[3]).after }}</span></template><template v-else>{{ text }}</template>{{ '\n' }}</template></pre>
+          ><span class="sm-line-on">{{ mark(text, segment[3]).before }}<mark class="sm-hit">{{ mark(text, segment[3]).hit }}</mark>{{ mark(text, segment[3]).after }}</span></template><CodeLine v-else :html="hl?.[i]" :text="text" />{{ '\n' }}</template></pre>
         </div>
       </div>
 

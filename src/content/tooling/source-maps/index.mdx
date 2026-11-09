@@ -104,7 +104,7 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Исходник: cart.ts" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CART_TS} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={CART_TS} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Бандл: cart.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -113,7 +113,7 @@ import {
   </CardGrid>
 
   <Card title="Карта: cart.js.map" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={MAP_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="json" code={MAP_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -187,11 +187,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Без карты" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={STACK_BARE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={STACK_BARE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="С картой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={STACK_MAPPED} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={STACK_MAPPED} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 

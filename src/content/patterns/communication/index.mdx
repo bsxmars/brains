@@ -77,7 +77,7 @@ import {
   title="Зачем: кто кого зовёт"
   lead="С сайта пришла заявка — лид. CRM должна его записать, чтобы менеджер позвонил, а сервис уведомлений — отправить клиенту СМС «свяжемся за 15 минут». Самый прямой код зовёт всех из обработчика формы, и с каждым новым потребителем обработчик знает больше."
 >
-  <CodeBlock code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={PROBLEM_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   Есть и обратный путь — каждый сервис раз в минуту спрашивает, нет ли новых заявок. Тогда
   обработчик не знает никого, зато сервисы опаздывают на минуту и шлют запросы впустую. Три
@@ -102,7 +102,7 @@ import {
 
   ### Книжная версия
 
-  <CodeBlock code={OBSERVER_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={OBSERVER_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <CodeBlock code={SELF_DETACH_CODE} size={11} lh={1.7} pad="14px 16px" />
 
@@ -130,7 +130,7 @@ import {
 
   ### Типы событий
 
-  <CodeBlock code={TYPED_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={TYPED_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Что даёт карта событий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={TYPED_NOTES} size={14.5} />
@@ -155,7 +155,7 @@ import {
 
   ### Книжная версия
 
-  <CodeBlock code={MEDIATOR_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={MEDIATOR_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Что здесь стоит заметить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={MEDIATOR_NOTES} size={14.5} />
@@ -167,7 +167,7 @@ import {
   «Отправить», и кнопке не нужно знать о полях. Когда участники живут в разных частях
   приложения, посредником становится общий объект — шина событий или стор.
 
-  <CodeBlock code={BUS_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="tsx" code={BUS_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Чем шина отличается от стора" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={BUS_NOTES} size={14.5} />
@@ -184,7 +184,7 @@ import {
 
   ### Книжная версия: звенья-объекты
 
-  <CodeBlock code={CHAIN_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={CHAIN_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <CodeBlock code={CHAIN_HEAD_CODE} size={11} lh={1.7} pad="14px 16px" />
 
@@ -194,7 +194,7 @@ import {
 
   ### Middleware: массив функций и `next`
 
-  <CodeBlock code={COMPOSE_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={COMPOSE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <CodeBlock code={NEXT_BUGS_CODE} size={11} lh={1.7} pad="14px 16px" />
 

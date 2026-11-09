@@ -17,6 +17,7 @@ import { compileSemver } from '../model/semver';
 import type { SemverApi } from '../model/semver';
 import { formatEntry, layoutNpm, layoutPnpm } from '../model/layout';
 import type { Entry, Layout, Registry, Tag } from '../model/layout';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 interface Scenario {
   id: string;
@@ -164,7 +165,7 @@ function short(e: Entry) {
 
     <div class="pm-tree__body">
       <div class="pm-tree__head">
-        <pre class="pm-tree__manifest" data-code>{{ manifestLines.join('\n') }}</pre>
+        <CodeView class="pm-tree__manifest" lang="json" :code="manifestLines.join('\n')" />
         <Md class="pm-tree__scenario" :text="scenario.note" />
       </div>
 

@@ -32,6 +32,7 @@ import {
   type ResourceSlot,
 } from '../lib/resources';
 import type { LossEvent, LossStrategy, StrategyOption } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{ strategies: StrategyOption[] }>();
 
@@ -315,7 +316,7 @@ onBeforeUnmount(() => {
       </div>
 
       <Md class="verdict" :data-tone="current.tone" :text="current.note" />
-      <pre class="code">{{ current.code }}</pre>
+      <CodeView class="code" :code="current.code" />
 
       <div class="journal">
         <span class="t-label">журнал событий</span>

@@ -15,6 +15,7 @@
  * Число слотов видно снаружи: `%DebugPrint` печатает `FunctionContext[N]`, где N — это два
  * слота заголовка плюс по слоту на каждую **захваченную** переменную.
  */
+import { highlight } from '@/shared/lib/highlight';
 import type { ContextSlot } from '../model/types';
 
 interface Props {
@@ -61,7 +62,7 @@ const {
     probe && (
       <div class="probe">
         <div class="t-eyebrow t-eyebrow--panel">Число слотов видно снаружи</div>
-        <pre class="probe__code">{probe}</pre>
+        <pre class="probe__code" set:html={await highlight(probe, 'js')} />
         {probeOut && <pre class="probe__out">{probeOut}</pre>}
       </div>
     )

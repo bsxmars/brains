@@ -18,6 +18,7 @@ import LessonBack from '@/widgets/lesson-back/ui/LessonBack.astro';
 import LessonHero from '@/widgets/lesson-hero/ui/LessonHero.astro';
 import LessonNav from '@/widgets/lesson-nav/ui/LessonNav.astro';
 import LessonPager from '@/widgets/lesson-pager/ui/LessonPager.astro';
+import ExportMd from '@/features/export-md/ui/ExportMd.astro';
 
 export async function getStaticPaths() {
   const byDirection = await Promise.all(
@@ -64,7 +65,9 @@ const link = (item?: Lesson) =>
     label={`все темы · ${direction.title.toLowerCase()}`}
     sticky
     stickyTop={60}
-  />
+  >
+    <ExportMd slot="end" />
+  </LessonBack>
 
   <LessonHero
     kicker={data.kicker ?? direction.kicker}

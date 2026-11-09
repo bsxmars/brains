@@ -131,7 +131,7 @@ const codeLines = computed(() => current.value.code.split('\n'));
     </template>
 
     <div class="body">
-      <CodeListing :lines="codeLines" label="разметка документа" />
+      <CodeListing lang="html" :lines="codeLines" label="разметка документа" />
 
       <div class="scroll">
         <div class="chart">

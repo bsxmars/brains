@@ -137,7 +137,7 @@ import {
   <Plain text={PLAIN_L4L7} />
 
   <Card title="Один nginx, два уровня" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={L4L7_CONF} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="nginx" code={L4L7_CONF} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -188,7 +188,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Конфиг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={WORKERS_CONF} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="nginx" code={WORKERS_CONF} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="14 запросов, веса 5 : 1 : 1" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -231,7 +231,7 @@ import {
     <Card tone="neutral" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={P2C_NOTE} />
 
     <Card title="«Два случайных» в nginx" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={P2C_CONF} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="nginx" code={P2C_CONF} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 </Section>
@@ -303,7 +303,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Хеш по cookie" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={STICKY_CONF} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="nginx" code={STICKY_CONF} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="neutral" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={STICKY_NOTE} />
@@ -334,7 +334,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Конфиг" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PASSIVE_CONF} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="nginx" code={PASSIVE_CONF} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="B не слушает порт: 15 запросов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

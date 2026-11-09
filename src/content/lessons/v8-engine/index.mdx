@@ -459,7 +459,7 @@ import {
   </Card>
 
   <Card title="Словарный режим: куда объект уходит после `delete`" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
-    <CodeBlock code={'delete obj.prop;       // уходит в словарь:  %HasFastProperties(obj) → false\nobj.prop = undefined; // форма сохраняется: %HasFastProperties(obj) → true'} />
+    <CodeBlock lang="sql" code={'delete obj.prop;       // уходит в словарь:  %HasFastProperties(obj) → false\nobj.prop = undefined; // форма сохраняется: %HasFastProperties(obj) → true'} />
 
 
     Форма — это общая договорённость для всех похожих объектов: «поле `x` лежит вот
@@ -734,7 +734,7 @@ import {
   </Card>
 
   <Card title="Флаги, которые стоит помнить" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock
+    <CodeBlock lang="bash"
       size={11.5}
       lh={1.8}
       pad="15px 17px"

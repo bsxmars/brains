@@ -18,6 +18,7 @@ import PlayerToolbar from '@/shared/ui/PlayerToolbar.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { runSet, type SetMode } from '../model/run';
 import type { SetScenario } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 /*
  * ⚠️ Имена узлов приходят пропами, а не зашиты в разметку. Раньше в шаблоне стояли `o`
@@ -75,7 +76,7 @@ const MODES: { mode: SetMode; label: string }[] = [
 
     <div class="sa-split">
       <div class="sa-pane">
-        <pre class="sa-code">{{ scenario.code }}</pre>
+        <CodeView class="sa-code" :code="scenario.code" />
 
         <div class="sa-node" :data-state="nodeState(0)">
           <span class="sa-node__name">{{ props.objectName }}</span>

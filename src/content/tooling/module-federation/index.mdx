@@ -180,7 +180,7 @@ import {
   />
 
   <Card title="Регистрация и выбор версии" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SCOPE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="ts" code={SCOPE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text="Условие в `register` и выбор singleton повторяют рантайм webpack 5.111. Неочевидное место: нестрогий выбор без подходящей версии берёт просто старшую — даже если другая уже загружена. Проверку диапазонов код берёт из блока ниже." />
@@ -188,7 +188,7 @@ import {
   </Card>
 
   <Card title="semver в объёме, нужном выбору" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={SEMVER_MIN_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="ts" code={SEMVER_MIN_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text="Ответы совпадают с пакетом `semver` на диапазонах вида `^`, `~`, `>=` и точной версии; пререлизы и `||` код не разбирает и бросает. Как устроены диапазоны целиком — в [«Пакетных менеджерах», раздел «Semver и диапазоны»](/tooling/package-managers/#s1)." />
@@ -197,7 +197,7 @@ import {
 
   ### Одна история: корзина переходит на React 19
 
-  <CodeBlock code={SHARE_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={SHARE_SCENE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Md text={SHARE_SCENE_NOTE} />
 

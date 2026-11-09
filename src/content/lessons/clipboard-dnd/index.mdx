@@ -121,7 +121,7 @@ import {
   title="Копировать по кнопке: writeText и readText"
   lead="Кнопка «Скопировать» рядом с командой или ссылкой — это одна строка: `navigator.clipboard.writeText(текст)`. Вызов возвращает промис, и тот отклоняется, если браузер решил, что сейчас копировать нельзя."
 >
-  <CodeBlock code={COPY_MARKUP} />
+  <CodeBlock lang="html" code={COPY_MARKUP} />
 
   <CodeBlock code={COPY_CODE} />
 
@@ -176,7 +176,7 @@ import {
 >
   ### Подменить то, что копируют
 
-  <CodeBlock code={COPY_EVENT_MARKUP} />
+  <CodeBlock lang="html" code={COPY_EVENT_MARKUP} />
 
   <CodeBlock code={COPY_EVENT_CODE} />
 
@@ -207,7 +207,7 @@ import {
   title="Форматы: ClipboardItem, write и read"
   lead="В буфере лежит не одна строка, а одна вещь в нескольких видах: текст, HTML, картинка. `writeText` кладёт только текст. Чтобы положить несколько видов сразу, нужны `ClipboardItem` и `navigator.clipboard.write`."
 >
-  <CodeBlock code={ITEM_CODE} />
+  <CodeBlock lang="jsx" code={ITEM_CODE} />
 
   <CodeBlock code={ITEM_OUT.join('\n')} tone="ok" />
 
@@ -227,7 +227,7 @@ import {
 
   ### Браузер чистит HTML, но вам всё равно чистить
 
-  <CodeBlock code={SANITIZE_CODE} />
+  <CodeBlock lang="jsx" code={SANITIZE_CODE} />
 
   <CodeBlock code={SANITIZE_OUT.join('\n')} tone="ok" />
 
@@ -262,7 +262,7 @@ import {
   title="Перетаскивание: draggable, dragover и drop"
   lead="Перетаскивание — та же передача данных, что и буфер обмена, только мышью. Источник кладёт данные в `dataTransfer` в `dragstart`, приёмник забирает их в `drop`. Между ними `dragover` решает, можно ли сюда бросить."
 >
-  <CodeBlock code={DRAG_MARKUP} />
+  <CodeBlock lang="html" code={DRAG_MARKUP} />
 
   <CodeBlock code={DRAG_CODE} />
 
@@ -326,7 +326,7 @@ import {
   title="Файлы и папки из системы"
   lead="Когда файл тащат с рабочего стола, `dragstart` на странице нет: источник — система. В `types` приходит `Files`, а сами файлы — в `drop`, через `dataTransfer.files` или `items`."
 >
-  <CodeBlock code={FILE_DROP_MARKUP} />
+  <CodeBlock lang="html" code={FILE_DROP_MARKUP} />
 
   <CodeBlock code={FILE_DROP_CODE} />
 

@@ -166,7 +166,7 @@ import {
   lead="Ключ со сроком Redis удалит сам. Это не способ обновлять данные, а предохранитель: что бы ни пошло не так с удалением, ошибочная копия проживёт не дольше срока."
 >
   <Card title="Сроки на стенде" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TTL_LOG.join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={TTL_LOG.join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={TTL_NOTE} />
@@ -286,7 +286,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Чужой замок" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LOCK_STEAL_LOG.join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="text" code={LOCK_STEAL_LOG.join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LOCK_STEAL_NOTE} />
@@ -354,7 +354,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Простой ключа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={IDLE_LOG.join('\n')} size={11} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="text" code={IDLE_LOG.join('\n')} size={11} lh={1.7} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={IDLE_NOTE} />

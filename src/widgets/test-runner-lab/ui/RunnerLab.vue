@@ -18,6 +18,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadRunner, play } from '../model/run';
 import type { RealRun, RunnerName, Scenario, TestState } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   runnerCode: string;
@@ -126,7 +127,7 @@ const STATE: Record<TestState, string> = { pass: 'прошёл', fail: 'пров
       <div class="trl-split">
         <div class="trl-pane">
           <span class="trl-label">тестовый файл</span>
-          <pre class="trl-code">{{ scenario.code }}</pre>
+          <CodeView class="trl-code" :code="scenario.code" />
         </div>
 
         <div class="trl-runs">

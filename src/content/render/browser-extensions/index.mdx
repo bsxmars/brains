@@ -97,7 +97,7 @@ import {
     в `content_scripts` отличаются полем `world`: у второй `world: 'MAIN'`, и она исполняется
     в мире самой страницы.
 
-    <CodeBlock code={MANIFEST_CODE} size={11.5} />
+    <CodeBlock lang="json" code={MANIFEST_CODE} size={11.5} />
 
     `run_at` — когда браузер запускает контент-скрипт: `document_start` — до разбора разметки,
     раньше любого скрипта страницы; `document_idle` — когда документ уже разобран.
@@ -282,7 +282,7 @@ import {
 >
   <Plain text={PLAIN_DNR} />
 
-  <CodeBlock code={DNR_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="html" code={DNR_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
   <Md text={DNR_SCENE_NOTE} />
 
@@ -318,7 +318,7 @@ import {
   lead="Три пути: узлы в DOM, подмена глобальных функций из мира страницы и работа на главном потоке страницы. Защиты страницы — CSP и Trusted Types — на изолированный мир не действуют."
 >
   <Card title="Проба: что CSP страницы сделала с контент-скриптом" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-    <CodeBlock code={CSP_HEADER} size={11.5} />
+    <CodeBlock lang="text" code={CSP_HEADER} size={11.5} />
   </Card>
 
   <Table

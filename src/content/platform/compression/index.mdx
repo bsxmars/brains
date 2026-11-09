@@ -114,7 +114,7 @@ import {
   lead="Браузер называет всё, что умеет распаковать. Сервер выбирает одно, сжимает тело и пишет имя в `Content-Encoding`. И добавляет `Vary: Accept-Encoding`: у этого адреса есть и другие варианты байтов."
 >
   <Card title="Запрос и ответ" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={HANDSHAKE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="http" code={HANDSHAKE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={HANDSHAKE_NOTE} />
@@ -250,7 +250,7 @@ import {
   ### Диапазон сжатого файла
 
   <Card title="sirv отвечает на Range" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={RANGE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="http" code={RANGE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={RANGE_NOTE} />
@@ -271,7 +271,7 @@ import {
   <Plain text={PLAIN_DICT} />
 
   <Card title="Обмен Chromium 153 с сервером" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={DICT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={DICT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={DICT_NOTE} />
@@ -312,7 +312,7 @@ import {
   <Plain text={PLAIN_BREACH} />
 
   <Card title="Страница с секретом и поиском" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={BREACH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="jsx" code={BREACH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table

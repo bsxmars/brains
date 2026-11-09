@@ -140,7 +140,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Таблицы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCHEMA_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={SCHEMA_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Запросы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -151,7 +151,7 @@ import {
   ### Поток и группа
 
   <Card title="Три события и один обработчик" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={INTRO_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={INTRO_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={INTRO_NOTE} />
@@ -223,13 +223,13 @@ import {
   </CardGrid>
 
   <Card title="Запись удалили, пока она висела" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={TRIM_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={TRIM_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   ### Медленный — не значит упавший
 
   <Card title="Таймаут короче обработки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SLOW_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={SLOW_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="warn">
       <Md text={SLOW_NOTE} />
@@ -305,7 +305,7 @@ import {
   <CardGrid min={300} gap={16} align="start">
     {PG_CASES.map((c) => (
       <Card tone={c.tone} title={c.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-        <CodeBlock code={PG_RUNS[c.id].log.join('\n')} size={11} lh={1.6} pad="12px 14px" />
+        <CodeBlock lang="text" code={PG_RUNS[c.id].log.join('\n')} size={11} lh={1.6} pad="12px 14px" />
 
         <Md text={c.d} />
       </Card>
@@ -344,7 +344,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Два сеанса пишут в outbox" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PG_RUNS['outbox-gap'].log.join('\n')} size={11} lh={1.6} pad="12px 14px" />
+      <CodeBlock lang="http" code={PG_RUNS['outbox-gap'].log.join('\n')} size={11} lh={1.6} pad="12px 14px" />
     </Card>
 
     <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={GAP_NOTE} />

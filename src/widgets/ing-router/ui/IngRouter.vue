@@ -158,7 +158,7 @@ const lines = computed(() => scenario.value.yaml.split('\n'));
 
       <div class="ing-split">
         <div class="ing-code">
-          <CodeListing :lines="lines" :active="view?.active ?? -1" :label="scenario.kind === 'ingress' ? 'Ingress' : 'HTTPRoute'" />
+          <CodeListing lang="yaml" :lines="lines" :active="view?.active ?? -1" :label="scenario.kind === 'ingress' ? 'Ingress' : 'HTTPRoute'" />
         </div>
 
         <div class="ing-side">

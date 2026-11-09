@@ -225,7 +225,7 @@ import {
     <NumberedList items={PROVISION_STEPS} size={15.5} />
   </Card>
 
-  <CodeBlock code={STORAGECLASS_CODE} />
+  <CodeBlock lang="yaml" code={STORAGECLASS_CODE} />
 
   ### Режимы доступа
 
@@ -414,7 +414,7 @@ import {
     <Md text={BACKUP_WHY} />
   </Card>
 
-  <CodeBlock code={SNAPSHOT_CODE} />
+  <CodeBlock lang="yaml" code={SNAPSHOT_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {SNAPSHOT_FACTS.map((fact) => (
@@ -440,7 +440,7 @@ import {
     <Md text={OPERATOR_WHY} />
   </Card>
 
-  <CodeBlock code={OPERATOR_CODE} />
+  <CodeBlock lang="yaml" code={OPERATOR_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {OPERATOR_FACTS.map((fact) => (
@@ -485,7 +485,7 @@ import {
     <Md text={EXTERNAL_WHY} />
   </Card>
 
-  <CodeBlock code={EXTERNAL_CODE} />
+  <CodeBlock lang="yaml" code={EXTERNAL_CODE} />
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={EXTERNAL_NOTE} />

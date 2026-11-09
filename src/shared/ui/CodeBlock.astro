@@ -1,6 +1,7 @@
 ---
 /**
- * Блок кода. Монохромный — подсветки в уроках нет, и добавлять её нельзя.
+ * Блок кода, подсвеченный при сборке (`shared/lib/highlight.ts`). Язык по умолчанию — JS;
+ * другой язык пишется явно (`lang="yaml"`), не-код — `lang="text"`, вывод — `tone="ok"`.
  *
  * Код приходит строкой в пропе, а не слотом: так его же данные можно прогнать тестом
  * (`tests/unit` исполняет примеры и сверяет вывод с тем, что написано на странице).
@@ -8,8 +9,12 @@
  *
  * `tone="ok"` — это вывод программы, а не её текст: в оригинале он зелёный (#A7E8BC).
  */
+import { highlight, type CodeLang } from '@/shared/lib/highlight';
+
 interface Props {
   code: string;
+  /** Язык подсветки, по умолчанию `js`. `text` и вывод программы (`tone="ok"`) — одним цветом. */
+  lang?: CodeLang;
   size?: number;
   lh?: number;
   pad?: string;
@@ -17,12 +22,14 @@ interface Props {
   tone?: 'ink' | 'deep' | 'ok';
 }
 
-const { code, size = 12, lh = 1.7, pad = '13px 15px', tone = 'ink' } = Astro.props;
+const { code, lang = 'js', size = 12, lh = 1.7, pad = '13px 15px', tone = 'ink' } = Astro.props;
+const html = lang !== 'text' && tone !== 'ok' ? await highlight(code, lang) : undefined;
 ---
 
 <pre
   data-tone={tone}
-  style={`--code-fs:calc(${size}px * var(--fs-scale));--code-lh:${lh};--code-pad:${pad}`}>{code}</pre>
+  data-lang={tone === 'ok' ? 'text' : lang}
+  style={`--code-fs:calc(${size}px * var(--fs-scale));--code-lh:${lh};--code-pad:${pad}`}>{html ? <Fragment set:html={html} /> : code}</pre>
 
 <style>
   pre {

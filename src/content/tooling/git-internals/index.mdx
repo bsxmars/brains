@@ -137,7 +137,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="git и shasum" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={HELLO_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={HELLO_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={HELLO_NOTE} />
@@ -174,7 +174,7 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Деревья первого коммита" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TREE_CATFILE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={TREE_CATFILE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TREE_NOTE} />
@@ -186,7 +186,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Коммит, как его хранит git" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={COMMIT_CATFILE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={COMMIT_CATFILE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Тот же коммит функциями темы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -216,7 +216,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Лёгкий и аннотированный" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TAG_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={TAG_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TAG_NOTE} />
@@ -230,7 +230,7 @@ import {
   lead="Объекты неизменяемы, поэтому всё подвижное в git хранится отдельно — в маленьких файлах-ссылках. Ветка помнит один хеш, `HEAD` помнит имя ветки, reflog помнит, где ссылки бывали раньше. Индекс — тоже подвижная часть: черновик следующего коммита."
 >
   <Card title="Ссылки сквозного примера" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={REFS_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={REFS_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -245,7 +245,7 @@ import {
   <Plain text={PLAIN_INDEX} />
 
   <Card title="До первого коммита" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={INDEX_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={INDEX_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={INDEX_NOTE} />
@@ -271,11 +271,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Ветки разошлись" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={MERGE_GRAPH} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={MERGE_GRAPH} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Ветка впереди" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={FF_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={FF_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -305,7 +305,7 @@ import {
   ### Конфликт
 
   <Card title="Обе ветки правят README.md" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CONFLICT_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={CONFLICT_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={CONFLICT_NOTE} />
@@ -316,7 +316,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="git diff" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DOTS_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={DOTS_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DOTS_NOTE} />
@@ -332,7 +332,7 @@ import {
   <Plain text={PLAIN_REBASE} />
 
   <Card title="feature поверх main" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={REBASE_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={REBASE_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -344,7 +344,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="cherry-pick того же коммита" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PICK_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={PICK_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PICK_NOTE} />
@@ -371,7 +371,7 @@ import {
   lead="Раз объекты не меняются и не удаляются командами вроде `reset` или `rebase`, хранилище только растёт. Убирает лишнее одна команда — `git gc`. Она удаляет объекты, до которых нельзя дойти ни от одной ссылки, и упаковывает остальные в packfile."
 >
   <Card title="Отменили слияние" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={LOST_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={LOST_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={LOST_NOTE} />
@@ -380,7 +380,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Когда объект удаляется" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={GC_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={GC_SHELL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={GC_NOTE} />
@@ -389,7 +389,7 @@ import {
   ### Packfile и дельты
 
   <Card title="Три версии одного файла в pack" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PACK_SHELL} size={11} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="shellsession" code={PACK_SHELL} size={11} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table

@@ -20,6 +20,7 @@ import { computed, ref, watch } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { Button, SegmentedControl } from '@/shared/ui';
 import type { EphemeronScenario } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{ scenarios: EphemeronScenario[]; probe?: string; probeOut?: string }>();
 
@@ -61,7 +62,7 @@ const gone = computed(() => collected.value && !entrySurvives.value);
 
     <div class="split">
       <div class="pane">
-        <pre class="code">{{ scenario.code }}</pre>
+        <CodeView class="code" :code="scenario.code" />
 
         <div class="graph">
           <div class="holder" :data-on="scenario.holder === 'none' ? 'no' : 'yes'">
@@ -101,7 +102,7 @@ const gone = computed(() => collected.value && !entrySurvives.value);
 
         <div v-if="probe" class="probe">
           <div class="t-label">то же в Node</div>
-          <pre class="code code--small">{{ probe }}</pre>
+          <CodeView class="code code--small" :code="probe" />
           <pre v-if="probeOut" class="code code--out">{{ probeOut }}</pre>
         </div>
       </div>

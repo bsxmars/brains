@@ -114,7 +114,7 @@ import {
   title="Не гасить экран: Wake Lock"
   lead="Человек читает рецепт с телефона, руки в муке, а экран гаснет через тридцать секунд. `navigator.wakeLock.request('screen')` просит систему не гасить экран, пока вкладка видна. Ответ — промис с объектом-замком."
 >
-  <CodeBlock code={WAKE_CODE} />
+  <CodeBlock lang="jsx" code={WAKE_CODE} />
 
   <CodeBlock code={WAKE_OUT} tone="ok" />
 
@@ -138,7 +138,7 @@ import {
 
   <Plain text={PLAIN_WAKE} />
 
-  <CodeBlock code={VIS_CODE} />
+  <CodeBlock lang="jsx" code={VIS_CODE} />
 
   <CodeBlock code={VIS_OUT} tone="ok" />
 
@@ -157,7 +157,7 @@ import {
   title="Системное меню «Поделиться»: Web Share"
   lead="`navigator.share` открывает то же меню «Поделиться», что у фотографии в галерее телефона. Вызывается только из обработчика клика, а на случай, когда меню нет, нужен запасной путь."
 >
-  <CodeBlock code={SHARE_CODE} />
+  <CodeBlock lang="jsx" code={SHARE_CODE} />
 
   <CodeBlock code={SHARE_OUT} tone="ok" />
 
@@ -211,7 +211,7 @@ import {
   title="Окно оплаты: Payment Request"
   lead="`PaymentRequest` открывает окно оплаты самого браузера: сохранённая карта, адрес доставки, Google Pay. Сайт описывает, что продаёт и какие способы принимает, а данные карты собирает браузер или платёжное приложение — сайт их не видит."
 >
-  <CodeBlock code={PAY_CODE} />
+  <CodeBlock lang="jsx" code={PAY_CODE} />
 
   <CodeBlock code={PAY_OUT} tone="ok" />
 
@@ -236,7 +236,7 @@ import {
   title="Жест, безопасный контекст и iframe"
   lead="У всех четырёх API три общих условия. Без HTTPS их имён нет вовсе. Системное окно открывается только сразу после действия человека. А чужой iframe получает возможность, только если страница разрешила её явно."
 >
-  <CodeBlock code={ACTIVATION_CODE} />
+  <CodeBlock lang="jsx" code={ACTIVATION_CODE} />
 
   <CodeBlock code={ACTIVATION_OUT} tone="ok" />
 
@@ -264,7 +264,7 @@ import {
 
   ### Iframe с другого сайта
 
-  <CodeBlock code={IFRAME_CODE} />
+  <CodeBlock lang="html" code={IFRAME_CODE} />
 
   <Table
     head={['что', 'без `allow`: Chromium · Firefox · WebKit', 'с `allow`: Chromium · Firefox · WebKit']}
@@ -313,7 +313,7 @@ import {
 
   <Md text={INSTALL_NOTE} />
 
-  <CodeBlock code={MANIFEST_CODE} />
+  <CodeBlock lang="html" code={MANIFEST_CODE} />
 
   <Md text={INSTALL_SW_NOTE} />
 

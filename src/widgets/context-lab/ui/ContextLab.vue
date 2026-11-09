@@ -16,6 +16,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadGlobal, loadMini, runMini, runScenario } from '../model/run';
 import type { LogEntry, ModeId, Scenario } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   scenarios: Scenario[];
@@ -121,7 +122,7 @@ const shown = (v: string | null | undefined) => (v === undefined ? '…' : v ===
       <div class="cx-split">
         <div class="cx-pane">
           <span class="cx-label">сценарий</span>
-          <pre class="cx-code">{{ scenario.code }}</pre>
+          <CodeView class="cx-code" :code="scenario.code" />
         </div>
 
         <div class="cx-pane cx-pane--log">

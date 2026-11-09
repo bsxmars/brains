@@ -224,7 +224,7 @@ import {
   title="Origin и правило одного источника"
   lead="Источник (origin) — это не URL и не домен, а три значения вместе: протокол, домен и порт. Все решения о доверии браузер принимает, сравнивая такие тройки. И каждая из трёх частей закрывает конкретную атаку, а не стоит для красоты."
 >
-  <CodeBlock code={`origin  =  scheme  +  host             +  port
+  <CodeBlock lang="text" code={`origin  =  scheme  +  host             +  port
            https      app.example.com     443     ← кортеж, а не строка URL`} size={12} lh={1.7} pad="16px 18px" />
 
   <CardGrid min={300} gap={14} align="start">
@@ -291,7 +291,7 @@ import {
 
     </CardGrid>
 
-    <CodeBlock code={HOST_COOKIE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="sql" code={HOST_COOKIE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="ok">
 
@@ -344,7 +344,7 @@ import {
 
   <SecuritySequence diagram={PREFLIGHT_DIAGRAM} />
 
-  <CodeBlock code={PREFLIGHT_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="http" code={PREFLIGHT_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <CardGrid min={290} gap={14} align="start">
     {PREFLIGHT_FACTS.map((fact) => (
@@ -411,7 +411,7 @@ import {
   <Card tone="info" title="Почему заголовок ответа «пропал»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <Md text={EXPOSE_NOTE} />
 
-    <CodeBlock code={EXPOSE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="yaml" code={EXPOSE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="info">
 
@@ -542,7 +542,7 @@ import {
 
   ### Одна страница под тремя политиками
 
-  <CodeBlock code={CSP_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="html" code={CSP_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Md text={CSP_SCENE_NOTE} />
 
@@ -577,7 +577,7 @@ import {
   ### Целевая политика и как к ней прийти
 
   <Card title="Политика, к которой стоит прийти, и что `default-src` не покрывает" titleSize={18} pad={22} gap={14}>
-    <CodeBlock code={TARGET_POLICY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+    <CodeBlock lang="text" code={TARGET_POLICY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
     <Table
       head={['директива', 'что делает', 'почему её пишут явно']}
@@ -594,7 +594,7 @@ import {
     у части пользователей: вы не знаете полного списка того, что реально грузится. Старая
     аналитика, тег менеджера, скрипт партнёра, вставленный маркетингом полгода назад.
 
-    <CodeBlock code={REPORT_ONLY_CODE} size={11} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={REPORT_ONLY_CODE} size={11} lh={1.7} pad="14px 16px" />
 
     Первый заголовок — политика, которую вы уже можете применять. Второй (report-only) —
     та, к которой идёте: браузер её не применяет, а только присылает отчёты о нарушениях.
@@ -607,7 +607,7 @@ import {
   <Card tone="warn" title="Стили: отдельный заход, и не первый" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <Md text={STYLE_NOTE} />
 
-    <CodeBlock code={VUE_STYLE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="html" code={VUE_STYLE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="warn">
       <Md text={VUE_STYLE_WHY} />
@@ -642,7 +642,7 @@ import {
     Многие знают, что скрипт, вставленный через `innerHTML`, **не выполняется**, — и делают
     неверный вывод, что `innerHTML` безопасен.
 
-    <CodeBlock code={INNERHTML_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="jsx" code={INNERHTML_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <NumberedList items={INNERHTML_STEPS} size={15} />
 
@@ -688,7 +688,7 @@ import {
   ### Закрыть класс целиком
 
   <Card tone="ok" title="Trusted Types: закрыть проблему целиком, а не по одному месту" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TRUSTED_TYPES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="http" code={TRUSTED_TYPES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     <CodeBlock code={TRUSTED_TYPES_JS} size={11} lh={1.65} pad="14px 16px" />
 
     <Md text={TRUSTED_TYPES_WHY} />
@@ -725,7 +725,7 @@ import {
   <SecuritySequence diagram={CSRF_DIAGRAM} />
 
   <Card tone="err" title="Как проходит атака, по шагам" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CSRF_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="html" code={CSRF_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <NumberedList items={CSRF_STEPS} size={15} />
 
@@ -738,7 +738,7 @@ import {
 
   <Plain text={PLAIN_SITE} />
 
-  <CodeBlock code={SAMESITE_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="sql" code={SAMESITE_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Md text={SAMESITE_SCENE_NOTE} />
 
@@ -807,7 +807,7 @@ import {
   <Card tone="err" title="Кликджекинг" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <Md text={CLICKJACK_NOTE} />
 
-    <CodeBlock code={CLICKJACK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="http" code={CLICKJACK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="err">
       <Md text={XFO_NOTE} />
@@ -915,7 +915,7 @@ import {
     <Card tone="warn" title="SPA с Bearer-токеном: что меняется" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={BEARER_TRADE} />
 
     <Card tone="ok" title="Рабочая схема" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={AUTH_SCHEME_CODE} size={11} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="text" code={AUTH_SCHEME_CODE} size={11} lh={1.7} pad="14px 16px" />
 
       <CheckList items={AUTH_SCHEME_NOTES} tone="ok" size={14.5} />
     </Card>
@@ -1004,7 +1004,7 @@ import {
 
   ### Как общую память вернули: два заголовка ответа
 
-  <CodeBlock code={ISOLATION_HEADERS} />
+  <CodeBlock lang="http" code={ISOLATION_HEADERS} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={ISOLATION_WHY} />

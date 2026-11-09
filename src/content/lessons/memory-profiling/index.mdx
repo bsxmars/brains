@@ -364,7 +364,7 @@ window.h = makeHandler();`}
 
   Доминатор — не то же самое, что «тот, кто ссылается». Наименьший пример — ромб:
 
-  <CodeBlock code={DOMINATOR_DIAMOND} size={11.5} />
+  <CodeBlock lang="text" code={DOMINATOR_DIAMOND} size={11.5} />
 
   <Md text={DOMINATOR_SCENE_NOTE} />
 
@@ -524,7 +524,7 @@ window.h = makeHandler();`}
   <CardGrid min={300} gap={16} align="start">
     {TOOLS.map((tool) => (
       <Card title={tool.label} titleSize={16.5} label={tool.tag} labelSize={11} pad={18} gap={11} size={15.5} lh={1.6}>
-        {tool.code && <CodeBlock code={tool.code} size={11.5} />}
+        {tool.code && <CodeBlock lang="text" code={tool.code} size={11.5} />}
         <Md text={tool.what} />
         <CardNote tone="prose"><Md text={tool.note} /></CardNote>
       </Card>

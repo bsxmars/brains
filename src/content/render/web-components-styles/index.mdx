@@ -80,9 +80,9 @@ import {
   </Card>
 
   <Card title="`SHADOW_HTML` — теневой корень целиком" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SD_SHADOW_HTML} />
+    <CodeBlock lang="html" code={SD_SHADOW_HTML} />
 
-    <CodeBlock code={SD_PAGE_HTML} />
+    <CodeBlock lang="html" code={SD_PAGE_HTML} />
   </Card>
 
   ### Что проходит через границу — в вашем браузере
@@ -104,7 +104,7 @@ import {
   title="`:host`, `:host()` и `:host-context()`: хост изнутри"
   lead="Хост принадлежит документу, но компоненту нужно задать ему хотя бы `display`. Для этого у внутреннего листа есть `:host` — единственный способ изнутри дотянуться до элемента, к которому прикреплён корень."
 >
-  <CodeBlock code={HOST_CODE} />
+  <CodeBlock lang="css" code={HOST_CODE} />
 
   <CardGrid min={260} gap={14} align="start">
     {HOST_FACTS.map((fact) => (
@@ -121,7 +121,7 @@ import {
   title="`::slotted()`: только то, что легло в слот напрямую"
   lead="Дети из светлого DOM принадлежат странице, но показываются внутри компонента. `::slotted()` даёт компоненту стилизовать их — ровно на один уровень и слабее, чем это делает страница."
 >
-  <CodeBlock code={SLOTTED_CODE} />
+  <CodeBlock lang="html" code={SLOTTED_CODE} />
 
   <CardGrid min={260} gap={14} align="start">
     {SLOTTED_FACTS.map((fact) => (
@@ -138,7 +138,7 @@ import {
   title="`::part()` и `exportparts`: окно, которое прорезал сам компонент"
   lead="`part` — это договор: компонент называет элементы, которые страница вправе перекрашивать, и держит закрытым всё остальное. Разметку внутри можно менять как угодно, пока имена частей на месте."
 >
-  <CodeBlock code={PART_CODE} />
+  <CodeBlock lang="html" code={PART_CODE} />
 
   <CardGrid min={260} gap={14} align="start">
     {PART_FACTS.map((fact) => (
@@ -162,7 +162,7 @@ import {
 
   ### Один хост, четыре спора
 
-  <CodeBlock code={CONTEXT_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="html" code={CONTEXT_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
   <Md text={CONTEXT_SCENE_NOTE} />
 
@@ -233,7 +233,7 @@ import {
   title="Декларативный корень: `<template shadowrootmode>`"
   lead={DSD_NOTE}
 >
-  <CodeBlock code={DSD_HTML} />
+  <CodeBlock lang="html" code={DSD_HTML} />
 
   <Table
     head={DSD_HEAD}
@@ -256,7 +256,7 @@ import {
 >
   <Plain text={PLAIN_FONT} />
 
-  <CodeBlock code={RESET_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="css" code={RESET_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
   Четыре ответа на вопрос в последней строке — и что каждый оставляет в компоненте.
 
@@ -274,7 +274,7 @@ import {
 
   Итоговый рецепт — явный шрифт поверх сброса и контролы вручную:
 
-  <CodeBlock code={RESET_CODE} />
+  <CodeBlock lang="css" code={RESET_CODE} />
 
   <Table
     head={RESET_HEAD}

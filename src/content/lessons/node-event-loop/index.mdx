@@ -251,7 +251,7 @@ import {
   <Card title="Пул из одного потока, занятый хешем" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={POOL_PROBE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-    <CodeBlock code={'$ UV_THREADPOOL_SIZE=1 node probe.cjs\n' + POOL_PROBE_OUT.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={'$ UV_THREADPOOL_SIZE=1 node probe.cjs\n' + POOL_PROBE_OUT.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={POOL_PROBE_NOTE} />
@@ -298,7 +298,7 @@ import {
   <Card title="Что держит процесс" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ALIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-    <CodeBlock code={ALIVE_OUT.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={ALIVE_OUT.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={ALIVE_NOTE} />

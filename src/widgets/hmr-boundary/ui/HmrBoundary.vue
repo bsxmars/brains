@@ -16,6 +16,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadFindBoundary } from '../model/run';
 import type { DemoVariant, HmrJournal, NodePos, TraceStep, VariantId } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   code: string;
@@ -250,11 +251,11 @@ function pick(url: string) {
           <Md class="hmr-refetch" :text="refetchText" />
 
           <span class="hmr-label">что вернула функция</span>
-          <pre class="hmr-pre">{{ payloadJson }}</pre>
+          <CodeView class="hmr-pre" lang="json" tone="light" :code="payloadJson" />
 
           <div v-if="journal" class="hmr-journal">
             <span class="hmr-label">снято стендом · Vite 8.3.0</span>
-            <pre class="hmr-pre">{{ journalJson }}</pre>
+            <CodeView class="hmr-pre" lang="json" tone="light" :code="journalJson" />
             <span class="hmr-journal__line">терминал: <code>{{ journal.log.join(' · ') }}</code></span>
             <span class="hmr-journal__line">кнопка: <code>{{ journal.before }}</code> → <code>{{ journal.after }}</code></span>
           </div>

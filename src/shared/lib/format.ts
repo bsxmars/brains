@@ -18,7 +18,7 @@ const ESCAPE: Record<string, string> = {
   '"': '&quot;',
 };
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (ch) => ESCAPE[ch] ?? ch);
 }
 

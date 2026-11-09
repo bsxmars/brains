@@ -108,7 +108,7 @@ const logs = computed(() => {
       <Md class="tx-note" :text="scenario.note" />
 
       <div class="tx-split">
-        <CodeListing class="tx-code" :lines="codeLines" :active="activeLine" />
+        <CodeListing class="tx-code" lang="sql" :lines="codeLines" :active="activeLine" />
 
         <div class="tx-state" aria-live="polite">
           <span class="tx-label">{{ current?.where }}</span>

@@ -17,6 +17,7 @@ import StepToolbar from '@/shared/ui/StepToolbar.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadCompat } from '../model/run';
 import type { CheckResult, MigrationPlan, PlanStatement, VersionId } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   compatCode: string;
@@ -158,7 +159,7 @@ const liveLine = computed(() => {
 
         <div v-if="step.statements.length" class="mg-statements">
           <div v-for="(st, i) in step.statements" :key="i" class="mg-statement">
-            <pre class="mg-sql">{{ st.sql }};</pre>
+            <CodeView class="mg-sql" lang="sql" :code="`${st.sql};`" />
             <div class="mg-chips">
               <span v-for="(c, j) in costChips(st)" :key="j" class="mg-chip" :data-tone="c.tone">{{ c.text }}</span>
             </div>

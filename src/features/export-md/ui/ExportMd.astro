@@ -1,0 +1,50 @@
+---
+/**
+ * «скачать .md» — тема одним файлом Markdown: текст, таблицы и примеры кода с языком.
+ *
+ * Файл собирается у читателя по клику (`lib/to-markdown.ts`) из отрисованной колонки темы —
+ * `.container` в `BaseLayout`. Скрипт один на страницу и вешается на все кнопки сразу:
+ * на 1024–1399px кнопка стоит дважды (в строке и в липкой полоске, как стрелка «все темы»).
+ */
+---
+
+<button type="button" class="export-md" data-export-md title="Тема одним файлом Markdown: текст, таблицы, примеры кода">скачать .md</button>
+
+<script>
+  import { toMarkdown } from '../lib/to-markdown';
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-export-md]')) {
+    button.addEventListener('click', () => {
+      const root = document.querySelector('.container');
+      if (!root) return;
+      const slug = location.pathname.split('/').filter(Boolean).at(-1) ?? 'topic';
+      const blob = new Blob([toMarkdown(root, location.href.split('#')[0])], { type: 'text/markdown;charset=utf-8' });
+      const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${slug}.md` });
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+  }
+</script>
+
+<style>
+  /* Вид вторичной кнопки курса (`.aura-btn--secondary` в `shared/styles/overrides.css`):
+     кнопка — не Aura, а простая `<button>` в `.astro`, поэтому оформление повторено здесь. */
+  .export-md {
+    padding: 7px 13px;
+    border: 0;
+    border-radius: var(--r1);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    font-family: var(--mono);
+    font-size: var(--fs-3);
+    line-height: 15px;
+    white-space: nowrap;
+    color: var(--chip-text);
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background 0.18s;
+  }
+  .export-md:hover {
+    background: var(--surface-2);
+  }
+</style>

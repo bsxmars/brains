@@ -168,7 +168,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Четыре способа объявить скрипт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCRIPT_TAGS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="html" code={SCRIPT_TAGS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
 
       Разница не в скорости загрузки — она у всех одна. Разница в том, **когда выполнится**:
@@ -186,7 +186,7 @@ import {
     </Card>
 
     <Card tone="warn" title="Задержать первый кадр точечно, а не всем подряд" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={BLOCKING_CONTROL_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="html" code={BLOCKING_CONTROL_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
 
       Когда сервер отдаёт HTML по частям (стриминг), появляется проблема: первый кадр может
@@ -245,7 +245,7 @@ import {
 
   ### Четыре части на одной картинке
 
-  <CodeBlock code={LCP_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="html" code={LCP_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
   <Md text={LCP_SCENE_NOTE} />
 
@@ -291,7 +291,7 @@ import {
       minWidth={640}
     />
 
-    <CodeBlock code={LCP_ELEMENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="html" code={LCP_ELEMENT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="err">
 
@@ -349,7 +349,7 @@ import {
 
   ### Окна на одной сессии
 
-  <CodeBlock code={CLS_SESSION_CODE} size={12} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={CLS_SESSION_CODE} size={12} lh={1.7} pad="14px 16px" />
 
   <Md text={CLS_SESSION_NOTE} />
 

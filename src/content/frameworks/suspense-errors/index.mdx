@@ -134,7 +134,7 @@ import {
   lead={S1_LEAD}
 >
   <Card title="Профиль с данными" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="jsx" code={USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -167,11 +167,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Промис в рендере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={UNSTABLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={UNSTABLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="Промис из кеша" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CACHED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={CACHED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -207,11 +207,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card tone="warn" title="Посты ждут профиль" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={WATERFALL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={WATERFALL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="Оба запроса — заранее" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PREFETCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={PREFETCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -235,7 +235,7 @@ import {
   lead={S4_LEAD}
 >
   <Card title="Две кнопки — два обновления" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TRANSITION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="jsx" code={TRANSITION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -263,7 +263,7 @@ import {
     </Card>
 
     <Card title="Использование" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={BOUNDARY_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={BOUNDARY_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -291,7 +291,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Принести ошибку в рендер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={FORWARD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={FORWARD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FORWARD_NOTE} />
@@ -329,11 +329,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Компонент, который ждёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={VUE_PROFILE_SFC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={VUE_PROFILE_SFC} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Граница ожидания" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={VUE_PAGE_SFC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={VUE_PAGE_SFC} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -348,7 +348,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Граница — обычный компонент" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={VUE_BOUNDARY_SFC} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={VUE_BOUNDARY_SFC} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Последний обработчик" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -384,7 +384,7 @@ import {
   ### Демо-дерево
 
   <Card title="Страница из шести компонентов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={DEMO_TREE_JSX} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={DEMO_TREE_JSX} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <BoundaryLab client:visible code={BOUNDARY_CODE} tree={DEMO_TREE} names={DEMO_NAMES} presets={DEMO_PRESETS} caption={DEMO_CAPTION} />

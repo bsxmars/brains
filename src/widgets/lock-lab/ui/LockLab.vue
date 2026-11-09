@@ -24,6 +24,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { LEVELS, MODES, OPS, runLock } from '../model/run';
 import type { LockLevel, LockMode, LockOp, LockRun } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 withDefaults(defineProps<{ note?: string }>(), {
   note: 'Все три замка поверхностны и ни один не трогает аксессоры: `freeze` снимает `writable` у данных, а `set` у accessor-свойства продолжит вызываться.',
@@ -68,7 +69,7 @@ const silent = computed(() => run.value !== null && !run.value.threw && !run.val
       <div class="pane">
         <div class="t-label">что исполнилось</div>
         <!-- `data-code` помечает поддерево как код: кавычки и скобки внутри принадлежат примеру. -->
-        <pre v-if="run" class="code" data-code>{{ run.code.join('\n') }}</pre>
+        <CodeView v-if="run" class="code" :code="run.code.join('\n')" />
         <p v-else class="wait">операция выполняется в вашем браузере…</p>
 
         <div v-if="run" class="verdict" :data-tone="run.tone">

@@ -121,11 +121,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Таблица" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TABLE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={TABLE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Старый код: v1" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={versionCode('v1')} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={versionCode('v1')} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -156,11 +156,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Переходный код: v2" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={versionCode('v2')} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={versionCode('v2')} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Новый код: v3" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={versionCode('v3')} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={versionCode('v3')} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -196,7 +196,7 @@ import {
   <Plain text={PLAIN_LOCK} />
 
   <Card title="Какую блокировку держит моя транзакция" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={LOCK_PROBE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={LOCK_PROBE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     <Md text={LOCK_PROBE_NOTE} />
   </Card>
 
@@ -226,7 +226,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Не ждать дольше трёх секунд" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LOCK_TIMEOUT_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={LOCK_TIMEOUT_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LOCK_TIMEOUT_NOTE} />
@@ -242,7 +242,7 @@ import {
   <Plain text={PLAIN_REWRITE} />
 
   <Card title="Как это увидеть" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={REWRITE_PROBE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={REWRITE_PROBE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -260,7 +260,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Четыре команды вместо одной" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={NOT_NULL_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={NOT_NULL_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NOT_NULL_NOTE} />
@@ -269,7 +269,7 @@ import {
   ### Индекс, который не останавливает запись
 
   <Card title="CONCURRENTLY" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={INDEX_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={INDEX_SQL} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={280} gap={14} align="start">
@@ -299,13 +299,13 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Следующая тысяча пустых" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PLAN_SUBQUERY_SQL} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={PLAN_SUBQUERY} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={PLAN_SUBQUERY_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={PLAN_SUBQUERY} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="Тысяча по диапазону ключа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PLAN_RANGE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={PLAN_RANGE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={PLAN_RANGE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={PLAN_RANGE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -333,7 +333,7 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Миграция падает целиком" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TX_DDL_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={TX_DDL_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TX_DDL_NOTE} />

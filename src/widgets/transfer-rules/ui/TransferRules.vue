@@ -22,6 +22,7 @@ import Md from '@/shared/ui/Md.vue';
 import { Button, SegmentedControl } from '@/shared/ui';
 import { SCENARIOS, runTransfer } from '../model/run';
 import type { TransferCase, TransferKey, TransferRun } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 /**
  * ⚠️ `cases` и `initial` остались ради темы: MDX всё ещё передаёт `cases={TRANSFER}`.
@@ -86,7 +87,7 @@ const head = computed(() => {
       <div class="tr-pane">
         <div class="t-label">что исполняется</div>
         <!-- `data-code` помечает поддерево как код: кавычки и скобки внутри принадлежат примеру. -->
-        <pre class="tr-code" data-code>{{ active.code.join('\n') }}</pre>
+        <CodeView class="tr-code" :code="active.code.join('\n')" />
 
         <div v-if="run" class="tr-verdict" :data-tone="run.tone">
           <span class="tr-verdict__head">{{ head }}</span>

@@ -148,11 +148,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Четыре транзакции подряд" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={HEAP_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={HEAP_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Заглянуть на страницу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={HEAP_QUERY} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={HEAP_QUERY} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -173,7 +173,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Номер и снимок изнутри транзакции" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SNAP_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={SNAP_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <CardGrid min={240} gap={12} align="start">
@@ -245,7 +245,7 @@ import {
   </CardGrid>
 
   <Card title="Таблица сценариев" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={ACCOUNTS_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={ACCOUNTS_SQL} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <MvccLab client:visible parts={[ENGINE_CODE, SNAPSHOT_CODE, WRITE_CODE, SSI_CODE]} scenarios={SCENARIOS} levels={LEVELS} groups={GROUPS} caption={DEMO_CAPTION} />
@@ -309,7 +309,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Заказ ссылается на счёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={FK_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={FK_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Table
@@ -328,7 +328,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Не ждать: SKIP LOCKED" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SKIP_LOCKED_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={SKIP_LOCKED_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SKIP_LOCKED_NOTE} />
@@ -338,7 +338,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Версия в строке" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={OPTIMISTIC_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={OPTIMISTIC_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={OPTIMISTIC_NOTE} />
@@ -399,7 +399,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Захват в одном порядке" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ORDERED_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={ORDERED_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ORDERED_NOTE} />

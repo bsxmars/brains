@@ -118,7 +118,7 @@ import {
   lead="Спецификатор `price-kit/plugins/card` Node делит на имя пакета и подпуть `./plugins/card`, находит `package.json` пакета и спрашивает его карту. Алгоритм записан в документации Node по шагам и помещается в сотню строк кода."
 >
   <Card title="Сквозной пример: package.json пакета price-kit" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PRICE_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="json" code={PRICE_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -177,7 +177,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="order-kit" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ORDER_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="json" code={ORDER_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ORDER_NOTE} />
@@ -186,7 +186,7 @@ import {
   ### Node не возвращается, TypeScript — да
 
   <Card title="gap-kit" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={GAP_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="json" code={GAP_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={280} gap={14} align="start">
@@ -222,7 +222,7 @@ import {
     </Card>
 
     <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={REQUIRE_ESM_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={REQUIRE_ESM_OUT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -243,7 +243,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="dual-kit: карта" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DUAL_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="json" code={DUAL_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="dual-kit: dist/index.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -257,7 +257,7 @@ import {
     </Card>
 
     <Card tone="err" title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={HAZARD_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={HAZARD_OUT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -283,11 +283,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="types-last" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TYPES_LAST_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="json" code={TYPES_LAST_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="traceResolution, режим ESM" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TYPES_LAST_TRACE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={TYPES_LAST_TRACE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -325,11 +325,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Проект" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PACK_TREE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={PACK_TREE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Проверка без публикации" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PACK_CMD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="shellsession" code={PACK_CMD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 

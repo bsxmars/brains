@@ -139,7 +139,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сквозной пример: button.css" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={BUTTON_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="css" code={BUTTON_CSS} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Дерево после postcss.parse" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -179,7 +179,7 @@ import {
     </Card>
 
     <Card title="Что изменилось в выводе" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PREFIX_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={PREFIX_OUT} size={11.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="prose">
 
@@ -220,7 +220,7 @@ import {
     {LOWER_TARGETS.map((x) => (
       <Card title={`${x.label}: ${x.bytes} байт`} titleSize={16} pad={18} radius={5} gap={11} size={15.5}>
         <Md text={`\`${x.query}\``} />
-        <CodeBlock code={x.out} size={11} lh={1.6} pad="12px 14px" />
+        <CodeBlock lang="text" code={x.out} size={11} lh={1.6} pad="12px 14px" />
       </Card>
 
     ))}
@@ -273,21 +273,21 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="src/components/Button.module.css" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={MODULE_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="css" code={MODULE_CSS} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="src/card/Card.module.css" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CARD_MODULE_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="css" code={CARD_MODULE_CSS} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Что видит компонент" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={MODULE_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={MODULE_USE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Что видит браузер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={MODULE_CSS_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={MODULE_CSS_OUT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -326,11 +326,11 @@ import {
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="src/components/Button.vue" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCOPED_VUE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="vue" code={SCOPED_VUE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="CSS сборки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCOPED_CSS_OUT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={SCOPED_CSS_OUT} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -342,11 +342,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="src/components/Card.vue" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CARD_VUE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="vue" code={CARD_VUE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="HTML после рендера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCOPED_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="html" code={SCOPED_HTML} size={11.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="warn">
 
@@ -402,7 +402,7 @@ import {
   <Plain text={PLAIN_SCAN} />
 
   <Card title="Вход" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={TW_INPUT_CSS} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="css" code={TW_INPUT_CSS} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -436,7 +436,7 @@ import {
     <Card tone="ok" title="Попадёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={DYNAMIC_OK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-      <CodeBlock code={SOURCE_INLINE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="css" code={SOURCE_INLINE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -455,7 +455,7 @@ import {
   lead="Вывод Tailwind v4 — четыре каскадных слоя: переменные темы, сброс стилей браузера, компоненты и утилиты. Утилиты объявлены последними и поэтому перебивают всё, что лежит в слоях раньше, — независимо от специфичности."
 >
   <Card title="Начало вывода" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={TW_LAYERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="css" code={TW_LAYERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   ### Ваш CSS рядом с утилитами

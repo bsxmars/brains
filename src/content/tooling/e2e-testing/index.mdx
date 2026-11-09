@@ -139,7 +139,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Команды клика по порядку" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CDP_CLICK} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="jsx" code={CDP_CLICK} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={CDP_NOTE} />
@@ -188,7 +188,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Два элемента на один клик" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={STRICT_ERROR} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={STRICT_ERROR} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={STRICT_NOTE} />
@@ -219,7 +219,7 @@ import {
   </CardGrid>
 
   <Card title="`autoWait`: снимки состояния → журнал и момент клика" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={AUTOWAIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="jsx" code={AUTOWAIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={AUTOWAIT_NOTE} />
@@ -245,7 +245,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Ошибка с журналом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={TIMEOUT_LOG} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={TIMEOUT_LOG} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TIMEOUT_NOTE} />
@@ -301,7 +301,7 @@ import {
   <Md text={ASSERT_NOTE} />
 
   <Card title="Когда повтор не помог" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={EXPECT_LOG} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={EXPECT_LOG} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   ### Три таймаута

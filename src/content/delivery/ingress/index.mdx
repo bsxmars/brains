@@ -145,7 +145,7 @@ import {
     <Md text={INGRESS_WHY} />
   </Card>
 
-  <CodeBlock code={INGRESS_CODE} />
+  <CodeBlock lang="yaml" code={INGRESS_CODE} />
 
   <Plain text={PLAIN_PREFIX} />
 
@@ -224,7 +224,7 @@ import {
     <Md text={ANNOTATIONS_WHY} />
   </Card>
 
-  <CodeBlock code={ANNOTATIONS_CODE} />
+  <CodeBlock lang="yaml" code={ANNOTATIONS_CODE} />
 
   <Table
     head={ANNOTATIONS.head}
@@ -278,7 +278,7 @@ import {
     <Md text={CERT_WHY} />
   </Card>
 
-  <CodeBlock code={CERT_CODE} />
+  <CodeBlock lang="yaml" code={CERT_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {CERT_FACTS.map((fact) => (
@@ -313,15 +313,15 @@ import {
 
   ### Инфраструктура: класс и вход
 
-  <CodeBlock code={GATEWAY_CODE} />
+  <CodeBlock lang="yaml" code={GATEWAY_CODE} />
 
   ### Приложение: маршрут в своём пространстве имён
 
-  <CodeBlock code={HTTPROUTE_CODE} />
+  <CodeBlock lang="yaml" code={HTTPROUTE_CODE} />
 
   <RolesDiagram {...ROLES_DIAGRAM} />
 
-  <CodeBlock code={REDIRECT_CODE} />
+  <CodeBlock lang="yaml" code={REDIRECT_CODE} />
 
   <Table
     head={GATEWAY_ROUTES.head}

@@ -15,6 +15,7 @@ import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { SegmentedControl } from '@/shared/ui';
 import type { StringRep } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{ reps: StringRep[] }>();
 
@@ -48,7 +49,7 @@ const inWindow = (i: number) => {
 
     <div class="split">
       <div class="pane">
-        <pre class="code">{{ rep.code }}</pre>
+        <CodeView class="code" :code="rep.code" />
 
         <div class="field">
           <div class="t-label">%DebugPrint → type</div>

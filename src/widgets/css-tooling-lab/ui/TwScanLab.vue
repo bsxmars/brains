@@ -16,6 +16,7 @@ import { SegmentedControl } from '@/shared/ui';
 import { loadScanner } from '../model/run';
 import type { TwFile } from '../model/types';
 import { fmtNumber as fmt } from '@/shared/lib/format';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   scanCode: string;
@@ -88,7 +89,7 @@ const plural = (n: number, [one, few, many]: [string, string, string]) => {
 
         <div class="tw-pane">
           <span class="tw-label">@layer utilities — {{ utilities.length }} {{ plural(utilities.length, ['правило', 'правила', 'правил']) }}</span>
-          <pre class="tw-code tw-code--css">{{ css || '/* пусто */' }}</pre>
+          <CodeView class="tw-code tw-code--css" lang="css" :code="css || '/* пусто */'" />
           <span class="tw-label">отброшено молча — {{ others.length }}</span>
           <div class="tw-chips">
             <code v-for="o in others" :key="o" class="tw-chip">{{ o }}</code>

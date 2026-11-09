@@ -139,13 +139,13 @@ import {
   lead="Пример на всю тему — таблица пользователей на 30 000 строк. В файле она лежит страницами по 8 КБ, строки — в порядке вставки. Без индекса найти строку можно одним способом: прочитать все страницы."
 >
   <Card title="Таблица users" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SETUP_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={SETUP_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     <Md text={SETUP_NOTE} />
   </Card>
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Где лежит строка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CTID_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={CTID_SQL} size={11.5} lh={1.65} pad="14px 16px" />
       <Table
         head={['`ctid`', '`id`']}
         rows={CTID_ROWS.map((r) => [`\`${r.ctid}\``, String(r.id)])}
@@ -161,8 +161,8 @@ import {
   ### Поиск без индекса
 
   <Card title="EXPLAIN (ANALYZE, BUFFERS)" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={EMAIL_QUERY + ';'} size={11.5} lh={1.65} pad="14px 16px" />
-    <CodeBlock code={PLAN_SEQ} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={EMAIL_QUERY + ';'} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={PLAN_SEQ} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Md text={SEQ_NOTE} />
@@ -178,8 +178,8 @@ import {
   <Plain text={PLAIN_BTREE} />
 
   <Card title="Тот же запрос с индексом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={INDEX_SQL} size={11.5} lh={1.65} pad="14px 16px" />
-    <CodeBlock code={PLAN_INDEX} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={INDEX_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={PLAN_INDEX} size={11.5} lh={1.65} pad="14px 16px" />
     <Md text={INDEX_NOTE} />
   </Card>
 
@@ -207,8 +207,8 @@ import {
   ### Диапазон
 
   <Card title="BETWEEN по первичному ключу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={RANGE_SQL + ';'} size={11.5} lh={1.65} pad="14px 16px" />
-    <CodeBlock code={PLAN_RANGE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={RANGE_SQL + ';'} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={PLAN_RANGE} size={11.5} lh={1.65} pad="14px 16px" />
     <Md text={RANGE_NOTE} />
   </Card>
 </Section>
@@ -223,16 +223,16 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Вторая таблица: заказы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ORDERS_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={ORDERS_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Запрос" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LOOPS_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={LOOPS_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
   <Card title="План" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PLAN_LOOPS} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={PLAN_LOOPS} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Table
@@ -297,7 +297,7 @@ import {
   <CardGrid min={320} gap={16} align="start">
     {WHY_CASES.map((c) => (
       <Card tone={c.tone ?? 'neutral'} title={c.t} titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-        <CodeBlock code={whyCode(c)} size={11.5} lh={1.65} pad="14px 16px" />
+        <CodeBlock lang="sql" code={whyCode(c)} size={11.5} lh={1.65} pad="14px 16px" />
         <Md text={c.d} />
       </Card>
 
@@ -310,16 +310,16 @@ import {
   <Plain text={PLAIN_STATS} />
 
   <Card title="Новое значение, старая статистика" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={STALE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={STALE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={320} gap={16} align="start">
     <Card tone="err" title="До ANALYZE" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PLAN_STALE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={PLAN_STALE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="После ANALYZE users" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PLAN_FRESH} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={PLAN_FRESH} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -344,7 +344,7 @@ import {
   <Md text={IOS_TEXT} />
 
   <Card title="Только из индекса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={IOS_SQL + ';'} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={IOS_SQL + ';'} size={11.5} lh={1.65} pad="14px 16px" />
     <Table
       head={['когда', '`Heap Fetches`', 'страниц', 'почему']}
       rows={IOS_ROWS.map((r) => [r.k, String(r.heapFetches), String(r.pages), r.d])}
@@ -359,16 +359,16 @@ import {
   ### INCLUDE: столбец для чтения, не для поиска
 
   <Card title="Запрос и индекс" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={INCLUDE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="sql" code={INCLUDE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={320} gap={16} align="start">
     <Card tone="warn" title="Индекс только по дате" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PLAN_INCLUDE_BEFORE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={PLAN_INCLUDE_BEFORE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="ok" title="Дата и INCLUDE (city)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PLAN_INCLUDE_AFTER} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={PLAN_INCLUDE_AFTER} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -378,11 +378,11 @@ import {
 
   <CardGrid min={320} gap={16} align="start">
     <Card title="Индекс по редким строкам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PARTIAL_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={PARTIAL_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="План" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PLAN_PARTIAL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={PLAN_PARTIAL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -424,7 +424,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Какие индексы не нужны" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={UNUSED_SQL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="sql" code={UNUSED_SQL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={UNUSED_NOTE} />

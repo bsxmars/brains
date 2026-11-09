@@ -14,6 +14,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadRender } from '../model/run';
 import type { RenderSetup, TreeNode } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   renderCode: string;
@@ -132,7 +133,7 @@ const previewText = computed(() => values.name || '…');
 
       <div class="rl-code">
         <span class="rl-label">код варианта</span>
-        <pre class="rl-pre">{{ setup.code }}</pre>
+        <CodeView class="rl-pre" :code="setup.code" />
       </div>
 
       <div class="rl-caption"><Md :text="caption" /></div>

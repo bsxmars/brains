@@ -10,6 +10,7 @@ import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { SegmentedControl } from '@/shared/ui';
 import type { LeakCase } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{ cases: LeakCase[] }>();
 
@@ -34,7 +35,7 @@ const nodes = computed(() =>
     </template>
 
     <div class="body">
-      <pre class="code">{{ current.code }}</pre>
+      <CodeView class="code" :code="current.code" />
 
       <div class="field">
         <div class="t-label t-label--err">цепочка удержания</div>
@@ -52,7 +53,7 @@ const nodes = computed(() =>
         <div class="fix">
           <div class="t-label t-label--ok">как чинится</div>
           <div class="fix__text">{{ current.fix }}</div>
-          <pre class="code code--ok">{{ current.fixCode }}</pre>
+          <CodeView class="code code--ok" :code="current.fixCode" />
         </div>
       </div>
     </div>

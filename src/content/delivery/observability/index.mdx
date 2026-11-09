@@ -138,7 +138,7 @@ import {
   Вот что об этом сбое пишут сервисы.
 
   <Card title="Логи трёх сервисов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={INCIDENT_LOGS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={INCIDENT_LOGS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -168,13 +168,13 @@ import {
   />
 
   <Card title="Спан запроса к базе — целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SPAN_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="json" code={SPAN_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   ### В каком порядке спаны приходят
 
   <Card title="Успешный запрос: порядок в экспортёре" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={EXPORT_ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={EXPORT_ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={EXPORT_ORDER_NOTE} />
@@ -198,7 +198,7 @@ import {
 >
   <Plain text={PLAIN_TRACEPARENT} />
 
-  <CodeBlock code={HEADER_EXAMPLE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={HEADER_EXAMPLE} size={11.5} lh={1.65} pad="14px 16px" />
 
   <Table
     head={['поле', 'длина', 'пример', 'правило']}
@@ -278,7 +278,7 @@ import {
     </Card>
 
     <Card title="Api на другом источнике: preflight" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={CORS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="http" code={CORS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 

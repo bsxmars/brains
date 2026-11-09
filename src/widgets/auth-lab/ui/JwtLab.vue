@@ -17,6 +17,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadAuth } from '../model/run';
 import type { JwtVariant, VerifyResult } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   jwtCode: string;
@@ -114,11 +115,11 @@ const clock = computed(() => {
       <div class="jl-split">
         <div class="jl-pane">
           <span class="jl-label" data-part="0">заголовок</span>
-          <pre class="jl-code">{{ header }}</pre>
+          <CodeView class="jl-code" lang="json" :code="header" />
         </div>
         <div class="jl-pane">
           <span class="jl-label" data-part="1">нагрузка</span>
-          <pre class="jl-code">{{ payload }}</pre>
+          <CodeView class="jl-code" lang="json" :code="payload" />
         </div>
       </div>
 

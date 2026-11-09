@@ -15,6 +15,7 @@ import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import type { MoveCase, StageState } from '../model/types';
+import CodeView from '@/shared/ui/CodeView.vue';
 
 const props = defineProps<{
   cases: MoveCase[];
@@ -52,7 +53,7 @@ const onMain = computed(() => stageList.value.filter((s) => s.state === 'main').
     </template>
 
     <div class="body">
-      <pre class="code">{{ current.code }}</pre>
+      <CodeView class="code" :code="current.code" />
 
       <div class="stages">
         <div
