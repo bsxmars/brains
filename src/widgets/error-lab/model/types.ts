@@ -29,7 +29,7 @@ export interface AsyncCase {
   /** Имя файла на стенде — то, что стоит в адресах кадров. */
   file: string;
   code: string;
-  /** `error.stack`, напечатанный Node 24.11 (путь до стенда заменён на `/app`). */
+  /** `error.stack`, напечатанный Node 26.8 (путь до стенда заменён на `/app`). */
   node: string;
   /** `error.stack` из Chromium 153: тот же файл модулем со своего `node:http`. */
   chromium: string;

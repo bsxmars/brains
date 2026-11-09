@@ -15,6 +15,8 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadParse } from '../model/run';
 import type { AsyncCase, Frame } from '../model/types';
+import { useHighlight } from '@/shared/lib/useHighlight';
+import CodeLine from '@/shared/ui/CodeLine.vue';
 
 const props = defineProps<{
   parseCode: string;
@@ -31,7 +33,7 @@ const current = computed(() => props.cases.find((c) => c.id === picked.value) ??
 
 const engine = ref<'node' | 'chromium'>('node');
 const engineOptions = [
-  { value: 'node', label: 'Node 24.11' },
+  { value: 'node', label: 'Node 26.8' },
   { value: 'chromium', label: 'Chromium 153' },
 ];
 
@@ -52,6 +54,7 @@ const marks = computed(() => {
 });
 
 const codeLines = computed(() => current.value.code.split('\n'));
+const hl = useHighlight(() => current.value.code);
 
 /** Имя функции из кадра: `Timeout._onTimeout` → `_onTimeout`, `new Order` → `Order`. */
 const bare = (fn: string | null) => (fn ? fn.replace(/^new /, '').split('.').pop() ?? fn : null);
@@ -87,11 +90,11 @@ function place(f: Frame) {
           <pre class="el-code"><template v-for="(text, i) in codeLines" :key="i"><span
             class="el-line"
             :data-mark="marks.get(i + 1) ?? 'none'"
-          ><span class="el-ln">{{ String(i + 1).padStart(2, ' ') }}</span>{{ text }}</span>{{ '\n' }}</template></pre>
+          ><span class="el-ln">{{ String(i + 1).padStart(2, ' ') }}</span><CodeLine :html="hl?.[i]" :text="text" /></span>{{ '\n' }}</template></pre>
         </div>
 
         <div class="el-pane">
-          <span class="el-label">кадры — parseStack</span>
+          <span class="el-label">кадры стека</span>
           <ol class="el-frames">
             <li v-for="(f, i) in frames" :key="i" class="el-frame" :data-kind="f.async ? 'async' : inFile(f) ? 'sync' : 'other'">
               <span class="el-kind">{{ f.async ? 'async' : 'кадр' }}</span>

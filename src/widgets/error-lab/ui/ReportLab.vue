@@ -15,6 +15,8 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { loadParse, loadSerialize, runCase } from '../model/run';
 import type { CaseResult, Frame, ReportCase } from '../model/types';
+import { useHighlight } from '@/shared/lib/useHighlight';
+import CodeLine from '@/shared/ui/CodeLine.vue';
 
 const props = defineProps<{
   parseCode: string;
@@ -31,6 +33,7 @@ const serialize = loadSerialize(props.serializeCode);
 const picked = ref(props.cases[0].id);
 const caseOptions = props.cases.map((c) => ({ value: c.id, label: c.label }));
 const current = computed(() => props.cases.find((c) => c.id === picked.value) ?? props.cases[0]);
+const hl = useHighlight(() => current.value.code);
 
 const maxFrames = ref(props.frameOptions[0].value);
 
@@ -101,11 +104,11 @@ function place(f: Frame) {
       <div class="rl-split">
         <div class="rl-pane">
           <span class="rl-label">case.js</span>
-          <pre class="rl-code"><template v-for="(text, i) in current.code.split('\n')" :key="i"><span class="rl-ln">{{ String(i + 1).padStart(2, ' ') }}</span>{{ text }}{{ '\n' }}</template></pre>
+          <pre class="rl-code"><template v-for="(text, i) in current.code.split('\n')" :key="i"><span class="rl-ln">{{ String(i + 1).padStart(2, ' ') }}</span><CodeLine :html="hl?.[i]" :text="text" />{{ '\n' }}</template></pre>
         </div>
 
         <div class="rl-pane">
-          <span class="rl-label">кадры верхней ошибки — parseStack</span>
+          <span class="rl-label">кадры верхней ошибки</span>
           <p v-if="!result" class="rl-muted">исполняется…</p>
           <p v-else-if="!frames.length" class="rl-muted">{{ kind }}: кадров V8 в стеке нет.</p>
           <ol v-else class="rl-frames">

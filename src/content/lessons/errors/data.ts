@@ -2,7 +2,7 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AsyncCase, ReportCase } from '@/widgets/error-lab/model/types';
 
 /**
- * Данные темы «Ошибки и стеки: от throw до отчёта».
+ * Данные темы «Ошибки и стеки».
  *
  * Тема написана 2026-10-01. Уже разобранное в других темах здесь дано фразой со ссылкой:
  * стек вызовов и куда уходит бросок из колбэка — «Колбэки», разделы «Стек» и «Ошибки»
@@ -17,7 +17,7 @@ import type { AsyncCase, ReportCase } from '@/widgets/error-lab/model/types';
  * и Node с чужим источником и кодами выхода, `finally` и `using`, сборка отчёта.
  *
  * ── Стенд ─────────────────────────────────────────────────────────────────────────────────
- * Node **24.11.0** (V8 13.6) — основной; Node 26.8.2 (V8 14.6) — для сравнения; Chromium
+ * Node **26.8.2** (V8 14.6) — эталон (снималось на 24.11.0, перепроверено на 26.8.2); Chromium
  * **153.0.8010.12** (Playwright 1.63, headless shell). Каталог стенда — `scratchpad/agent-errors/`,
  * порты 53001–53012. Без таймерных замеров: всё, что утверждает тема, — тексты стеков, порядок
  * событий, коды выхода.
@@ -38,13 +38,13 @@ import type { AsyncCase, ReportCase } from '@/widgets/error-lab/model/types';
  *   — заголовок стека (`Error: текст`) Node строит при **первом чтении** `stack` из текущих
  *     `name` и `message`; Chromium берёт текущее `name`, но `message` — тот, что был при
  *     создании (`LAZY_RUN`, `LAZY_CHROMIUM`);
- *   — `Error.prepareStackTrace` в Node 24 — функция самого Node, в Chromium — `undefined`;
+ *   — `Error.prepareStackTrace` в Node — функция самого Node, в Chromium — `undefined`;
  *     вызывается один раз, при первом чтении `stack`;
  *   — `window.onerror` получает строку и колонку места **создания** ошибки, а не `throw`;
  *   — отказ промиса в скрипте с чужого источника без `crossorigin` не даёт события
  *     `unhandledrejection` вовсе, а исключение — даёт, но в виде «Script error.»;
  *   — `structuredClone` ошибки сохраняет `message`, `stack`, `cause` и класс встроенных
- *     ошибок, но теряет `errors` у `AggregateError`, свои поля (`code`) и подкласс — в Node 24.11
+ *     ошибок, но теряет `errors` у `AggregateError`, свои поля (`code`) и подкласс — в Node 26.8
  *     и Chromium 153 одинаково;
  *   — `cause`, присвоенный после создания (`a.cause = b`), перечисляемый: с циклом
  *     `JSON.stringify` бросает `TypeError`.
@@ -76,7 +76,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: 'источник (origin)',
-    d: 'Схема, хост и порт адреса: `http://localhost:53011` и `http://127.0.0.1:53012` — разные источники. Браузер не отдаёт странице подробности о том, что пришло с чужого источника без разрешения.',
+    d: 'Схема, хост и порт адреса: `https://shop.ru` и `https://cdn.shop.ru` — разные источники, хотя домен общий. Браузер не отдаёт странице подробности о том, что пришло с чужого источника без разрешения.',
   },
   {
     k: 'сериализация',
@@ -138,39 +138,70 @@ export interface NodeRun {
 
 // ─── Раздел 1. Объект ошибки ───────────────────────────────────────────────────────────────
 
-export const ANATOMY_RUN: NodeRun = {
-  file: 'anatomy.mjs',
-  code: `const db = new Error('connect ETIMEDOUT 10.0.0.5:5432');
-db.code = 'ETIMEDOUT';
-const err = new Error('Заказ не сохранён', { cause: db });
+/** Пример, исполненный в браузере (Chromium через Playwright): код на странице и то, что напечатала консоль. */
+export interface BrowserRun {
+  code: string;
+  out: string;
+}
 
-console.log(err.name, Object.hasOwn(err, 'name'));
-console.log(Object.getOwnPropertyNames(err));
-console.log(Object.keys(err), Object.keys(db));
-console.log(JSON.stringify(err), JSON.stringify(db));
-console.log(err.cause === db, err.stack.split('\\n')[0]);`,
-  out: `$ node anatomy.mjs
-Error false
-[ 'stack', 'message', 'cause' ]
-[] [ 'code' ]
-{} {"code":"ETIMEDOUT"}
-true Error: Заказ не сохранён`,
+/**
+ * Сквозной пример темы во фронте: форма сохраняет заказ, сервер отвечает 502. Тест исполняет
+ * эту строку в Chromium, ответ `/api/orders` подменён на 502; массивы консоль печатает так,
+ * как их показывает DevTools в одну строку.
+ */
+export const FRONT_RUN: BrowserRun = {
+  code: `async function saveOrder(order) {
+  const res = await fetch('/api/orders', {
+    method: 'POST',
+    body: JSON.stringify(order),
+  });
+  if (!res.ok) throw new Error(\`Сервер ответил \${res.status}\`);
+  return res.json();
+}
+
+try {
+  await saveOrder({ id: 7 });
+} catch (err) {
+  console.log(err.message);
+  console.log(JSON.stringify(err));           // это и ушло бы в мониторинг
+  console.log(Object.keys(err));
+  console.log(Object.getOwnPropertyNames(err));
+  console.log(Object.hasOwn(err, 'name'), err.name);
+}`,
+  out: `Сервер ответил 502
+{}
+[]
+['stack', 'message']
+false Error`,
 };
+
+export const PLAIN_HIDDEN =
+  'Как чемодан с потайным отделением. Обычный досмотр — `JSON.stringify` и `Object.keys` — открывает основное отделение, а `message` и `stack` лежат в потайном. Вещи на месте, их можно достать, если знать, где искать, но при обычном осмотре чемодан выглядит пустым.';
+
+export const FRONT_NOTE =
+  'Пройдём по строкам вывода. `err.message` читается как обычно — текст у ошибки есть. Но `JSON.stringify(err)` даёт `{}`: он берёт только **свои перечисляемые** поля объекта, а таких у ошибки нет — `Object.keys` пуст. Свои поля у неё всё-таки есть, это показывает `Object.getOwnPropertyNames`: `stack` и `message`. Они **неперечисляемые** — скрыты от перебора, как методы класса. А `name` не своё вовсе: оно лежит в прототипе — общем объекте, у которого ошибка берёт недостающие свойства, — и у всех ошибок класса `Error` одно. Как устроен поиск по прототипу, разобрано в [«Объектной модели», раздел «Прототипы»](/js/object-model/#s2). Консоль DevTools обходит объект по-своему и показывает всё, поэтому при отладке ошибка выглядит полной, а на сервер уходит пустой объект.';
+
+export const FRONT_FIX_CODE = `// Поля перечисляют явно: тогда в строку попадёт то, что нужно.
+const report = JSON.stringify({
+  name: err.name,
+  message: err.message,
+  stack: err.stack,
+});`;
+
+export const FRONT_FIX_NOTE =
+  'Отчёт собирают явно — поле за полем. Так в строку попадают имя, текст и стек. Цепочку причин (`cause`), свои поля и обрезку длинного стека добавляет полная сборка из раздела «Отчёт об ошибке».';
 
 export const ANATOMY_ROWS = {
   head: ['свойство', 'где лежит', 'в `JSON.stringify`', 'что важно'],
   rows: [
     ['`name`', 'прототип', 'нет', 'Своего `name` у ошибки нет: `Error`, `TypeError` берутся из прототипа класса. Подкласс обычно пишет `this.name = …` в конструкторе — тогда поле своё и перечисляемое.'],
     ['`message`', 'сама ошибка', 'нет', 'Своё, но неперечисляемое. Появляется, только если текст передан: у `new Error()` его нет вовсе.'],
-    ['`stack`', 'сама ошибка', 'нет', 'Стандарт его не описывает. В V8 (Node 24, Chromium 153) это свой неперечисляемый геттер: строка собирается при первом чтении.'],
+    ['`stack`', 'сама ошибка', 'нет', 'Стандарт его не описывает. В V8 (Node 26, Chromium 153) это своё неперечисляемое свойство, но значение у него вычисляется: строка собирается при первом чтении, а не в `new Error`.'],
     ['`cause`', 'сама ошибка', 'нет', 'ES2022. Создаётся, только если в опциях есть ключ `cause`: `{}` его не даёт, `{ cause: undefined }` — даёт.'],
     ['`errors`', '`AggregateError`', 'нет', 'Массив причин: так отклоняется `Promise.any`, когда отказали все.'],
     ['свои поля: `code`, `status`', 'сама ошибка', '**да**', 'Обычные свойства, записанные присваиванием. Только они и попадают в `JSON.stringify`.'],
   ],
 };
-
-export const ANATOMY_NOTE =
-  'Отсюда главный сюрприз отчётов: `JSON.stringify(err)` даёт `{}`. Текст, стек и причина у ошибки есть, но все три неперечисляемые, а `JSON.stringify` берёт только перечисляемые свои поля. Консоль Node и DevTools их показывают — у них свой обход, — поэтому в отладке всё выглядит на месте, а на сервер уходит пустой объект.';
 
 export const CLASS_RUN: NodeRun = {
   file: 'class.mjs',
@@ -216,7 +247,7 @@ true`,
 };
 
 export const THROWN_NOTE =
-  '`throw` принимает что угодно: строку, число, объект, `undefined`. Стек снимает только конструктор ошибки, поэтому у брошенной строки его нет — ни кадров, ни места. Код, который ловит, должен быть готов к любому значению: `e.message` у строки — `undefined`, а у `null` — `TypeError` прямо в обработчике. `Error.isError` (Node 24, Chromium 153) отличает настоящую ошибку от похожего объекта и, в отличие от `instanceof`, работает для ошибок из другого окна или `iframe`.';
+  '`throw` принимает что угодно: строку, число, объект, `undefined`. Стек снимает только конструктор ошибки, поэтому у брошенной строки его нет — ни кадров, ни места. Код, который ловит, должен быть готов к любому значению: `e.message` у строки — `undefined`, а у `null` — `TypeError` прямо в обработчике. `Error.isError` (Node 26, Chromium 153) отличает настоящую ошибку от похожего объекта и, в отличие от `instanceof`, работает для ошибок из другого окна или `iframe`.';
 
 export const THROW_STRING_RUN: NodeRun = {
   file: 'throw-string.mjs',
@@ -229,9 +260,34 @@ node:internal/modules/run_main:107
 нет денег
 (Use \`node --trace-uncaught ...\` to show where the exception was thrown)
 
-Node.js v24.11.0`,
+Node.js v26.8.2`,
   exit: 1,
 };
+
+/**
+ * Node в конце раздела: системная ошибка. Её поля `errno`, `code`, `syscall`, `path` Node
+ * записывает обычными перечисляемыми свойствами — поэтому `JSON.stringify` их видит, а текст
+ * и стек по-прежнему нет.
+ */
+export const NODE_FS_RUN: NodeRun = {
+  file: 'read-config.mjs',
+  code: `import { readFileSync } from 'node:fs';
+
+try {
+  readFileSync('config.json');
+} catch (err) {
+  console.log(err.message);
+  console.log(Object.keys(err));
+  console.log(JSON.stringify(err));
+}`,
+  out: `$ node read-config.mjs
+ENOENT: no such file or directory, open 'config.json'
+[ 'errno', 'code', 'syscall', 'path' ]
+{"errno":-2,"code":"ENOENT","syscall":"open","path":"config.json"}`,
+};
+
+export const NODE_FS_NOTE =
+  'В Node устроено так же, но у ошибок системы — файлы, сеть, процессы — есть свои поля: `code` (`ENOENT` — «нет такого файла»), `errno`, `syscall` (какой вызов упал) и `path`. Node записывает их обычными перечисляемыми свойствами, поэтому `JSON.stringify` их видит. А `message` и `stack` — нет, как и в браузере. По `code` такие ошибки и различают в `catch`: текст сообщения может поменяться, код — нет. Ещё одно отличие Node — `console.log(err)` печатает ошибку целиком: стек, свои поля и всю цепочку `cause` с отступом. Удобно в терминале, но в отчёт это не годится: строка с отступами и путями к файлам машины, а не поля.';
 
 // ─── Раздел 2. Когда записывается стек ─────────────────────────────────────────────────────
 
@@ -365,7 +421,7 @@ export const PREPARE_FACTS = [
   },
   {
     t: 'Хук глобальный',
-    d: 'В Node 24 `Error.prepareStackTrace` по умолчанию — функция самого Node, в Chromium 153 — `undefined`. Подменив её, вы меняете `stack` всех ошибок процесса, включая чужие: код, который ждёт строку и делает `stack.split`, упадёт на массиве. Безопаснее подменять на время и возвращать прежнюю.',
+    d: 'В Node 26 `Error.prepareStackTrace` по умолчанию — функция самого Node, в Chromium 153 — `undefined`. Подменив её, вы меняете `stack` всех ошибок процесса, включая чужие: код, который ждёт строку и делает `stack.split`, упадёт на массиве. Безопаснее подменять на время и возвращать прежнюю.',
     tone: 'warn' as const,
   },
 ];
@@ -426,8 +482,8 @@ checkout().catch((e) => console.log(e.stack));`,
     at saveOrder (file:///app/sync.mjs:8:9)
     at checkout (file:///app/sync.mjs:11:9)
     at file:///app/sync.mjs:13:1
-    at ModuleJob.run (node:internal/modules/esm/module_job:377:25)
-    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:691:26)
+    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)
+    at async node:internal/modules/esm/loader:650:26
     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)`,
     chromium: `Error: нет id заказа
     at query (http://localhost:53010/sync.mjs:4:18)
@@ -513,27 +569,8 @@ checkout().catch((e) => console.log(e.stack));`,
   },
 ];
 
-/**
- * Где `error.stack` Node 26.8.2 отличается от литерала `node` в `ASYNC_CASES` (Node 24.11), по
- * мажорной версии. Отличаются только кадры загрузчика модулей: в Node 26 кадр
- * `onImport.tracePromise.__proto__` стал безымянным `async node:internal/modules/esm/loader`.
- * Пользовательские кадры те же. Страница печатает колонку Node 24.11 — так и сказано в `ASYNC_CAPTION`.
- */
-export const ASYNC_NODE_BY_MAJOR: Record<string, Record<string, string>> = {
-  '26': {
-    sync: `Error: нет id заказа
-    at query (file:///app/sync.mjs:4:18)
-    at saveOrder (file:///app/sync.mjs:8:9)
-    at checkout (file:///app/sync.mjs:11:9)
-    at file:///app/sync.mjs:13:1
-    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)
-    at async node:internal/modules/esm/loader:650:26
-    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)`,
-  },
-};
-
 export const ASYNC_CAPTION =
-  'Стеки напечатали Node 24.11 и Chromium 153, исполнив эти же файлы. Кадры разбирает `parseStack` из раздела «Отчёт об ошибке», строки кода, на которые они указывают, подсвечены. Функции из кода, которых в стеке нет, перечислены отдельно.';
+  'Стеки напечатали Node 26.8 и Chromium 153, исполнив эти же файлы. Кадры вынуты из стека разбором формата V8 (раздел «Отчёт об ошибке», «Разбор стека на кадры»), строки кода, на которые они указывают, подсвечены. Функции из кода, которых в стеке нет, перечислены отдельно.';
 
 export const ASYNC_HOW =
   'Как V8 это делает. В момент `await` движок ничего не записывает — отсюда название «асинхронные стеки нулевой цены» (zero-cost async stack traces). Работа откладывается до `new Error`: сняв настоящий стек, V8 смотрит, не продолжение ли `async`-функции сейчас выполняется. Если да — берёт её промис, ищет среди его подписчиков другую `async`-функцию, которая этот промис `await`-ит, пишет её кадром `at async …` и повторяет. Ходит он только по таким связям; обычные функции, вызвавшие `.then`, в промисе не записаны.';
@@ -613,7 +650,7 @@ export const MUTED_NOTE =
   'Скрипт с чужого источника браузер помечает как «заглушённый» (muted errors в спецификации HTML). Исключения из него доходят до `onerror` обезличенными: `Script error.`, пустой адрес, нули, `error: null` — даже если код вызван позже, из таймера. Отказы промисов из такого скрипта не доходят вовсе: события `unhandledrejection` нет, строка остаётся только в консоли. Чинится в два шага: `<script crossorigin="anonymous">` и ответ CDN с заголовком `Access-Control-Allow-Origin`. Первый шаг без второго хуже, чем ничего: скрипт не загрузится.';
 
 export const NODE_ROWS = {
-  head: ['что случилось', 'что делает Node 24.11', 'код выхода'],
+  head: ['что случилось', 'что делает Node 26.8', 'код выхода'],
   rows: [
     ['исключение в колбэке таймера, обработчика нет', 'печатает строку кода с `^` под `throw`, затем стек — и завершает процесс', '`1`'],
     ['отказ промиса, обработчиков нет', 'то же: печатает стек причины и завершает процесс (режим по умолчанию `throw`)', '`1`'],
@@ -642,7 +679,7 @@ Error: упал таймер
     at listOnTimeout (node:internal/timers:608:17)
     at process.processTimers (node:internal/timers:543:7)
 
-Node.js v24.11.0`,
+Node.js v26.8.2`,
   exit: 1,
 };
 
@@ -776,7 +813,7 @@ suppressed: не записалось`,
 };
 
 export const USING_NOTE =
-  '`using` (явное управление ресурсами, ES2026) закрывает ресурс сам, когда блок кончился, — как `finally`, но без потери. Если упали и тело, и закрытие, выходит `SuppressedError`: в `error` — ошибка закрытия, в `suppressed` — та, что она заглушила. Работает в Node 24.11 и Chromium 153. Сериализатору отчёта стоит знать и эти два поля.';
+  '`using` (явное управление ресурсами, ES2026) закрывает ресурс сам, когда блок кончился, — как `finally`, но без потери. Если упали и тело, и закрытие, выходит `SuppressedError`: в `error` — ошибка закрытия, в `suppressed` — та, что она заглушила. Работает в Node 26.8 и Chromium 153. Сериализатору отчёта стоит знать и эти два поля.';
 
 export const PROMISE_FINALLY_RUN: NodeRun = {
   file: 'promise-finally.mjs',
@@ -820,7 +857,7 @@ export const CLONE_ROWS = {
 };
 
 export const CLONE_NOTE =
-  'Строки `structuredClone` сняты в Node 24.11 и Chromium 153 — результат одинаковый. Консоль не в счёт: она печатает человеку, а не отправляет на сервер. Отдельная ловушка — `cause`, присвоенный после создания: `a.cause = b` делает поле перечисляемым, и если две ошибки ссылаются друг на друга, `JSON.stringify` бросает `TypeError: Converting circular structure to JSON` — прямо внутри обработчика ошибок.';
+  'Строки `structuredClone` сняты в Node 26.8 и Chromium 153 — результат одинаковый. Консоль не в счёт: она печатает человеку, а не отправляет на сервер. Отдельная ловушка — `cause`, присвоенный после создания: `a.cause = b` делает поле перечисляемым, и если две ошибки ссылаются друг на друга, `JSON.stringify` бросает `TypeError: Converting circular structure to JSON` — прямо внутри обработчика ошибок.';
 
 /**
  * Разбор строки стека V8 на кадры. Сверяется тестом с CallSite API (`Error.prepareStackTrace`)
@@ -853,7 +890,7 @@ function parseStack(stack) {
 }`;
 
 export const PARSE_NOTE =
-  'Разбирает только формат V8 — Chromium, Edge, Node. Firefox и Safari пишут `имя@адрес:строка:колонка`, и там нужна своя ветка: форматы трёх движков сравниваются в «Трёх движках». Ещё одна честная дыра: если в `message` есть перевод строки и следующая строка начинается с `    at `, разбор примет её за кадр — по одной строке заголовок от кадра не отличить.';
+  'Чтобы показать кадры по отдельности — функция, файл, строка, колонка, — строку стека разбирают регулярным выражением. У V8 (Chromium, Edge, Node) кадр выглядит так: `at saveOrder (https://shop.test/app.js:8:3)`, а асинхронный — с `async` перед именем. Firefox и Safari пишут иначе: `saveOrder@https://shop.test/app.js:8:3`. Форматы трёх движков сравниваются в [«Трёх движках», раздел «Язык»](/render/browser-engines/#s2). Разбор ломается и на тексте: если в `message` есть перевод строки, а следующая строка начинается с `    at `, её примут за кадр. Поэтому сами стек обычно не разбирают — это делает SDK мониторинга или пакет `error-stack-parser`. Демо в этом разделе разбирает только формат V8.';
 
 /**
  * Сборка отчёта. Сверяется тестом: с `structuredClone` по `message`, `stack`, `cause`; на цикле,
@@ -907,22 +944,41 @@ function serializeError(value, { maxFrames = 10, maxDepth = 5 } = {}) {
   return walk(value, 0);
 }`;
 
+/**
+ * Ядро сборки отчёта — то, что напечатано на странице. Полная версия `SERIALIZE_CODE` (на ней
+ * работают демо и тесты) добавляет к нему защиту от циклов, предел глубины, `AggregateError`,
+ * `SuppressedError` и пометку об отброшенных кадрах. Тест сверяет: на обычных ошибках ядро
+ * собирает то же, что полная версия.
+ */
+export const SERIALIZE_CORE_CODE = `function serializeError(err, maxFrames = 10) {
+  if (!(err instanceof Error)) {                 // бросили строку, число, null
+    return { name: 'NonError', message: String(err) };
+  }
+  const report = {
+    name: err.name,
+    message: err.message,
+    stack: err.stack?.split('\\n').slice(0, maxFrames + 1).join('\\n'),
+  };
+  for (const key of Object.keys(err)) {          // свои поля: code, status…
+    const value = err[key];
+    if (['string', 'number', 'boolean'].includes(typeof value)) report[key] = value;
+  }
+  if ('cause' in err) report.cause = serializeError(err.cause, maxFrames);
+  return report;
+}`;
+
 export const SERIALIZE_FACTS = [
   {
-    t: 'Обходит, а не копирует',
-    d: 'Поля перечислены явно: `name`, `message`, `stack`, свои простые поля, затем причины. Объекты в своих полях (`response`, `request`) не берутся — в них бывают тела и токены, да и размер непредсказуем.',
-  },
-  {
-    t: 'Цикл и глубина',
-    d: 'Множество `seen` помнит пройденные ошибки: на повторе — заглушка `circular`, а не бесконечный обход. `maxDepth` режет слишком длинную цепочку `cause`.',
-  },
-  {
-    t: 'Не-ошибка — тоже отчёт',
-    d: 'Брошенная строка или `null` превращаются в `NonError` с текстом и типом. Иначе отчёт о `throw \'нет денег\'` потерялся бы целиком — как раз там, где стека и так нет.',
+    t: 'Поля — явно, причины — обходом',
+    d: 'Имя, текст и стек перечислены поимённо, потому что они неперечисляемые. Свои поля берутся только простые: строка, число, логическое. Объекты (`response`, `request`) не берутся — в них бывают тела и токены, да и размер непредсказуем. `cause` обходится той же функцией, поэтому цепочка доезжает целиком.',
   },
   {
     t: 'Обрезка стека',
-    d: 'Кадры после `maxFrames` отбрасываются с пометкой, сколько их было. Для отчёта важнее начало стека — место ошибки; конец — обычно фреймворк и загрузчик.',
+    d: 'Остаются заголовок и первые `maxFrames` кадров. Для отчёта важнее начало стека — место ошибки; конец — обычно фреймворк и загрузчик.',
+  },
+  {
+    t: 'Что добавляет полная версия',
+    d: 'Демо «Отчёт по шагам» работает на полной версии этой функции. Она ещё помнит пройденные ошибки (цикл `a.cause = b`, `b.cause = a` иначе обходился бы вечно), режет слишком длинную цепочку, раскрывает `errors` у `AggregateError` и обе ошибки у `SuppressedError`, пишет, сколько кадров отброшено, и запоминает тип брошенной не-ошибки. В проекте эту работу обычно делает SDK мониторинга или пакет `serialize-error` — свою функцию пишут, когда отчёт уходит на свой сервер.',
   },
 ];
 
@@ -996,7 +1052,7 @@ walk({}, 30);`,
 ];
 
 export const REPORT_CAPTION =
-  'Случай исполняется в вашем браузере, под именем файла `case.js`: стек — настоящий, вашего движка. Отчёт собирает `serializeError`, кадры разбирает `parseStack` — те же строки, что напечатаны выше. В Firefox и Safari стек другого формата, и `parseStack` кадров в нём не найдёт.';
+  'Случай исполняется в вашем браузере, под именем файла `case.js`: стек — настоящий, вашего движка. Отчёт собирает полная версия `serializeError` из «Сборки отчёта», кадры вынимает разбор формата V8. В Firefox и Safari стек другого формата, и этот разбор кадров в нём не найдёт.';
 
 export const MAX_FRAMES_OPTIONS = [
   { value: '3', label: '3 кадра' },
@@ -1018,6 +1074,89 @@ export const REPORT_WHERE_NOTE =
   'Для «Script error.» `e.error` — `null`, и в отчёт уйдёт хотя бы текст события. `send` — ваша отправка: `navigator.sendBeacon` в браузере переживает закрытие вкладки. В отчёт добавляют релиз (без него не найти карту исходников) и номер трассы запроса — как его получить на фронте, разобрано в «Наблюдаемости».';
 
 // ─── Тонкие места ──────────────────────────────────────────────────────────────────────────
+
+// ─── Раздел 7. Как работать с ошибками ────────────────────────────────────────────────────
+
+export const PRACTICE_LEAD =
+  'Ошибки теряются тремя способами: их ловят не там, где можно что-то сделать, глотают пустым `catch` или не ждут отказа промиса. От каждого способа защищает своя привычка.';
+
+/** Правила работы с ошибками: заголовок, суть, ссылка туда, где это разобрано подробно. */
+export const PRACTICES: { t: string; d: string }[] = [
+  {
+    t: 'Ловите там, где можете что-то сделать',
+    d: 'Внутренние функции пусть пропускают ошибку наверх: им нечего с ней делать. Ловят на краях — в обработчике клика, в обработчике запроса на сервере, на границе куска интерфейса. В React такой край — граница ошибок (`ErrorBoundary`): упавший компонент заменяется запасным видом, а остальная страница работает. Разбор — [«Suspense и границы ошибок», раздел «Граница ошибок»](/frameworks/suspense-errors/#s5).',
+  },
+  {
+    t: '`fetch` не бросает на 404 и 500',
+    d: 'Промис `fetch` отклоняется, только если ответа нет вовсе: сеть упала, запрос отменили, CORS не пустил. Ответ `404` или `500` — это успешный `fetch` с `res.ok === false`. Проверку `if (!res.ok) throw …` пишут сами, как в `saveOrder` из раздела «Что лежит в объекте ошибки», — иначе код пойдёт разбирать страницу ошибки как данные.',
+  },
+  {
+    t: 'Не глотайте ошибку',
+    d: 'Пустой `catch {}` или `catch (e) { console.log(e) }` прячет сбой: пользователь видит, что ничего не произошло, а в отчёты не уходит ничего. Если обработать нечем — не ловите. Если поймали — либо исправьте ситуацию (повтор, запасное значение), либо пробросьте дальше.',
+  },
+  {
+    t: 'Ловите узко, остальное — дальше',
+    d: 'В `catch` попадает всё: и ожидаемый `404`, и опечатка в коде (`TypeError`). Обработайте то, что знаете, — по классу (`instanceof`), `status` или `code`, — а остальное бросьте снова: `throw err`. Отмену так же отсеивают по имени: `err.name === \'AbortError\'` — не сбой, а результат действия пользователя ([«Отмена: AbortController», раздел «fetch»](/js/abort-controller/#s3)).',
+  },
+  {
+    t: 'На границе слоя — своя ошибка с `cause`',
+    d: 'Нижний слой знает технику («`ECONNRESET`»), верхний — смысл («заказ не сохранён»). Заворачивайте: `throw new Error(\'Заказ не сохранён\', { cause: err })`. Пользователь получит понятный текст, а в отчёте останется вся цепочка причин.',
+  },
+  {
+    t: 'Ожидаемое — значение, неожиданное — исключение',
+    d: 'Неверный email в форме — не авария, а обычный ответ: удобнее вернуть `{ ok: false, errors }` и показать подсказки у полей. Исключение оставьте для того, чего код не ждёт: сеть, баг, сломанные данные. Тогда `catch` ловит действительно исключительное, а не бизнес-логику.',
+  },
+  {
+    t: 'Не оставляйте промис без `await`',
+    d: 'Вызов `save()` без `await` и без `.catch` — «висящий» промис: его отказ никто не ждёт, и он станет необработанным — в браузере это событие `unhandledrejection`, в Node по умолчанию падение процесса (раздел «Необработанные ошибки: браузер и Node»). Ловит это правило линтера `@typescript-eslint/no-floating-promises`.',
+  },
+  {
+    t: 'Один отчёт на приложение',
+    d: 'Глобальные обработчики `error` и `unhandledrejection` — последняя сетка, а не основной способ: они видят ошибку без контекста. Отчёт собирают в одном месте — одной функцией, с цепочкой `cause` и обрезанным стеком (раздел «Отчёт об ошибке»), — и убирают повторы: одна и та же ошибка в цикле не должна прислать тысячу отчётов.',
+  },
+  {
+    t: 'Уборка — в `finally` или `using`',
+    d: 'Закрыть соединение, снять индикатор загрузки, освободить блокировку нужно и при успехе, и при ошибке. Для этого `finally`, а для ресурсов — `using` с `Symbol.dispose` (раздел «finally и порядок»). Чего в `finally` делать нельзя — в тонком месте «Исключение в `finally` стирает исходное».',
+  },
+];
+
+/** `fetch` с ответом 404 не отклоняется. Тест исполняет строку в Chromium, ответ подменён на 404. */
+export const FETCH_OK_RUN: BrowserRun = {
+  code: `const res = await fetch('/api/orders/404');
+console.log(res.ok, res.status);   // промис не отклонён`,
+  out: `false 404`,
+};
+
+/** Узкий `catch`. Тест исполняет строку в Chromium, как `FRONT_RUN`. */
+export const NARROW_RUN: BrowserRun = {
+  code: `class HttpError extends Error {
+  constructor(status) {
+    super(\`HTTP \${status}\`);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+const api = async (url) => {
+  throw new HttpError(url === '/users/7' ? 404 : 500);
+};
+
+async function loadProfile(id) {
+  try {
+    return await api(\`/users/\${id}\`);
+  } catch (err) {
+    if (err instanceof HttpError && err.status === 404) return null; // профиля нет — это ответ
+    throw err;                                                       // остальное — выше
+  }
+}
+
+console.log(await loadProfile(7));
+await loadProfile(8).catch((e) => console.log('ушла выше:', e.name, e.status));`,
+  out: `null
+ушла выше: HttpError 500`,
+};
+
+export const NARROW_NOTE =
+  '`404` для профиля — нормальный ответ «такого нет», и функция превращает его в `null`. `500` она обработать не может — и не пытается: ошибка уходит выше, к тому, кто покажет сообщение или отправит отчёт. Опечатка внутри `try` (`TypeError`) тоже ушла бы выше, а не превратилась бы молча в `null`.';
 
 export const PITFALLS: Pitfall[] = [
   {

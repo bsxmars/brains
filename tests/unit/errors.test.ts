@@ -10,7 +10,7 @@ import * as t from '@/content/lessons/errors/data';
 import { loadParse, loadSerialize, runCase } from '@/widgets/error-lab/model/run';
 
 /**
- * Тема «Ошибки и стеки: от throw до отчёта».
+ * Тема «Ошибки и стеки».
  *
  * Каждый пример `*_RUN` и асинхронные сценарии исполняются **в отдельном процессе Node**:
  * vitest подменяет форматирование стеков, и в его процессе `error.stack` не тот, что видит
@@ -48,7 +48,7 @@ function runFile(file: string, code: string, flags: string[] = []) {
 }
 
 const RUNS: [string, t.NodeRun][] = [
-  ['ANATOMY_RUN', t.ANATOMY_RUN],
+  ['NODE_FS_RUN', t.NODE_FS_RUN],
   ['CLASS_RUN', t.CLASS_RUN],
   ['THROWN_RUN', t.THROWN_RUN],
   ['THROW_STRING_RUN', t.THROW_STRING_RUN],
@@ -75,27 +75,8 @@ describe('примеры: Node печатает то, что напечатан�
 
   it.each(t.ASYNC_CASES.map((c) => [c.id, c] as const))('асинхронный сценарий %s — стек Node', (_id, c) => {
     const r = runFile(c.file, c.code);
-    const node = t.ASYNC_NODE_BY_MAJOR[process.versions.node.split('.')[0]]?.[c.id] ?? c.node;
+    const node = c.node;
     expect(r.out).toBe(normalize(`$ node ${c.file}\n${node}`));
-  });
-
-  it('ASYNC_NODE_BY_MAJOR: в Node 26 отличаются только кадры node:internal', () => {
-    for (const [id, stack] of Object.entries(t.ASYNC_NODE_BY_MAJOR['26'])) {
-      const own = (s: string) => s.split('\n').filter((l) => !l.includes('node:internal'));
-      expect(own(stack)).toEqual(own(t.ASYNC_CASES.find((c) => c.id === id)!.node));
-    }
-  });
-});
-
-describe('утверждения таблицы NODE_ROWS — отдельными процессами', () => {
-  it('отказ с ошибкой и со строкой роняют процесс с кодом 1; строка завёрнута в ERR_UNHANDLED_REJECTION', () => {
-    const a = runFile('rows-reject.mjs', `Promise.reject(new Error('x'));\nsetTimeout(() => console.log('жив'), 10);`);
-    expect(a.status).toBe(1);
-    expect(a.out).not.toContain('жив');
-    const b = runFile('rows-reject-string.mjs', `Promise.reject('нет денег');`);
-    expect(b.status).toBe(1);
-    expect(b.out).toContain("code: 'ERR_UNHANDLED_REJECTION'");
-    expect(b.out).toContain('The promise rejected with the reason "нет денег"');
   });
 
   it('бросивший обработчик uncaughtException — код 7; только monitor — код 1', () => {
@@ -628,5 +609,107 @@ describe('Chromium', () => {
     expect(onerror('report')).toMatchObject({ message: 'Uncaught Error: через reportError' });
     expect(R.at(-1)).toEqual({ after: true });
     expect(R).toHaveLength(2);
+  });
+});
+
+/**
+ * Фронтовый пример раздела «Объект ошибки» — в настоящем Chromium. Ответ `/api/orders` подменён
+ * на 502; `console.log` перехвачен и печатает массивы так, как DevTools в одну строку
+ * (`['stack', 'message']`), остальное — `String(…)`.
+ */
+describe('FRONT_RUN в Chromium', () => {
+  let browser: Browser;
+  let page: Page;
+
+  beforeAll(async () => {
+    browser = await chromium.launch();
+    page = await browser.newPage();
+    await page.route('http://front.test/', (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>front</title>' }));
+    await page.route('http://front.test/api/orders', (r) => r.fulfill({ status: 502, body: 'Bad Gateway' }));
+    await page.route('http://front.test/api/orders/404', (r) => r.fulfill({ status: 404, body: 'Not Found' }));
+    await page.goto('http://front.test/');
+  }, 60_000);
+
+  afterAll(async () => {
+    await browser?.close();
+  });
+
+  async function run(code: string): Promise<string> {
+    return page.evaluate(async (src) => {
+      const lines: string[] = [];
+      const fmt = (v: unknown): string =>
+        Array.isArray(v) ? `[${v.map((x) => (typeof x === 'string' ? `'${x}'` : String(x))).join(', ')}]` : String(v);
+      const console = { log: (...a: unknown[]) => lines.push(a.map(fmt).join(' ')) };
+      await new Function('console', `return (async () => {\n${src}\n})();`)(console);
+      return lines.join('\n');
+    }, code);
+  }
+
+  it('консоль печатает то, что напечатано в теме', async () => {
+    expect(await run(t.FRONT_RUN.code)).toBe(t.FRONT_RUN.out);
+  });
+
+  it('FRONT_FIX_CODE: явные поля доезжают до строки', async () => {
+    const out = await run(`try { await saveOrder({ id: 7 }); } catch (err) {\n${t.FRONT_FIX_CODE}\nconsole.log(report); }`.replace(
+      'try {',
+      `${t.FRONT_RUN.code.split('\n\ntry {')[0]}\ntry {`,
+    ));
+    const report = JSON.parse(out) as Record<string, string>;
+    expect(Object.keys(report)).toEqual(['name', 'message', 'stack']);
+    expect(report.message).toBe('Сервер ответил 502');
+    expect(report.stack.split('\n')[0]).toBe('Error: Сервер ответил 502');
+  });
+
+  it('NARROW_RUN: 404 превращается в null, 500 уходит выше', async () => {
+    expect(await run(t.NARROW_RUN.code)).toBe(t.NARROW_RUN.out);
+  });
+
+  it('FETCH_OK_RUN: ответ 404 — успешный fetch с res.ok === false', async () => {
+    expect(await run(t.FETCH_OK_RUN.code)).toBe(t.FETCH_OK_RUN.out);
+  });
+
+  it('подписи говорят то, что показывает вывод', () => {
+    expect(t.PRACTICES.find((p) => p.t.startsWith('`fetch` не бросает'))?.d).toContain('`res.ok === false`');
+    expect(t.FRONT_NOTE).toContain('`Object.keys` пуст');
+    expect(t.FRONT_NOTE).toContain('`stack` и `message`');
+    expect(t.NODE_FS_NOTE).toContain('`JSON.stringify` их видит');
+  });
+});
+
+/**
+ * На странице напечатано ядро `SERIALIZE_CORE_CODE`, а демо и тесты выше работают на полной
+ * `SERIALIZE_CODE`. На обычных ошибках — цепочка `cause`, свои поля, брошенная строка — ядро
+ * обязано собрать то же самое; отличаются они только защитами (цикл, глубина, Aggregate/Suppressed)
+ * и пометкой об отброшенных кадрах.
+ */
+describe('SERIALIZE_CORE_CODE — то же, что полная версия, на обычных ошибках', () => {
+  const core = new Function(`${t.SERIALIZE_CORE_CODE}\nreturn serializeError;`)() as (e: unknown, n?: number) => Record<string, unknown>;
+  /** Полная версия без пометки «… отброшено кадров» и без поля type у не-ошибки. */
+  const strip = (r: Record<string, unknown>): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(r)) {
+      if (k === 'type') continue;
+      if (k === 'stack' && typeof v === 'string') out[k] = v.split('\n').filter((l) => !l.includes('отброшено кадров')).join('\n');
+      else if (k === 'cause' && v && typeof v === 'object') out[k] = strip(v as Record<string, unknown>);
+      else out[k] = v;
+    }
+    return out;
+  };
+
+  function deep(n: number): Error {
+    return n === 0 ? new Error('дно') : deep(n - 1);
+  }
+
+  it.each([
+    ['цепочка cause со своими полями', () => {
+      const db = Object.assign(new Error('connect ECONNRESET'), { code: 'ECONNRESET', response: { body: 'x' } });
+      return new Error('Заказ не сохранён', { cause: db });
+    }],
+    ['длинный стек обрезается', () => deep(30)],
+    ['брошенная строка', () => 'нет денег'],
+    ['cause — не ошибка', () => new Error('обёртка', { cause: 42 })],
+  ])('%s', (_name, make) => {
+    const err = make();
+    expect(core(err, 3)).toEqual(strip(serialize(err, { maxFrames: 3 }) as Record<string, unknown>));
   });
 });

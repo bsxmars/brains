@@ -1,11 +1,11 @@
 ---
-title: "Ошибки и стеки: от throw до отчёта"
-heading: "Ошибки и стеки: от throw до отчёта"
+title: "Ошибки и стеки"
+heading: "Ошибки и стеки"
 headingWidth: 22
 order: 9
 lead: "В отчёте об ошибке из продакшена пусто: `{}`. В стеке нет функции, которая бросила, зато есть та, что ошибку создала. После `await` половина вызовов на месте, после `.then` — пропала. А ошибка из скрипта с CDN пришла как «Script error.» без единой подробности. Всё это — не баги, а устройство объекта ошибки, стека V8 и глобальных обработчиков."
-summary: "Что лежит в объекте ошибки и почему `JSON.stringify` даёт `{}`; `cause`, `AggregateError` и брошенные не-ошибки; стек снимается в `new Error`, а печатается при первом чтении; `captureStackTrace`, `stackTraceLimit` и CallSite API; какие кадры V8 восстанавливает после `await`; `onerror`, `unhandledrejection` и «Script error.» в браузере, `uncaughtException` и коды выхода в Node; `finally`, `using` и `SuppressedError`; сборка отчёта с цепочкой причин и разбор стека на кадры."
-verifiedOn: "Node 24.11.0 (V8 13.6) и 26.8.2 (V8 14.6), Chromium 153.0.8010.12 (Playwright 1.63, headless), октябрь 2026: примеры исполнены отдельными процессами Node, асинхронные стеки и глобальные обработчики — в Chromium со своего node:http на двух источниках. Разбор стека сверен с CallSite API V8, сборка отчёта — со structuredClone. Всё повторяет tests/unit/errors.test.ts"
+summary: "Что лежит в объекте ошибки и почему `JSON.stringify` даёт `{}`; `cause`, `AggregateError` и брошенные не-ошибки; стек снимается в `new Error`, а печатается при первом чтении; `captureStackTrace`, `stackTraceLimit` и CallSite API; какие кадры V8 восстанавливает после `await`; `onerror`, `unhandledrejection` и «Script error.» в браузере, `uncaughtException` и коды выхода в Node; `finally`, `using` и `SuppressedError`; сборка отчёта с цепочкой причин и разбор стека на кадры; как работать с ошибками: где ловить, `res.ok`, узкий `catch`, `cause`, висящие промисы."
+verifiedOn: "Node 26.8.2 (V8 14.6), Chromium 153.0.8010.12 (Playwright 1.63, headless), октябрь 2026: примеры исполнены отдельными процессами Node, асинхронные стеки и глобальные обработчики — в Chromium со своего node:http на двух источниках. Разбор стека сверен с CallSite API V8, сборка отчёта — со structuredClone. Всё повторяет tests/unit/errors.test.ts"
 nav:
   - { id: s0, label: Перед началом }
   - { id: s1, label: Объект ошибки }
@@ -14,7 +14,7 @@ nav:
   - { id: s4, label: Необработанные }
   - { id: s5, label: finally }
   - { id: s6, label: Отчёт }
-  - { id: s7, label: Тонкие места }
+  - { id: s7, label: Как работать }
   - { id: s8, label: Источники }
 ---
 
@@ -23,8 +23,6 @@ import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -40,9 +38,19 @@ import {
   PLAIN_ERROR,
   PREREQ,
   PREREQ_NOTE,
-  ANATOMY_RUN,
+  FRONT_RUN,
+  PLAIN_HIDDEN,
+  FRONT_NOTE,
+  FRONT_FIX_CODE,
+  FRONT_FIX_NOTE,
   ANATOMY_ROWS,
-  ANATOMY_NOTE,
+  NODE_FS_RUN,
+  NODE_FS_NOTE,
+  PRACTICE_LEAD,
+  PRACTICES,
+  FETCH_OK_RUN,
+  NARROW_RUN,
+  NARROW_NOTE,
   CLASS_RUN,
   CLASS_NOTE,
   THROWN_RUN,
@@ -91,6 +99,7 @@ import {
   CLONE_ROWS,
   CLONE_NOTE,
   SERIALIZE_CODE,
+  SERIALIZE_CORE_CODE,
   SERIALIZE_FACTS,
   PARSE_CODE,
   PARSE_NOTE,
@@ -130,17 +139,21 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Что лежит в объекте ошибки"
-  lead="Сквозной пример темы — сохранение заказа: база не ответила, и эту ошибку завернули в свою, понятную пользователю. Видно сразу три вещи: имя живёт в прототипе, своих полей у ошибки три, а `JSON.stringify` не видит ни одного из них."
+  lead="Форма сохраняет заказ, сервер отвечает 502, ошибку ловят и отправляют в мониторинг — а там пусто: `{}`. Текст и стек у ошибки есть, но `JSON.stringify` их не видит. Чтобы понять почему, достаточно заглянуть в сам объект."
 >
   <CardGrid min={300} gap={16} align="start">
-    <Card title="anatomy.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ANATOMY_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+    <Card title="Сохранение заказа — в браузере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FRONT_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
-    <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={ANATOMY_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    <Card title="Консоль браузера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FRONT_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
+
+  <Md text={FRONT_NOTE} />
+
+  <Plain text={PLAIN_HIDDEN} />
 
   <Table
     head={ANATOMY_ROWS.head}
@@ -150,7 +163,13 @@ import {
     minWidth={720}
   />
 
-  <Md text={ANATOMY_NOTE} />
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="Как отправить правильно" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FRONT_FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FRONT_FIX_NOTE} />
+  </CardGrid>
 
   ### Свой класс ошибки
 
@@ -181,6 +200,17 @@ import {
   </CardGrid>
 
   <Md text={THROWN_NOTE} />
+
+  ### В Node: системные ошибки
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="read-config.mjs" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NODE_FS_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={NODE_FS_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={NODE_FS_NOTE} />
+  </CardGrid>
 </Section>
 
 <Section
@@ -290,7 +320,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Необработанные ошибки: браузер и Node"
-  lead="Ошибку, которую никто не поймал, получает среда. Браузер сообщает о ней событием и живёт дальше. Node по умолчанию печатает стек и завершает процесс. Куда попадает бросок из колбэка, разобрано в [«Колбэках»](/js/callbacks/#s5); здесь — что именно приходит в обработчик и что из этого можно отправить."
+  lead="Ошибку, которую никто не поймал, получает среда. Браузер сообщает о ней событием и живёт дальше. Node по умолчанию печатает стек и завершает процесс. Куда попадает бросок из колбэка, разобрано в [«Колбэках», раздел «Ошибки»](/js/callbacks/#s5). Что именно получает обработчик, зависит от среды и от того, откуда пришёл скрипт."
 >
   ### В браузере
 
@@ -454,8 +484,8 @@ import {
 
   ### Сборка отчёта
 
-  <Card title="serializeError" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SERIALIZE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <Card title="serializeError — ядро" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SERIALIZE_CORE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -467,13 +497,7 @@ import {
 
   ### Разбор стека на кадры
 
-  <Card title="parseStack" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PARSE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-
-    <CardNote tone="prose">
-      <Md text={PARSE_NOTE} />
-    </CardNote>
-  </Card>
+  <Md text={PARSE_NOTE} />
 
   ### Отчёт по шагам
 
@@ -486,7 +510,7 @@ import {
     caption={REPORT_CAPTION}
   />
 
-  ### Где ловить
+  ### Глобальные обработчики шлют отчёт
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Обработчики, которые шлют отчёт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -495,19 +519,34 @@ import {
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={REPORT_WHERE_NOTE} />
   </CardGrid>
-
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
-
-      **Ошибку создают там, где знают, что случилось, и оборачивают с `cause`, а не правят.**
-      Стек снимется в нужном месте, причина не потеряется, а отчёт соберёт всю цепочку —
-      если собирать его явным обходом, а не `JSON.stringify`.
-
-    </DarkText>
-  </DarkPanel>
 </Section>
 
-<Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
+<Section id="s7" eyebrow="Раздел 7" title="Как работать с ошибками" lead={PRACTICE_LEAD}>
+  <CardGrid min={300} gap={14} align="start">
+    {PRACTICES.map((p) => (
+      <Card title={p.t} titleSize={16.5} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={p.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Проверка `res.ok` и узкий `catch`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card title="fetch и 404 — в браузере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={FETCH_OK_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={FETCH_OK_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Узкий `catch` — в браузере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={NARROW_RUN.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={NARROW_RUN.out} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={NARROW_NOTE} />
+
+  ### Тонкие места
+
   <Pitfalls items={PITFALLS} />
 </Section>
 
