@@ -8,7 +8,6 @@ lead: "Самая быстрая загрузка страницы — та, к�
 summary: "Кеш «назад-вперёд»: что в нём хранится, что его ломает и как это узнать; Speculation Rules: prefetch и prerender следующей страницы, что успевает выполниться до клика и как не посчитать просмотр, которого не было."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63; bfcache — полный Chromium в новом headless-режиме без --disable-back-forward-cache; предрендер — бинарь без DevTools, отчёт маячками) против своего сервера на Node 26.8.2, сентябрь 2026. Firefox 155 и WebKit 26.6 проверены только на наличие API: восстановление из bfcache под Playwright в них не воспроизводится"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Кеш «назад-вперёд» }
   - { id: s2, label: Почему не взяли }
   - { id: s3, label: Возврат из кеша }
@@ -33,13 +32,10 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import PrerenderDiagram from '@/widgets/instant-navigation-prerender-diagram/ui/PrerenderDiagram.astro';
 import {
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_BFCACHE,
   PLAIN_PRERENDER,
   PLAIN_ACTIVATION,
@@ -115,8 +111,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

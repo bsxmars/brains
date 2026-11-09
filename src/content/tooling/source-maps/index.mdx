@@ -8,7 +8,6 @@ lead: "Ошибка из продакшена говорит «`cart.js`, стр
 summary: "Поля `.map`, строка `mappings` — сегменты и Base64 VLQ, поиск позиции бинарным поиском, `--enable-source-maps` и DevTools против `error.stack`, сдвиг строк в цепочке сборщиков и склейка карт, публичные и скрытые карты в продакшене."
 verifiedOn: "esbuild 0.28.2, terser 5.51.2, @jridgewell/sourcemap-codec 1.6.0, trace-mapping 0.3.31, remapping 2.3.5, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: карты и стеки сняты стендом и пересобираются tests/unit/source-maps.test.ts; функции темы сверены с библиотеками @jridgewell на всех позициях бандла"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Что лежит в .map }
   - { id: s2, label: Сегменты и VLQ }
   - { id: s3, label: От стека к исходнику }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SourceMapLab from '@/widgets/source-map-lab/ui/SourceMapLab.vue';
 import {
   GLOSSARY,
   PLAIN_SOURCEMAP,
-  PREREQ,
-  PREREQ_NOTE,
   CART_TS,
   CART_JS,
   MAP_PRINT_CODE,
@@ -93,8 +89,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

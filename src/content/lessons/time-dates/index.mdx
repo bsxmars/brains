@@ -6,7 +6,6 @@ lead: "`Date` — не дата, а одно число: миллисекунд�
 summary: "`Date` как число и его пределы; месяцы с нуля; почему `'2026-03-29'` — UTC, а `'2026-03-29T00:00'` — местное время; переход на летнее время: несуществующий и повторённый час, сутки по 23 и 25 часов; сравнение, `toISOString`, JSON и `Intl.DateTimeFormat`; база поясов IANA, которая разная в Node 24 и 26; типы Temporal и `disambiguation`; перевод «время на часах → UTC» по таблице переходов своими руками."
 verifiedOn: "Node 24.11.0 (ICU 77.1, tzdata 2025b) и 26.8.2 с nodejs.org (ICU 78.3, tzdata 2026c, встроенный Temporal), temporal-polyfill 1.0.5, Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: выражения и примеры исполняет tests/unit/time-dates.test.ts в процессах Node с нужным TZ; учебная функция сверена с Temporal.ZonedDateTime и Date на моментах через каждые 5 минут вокруг переходов семи зон; колонки браузеров — стенд, строки Node 26 тест сверяет на Node 26.8.2"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Date — это число }
   - { id: s2, label: Строка без зоны }
   - { id: s3, label: Летнее время }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TzLab from '@/widgets/tz-lab/ui/TzLab.vue';
 import {
   GLOSSARY,
   PLAIN_DATE,
-  PREREQ,
-  PREREQ_NOTE,
   NUMBER_ROWS,
   NUMBER_NOTE,
   PARSE_ROWS,
@@ -112,8 +108,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

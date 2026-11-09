@@ -8,7 +8,6 @@ lead: "`git diff`, подсветка изменений на ревью и об
 summary: "Скрипт правок и связь с LCS, таблица динамического программирования и почему она дорога, алгоритм Майерса по шагам — граф правок, диагонали, змейки, массив v, — patience и histogram в git, перестановки в списках с ключами: LIS у Vue и `lastPlacedIndex` у React на настоящих фреймворках."
 verifiedOn: "jsdiff 9.0.0, git 2.44.0, Vue 3.5.42, React 19.3.0, happy-dom 20.14.5, Node 24.11.0, октябрь 2026: myers темы совпадает с jsdiff скрипт в скрипт, вывод git пересобирается, перемещения сверены с настоящими Vue и React в tests/unit/diff.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Скрипт правок }
   - { id: s2, label: LCS и таблица }
   - { id: s3, label: Майерс }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MyersLab from '@/widgets/diff-lab/ui/MyersLab.vue';
@@ -38,8 +36,6 @@ import MoveLab from '@/widgets/diff-lab/ui/MoveLab.vue';
 import {
   GLOSSARY,
   PLAIN_DIFF,
-  PREREQ,
-  PREREQ_NOTE,
   SCRIPT_PRINT,
   PLAIN_SCRIPT,
   SCRIPT_FORMULA_NOTE,
@@ -104,8 +100,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

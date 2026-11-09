@@ -8,7 +8,6 @@ lead: "Модальное окно с `z-index: 9999` прячется под б
 summary: "Семь шагов отрисовки из CSS 2.1 (приложение E), float и `inline-block` как «почти контекст», полный список свойств, создающих контекст, ловушка `z-index: 9999` и `isolation: isolate`, верхний слой: `showModal()`, `popover`, полный экран, `::backdrop`, порядок внутри слоя, инертность страницы под модальным окном."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: список свойств, порядок отрисовки, верхний слой, модальность и дерево доступности сняты стендом и снимаются заново в tests/unit/stacking.test.ts; функция темы paintOrder сверена с elementsFromPoint на сценах демо и 300 случайных деревьях"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Семь шагов }
   - { id: s2, label: Кто создаёт контекст }
   - { id: s3, label: Ловушка 9999 }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import StackingLab from '@/widgets/stacking-lab/ui/StackingLab.vue';
 import {
   GLOSSARY,
   PLAIN_CONTEXT,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_ORDER,
   PAINT_STEPS,
   STEP_LABELS,
@@ -98,8 +94,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

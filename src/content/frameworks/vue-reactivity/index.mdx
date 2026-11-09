@@ -6,7 +6,6 @@ lead: "Vue сам узнаёт, какой код от каких данных �
 summary: "Живой граф зависимостей, очередь обновлений и три режима `flush`, шесть причин «почему не обновляется» — всё на настоящем `@vue/reactivity`."
 verifiedOn: Vue 3.5.42 · Node 24.11
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Модель }
   - { id: s2, label: Граф }
   - { id: s3, label: Планировщик }
@@ -27,7 +26,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ReactiveGraph from '@/widgets/reactive-graph/ui/ReactiveGraph.vue';
@@ -43,7 +41,7 @@ import {
   TRAPS, NOT_UPDATING, DIAGNOSIS, TOO_OFTEN,
   OFF_HEAD, OFF_ROWS, CLASS_NOTE, READONLY_NOTE,
   PITFALLS,
-  PREREQ, PREREQ_NOTE, SOURCES, RELATED,
+  SOURCES, RELATED,
   PLAIN_TRACK, PLAIN_PROXY, PLAIN_ACTIVE_SUB, PLAIN_COMPUTED, PLAIN_FLUSH,
   GRAPH_DEMO_NOTE, QUEUE_DEMO_NOTE, TRAPS_DEMO_NOTE,
   BRANCH_SCENE_CODE, BRANCH_SCENE_NOTE, BRANCH_STEPS, PLAIN_BRANCH,
@@ -59,8 +57,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

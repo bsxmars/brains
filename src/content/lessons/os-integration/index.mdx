@@ -6,7 +6,6 @@ lead: "Четыре вещи, которые сайт берёт у операц
 summary: "`navigator.wakeLock` и почему замок снимается со скрытой вкладкой; `navigator.share`, `canShare` и запасной путь; значок `setAppBadge` и почему во вкладке его не видно; `PaymentRequest` от `canMakePayment` до `complete` и почему на деле ставят кнопку провайдера; жест пользователя и его пять секунд, `allow` у iframe и заголовок `Permissions-Policy`; проверка по имени в `navigator`, а не по юзер-агенту."
 verifiedOn: "Chromium 153 (полный и headless shell), Firefox 155 и WebKit 26.6 из Playwright 1.63 на macOS, ноябрь 2026: каждый пример с выводом и каждую таблицу исполняет tests/e2e/os-integration.spec.ts; окно жеста — пять запусков в трёх движках"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Wake Lock }
   - { id: s2, label: Поделиться }
   - { id: s3, label: Значок }
@@ -28,14 +27,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
   PLAIN_SYSTEM,
-  PREREQ,
-  PREREQ_NOTE,
   WAKE_CODE,
   WAKE_OUT,
   WAKE_NOTE,
@@ -105,8 +101,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

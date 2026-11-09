@@ -6,7 +6,6 @@ lead: "Типы в TypeScript — это отдельный маленький �
 summary: "Откуда берётся выведенный тип, `type` против `interface`, сужение и где оно врёт, условные типы и `infer`, mapped-типы и сохранение формы, рекурсия и её измеренные пределы, вариантность, бренды и схемы, классы, миксины и декораторы, слияние объявлений и поиск медленного типа — и что из TypeScript переживает сборку."
 verifiedOn: "TypeScript 6.0.3, программный прогон `tsc --noEmit` со `strict`, сентябрь 2026. Каждое число снято компилятором и закреплено `tests/unit/ts-type-level.test.ts`. Пределы рекурсии — деталь реализации компилятора, а не контракт языка: они менялись и будут меняться"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Тип как вычисление }
   - { id: s2, label: Сужение }
   - { id: s3, label: Условные типы и infer }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VarianceDiagram from '@/widgets/typescript-variance-diagram/ui/VarianceDiagram.astro';
@@ -119,8 +117,6 @@ import {
   VARIANCE_ROWS,
   VERIFIED,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_DISTRIBUTION,
   PLAIN_INFER,
   PLAIN_HOMOMORPHIC,
@@ -186,8 +182,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

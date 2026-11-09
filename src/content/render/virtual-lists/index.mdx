@@ -6,7 +6,6 @@ lead: "Десять тысяч строк — это десятки тысяч �
 summary: "Окно видимых строк: расчёт по `scrollTop`, запас, распорки; разная высота — префиксные суммы, бинарный поиск, `ResizeObserver` и поправка прокрутки против якорения браузера; `content-visibility: auto` с замером цены; `aria-setsize`, Ctrl+F и фокус; липкие заголовки и подгрузка — Chromium 153."
 verifiedOn: Chromium 153
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Цена узла }
   - { id: s2, label: Окно }
   - { id: s3, label: Разная высота }
@@ -25,13 +24,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VlLab from '@/widgets/vlist-lab/ui/VlLab.vue';
 import {
-  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
-  COST_HEAD, COST_ROWS, COST_NOTE, COST_SCROLL_NOTE,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, COST_HEAD, COST_ROWS, COST_NOTE, COST_SCROLL_NOTE,
   PLAIN_WINDOW, WINDOW_CODE, WINDOW_NOTE, LAYOUT_FACTS, DEMO_MODES, DEMO_TARGET, DEMO_FOOTER,
   PLAIN_PREFIX, MEASURE_FACTS, JUMP_NOTE, ANCHOR_HEAD, ANCHOR_ROWS, ANCHOR_NOTE, DOUBLE_CODE, DOUBLE_NOTE,
   CV_LEAD, CV_CODE, CV_HEAD, CV_ROWS, CV_FIRST_HEAD, CV_FIRST_ROWS, CV_FIRST_NOTE, CV_AUTO_NOTE, CV_JUMP_NOTE,
@@ -50,8 +47,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} />
 </Section>
-
-<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"

@@ -7,7 +7,6 @@ lead: "Пользователь видит «Не удалось загрузи�
 summary: "Лог, метрика и трасса; спан изнутри и дерево из плоского списка; заголовок W3C `traceparent` между сервисами и с фронта на бэк; head-based сэмплирование; как связать ошибку на фронте с запросом на бэке; счётчик и гистограмма, перцентили вместо среднего, кардинальность меток."
 verifiedOn: "@opentelemetry/api 1.9.1; @opentelemetry/core, sdk-trace-base и resources 2.11.0; Node 24.11.0, октябрь 2026. Три сервиса на node:http: заголовки traceparent, спаны и логи сняты стендом и пересобираются tests/unit/observability.test.ts; разбор заголовка сверен с W3CTraceContextPropagator, дерево — со спанами SDK. Метрики — учебными функциями темы на синтетических наборах; SDK метрик, коллектор, браузерное инструментирование и хранилища (Jaeger, Tempo, Prometheus) не запускались — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Три сигнала }
   - { id: s2, label: Спан и дерево }
   - { id: s3, label: Заголовок traceparent }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TraceLab from '@/widgets/trace-lab/ui/TraceLab.vue';
@@ -40,8 +38,6 @@ import LatencyLab from '@/widgets/trace-lab/ui/LatencyLab.vue';
 import {
   GLOSSARY,
   PLAIN_SIGNALS,
-  PREREQ,
-  PREREQ_NOTE,
   SCENARIOS,
   SIGNAL_ROWS,
   INCIDENT_LOGS_CODE,
@@ -114,8 +110,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -245,7 +245,6 @@
 | Блок | Данные | Вывод |
 |---|---|---|
 | **Словарь** — слова, которые тема употребляет раньше, чем объясняет | `GLOSSARY: GlossaryTerm[]` | `<Glossary items={GLOSSARY} />` во вводном разделе |
-| **Перед началом** — что тема считает известным, 3–4 карточки со ссылкой «Где разобрано» | `PREREQ: Prereq[]`, `PREREQ_NOTE` | `<Prereq items={PREREQ} lead={PREREQ_NOTE} />`, первый пункт `nav` (`s0`) |
 | Тонкие места — где интуиция промахивается систематически. **Необязателен** | `PITFALLS: Pitfall[]` | `<Pitfalls items={PITFALLS} />` |
 | Что осталось за кадром. **Необязателен**; если объявлен — выведен и не пуст | `OFFSCREEN` | — |
 | **Источники и смежное** | `SOURCES: Source[]`, `RELATED` | `<SourceList items={SOURCES} />`, `<Md text={RELATED} />` |
@@ -253,12 +252,13 @@
 
 Типы `GlossaryTerm`, `Prereq`, `Source`, `SourceGroup`, `Pitfall` — `import type` из `@/entities/lesson`
 (именно `import type`: вход тянет `astro:content`, которого нет в vitest). Блоки — в `widgets/topic-blocks`
-(`Glossary`, `Prereq`; у `Prereq` слот `before` над карточками и основной под ними), `Plain` — в `shared/ui`.
+(`Glossary`), `Plain` — в `shared/ui`.
 Двенадцать тем выводят источники своей сеткой карточек (`SourceGroup[]` или `{t, d}`) — это их раскладка.
 
-- Зачин двух видов, по предмету: **«Граница наблюдаемого»** там, где предмет из JS не виден
-  (`v8-engine`, `memory-gc`, `v8-strings`, `browser-architecture`, `object-model`), **«Что тема считает
-  известным»** — во всех остальных.
+- **Блока «Что тема считает известным» на сайте нет** (решение автора 2026-11-09). Карточки остались
+  в `data.ts` (`PREREQ`, `PREREQ_NOTE`), `widgets/topic-blocks/ui/Prereq.astro` — на диске; `topic-anatomy`
+  следит, что `<Prereq>` не вернулся. Где предмет из JS не виден (`v8-engine`, `memory-gc`, `v8-strings`,
+  `browser-architecture`), зачином остаётся раздел `s0` **«Граница наблюдаемого»** — это предмет темы.
 - **Информацию не дублируем.** Не раскрытое нигде — раскрывается в теме или становится темой; уже
   разобранное — одной фразой со ссылкой или пунктом «Смежного».
 

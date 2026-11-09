@@ -8,7 +8,6 @@ lead: "HTTP/1.1 везёт по соединению один запрос за 
 summary: "Шесть соединений против одного; 9-байтовый заголовок кадра, типы кадров, номера потоков, SETTINGS трёх браузеров; окно 65 535 и WINDOW_UPDATE; HPACK по битам — статическая и динамическая таблицы, целые с префиксом, Хаффман; почему HTTP/2 не спасает от потерь TCP и куда делся server push; HTTP/3: кадры в QUIC, первый пакет Initial, 1-RTT и 0-RTT, миграция, QPACK, `Alt-Svc`."
 verifiedOn: "Node 24.11.0 (nghttp2 1.66.0), Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: байты кадров сняты прокси между клиентом и сервером node:http2 (для браузеров — с расшифровкой TLS); разбор кадров и HPACK сверен tests/unit/http2-http3.test.ts с nghttp2 и векторами RFC 7541. QUIC-сервера на стенде нет — HTTP/3 разобран по RFC 9000, 9114 и 9204, кроме заголовка первого пакета Chromium"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Шесть соединений и одно }
   - { id: s2, label: Кадры }
   - { id: s3, label: Потоки и окно }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FrameLab from '@/widgets/h2-frame-lab/ui/FrameLab.vue';
@@ -39,8 +37,6 @@ import IntLab from '@/widgets/h2-frame-lab/ui/IntLab.vue';
 import {
   GLOSSARY,
   PLAIN_H2,
-  PREREQ,
-  PREREQ_NOTE,
   CONN_LEAD,
   CONN_ROWS,
   CONN_NOTE,
@@ -114,8 +110,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

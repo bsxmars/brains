@@ -8,7 +8,6 @@ lead: "Сохранили файл — и через долю секунды с�
 summary: "Граф модулей на dev-сервере Vite, поиск границы вверх по импортёрам, сообщения по WebSocket и метка `?t=` в адресе; `accept`, `dispose`, `data` и `invalidate`; что происходит с обычным CSS, CSS-модулями и Vue SFC; React Fast Refresh и почему в продакшен-сборке от всего этого не остаётся ни строки."
 verifiedOn: "Vite 8.3.0 (createServer, без Astro), @vitejs/plugin-vue 6.0.8 и Vue 3.5.42, Chromium 153.0.8010.12 (Playwright 1.63), Node 26.8.2, сентябрь 2026: сообщения по WebSocket, перезапрошенные адреса и состояние страницы сняты стендом на девятнадцати сценариях и закреплены tests/unit/hmr.test.ts; продакшен-сборка — vite build той же фикстуры. React Fast Refresh замером не проверялся: поведение хуков — по документации, обёртка модуля — по исходнику @vitejs/plugin-react 5.2.0"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Граф и метка в адресе }
   - { id: s2, label: Поиск границы }
   - { id: s3, label: accept, dispose, invalidate }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import HmrBoundary from '@/widgets/hmr-boundary/ui/HmrBoundary.vue';
 import {
   GLOSSARY,
   PLAIN_HMR,
-  PREREQ,
-  PREREQ_NOTE,
   PIPELINE_CHIPS,
   SERVER_FACTS,
   T_PARAM_NOTE,
@@ -102,8 +98,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

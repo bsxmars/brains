@@ -6,7 +6,6 @@ lead: "Браузер узнаёт, от чего зависит модуль, *
 summary: "Как модуль загружается в три шага, почему импорт видит свежее значение, как браузер разрешает голые имена по import maps и грузит WebAssembly, как стыкуются CommonJS и ESM и откуда берутся фантомные зависимости, почему сборщик выбрасывает только то, в чём уверен, как он режет код на чанки — и почему dev-сервер ведёт себя не так, как рабочая сборка."
 verifiedOn: "Node 24.11 и Chromium 153.0.8010.12 (Playwright 1.63), сентябрь 2026; резолвинг, условия exports и интероп с CommonJS — Node 26.8.2, условия Vite прочитаны у Vite 8.3.0; конвейеры Vite 8, раскладка чанков и карты исходников — сборкой фикстур на Vite 8.3.0 (Rolldown 1.2.8); размеры сборки — rolldown 1.2.8 и esbuild 0.28.2 на синтетических фикстурах. import maps, `nomodule` и WebAssembly — Chromium 153.0.8010.12 и Node 26.8.2, раскладки `node_modules` и кеш предбандла — Node 26.8.2 и Vite 8.3.0, закреплено `tests/unit/modules.test.ts`. Поведение webpack (включая его кеш на диске), плагин легаси-сборки, предбандлинг Vite при новой зависимости на лету и цикл между чанками от manualChunks замером не закрыты и помечены в тексте"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Три фазы }
   - { id: s2, label: Привязки и циклы }
   - { id: s3, label: CommonJS против ESM }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CycleLab from '@/widgets/cycle-lab/ui/CycleLab.vue';
@@ -113,8 +111,6 @@ import {
   VITE_DEV_STEPS,
   WHY_NOT_SHAKEN,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   RELATED,
   PLAIN_PHASES,
   PLAIN_LIVE,
@@ -196,8 +192,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -8,7 +8,6 @@ lead: "Компонент просит «дайте логгер» — и пол
 summary: "Зачем DI — замена реализации в тестах и экземпляр на поддерево, Vue — объект provides с прототипом родителя, ключ-символ, значение по умолчанию и ref, React — ближайший провайдер, `Object.is` и `use(Context)`, Angular — EnvironmentInjector и ElementInjector, `providedIn: 'root'`, четыре вида провайдеров, `multi`, `InjectionToken`, флаги `optional`/`self`/`skipSelf`/`host`, `NG0200` и `NG0201`, и учебный инжектор, сверенный с Angular 21, Vue 3.5 и React 19."
 verifiedOn: "@angular/core 21.2.25 (JIT), Vue 3.5.42, React 19.3.0, pinia 4.0.3, happy-dom 20.14.5, TypeScript 6.0.3, Node 24.11.0, октябрь 2026: примеры исполнены, учебный инжектор и учебные provide/inject и контекст сверены с настоящими фреймворками на одних деревьях в tests/unit/dependency-injection.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Зачем }
   - { id: s2, label: Vue }
   - { id: s3, label: React }
@@ -32,14 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DiLab from '@/widgets/di-lab/ui/DiLab.vue';
 import {
   GLOSSARY,
   PLAIN_DI,
-  PREREQ,
   CART_PLAIN_CODE,
   CART_DI_CODE,
   CART_SPEC_CODE,
@@ -115,8 +112,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead="Четыре вещи: три разобраны в других темах, четвёртая объяснена прямо на карточке." />
 
 <Section
   id="s1"

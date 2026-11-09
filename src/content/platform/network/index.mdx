@@ -6,7 +6,6 @@ lead: "Прежде чем браузер получит первый байт �
 summary: "Почему страница ждёт сеть, даже когда файлы маленькие, чем различаются три версии HTTP, когда браузер берёт ответ из кеша, что качается первым и когда нужен Service Worker — с проверкой прямо в вашем браузере."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless) против локального сервера на Node 24.11, сентябрь 2026. HTTP/2, HTTP/3, QUIC, CDN и Service Worker замером не закрыты — локальный сервер отвечает по http/1.1"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Транспорт и RTT-бюджет }
   - { id: s2, label: Кеш и валидация }
   - { id: s3, label: Preflight и его кеш }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import HolDiagram from '@/widgets/network-hol-diagram/ui/HolDiagram.astro';
 import CacheHeaders from '@/widgets/cache-headers/ui/CacheHeaders.vue';
@@ -70,8 +68,6 @@ import {
   VARY_ROWS,
   VERSIONS_ROWS,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   LAYERS_NOTE,
   PLAIN_RTT,
   PLAIN_HOL,
@@ -144,8 +140,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

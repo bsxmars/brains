@@ -8,7 +8,6 @@ lead: "Код выкатывается по частям, а база у все�
 summary: "Почему миграция и выкат — разные шаги; какие изменения схемы старый код переживает, а какие нет; переименование столбца приёмом «расширить и сузить» на SQL; блокировки Postgres и очередь за `ACCESS EXCLUSIVE`, `lock_timeout`; что переписывает таблицу и что читает её целиком; `NOT VALID` и `VALIDATE`, `CREATE INDEX CONCURRENTLY`; перенос данных пачками; откат кода и обратная миграция."
 verifiedOn: "@electric-sql/pglite 0.5.8 (PostgreSQL 18.3 в WebAssembly), Node 24.11.0, октябрь 2026: блокировки, перезапись, проходы по таблице, ответы трёх версий кода, размеры и планы сняты стендом и пересобираются tests/unit/db-migrations.test.ts; учебная функция сверена с настоящими ошибками Postgres на каждом шаге обоих планов. В PGlite одна сессия, поэтому конфликты режимов, очередь блокировок, lock_timeout в деле и блокировка CREATE INDEX CONCURRENTLY — по документации Postgres"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Две версии на одной базе }
   - { id: s2, label: Расширить и сузить }
   - { id: s3, label: Блокировки }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MigrationLab from '@/widgets/migration-lab/ui/MigrationLab.vue';
 import {
   GLOSSARY,
   PLAIN_MIGRATION,
-  PREREQ,
-  PREREQ_NOTE,
   TABLE_SQL,
   TABLE_NAME,
   VERSIONS,
@@ -110,8 +106,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

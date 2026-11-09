@@ -8,7 +8,6 @@ lead: "Один запрос к nginx проходит три развилки: 
 summary: "Выбор server по порту и `server_name`, сервер по умолчанию; выбор location — `=`, самый длинный префикс, `^~`, регулярки по порядку; `proxy_pass` со слешем и без, нормализация пути и автоматический 301; `Host`, `X-Forwarded-*` и наследование `proxy_set_header`; буферизация и залипающий SSE, 502 против 504; SPA и `try_files`; `proxy_cache`, `X-Cache-Status`, `use_stale`, `proxy_cache_lock`; gzip."
 verifiedOn: "nginx 1.30.0 (nginx:1.30.0-alpine-slim) и для сравнения 1.27.5 в Docker, бэкенд на node:http (Node 24.11.0), Chromium 153.0.8010.12, октябрь 2026: ответы, заголовки и журнал бэкенда сняты стендом; модель выбора location, пути у бэкенда и выбора server сверяется tests/unit/nginx-proxy.test.ts с журналами стенда; смена умолчаний в 1.29.7, значения $upstream_cache_status, которых не было на стенде, и смысл proxy_read_timeout — по документации nginx"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Какой server ответит }
   - { id: s2, label: Какая location ответит }
   - { id: s3, label: 'proxy_pass: слеш и путь' }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import NginxLab from '@/widgets/nginx-lab/ui/NginxLab.vue';
 import {
   GLOSSARY,
   PLAIN_PROXY,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_SERVER,
   SERVER_CONF,
   SERVER_JOURNAL,
@@ -120,8 +116,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

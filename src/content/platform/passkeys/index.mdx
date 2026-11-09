@@ -8,7 +8,6 @@ lead: "Пароль — общий секрет: его знают и польз
 summary: "Пара ключей вместо общего секрета; регистрация `navigator.credentials.create` и вход `get`; `clientDataJSON` и `authenticatorData` по байтам — rpIdHash, флаги UP/UV/BE/BS, счётчик; подпись над `authenticatorData ‖ SHA-256(clientDataJSON)` и проверка ES256 на `crypto.subtle`; почему не работает фишинг; синхронизируемые ключи и вход из автозаполнения. Ответы сняты стендом в Chromium с виртуальным аутентификатором и сверены с `@simplewebauthn/server`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63.0) с виртуальным аутентификатором CDP, Node 24.11.0, @simplewebauthn/server 14.0.3, октябрь 2026: регистрация, два входа, вход с другого порта, поддельный домен, повтор и conditional UI сняты стендом на своём сервере node:http; функции темы сверены tests/unit/passkeys.test.ts с @simplewebauthn/server и node:crypto. Поведение облачных менеджеров ключей и UI автозаполнения — по спецификации WebAuthn Level 3 и документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Ключ вместо пароля }
   - { id: s2, label: Регистрация }
   - { id: s3, label: Вход и подпись }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PasskeyLab from '@/widgets/passkey-lab/ui/PasskeyLab.vue';
 import {
   GLOSSARY,
   PLAIN_PASSKEY,
-  PREREQ,
-  PREREQ_NOTE,
   KEY_VS_PASSWORD,
   CEREMONY_CHIPS,
   CEREMONY_NOTE,
@@ -97,8 +93,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

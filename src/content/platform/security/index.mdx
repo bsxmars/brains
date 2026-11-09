@@ -6,7 +6,6 @@ lead: "Три механизма безопасности браузера по�
 summary: "Что такое источник и правило одного источника, когда браузер спрашивает разрешение перед запросом, как CSP отличает свои скрипты от внедрённых, как устроены XSS и CSRF, что фронт знает о куках и JWT — с демо, где политику применяет сам браузер, а не таблица на странице."
 verifiedOn: "Демо CSP — настоящий браузерный прогон: внутри страницы поднимается документ со своим Content-Security-Policy, и видно то, что решил браузер читателя. Проверено в Chromium 153.0.8010.12 (Playwright 1.63, headless) на Node 24.11, сентябрь 2026: семь наборов директив, шесть проб. Конструктор запроса — модель по WHATWG Fetch, закрытая tests/unit/preflight.test.ts, а не замер. Раздел «Куки и JWT» снят отдельным прогоном: разбор JWT — в Node 26.8 и в том же Chromium, невидимость httpOnly-куки и очередь navigator.locks — в Chromium через Playwright. Умолчание SameSite, префиксы __Host-/__Secure- и исключение «Lax + POST» сняты в том же Chromium на двух настоящих сайтах. CSRF в живой сессии, CDN-кеш и SRI запуском не проверялись; Trusted Types, COOP/COEP при переводе сайта на изоляцию и запросы в локальную сеть сняты отдельными прогонами в том же Chromium"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Origin и правило одного источника }
   - { id: s2, label: CORS и preflight }
   - { id: s3, label: CSP }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import CspSandbox from '@/widgets/csp-sandbox/ui/CspSandbox.vue';
 import CorsPreflight from '@/widgets/cors-preflight/ui/CorsPreflight.vue';
@@ -125,8 +123,6 @@ import {
   XSS_KINDS_ROWS,
   XSS_ORDER,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_SOP,
   PLAIN_PREFLIGHT,
   PLAIN_SITE,
@@ -215,8 +211,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

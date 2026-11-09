@@ -7,7 +7,6 @@ lead: "`{ ...obj }` копирует один уровень, `JSON.parse(JSON.s
 summary: "Поверхностная копия: спред и `Object.assign`, геттеры и дескрипторы; `JSON.stringify` по шагам спецификации — `toJSON`, replacer, отступ, циклы, учебная реализация; `JSON.parse` и reviver снизу вверх, `context.source`; `structuredClone` по алгоритму HTML — таблица `memory`, слоты, ошибки, буферы, `DataCloneError` посреди обхода, перенос; сравнение с `cloneDeep` из lodash."
 verifiedOn: "Node 24.11.0 (V8 13.6), Chromium 153.0.8010.12 (Playwright 1.63), lodash-es 4.18.1, октябрь 2026: примеры и таблицы исполняет tests/unit/serialization.test.ts; учебные stringify и clone сверены с JSON.stringify и structuredClone на наборе значений и 400 случайных деревьях"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Один уровень }
   - { id: s2, label: JSON.stringify }
   - { id: s3, label: JSON.parse }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CloneLab from '@/widgets/clone-lab/ui/CloneLab.vue';
 import {
   GLOSSARY,
   PLAIN_COPY,
-  PREREQ,
-  PREREQ_NOTE,
   ORDER_CODE,
   SHALLOW_CODE,
   SHALLOW_NOTE,
@@ -123,8 +119,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

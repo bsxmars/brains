@@ -8,7 +8,6 @@ lead: "Заголовок сначала пустой, потом появляе
 summary: "Когда браузер начинает качать шрифт, периоды блокировки и подмены и пять значений `font-display`, FOIT и FOUT, сдвиг при подмене и подгонка запасного шрифта `size-adjust` / `ascent-override` / `descent-override`, подмножества и `unicode-range`, `preload` с `crossorigin`, `document.fonts`, шейпинг: кернинг, лигатуры и `measureText`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: запросы, фазы font-display, сдвиги и ширины сняты стендом со своим сервером и задержкой шрифта; функции темы сверены с замерами в tests/unit/fonts-text.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Когда шрифт качается }
   - { id: s2, label: font-display }
   - { id: s3, label: Сдвиг при подмене }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FontDisplayLab from '@/widgets/font-display-lab/ui/FontDisplayLab.vue';
 import {
   GLOSSARY,
   PLAIN_FONTS,
-  PREREQ,
-  PREREQ_NOTE,
   LAZY_CODE,
   PLAIN_LAZY,
   TRIGGER_ROWS,
@@ -99,8 +95,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

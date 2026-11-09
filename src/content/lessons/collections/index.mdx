@@ -5,7 +5,6 @@ lead: "Обычный объект годится в словарь, пока к
 summary: "Три беды объекта-словаря и `Object.create(null)`; `Map`: любые ключи, SameValueZero, `getOrInsert`, мост в объект и в JSON; `Set` и методы `union`, `intersection`, `difference`; упорядоченная хеш-таблица V8 изнутри; обход с изменениями — от удалённого ключа до бесконечного цикла; `WeakMap` и `WeakSet`; что выбрать и `Object.groupBy` / `Map.groupBy`."
 verifiedOn: "Node 26.8.2 (V8 14.6); поддержка методов Set, getOrInsert, Map.groupBy и символов-ключей WeakMap — Chromium 153, Firefox 155, WebKit 26.6 (Playwright), октябрь 2026. Весь код темы исполняет tests/unit/collections.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Объект-словарь }
   - { id: s2, label: Map }
   - { id: s3, label: Set }
@@ -26,14 +25,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CollectionKeys from '@/widgets/collection-keys/ui/CollectionKeys.vue';
 import MapIteration from '@/widgets/map-iteration/ui/MapIteration.vue';
 import {
-  PLAIN_COLLECTIONS, GLOSSARY, PREREQ, PREREQ_NOTE,
-  OBJ_DICT_CODE, OBJ_DICT_NOTE, PLAIN_NULL_PROTO, NULL_PROTO_CODE, NULL_PROTO_COSTS,
+  PLAIN_COLLECTIONS, GLOSSARY, OBJ_DICT_CODE, OBJ_DICT_NOTE, PLAIN_NULL_PROTO, NULL_PROTO_CODE, NULL_PROTO_COSTS,
   KEY_NOTES, KEYS_DEMO_NOTE,
   MAP_CODE, MAP_NOTE, SAMEVALUE_CODE, SAMEVALUE_NOTE, MAP_VS_OBJ_HEAD, MAP_VS_OBJ,
   UPSERT_CODE, UPSERT_NOTE, MAP_CONVERT_CODE, MAP_CONVERT_NOTE,
@@ -58,8 +55,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

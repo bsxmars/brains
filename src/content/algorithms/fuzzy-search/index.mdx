@@ -8,7 +8,6 @@ lead: "Поле поиска должно понимать и «сб», и «р�
 summary: "Trie и сжатое дерево, тысяча против миллиона слов в счёте узлов, Левенштейн и Дамерау, порог и ранний выход, обход trie со строкой таблицы и BK-дерево, подпоследовательность по мотивам fzf, ранжирование и Fuse.js изнутри: Bitap, `threshold`, `location` и окно в 60 символов."
 verifiedOn: "fuse.js 7.5.0, Node 24.11.0, октябрь 2026: функции темы сверены с перебором словаря, независимыми реализациями расстояний и Fuse.js в tests/unit/fuzzy-search.test.ts; словарь — заголовки тем и разделов курса"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Trie }
   - { id: s2, label: Левенштейн }
   - { id: s3, label: Поиск в словаре }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FuzzyLab from '@/widgets/fuzzy-lab/ui/FuzzyLab.vue';
 import {
   GLOSSARY,
   PLAIN_SEARCH,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_TRIE,
   TRIE_CODE,
   TRIE_NOTE,
@@ -111,8 +107,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -6,7 +6,6 @@ lead: "Выкат всем сразу проверяет новую версию
 summary: "Чем плох выкат всем сразу; сине-зелёный выкат и цена двух копий; миграции «расширяй, потом сужай» и когда откат перестаёт быть бесплатным; канарейка — доли, липкость, хеш от id; анализ по интервалу Уилсона и p95 на малых выборках; автоматический откат в Argo Rollouts и Flagger; флаги функций, выключатель и флаги-долг; две версии бандла, кеш CDN и совместимость API."
 verifiedOn: "Назначение по хешу, интервалы, решение анализа, план выката и совместимость схемы — учебной моделью темы; её сверяет тест на таблицах случаев, на ста тысячах синтетических id и моделированием с сидом. Кластера, Argo Rollouts, Flagger и Prometheus не было: их поведение — по документации, сентябрь 2026, и помечено в тексте"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Выкат всем сразу }
   - { id: s2, label: Сине-зелёный }
   - { id: s3, label: Канарейка }
@@ -29,7 +28,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PdCanary from '@/widgets/pd-canary/ui/PdCanary.vue';
@@ -84,8 +82,6 @@ import {
   PLAN_TABLE,
   PLAN_WHY,
   POINT_NOTE,
-  PREREQ,
-  PREREQ_NOTE,
   RELATED,
   ROLLBACK_NOTE,
   ROLLOUT_CODE,
@@ -117,8 +113,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

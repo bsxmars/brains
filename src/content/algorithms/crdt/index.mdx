@@ -8,7 +8,6 @@ lead: "Двое правят один текст, каждый в своей к�
 summary: "Почему правка «по индексу» ломается при одновременной работе, OT против CRDT, три свойства слияния на G-Counter, PN-Counter, LWW-Register и OR-Set, последовательность с id и соседом слева в духе RGA, порядок конфликтующих вставок, надгробия и их цена, векторные часы и обмен разницей, Yjs изнутри — с байтами на настоящем Yjs."
 verifiedOn: "yjs 13.6.33, Node 24.11.0, октябрь 2026: мини-CRDT темы сходится на всех порядках доставки, итоги и байты сверены с настоящим Yjs в tests/unit/crdt.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Сходимость }
   - { id: s2, label: Простые CRDT }
   - { id: s3, label: Последовательность }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CrdtLab from '@/widgets/crdt-lab/ui/CrdtLab.vue';
 import {
   GLOSSARY,
   PLAIN_CRDT,
-  PREREQ,
-  PREREQ_NOTE,
   NAIVE_CODE,
   NAIVE_PRINT,
   NAIVE_NOTE,
@@ -100,8 +96,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

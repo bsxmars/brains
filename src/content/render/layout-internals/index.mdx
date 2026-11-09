@@ -8,7 +8,6 @@ lead: "`flex: 1` у трёх колонок — а колонки разной �
 summary: "min-content и max-content, алгоритм flex по шагам — базовый размер, раздача по `flex-grow`, сжатие по `flex-shrink` × базовый размер, заморозка и повторный проход, — `min-width: auto` и переполнения, треки и `fr` в гриде, `minmax`, `auto-fill` и `auto-fit`, авторасстановка и `dense`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), октябрь 2026: размеры сняты getBoundingClientRect на фикстурах; функции темы сверены с замерами в tests/unit/layout-internals.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Размеры содержимого }
   - { id: s2, label: Рост }
   - { id: s3, label: Сжатие и min-width }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FlexLab from '@/widgets/flex-lab/ui/FlexLab.vue';
@@ -38,8 +36,6 @@ import PlaceGrid from '@/widgets/flex-lab/ui/PlaceGrid.vue';
 import {
   GLOSSARY,
   PLAIN_LAYOUT,
-  PREREQ,
-  PREREQ_NOTE,
   INTRINSIC_CODE,
   PLAIN_INTRINSIC,
   INTRINSIC_ROWS,
@@ -99,8 +95,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

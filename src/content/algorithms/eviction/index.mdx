@@ -8,7 +8,6 @@ lead: "У любого кеша кончается место, и тогда к�
 summary: "Зачем кешу предел; LRU на `Map` и почему вытеснять надо одним итератором; `lru-cache` изнутри — список на массивах индексов, ленивый TTL, `maxSize`, `fetchMethod`; провал LRU на скане и цикле; LFU за O(1) и старение; ARC; W-TinyLFU — count-min sketch, окно и допуск; SIEVE; доли попаданий четырёх политик на синтетических трассах."
 verifiedOn: "lru-cache 11.5.3, reselect 5.3.0, Node 24.11.0, октябрь 2026: учебный LRU сверен с lru-cache по каждому шагу на случайных трассах с TTL и без, внутренние массивы lru-cache и примеры с ним исполняются в tests/unit/eviction.test.ts; доли попаданий LFU, W-TinyLFU и SIEVE на трассах с зерном 1 закреплены там же"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Зачем вытеснять }
   - { id: s2, label: LRU на Map }
   - { id: s3, label: lru-cache }
@@ -34,7 +33,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import EvictionSteps from '@/widgets/eviction-lab/ui/EvictionSteps.vue';
@@ -42,8 +40,6 @@ import EvictionChart from '@/widgets/eviction-lab/ui/EvictionChart.vue';
 import {
   GLOSSARY,
   PLAIN_EVICTION,
-  PREREQ,
-  PREREQ_NOTE,
   WHERE_ROWS,
   WHERE_NOTE,
   PLAIN_WEAK,
@@ -126,8 +122,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -8,7 +8,6 @@ lead: "Компонент, которому не хватает данных, б
 summary: "`use(promise)` и бросок до ближайшего `<Suspense>`, повтор рендера с начала и прогрев соседей, стабильный промис и вечная заглушка, водопад вложенных границ, переходы без заглушки, классовая граница ошибок и чего она не ловит, `onCaughtError`/`onUncaughtError` у корня React 19, `<Suspense>` с `async setup`, `onErrorCaptured` и `app.config.errorHandler` во Vue, учебная модель, сверенная с обоими фреймворками."
 verifiedOn: "React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, октябрь 2026: все примеры кода темы исполняются в настоящих React и Vue тестом tests/unit/suspense-errors.test.ts; учебная модель сверена с обоими фреймворками на всех 243 сочетаниях демо-дерева и в режиме загрузки волнами. Задержка заглушки 300 мс и обработчики корня по умолчанию — по исходникам React 19.3"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Бросок }
   - { id: s2, label: Стабильный промис }
   - { id: s3, label: Водопад }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BoundaryLab from '@/widgets/boundary-lab/ui/BoundaryLab.vue';
 import {
   GLOSSARY,
   PLAIN_THROW,
-  PREREQ,
-  PREREQ_NOTE,
   S1_LEAD,
   USE_CODE,
   USE_ROWS,
@@ -124,8 +120,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -6,7 +6,6 @@ lead: "`getUserMedia` даёт живой поток с микрофона, `Med
 summary: "Запись с микрофона: `getUserMedia`, `MediaRecorder`, куски `dataavailable` и `Blob`; форматы и `isTypeSupported` в Chromium, Firefox и WebKit; разрешение, ошибки и `track.stop()`; эхо- и шумоподавление, `getSettings`; синтез речи — голоса, очередь, запрет без клика; распознавание — где есть, облако и `processLocally`; запись кусками на сервер."
 verifiedOn: "Playwright 1.63 на macOS arm64, ноябрь 2026: Chromium 153 с поддельным микрофоном, Firefox 155, WebKit 26.6; каждый пример с выводом исполняет tests/e2e/media-voice.spec.ts. Распознавание живой речи не проверялось: у поддельного микрофона её нет"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Запись }
   - { id: s2, label: Разрешение }
   - { id: s3, label: Обработка }
@@ -28,14 +27,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
   PLAIN_STREAM,
-  PREREQ,
-  PREREQ_NOTE,
   RECORD_CODE,
   RECORD_OUT,
   RECORD_NOTE,
@@ -93,8 +89,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

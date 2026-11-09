@@ -6,7 +6,6 @@ lead: "Компилятор фреймворка переносит работу
 summary: "Учебный компилятор шаблонов в «клонируй и обнови точечно»; настоящий вывод React Compiler (`_c(n)`, `$[i] !== x`, отказы с диагностиками), Svelte 5 (руны → `$.state`, `template_effect`) и Solid (`template`, `insert`) — и сколько вызовов и записей в DOM стоит одно изменение у каждого."
 verifiedOn: "babel-plugin-react-compiler 1.0.0 · @babel/core 7.29.7 · React 19.3.0 · svelte 5.57.1 · babel-preset-solid 1.9.15 · solid-js 1.9.15 · happy-dom 20.14.5 · Node 26.8.2"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Где делается работа }
   - { id: s2, label: Учебный компилятор }
   - { id: s3, label: React Compiler }
@@ -26,13 +25,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniCompiler from '@/widgets/fc-mini-compiler/ui/MiniCompiler.vue';
 import {
-  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
-  SPECTRUM_HEAD, SPECTRUM_ROWS, SPECTRUM_NOTE,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, SPECTRUM_HEAD, SPECTRUM_ROWS, SPECTRUM_NOTE,
   PLAIN_TEMPLATE, STEP_PARSE, STEP_ANALYZE, STEP_GENERATE, STEP_RUNTIME, STEP_INTERPRET,
   PARSE_NOTE, ANALYZE_NOTE, GENERATE_NOTE, RUNTIME_NOTE,
   MINI_COMPILER_CODE, MINI_COUNTER_OUT, MINI_OUT_NOTE, MINI_PRESETS, DEMO_NOTE,
@@ -57,8 +54,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} />
 </Section>
-
-<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"

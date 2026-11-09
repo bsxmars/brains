@@ -8,7 +8,6 @@ lead: "`await page.getByRole('button').click()` — одна строка, а з
 summary: "Процесс браузера и CDP, контекст как изолированный профиль; локатор как запрос против `ElementHandle`; `getByRole` и строгость; авто-ожидание: прикреплён, стабилен, видим, включён, не перекрыт — и лестница пауз; `force`, `dispatchEvent` и `el.click()` мимо проверок; веб-ассерты с повтором; гонка с сетью, общий стейт, повторы и статус `flaky`; что лежит в `trace.zip`."
 verifiedOn: "@playwright/test 1.63.0, Chromium 153.0.8010.12 (headless shell), Node 24.11.0, октябрь 2026: журналы действий (DEBUG=pw:api) на пяти фикстурах по три прогона, сообщения CDP (DEBUG=pw:protocol), спецификации темы и трасса сняты стендом на своём node:http; учебная autoWait сверена с журналами Playwright дословно, а её паузы — с исходником playwright-core в tests/unit/e2e-testing.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Кто кем управляет }
   - { id: s2, label: Локатор — запрос }
   - { id: s3, label: Авто-ожидание }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AutoWaitLab from '@/widgets/autowait-lab/ui/AutoWaitLab.vue';
 import {
   GLOSSARY,
   PLAIN_E2E,
-  PREREQ,
-  PREREQ_NOTE,
   PROC_CHIPS,
   PROC_NOTE,
   PLAIN_CDP,
@@ -108,8 +104,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

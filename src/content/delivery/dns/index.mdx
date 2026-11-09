@@ -8,7 +8,6 @@ lead: "Вы сменили IP-адрес сервера в панели DNS — 
 summary: "Stub, рекурсивный резолвер, корень, TLD и авторитетный сервер; делегирование NS и glue; пакет по байтам — заголовок, флаги RD/RA/AA, секции, сжатие имён указателями 0xC0; учебный итеративный резолвер с кешем по TTL и негативным кешем по SOA; CNAME и вершина зоны, ALIAS и CNAME flattening; смена адреса при TTL 3600 и 60, понижение TTL заранее, DNS-балансировка и долгие соединения; запись HTTPS, DoH, `dns.lookup` против `dns.Resolver` в Node."
 verifiedOn: "Node 24.11.0 (c-ares 1.34.5, libuv 1.51.0), dns-packet 5.6.1, DiG 9.10.6, октябрь 2026: свои авторитетные серверы и рекурсивный резолвер на node:dgram, без запросов в интернет; цепочка делегирований, байты пакетов, TTL из кеша, негативный кеш и ответы dns.Resolver сняты стендом и пересобираются tests/unit/dns.test.ts; учебный резолвер сверен с dig +norec по шагам и с пакетами серверов. ALIAS/ANAME, кеши ОС и браузера, DoH, EDNS и формат HTTPS — по документации и RFC"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Путь запроса }
   - { id: s2, label: Пакет }
   - { id: s3, label: Резолвер }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DnsLab from '@/widgets/dns-lab/ui/DnsLab.vue';
 import {
   GLOSSARY,
   PLAIN_DNS,
-  PREREQ,
-  PREREQ_NOTE,
   PATH_CHIPS,
   PATH_NOTE,
   ZONES_NOTE,
@@ -118,8 +114,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

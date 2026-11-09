@@ -6,7 +6,6 @@ lead: "Модуль WebAssembly работает с числами, ссылка
 summary: "Модуль и экземпляр по байтам, импорты и экспорты, линейная память, её рост и отсоединение буфера, таблицы; что происходит с числами и строками на границе с JS; общая память, атомарные инструкции и потоки на воркерах — живыми в Node и с точной ошибкой в неизолированном браузере; SIMD и что делают wasm-bindgen и Emscripten."
 verifiedOn: "Node 26.8.2 (V8 14.6): все модули собраны вручную байтами и исполнены тестом, потоки — два worker_threads на одной общей памяти. Chromium 153.0.8010.12 через Playwright 1.63 — страница без изоляции и с COOP/COEP на http://localhost. Без таймерных замеров. wasm-bindgen и Emscripten — по документации, без запуска"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Модуль и экземпляр }
   - { id: s2, label: Линейная память }
   - { id: s3, label: Граница с JS }
@@ -26,7 +25,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import WasmBytes from '@/widgets/wasm-bytes/ui/WasmBytes.vue';
 import WasmBoundaryCheck from '@/widgets/wasm-bytes/ui/WasmBoundaryCheck.vue';
@@ -58,8 +56,6 @@ import {
   PLAIN_POINTER,
   PLAIN_THREADS,
   PLAIN_WASM,
-  PREREQ,
-  PREREQ_NOTE,
   PROBE_NOTE,
   RELATED,
   RESIZABLE_CODE,
@@ -107,8 +103,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

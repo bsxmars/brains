@@ -6,7 +6,6 @@ lead: "WebGPU — не следующая версия WebGL, а другой д
 summary: "Чем WebGPU устроен иначе, чем WebGL: адаптер, устройство и очередь, запись команд отдельно от отправки, неизменяемый конвейер и группы привязок, вычислительные шейдеры и рабочие группы, асинхронное чтение результата и ошибки, которые не бросаются."
 verifiedOn: "Chromium 153.0.8010.12 (SwiftShader через --enable-unsafe-webgpu и Metal в полной сборке), Firefox 155 (с окном), WebKit 26.6 — Playwright 1.63, macOS; сентябрь 2026"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Другая модель }
   - { id: s2, label: Запись и отправка }
   - { id: s3, label: Вычисления }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import GpuCompute from '@/widgets/gpu-compute/ui/GpuCompute.vue';
@@ -62,7 +60,6 @@ import {
   PLAIN_MODEL,
   PLAIN_SCOPE,
   PLAIN_WORKGROUP,
-  PREREQ,
   RELATED,
   SCOPE_CODE,
   SCOPE_FACTS,
@@ -97,8 +94,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} />
 
 <Section
   id="s1"

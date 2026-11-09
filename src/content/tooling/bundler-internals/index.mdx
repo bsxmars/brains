@@ -8,7 +8,6 @@ lead: "Сборщик не «сжимает файлы». Он обходит и
 summary: "Обход графа и порядок модулей, отбор операторов от эффектов по ссылкам, механика `sideEffects: false` и `/*#__PURE__*/`, что rolldown и esbuild считают эффектом, переименование при склейке и обёртки для CommonJS, импорты и экспорты между чанками, заглушки вместо имён и каскад хешей."
 verifiedOn: "rolldown 1.2.8, esbuild 0.28.2, Node 24.11.0, октябрь 2026: бандлы, порядок модулей, таблица эффектов, обёртки и каскад хешей сняты стендом и пересобираются tests/unit/bundler-internals.test.ts; учебный сборщик темы совпадает с выводом rolldown посимвольно на шести проектах, учебный хеш — по набору переименованных файлов на пяти правках"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Граф модулей }
   - { id: s2, label: Что выживает }
   - { id: s3, label: Склейка }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BundlerLab from '@/widgets/bundler-lab/ui/BundlerLab.vue';
 import {
   GLOSSARY,
   PLAIN_BUNDLER,
-  PREREQ,
-  PREREQ_NOTE,
   APP_MAIN,
   APP_FORMAT,
   APP_CART,
@@ -105,8 +101,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

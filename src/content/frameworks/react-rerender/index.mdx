@@ -6,7 +6,6 @@ lead: "Ре-рендер в React — это повторный вызов фу�
 summary: "Почему ре-рендер не равен обновлению DOM, когда React пропускает компонент целиком (bailout) и что на самом деле делают `memo`, `key` и батчинг."
 verifiedOn: React 19.3 · Node 24.11
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Модель }
   - { id: s2, label: Дерево }
   - { id: s3, label: Ключи }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import Batching from '@/widgets/react-rerender/ui/Batching.tsx';
@@ -65,8 +63,6 @@ import {
   STRICT_MODE_NOTE,
   TREE_MATRIX,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   SLICING,
   SLICING_NOTE,
   TRANSITIONS,
@@ -102,8 +98,6 @@ import {
 >
   <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

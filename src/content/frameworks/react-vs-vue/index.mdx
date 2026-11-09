@@ -6,7 +6,6 @@ lead: "React и Vue решают одну задачу, но делают раз
 summary: "Одна задача на двух фреймворках рядом: сколько функций вызвал каждый, сколько правок получил документ и чем за это платит каждая модель."
 verifiedOn: React 19.3 · Vue 3.5.42 · Node 24.11
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Различие }
   - { id: s2, label: Одна задача }
   - { id: s3, label: Цена }
@@ -29,7 +28,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TwoModels from '@/widgets/two-models/ui/TwoModels.astro';
@@ -66,8 +64,6 @@ import {
   TIMING_VUE_ORDER,
   TIMING_SSR_NOTE,
   WORK_POINTS,
-  PREREQ,
-  PREREQ_NOTE,
   SOURCES,
   RELATED,
   PLAIN_INVALIDATION,
@@ -84,8 +80,6 @@ import {
 <Section variant="intro" eyebrow="Две модели обновления" lead={INTRO_NOTE}>
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -6,7 +6,6 @@ lead: "Серверный компонент присылает в браузе�
 summary: "Чем Server Components отличаются от SSR, формат потока Flight строка за строкой, учебный сериализатор, сверенный с настоящим React, граница 'use client' и её ошибки, серверные функции, async-компоненты, Suspense и cache()."
 verifiedOn: "react-server-dom-webpack 19.3.0 · React 19.3.0 · Node 26.8.2, продакшен и отладочная сборки; сентябрь 2026"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Не другой SSR }
   - { id: s2, label: Формат потока }
   - { id: s3, label: Своими руками }
@@ -29,7 +28,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import RscFlight from '@/widgets/rsc-flight/ui/RscFlight.vue';
@@ -64,8 +62,6 @@ import {
   PLAIN_FLIGHT,
   PLAIN_RSC,
   PREFIXES,
-  PREREQ,
-  PREREQ_NOTE,
   PROP_TABLE,
   RELATED,
   ROW_KINDS,
@@ -82,8 +78,6 @@ import {
 <Section variant="intro" eyebrow="Компоненты, которые остаются на сервере" lead={INTRO_NOTE}>
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} min={260} />
 
 <Section
   id="s1"

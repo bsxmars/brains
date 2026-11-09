@@ -6,7 +6,6 @@ lead: "Четыре поведенческих паттерна вынимают
 summary: "Стратегия как класс и как функция, `satisfies` для набора стратегий, компаратор `sort` и булев компаратор, который в V8 не сортирует, `this`-параметр, который не спасает без `this: void`; команда с историей и откатом, «как было» в момент выполнения, команда-данные для очереди и Redux; шаблонный метод, `async`-шаг под `void`, `override` и шаги объектом; состояние классами, общий объект-состояние, который публикует чужой документ, размеченное объединение с `assertNever` и таблица переходов."
 verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, Redux 5.0.1, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, пример с отказом промиса запущен отдельным процессом `node` — `tests/unit/patterns-behavior.test.ts`"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Зачем }
   - { id: s2, label: Стратегия }
   - { id: s3, label: Команда }
@@ -25,14 +24,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   PLAIN_BEHAVIOR,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PROBLEM_CODE,
   PATTERN_ROWS,
   PLAIN_STRATEGY,
@@ -73,8 +69,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

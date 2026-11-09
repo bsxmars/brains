@@ -6,7 +6,6 @@ lead: "Web Audio собирает звук из узлов: генератор �
 summary: "Первый звук: `AudioContext`, генератор, громкость, `start` и `stop`; почему контекст стоит `suspended` до клика; граф узлов — источники, обработка, анализатор; часы звука и `start(when)`; расписание `AudioParam` и откуда берётся щелчок; блоки по 128 сэмплов, `baseLatency` и `outputLatency`; свой узел на `AudioWorklet` и его порт; `decodeAudioData`."
 verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 (Playwright 1.63, headless, macOS arm64), ноябрь 2026: каждый пример с выводом исполняет tests/e2e/media-audio.spec.ts; сэмплы — на OfflineAudioContext, где рендер одинаков от запуска к запуску"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Первый звук }
   - { id: s2, label: Граф узлов }
   - { id: s3, label: Время звука }
@@ -28,14 +27,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
   PLAIN_AUDIO,
-  PREREQ,
-  PREREQ_NOTE,
   FIRST_CODE,
   FIRST_OUT,
   FIRST_NOTE,
@@ -108,8 +104,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

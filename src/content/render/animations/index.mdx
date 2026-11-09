@@ -8,7 +8,6 @@ lead: "Анимация `transform` едет, даже когда JavaScript з�
 summary: "Какие свойства Chromium анимирует на композиторе и почему `blur()` нет, как одно свойство в `@keyframes` держит на главном потоке всю анимацию, CSS против `element.animate` против `requestAnimationFrame`, когда элемент получает слой и сколько стоит «взрыв слоёв», `prefers-reduced-motion` для CSS и JS."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: счётчики Performance.getMetrics, трассировка, LayerTree, Animation-домен и скринкаст при занятом главном потоке сняты стендом; функции темы сверяются с литералами tests/unit/animations.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Цена свойства }
   - { id: s2, label: Одна анимация }
   - { id: s3, label: Занятый поток }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AnimLab from '@/widgets/anim-lab/ui/AnimLab.vue';
@@ -40,8 +38,6 @@ import {
   STAND,
   GLOSSARY,
   PLAIN_COMPOSITED,
-  PREREQ,
-  PREREQ_NOTE,
   PROP_ROWS,
   PROP_TONES,
   PROP_NOTE,
@@ -102,8 +98,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -6,7 +6,6 @@ lead: "Стрим — не труба, по которой что-то течё�
 summary: "Очередь, `highWaterMark` и `desiredSize`: как медленный потребитель физически замедляет сервер и почему парсер потока обязан помнить, что было в прошлом чанке."
 verifiedOn: Node 24.11 и Chromium 153 (Playwright, headless), сентябрь 2026; раздел 6 переснят на Node 26.8.2 и Chromium 153.0.8010.12, свой байтовый источник, NDJSON и node:stream — только Node 26.8.2, переподключение EventSource — своим стендом в Chromium 153.0.8010.12; спецификации — WHATWG Streams и HTML Standard §9.2
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Три числа }
   - { id: s2, label: Читаемый поток }
   - { id: s3, label: Записываемый и HWM }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BackpressurePipe from '@/widgets/backpressure-pipe/ui/BackpressurePipe.vue';
@@ -97,8 +95,6 @@ import {
   TRANSFORM_PAIR,
   WRITE_LOOP_CODE,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   INFLIGHT_NOTE,
   HELPERS_NOTE,
   RELATED,
@@ -139,8 +135,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -8,7 +8,6 @@ lead: "`npm install` скачивает чужой код и тут же исп�
 summary: "Скрипты установки и `--ignore-scripts`, `allowBuilds` у pnpm; поле `integrity` в lock-файле, `EINTEGRITY` и `Z_DATA_ERROR` на подменённом архиве, подмена на реестре; Subresource Integrity у `<script>`: сильнейший алгоритм, ротация, `crossorigin`, молча отброшенный атрибут; одна функция сверки для npm и браузера; тайпсквоттинг, захват аккаунта и путаница зависимостей; provenance и Sigstore; `npm audit`, порог возраста версии и SBOM."
 verifiedOn: "npm 11.6.1, pnpm 11.0.9, ssri 13.0.1, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026, без сети: скрипты установки, lock-запись, подмена тарбола, учебные реестры (путаница зависимостей, --before, npm sbom) и 29 вариантов атрибута integrity в Chromium пересобираются tests/unit/supply-chain.test.ts; функция темы сверена с ssri и с Chromium. pnpm — разовый прогон. Provenance, npm audit signatures против npmjs и база npm audit — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Скрипты установки }
   - { id: s2, label: Integrity и lock }
   - { id: s3, label: SRI в браузере }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SupplyLab from '@/widgets/supply-lab/ui/SupplyLab.vue';
 import {
   GLOSSARY,
   PLAIN_SUPPLY,
-  PREREQ,
-  PREREQ_NOTE,
   GREETER_PACKAGE_JSON,
   GREETER_LOG_JS,
   INSTALL_RUN_CODE,
@@ -109,8 +105,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

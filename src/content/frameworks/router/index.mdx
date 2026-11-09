@@ -8,7 +8,6 @@ lead: "Клик по ссылке в SPA не загружает новую ст
 summary: "History API и `popstate`, Navigation API и `intercept()`, когда роутер обязан отдать клик браузеру, шаблон пути → регулярка и вес, почему `/users/new` побеждает `/users/:id`, вложенные маршруты и `matched`, порядок guards, отмена и перенаправление, ленивые маршруты, водопад загрузок во вложенных уровнях, восстановление прокрутки. Учебный роутер сверен тестом с vue-router 5.3.1."
 verifiedOn: "vue-router 5.3.1, vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, Chromium 153 (Playwright 1.63), Firefox 155 и WebKit 26.6 — только наличие Navigation API, октябрь 2026: регулярки, веса, порядок и resolve учебного роутера сверены с vue-router на сотнях случайных таблиц; журналы guards и шкалы загрузки — с vue-router, смонтированным во Vue; события истории, клики и прокрутка сняты в Chromium на macOS. Ctrl+клик вне macOS и пункт «Открыть в новой вкладке» описаны по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: История вкладки }
   - { id: s2, label: Navigation API }
   - { id: s3, label: Перехват клика }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import RouterLab from '@/widgets/router-lab/ui/RouterLab.vue';
 import {
   GLOSSARY,
   PLAIN_ROUTER,
-  PREREQ,
-  PREREQ_NOTE,
   INTERCEPT_CODE,
   HISTORY_CODE,
   PLAIN_HISTORY,
@@ -134,8 +130,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

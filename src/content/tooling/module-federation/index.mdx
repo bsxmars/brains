@@ -8,7 +8,6 @@ lead: "Корзину выкатывает одна команда, катало
 summary: "Зачем микрофронтенды и чем за них платят; способы собрать страницу из частей — от пакетов до iframe и import maps; контейнер Module Federation с `init` и `get`; shareScope и выбор общей версии: `singleton`, `requiredVersion`, `strictVersion`, `eager`; почему две копии React ломают рендер; упавший и зависший remote, рассинхрон выкатов и кеш `remoteEntry.js`."
 verifiedOn: "Учебная федерация исполняется демо и tests/unit/module-federation.test.ts, её semver сверен с пакетом semver 7.8.5; две копии модуля — стенд node:http (127.0.0.1:49231 и :49232) в Chromium 153.0.8010.12 (Playwright 1.63) и те же строки в Node 26.8.2; две копии React 19.3.0 — Node 26.8.2, обе сборки. Правила выбора версии и тексты предупреждений сверены с исходником webpack v5.111.1 (lib/sharing); настоящий рантайм не запускался. Сентябрь 2026"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Зачем и чем платят }
   - { id: s2, label: "Контейнер: init и get" }
   - { id: s3, label: Общие зависимости }
@@ -30,14 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MfShareScope from '@/widgets/mf-share-scope/ui/MfShareScope.vue';
 import {
   GLOSSARY,
   PLAIN_FEDERATION,
-  PREREQ,
   WHY_FACTS,
   WAYS_ROWS,
   WAYS_NOTE,
@@ -102,8 +99,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} />
 
 <Section
   id="s1"

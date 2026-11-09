@@ -6,7 +6,6 @@ lead: "Четыре порождающих паттерна придуманы �
 summary: "Фабрика как реестр классов и как фабричная функция, типизация реестра картой типов и ключ `constructor` из адреса; строитель с цепочкой, заготовка, которая копит чужие шаги, неизменяемый строитель и `build()`, запрещённый типами; прототип против `.prototype`, четыре способа скопировать экземпляр с `#`-полем и общий `Date`; одиночка через `private constructor`, модуль как одиночка, второй экземпляр от `?v=2`, двух копий пакета и SSR."
 verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, примеры с модулями запущены настоящим `node` — `tests/unit/patterns-creational.test.ts`"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Зачем }
   - { id: s2, label: Фабрика }
   - { id: s3, label: Строитель }
@@ -25,13 +24,10 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_PATTERN,
   PROBLEM_CODE,
   PATTERN_ROWS,
@@ -71,8 +67,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

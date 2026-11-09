@@ -6,7 +6,6 @@ lead: "Кнопка «Скопировать» — одна строка `naviga
 summary: "`writeText` и `readText`: жест, фокус, разрешение и `NotAllowedError`; события `copy`, `cut`, `paste` и подмена копируемого; картинка из буфера файлом; `ClipboardItem`, разрешённые типы в трёх движках, чистка HTML и свои форматы `web `; `draggable`, `dragover` и `drop`, `effectAllowed` и `dropEffect`; что видно в каком событии; файлы и папки из системы, `webkitGetAsEntry`; перетаскивание и клавиатура."
 verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 из Playwright 1.63, macOS arm64, ноябрь 2026: каждый пример исполняет tests/e2e/clipboard-dnd.spec.ts, файлы из системы бросаются настоящим drop через DevTools"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Копировать по кнопке }
   - { id: s2, label: copy, cut и paste }
   - { id: s3, label: Форматы }
@@ -28,14 +27,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
   PLAIN_CLIPBOARD,
-  PREREQ,
-  PREREQ_NOTE,
   COPY_MARKUP,
   COPY_CODE,
   COPY_OUT,
@@ -112,8 +108,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

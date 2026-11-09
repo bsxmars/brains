@@ -8,7 +8,6 @@ lead: "HTTP отвечает только на вопросы: сервер не
 summary: "Когда нужен WebSocket, а когда хватит SSE; рукопожатие и кадры по байтам; коды закрытия и кто их видит; обратное давление, которого у WebSocket нет; переподключение с джиттером и heartbeat; WebSocket поверх HTTP/2 и WebTransport; угон сокета с чужого сайта."
 verifiedOn: "Свой сервер WebSocket на node:http (Node 26.8.2) — тот самый код темы; клиенты — глобальный WebSocket Node 26 и Chromium 153.0.8010.12 через Playwright 1.63, наличие API и коды при уходе со страницы — ещё Firefox 155 и WebKit 26.6; сентябрь 2026. Два сайта — через --host-resolver-rules, TLS — самоподписанный сертификат. Закреплено tests/unit/realtime.test.ts. Таймауты прокси, WebSocket поверх HTTP/3 и WebTransport на живом сервере не проверялись — это помечено в тексте"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Когда нужно долгое соединение }
   - { id: s2, label: Рукопожатие }
   - { id: s3, label: Кадры и маска }
@@ -34,7 +33,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import RtFrame from '@/widgets/rt-frame/ui/RtFrame.vue';
 import FrameDiagram from '@/widgets/realtime-frame-diagram/ui/FrameDiagram.astro';
@@ -42,8 +40,6 @@ import RtHerd from '@/widgets/rt-herd/ui/RtHerd.vue';
 import {
   GLOSSARY,
   PLAIN_SOCKET,
-  PREREQ,
-  PREREQ_NOTE,
   WAYS_ROWS,
   SSE_NOTE,
   SSE_LIMIT_NOTE,
@@ -128,8 +124,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

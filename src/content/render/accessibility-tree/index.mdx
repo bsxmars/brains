@@ -8,7 +8,6 @@ lead: "Скринридер не видит пикселей и не читае�
 summary: "Дерево доступности рядом с DOM: роль, имя, состояние; что выпадает (`display: none`, `visibility`, `hidden`, `aria-hidden`, `inert`) и что растворяется; неявные роли и атрибут `role`; вычисление доступного имени по accname 1.2; `div` с `onclick` против `<button>`; `tabindex` и порядок Tab; живые регионы; расхождения Chromium, Playwright и axe-core."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), happy-dom 20.14.5, axe-core 4.13.0, Node 24.11.0, октябрь 2026: роли, имена и состояния 88 фикстур и пяти сцен сняты через CDP Accessibility, порядок Tab и Enter/пробел — настоящими нажатиями; функции темы сверены с ними в tests/unit/accessibility-tree.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Второе дерево }
   - { id: s2, label: Что попадает }
   - { id: s3, label: Роль }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AxTreeLab from '@/widgets/ax-tree-lab/ui/AxTreeLab.vue';
 import {
   GLOSSARY,
   PLAIN_AXTREE,
-  PREREQ,
-  PREREQ_NOTE,
   TREE_CODE,
   TREE_NOTE,
   DEMO_CAPTION,
@@ -104,8 +100,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

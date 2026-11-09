@@ -8,7 +8,6 @@ lead: "Redux, Zustand и Pinia выглядят по-разному, а внут
 summary: "Стор как «состояние + подписчики», reducer и неизменяемость в Redux, селектор в `useSyncExternalStore` у Zustand — откуда лишний рендер и бесконечный цикл, `useShallow`, Pinia на реактивности Vue. Мини-реализация в демо сверена тестом с redux 5, zustand 5 и pinia 4."
 verifiedOn: "redux 5.0.1, @reduxjs/toolkit 2.13.0 (immer 11.1.18), reselect 5.3.0, zustand 5.0.15, pinia 4.0.3, React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, октябрь 2026: вызовы подписчиков и селекторов и рендеры компонентов сняты стендом и повторяются tests/unit/state-managers.test.ts; мини-реализация темы сверена с библиотеками на той же последовательности действий"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Стор }
   - { id: s2, label: Redux }
   - { id: s3, label: Селектор }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import StoreLab from '@/widgets/store-lab/ui/StoreLab.vue';
 import {
   GLOSSARY,
   PLAIN_STORE,
-  PREREQ,
-  PREREQ_NOTE,
   STORE_CODE,
   USAGE_CODE,
   USAGE_OUT,
@@ -105,8 +101,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

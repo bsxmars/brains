@@ -5,7 +5,6 @@ lead: "Если разрезать работу на куски, быстрее 
 summary: "Чем возвращать управление циклу, как расставить приоритеты и что делается с очередями, когда вкладка уходит в фон."
 verifiedOn: Node 24.11 и 26.8
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Чем отдать поток }
   - { id: s2, label: Сколько это стоит }
   - { id: s3, label: INP }
@@ -27,7 +26,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import InpAnatomy from '@/widgets/inp-anatomy/ui/InpAnatomy.astro';
 import PageLifecycle from '@/widgets/page-lifecycle/ui/PageLifecycle.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
@@ -76,8 +74,6 @@ import {
   YIELD_STRATEGIES,
   YIELD_TOOLS,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   YIELD_DEMO_NOTE,
   TIMELINE_DEMO_NOTE,
   COST_DEMO_NOTE,
@@ -156,9 +152,7 @@ import {
 
     </CardNote>
   </Card>
-</Section>
 
-<Prereq items={PREREQ} lead={PREREQ_NOTE}>
 
   <Card tone="warn" color="tone" pad={20} radius={5} size={16.5} lh={1.6}>
 
@@ -169,7 +163,7 @@ import {
   </Card>
 
   <Plain text={PLAIN_MICROTASK} />
-</Prereq>
+</Section>
 
 <Section
   id="s1"

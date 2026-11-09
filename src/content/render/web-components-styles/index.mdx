@@ -6,7 +6,6 @@ lead: "Теневое дерево не пускает внутрь селект
 summary: "Граница теневого дерева в каскаде: что через неё проходит, `:host`/`:host()`/`:host-context()`, `::slotted()` и `::part()` с `exportparts`, кто побеждает на границе, `adoptedStyleSheets` и `replaceSync`, `<template shadowrootmode>`, `all: initial` и шрифт страницы — сверено в трёх движках."
 verifiedOn: Chromium 153 · Firefox 155 · WebKit 26.6 (Playwright 1.63, macOS)
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Граница }
   - { id: s2, label: ":host" }
   - { id: s3, label: "::slotted" }
@@ -28,14 +27,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ShadowBoundary from '@/widgets/shadow-lab/ui/ShadowBoundary.vue';
 import ShadowStage from '@/widgets/shadow-lab/ui/ShadowStage.vue';
 import {
-  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
-  PLAIN_BOUNDARY, SD_DEFINE_CODE, SD_DEFINE_NOTE, SD_SHADOW_HTML, SD_LIGHT_HTML, SD_PAGE_HTML,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PLAIN_BOUNDARY, SD_DEFINE_CODE, SD_DEFINE_NOTE, SD_SHADOW_HTML, SD_LIGHT_HTML, SD_PAGE_HTML,
   BOUNDARY_ROWS, BOUNDARY_DEMO_NOTE, INHERIT_FACTS,
   HOST_CODE, HOST_FACTS,
   SLOTTED_CODE, SLOTTED_FACTS,
@@ -59,8 +56,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} />
 </Section>
-
-<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"

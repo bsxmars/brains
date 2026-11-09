@@ -8,7 +8,6 @@ lead: "Экран со списком заказов, авторами и тов
 summary: "Один экран тремя способами: запросы и байты; REST — ресурсы, водопад, лишние поля, ETag и Cache-Control на втором заходе; GraphQL — исполнитель и резолверы, N+1 и DataLoader по журналу базы, persisted queries, глубина запроса как атака, ошибки при статусе 200; gRPC-web — protobuf по байтам (varint, ключи полей), размер против JSON до и после сжатия, трейлеры HTTP/2 и почему браузеру нужен прокси."
 verifiedOn: "Node 24.11.0, graphql 17.0.2, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: три API над одной «базой» на своём node:http-сервере; учебный исполнитель GraphQL сверен tests/unit/api-styles.test.ts с graphql 17 — ответ, порядок вызовов резолверов, журнал базы; байты пересобраны на сырых сокетах. gRPC-сервера и прокси на стенде нет: protobuf закодирован по спецификации и сверен с её примерами, кадр gRPC-web — по PROTOCOL-WEB.md, трейлеры проверены на node:http2 и в Chromium"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Один экран }
   - { id: s2, label: REST и кеш }
   - { id: s3, label: GraphQL изнутри }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ApiWireLab from '@/widgets/api-wire-lab/ui/ApiWireLab.vue';
@@ -40,8 +38,6 @@ import ResolverLab from '@/widgets/api-wire-lab/ui/ResolverLab.vue';
 import {
   GLOSSARY,
   PLAIN_STYLES,
-  PREREQ,
-  PREREQ_NOTE,
   TABLES,
   TABLES_PRINT,
   SCREEN_NOTE,
@@ -117,8 +113,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

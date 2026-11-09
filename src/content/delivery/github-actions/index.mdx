@@ -6,7 +6,6 @@ lead: "Файл конвейера похож на скрипт, но работ
 summary: "Что запускает конвейер; чем различаются джоб, шаг и раннер; что переносится между шагами и между джобами; как кеш ищет запись по ключу; матрицы, права и секреты. Всё проверено прогонами на своей машине через act."
 verifiedOn: "act 0.2.89 · Docker 27.4.0 · образ node:22-slim вместо раннера (Debian 12 bookworm, Node 22.23.2, arm64), сентябрь 2026. Раннеры GitHub, actions/cache, сервисные контейнеры, права GITHUB_TOKEN, окружения, матрица по нескольким ОС и отмена соседей по fail-fast замером не закрыты и помечены в тексте"
 nav:
-  - { id: s0, label: 'Перед началом' }
   - { id: s1, label: 'Событие и триггер' }
   - { id: s2, label: 'Джоб, шаг, раннер' }
   - { id: s3, label: 'Что переживает границу' }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PipelineTimeline from '@/widgets/pipeline-timeline/ui/PipelineTimeline.vue';
@@ -85,8 +83,6 @@ import {
   UNIT_ROWS,
   VERSIONS,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   RELATED,
   PIPELINE_DEMO_NOTE,
   PLAIN_CACHE_KEY,
@@ -145,8 +141,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

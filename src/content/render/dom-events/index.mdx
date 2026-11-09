@@ -8,7 +8,6 @@ lead: "Клик по крестику внутри кнопки слышат к�
 summary: "Путь события и `composedPath()`, фазы захвата, цели и всплытия, `target` против `currentTarget`, порядок слушателей на узле, `stopPropagation` и `stopImmediatePropagation`, `preventDefault` и действие по умолчанию, делегирование через `closest`, `once` и `signal`, пассивные слушатели, синтетические события и `isTrusted`, синхронный `dispatchEvent`, подмена цели и `composed` в Shadow DOM."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), happy-dom 20.14.5, Node 24.11.0, октябрь 2026: журналы тринадцати сценариев сняты синтетической отправкой и настоящим кликом; функция dispatch темы сверена с ними в tests/unit/dom-events.test.ts, там же записаны расхождения happy-dom"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Путь и фазы }
   - { id: s2, label: Отправка как код }
   - { id: s3, label: Остановки }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import EventPathLab from '@/widgets/event-path-lab/ui/EventPathLab.vue';
 import {
   GLOSSARY,
   PLAIN_EVENT,
-  PREREQ,
-  PREREQ_NOTE,
   FIXTURE_HTML,
   SHADOW_HTML,
   SHADOW_CODE,
@@ -108,8 +104,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

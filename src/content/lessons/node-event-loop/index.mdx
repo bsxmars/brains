@@ -6,7 +6,6 @@ lead: "Цикл событий Node — это функция `uv_run` из би
 summary: "`uv_run` по строкам исходника; `nextTick` и микрозадачи после каждого колбэка; `setTimeout(0)` против `setImmediate` — где гонка, а где порядок гарантирован; задержка 1 мс; сколько спит poll; что идёт в пул потоков и как он виден по порядку колбэков; `unref`, `beforeExit` и выход процесса."
 verifiedOn: "Node 24.11.0 (libuv 1.51.0) и 26.8.2, октябрь 2026: сценарии темы исполняет tests/unit/node-event-loop.test.ts в отдельных процессах Node и сверяет с учебной моделью; частоты гонок — сотни отдельных запусков на стенде; пул — по порядку колбэков при UV_THREADPOOL_SIZE 1, 2, 4, 5. Без таймерных замеров"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Оборот uv_run }
   - { id: s2, label: Модель }
   - { id: s3, label: Между колбэками }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import LoopLab from '@/widgets/libuv-lab/ui/LoopLab.vue';
@@ -38,8 +36,6 @@ import PoolLab from '@/widgets/libuv-lab/ui/PoolLab.vue';
 import {
   GLOSSARY,
   PLAIN_LOOP,
-  PREREQ,
-  PREREQ_NOTE,
   UV_RUN_SHAPE,
   UV_RUN_NOTE,
   PHASE_ROWS,
@@ -99,8 +95,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

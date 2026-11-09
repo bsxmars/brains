@@ -5,7 +5,6 @@ lead: "`MessageChannel` создаёт два связанных порта: ч�
 summary: "Порт как переносимое полномочие — буферизация до start(), правила transfer-списка, планировщик без паузы в 4 мс и утечка на незакрытом канале."
 verifiedOn: Node 24.11 и 26.8
 nav:
-  - { id: s0, label: Перед началом }
   - { id: basics, label: Основа }
   - { id: model, label: Модель }
   - { id: s1, label: Цикл порта }
@@ -43,8 +42,6 @@ import {
   SHARED_FACTS,
   SOURCES,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PATH_DEMO_NOTE,
   APPLY_LEAD,
   COST_ROWS,
@@ -74,20 +71,16 @@ import {
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 
-<Prereq items={PREREQ} lead={PREREQ_NOTE} variant="intro">
-  <Fragment slot="before">
+<Section variant="intro" eyebrow="Пара связанных портов">
 
   Главный поток отдаёт расчёт воркеру и ждёт ответа именно на этот запрос, а не на соседний.
   Виджет в iframe должен говорить только с вашей страницей, а не с любым, кто дотянулся
   до окна. Планировщику нужно отпустить поток на кадр и сразу вернуться к работе. Все три
   задачи решает одна маленькая вещь — пара связанных портов.
 
-  </Fragment>
-
   <Glossary items={GLOSSARY} />
-</Prereq>
+</Section>
 
 <Section
   id="basics"

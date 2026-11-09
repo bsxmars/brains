@@ -6,7 +6,6 @@ lead: "Кадр — это не просто «браузер рисует». Э
 summary: "Что происходит между двумя сигналами дисплея (vsync): задача, микрозадачи, rAF, style, layout, paint, commit — и работа, которая после commit идёт уже без главного потока."
 verifiedOn: HTML Standard §8.6 и конспекты, сентябрь 2026; порядок колбэков — Node 24.11
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Кадр по шагам }
   - { id: s2, label: Кадра может не быть }
   - { id: s3, label: Чтение и запись }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FrameTimeline from '@/widgets/frame-timeline/ui/FrameTimeline.vue';
@@ -89,8 +87,6 @@ import {
   SCROLL_TL_FACTS,
   SCROLL_TL_NOTE,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   SOURCES,
   RELATED,
 } from './data';
@@ -147,8 +143,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

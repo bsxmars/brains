@@ -6,7 +6,6 @@ lead: "Сигнал — значение, которое помнит своих
 summary: "`signal`, `computed`, `effect` и `batch` на push-pull, глитч наивного push на ромбе и рендер без виртуального DOM — мини-реализация в демо, сверенная тестом с Vue 3.5 и alien-signals; что предлагает TC39."
 verifiedOn: Vue 3.5.42 · alien-signals 3.2.1 · Node 26.8.2
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Сигнал }
   - { id: s2, label: Push и pull }
   - { id: s3, label: Ромб и глитч }
@@ -27,7 +26,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SignalGraph from '@/widgets/mini-signals/ui/SignalGraph.vue';
@@ -35,8 +33,7 @@ import MiniSolid from '@/widgets/mini-signals/ui/MiniSolid.vue';
 import {
   USAGE_CODE, MODELS_PRACTICE_NOTE,
   MINI_SIGNALS_CODE, NAIVE_SIGNALS_CODE, STEP_SIGNAL, STEP_PUSH, STEP_PULL, STEP_EFFECT, STEP_DOM,
-  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
-  READ_IS_SUBSCRIBE_NOTE, SET_NOTE,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, READ_IS_SUBSCRIBE_NOTE, SET_NOTE,
   PLAIN_PUSHPULL, PUSH_NOTE, PULL_NOTE, VERSIONS_LINK_NOTE,
   PLAIN_GLITCH, NAIVE_NOTE, TOPO_NOTE, DEMO_GRAPH_NOTE, GRAPH_SCENARIOS,
   EFFECT_NOTE, BATCH_NOTE, BATCH_VUE_NOTE,
@@ -57,8 +54,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} />
 </Section>
-
-<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"

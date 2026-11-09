@@ -8,7 +8,6 @@ lead: "Сервер должен узнать пользователя на ка
 summary: "Сессия на сервере против самодостаточного токена; подпись JWT HS256 на Web Crypto, почему подпись ≠ шифрование, `alg: none` и отзыв до `exp`; BFF и клиент только в браузере; OAuth 2.0 authorization code + PKCE по шагам — verifier, challenge, `state`; OpenID Connect — id_token, `nonce` и проверки. Вход снят стендом в Chromium, функции темы сверены с векторами RFC."
 verifiedOn: "Node 24.11.0 (Web Crypto, node:crypto), Chromium 153.0.8010.12 (Playwright 1.63.0), октябрь 2026: вход authorization code + PKCE + OIDC через свой сервер авторизации на node:http снят стендом; функции темы сверены tests/unit/authentication.test.ts с RFC 7515 A.1, RFC 7636 B и node:crypto. RFC 6749, 7636, 7519, 7515, 7518, 8725, 9700 и OpenID Connect Core 1.0 — по текстам стандартов"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Сессия или токен }
   - { id: s2, label: Подпись JWT }
   - { id: s3, label: Где держать вход }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import JwtLab from '@/widgets/auth-lab/ui/JwtLab.vue';
@@ -40,8 +38,6 @@ import PkceFlow from '@/widgets/auth-lab/ui/PkceFlow.vue';
 import {
   GLOSSARY,
   PLAIN_AUTH,
-  PREREQ,
-  PREREQ_NOTE,
   SESSION_CODE,
   TOKEN_CODE,
   SESSION_ROWS,
@@ -104,8 +100,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

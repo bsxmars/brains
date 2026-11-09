@@ -6,7 +6,6 @@ lead: "Файбер, `alternate`, очередь хука, коммит — сл
 summary: "Мини-React своими руками: элемент, файбер и прерываемый цикл, две фазы и двойная буферизация, сверка по ключам, хуки как массив ячеек, батчинг и порядок эффектов."
 verifiedOn: React 19.3 · Node 26.8
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Элемент }
   - { id: s2, label: Файбер и цикл }
   - { id: s3, label: Две фазы }
@@ -28,7 +27,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniFiber from '@/widgets/mini-fiber/ui/MiniFiber.vue';
@@ -60,8 +58,6 @@ import {
   PLAIN_LAST_PLACED,
   PLAIN_LINKED,
   PLAIN_SCHEDULED,
-  PREREQ,
-  PREREQ_NOTE,
   QUEUE_LINK,
   RECONCILER_NOTE,
   RELATED,
@@ -91,8 +87,6 @@ import {
 >
   <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} min={260} />
 
 <Section
   id="s1"

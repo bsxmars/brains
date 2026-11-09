@@ -5,7 +5,6 @@ lead: "Цикл событий решает, какой код выполнит�
 summary: "Один оборот цикла по шагам: источники задач, checkpoint, таймеры, фазы libuv в Node."
 verifiedOn: Node 24.11
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Оборот }
   - { id: s2, label: Источники задач }
   - { id: s3, label: Checkpoint }
@@ -26,7 +25,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import TimerClamp from '@/widgets/timer-clamp/ui/TimerClamp.vue';
 import EventLoopTurn from '@/widgets/event-loop-turn/ui/EventLoopTurn.vue';
@@ -56,8 +54,6 @@ import {
   IDLE_FACTS,
   SOURCES,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   TIMER_DEMO_NOTE,
   TURN_DEMO_NOTE,
   CHECKPOINT_CODE,
@@ -121,8 +117,6 @@ import MicroProbe from '@/widgets/micro-probe/ui/MicroProbe.vue';
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

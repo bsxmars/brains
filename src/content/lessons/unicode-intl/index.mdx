@@ -7,7 +7,6 @@ lead: "`'👨‍👩‍👧'.length` равно 8, `'straße'.toUpperCase()` д�
 summary: "Кодовые единицы UTF-16, кодовые точки и суррогатные пары; графемы по правилам UAX #29 — учебная функция, сверенная с `Intl.Segmenter`; одинокий суррогат, `isWellFormed` и обрезка по графемам; нормализация для поиска; регистр: «ß», турецкая «i»; `Intl.Collator`: уровни сравнения, `numeric`, `sensitivity`, языки; `Intl.PluralRules` для русского по правилам CLDR; `NumberFormat`, `ListFormat`, `RelativeTimeFormat`; байты UTF-8; разные версии ICU в Node и Chromium."
 verifiedOn: "Node 24.11.0 (ICU 77.1, Unicode 16.0, CLDR 47.0), Node 26.8.2 (ICU 78.3, Unicode 17.0, CLDR 48.0) и Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: один набор проб в трёх средах, ~200 значений совпали, расходятся только знаки Юникода 17 (Node 24 их не знает); учебная разбивка на графемы сверена с Intl.Segmenter полным перебором пар кодовых точек и 100 000 случайных строк, правила CLDR — с Intl.PluralRules на 270 000 чисел. Всё повторяет tests/unit/unicode-intl.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Единицы и точки }
   - { id: s2, label: Графемы }
   - { id: s3, label: Половинка символа }
@@ -33,7 +32,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import GraphemeLab from '@/widgets/unicode-lab/ui/GraphemeLab.vue';
@@ -41,8 +39,6 @@ import PluralLab from '@/widgets/unicode-lab/ui/PluralLab.vue';
 import {
   GLOSSARY,
   PLAIN_LAYERS,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_SURROGATE,
   UNITS_CODE,
   UNITS_NOTE,
@@ -123,8 +119,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

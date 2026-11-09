@@ -8,7 +8,6 @@ lead: "Флаг выглядит как `if (flags.newCart)`, но это не �
 summary: "Флаг как функция контекста: правила по очереди, доли, значение по умолчанию; корзины по MurmurHash3 как у flagd, монотонность и что её ломает — переименование, порядок вариантов, три варианта, смена формулы, UTF-8 против UTF-16; OpenFeature — провайдер, контекст и его слои, хуки, resolution details; сервер, браузер или edge и мигание; выключатель и удаление флагов; флаг против канарейки."
 verifiedOn: "@openfeature/server-sdk 1.23.0, imurmurhash 0.1.4, Node 24.11.0, Go 1.26.0 с twmb/murmur3 1.2.0, октябрь 2026: вычислитель темы исполнен через настоящий OpenFeature SDK и сверен с InMemoryProvider; раскладка по корзинам — с векторами flagd-testbed (v1 и v2); хеш — с imurmurhash и с Go-библиотекой flagd; распределение и липкость — на 10 000 детерминированных id (tests/unit/feature-flags.test.ts). Клиентский SDK, edge-платформы и сервисы флагов — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Флаг — функция }
   - { id: s2, label: Корзины и хеш }
   - { id: s3, label: OpenFeature }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FlagLab from '@/widgets/flag-lab/ui/FlagLab.vue';
 import {
   GLOSSARY,
   PLAIN_FLAG,
-  PREREQ,
-  PREREQ_NOTE,
   FUNCTION_WHY,
   PLAIN_CONTEXT,
   FLAGS_CODE,
@@ -111,8 +107,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

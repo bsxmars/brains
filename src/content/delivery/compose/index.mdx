@@ -6,7 +6,6 @@ lead: "Compose — это файл, где записано, **из каких �
 summary: "Сервисы, сеть и имена; почему `depends_on` без `condition: service_healthy` не ждёт базу и чем это кончается, когда база создаётся с нуля; проверка готовности, тома и то, какая переменная окружения кого перебивает."
 verifiedOn: Docker Engine 27.4.0 и Docker Compose v2.31.0-desktop.2 (macOS, arm64), сентябрь 2026; образы postgres:16-alpine (PostgreSQL 16.15), redis:7-alpine (7.4.11), nginx:alpine
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: 'Сервис, сеть и имена' }
   - { id: s2, label: Готовность и healthcheck }
   - { id: s3, label: Порядок запуска }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import NetworkDiagram from '@/widgets/compose-network-diagram/ui/NetworkDiagram.astro';
 import HealthTimeline from '@/widgets/compose-health-diagram/ui/HealthTimeline.astro';
@@ -70,8 +68,6 @@ import {
   VOLUME_FACTS,
   VOLUME_ROWS,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   RELATED,
   WAIT_RUNS,
   WAIT_NOTE,
@@ -143,8 +139,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

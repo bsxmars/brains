@@ -8,7 +8,6 @@ lead: "Виджет чата, платёжная форма и кнопка вх
 summary: "Что такое сторонняя кука и что с ней делают Chromium, Firefox и WebKit; разделённые куки CHIPS и ключ раздела; разделение localStorage, IndexedDB, Cache Storage и BroadcastChannel; Storage Access API и что он отвечает без жеста; Related Website Sets и FedCM; как строить встраиваемый виджет — с таблицей из 27 случаев, снятой в трёх движках, и калькулятором, который её повторяет."
 verifiedOn: "Chromium 153.0.8010.12 (с разрешёнными и с ограниченными сторонними куками; разделение хранилища возвращено — Playwright его выключает), Firefox 155.0 с cookieBehavior=5 и CHIPS, WebKit 26.6 (сборка Playwright под macOS, не Safari); Playwright 1.63 против своего https-сервера на Node 26.8.2, сайты top.test, top2.test, shop.top.test, blog.top.test, embed.test, api.embed.test и www.embed.test, сентябрь 2026. Без таймерных замеров. Related Website Sets, FedCM, поведение Safari и инкогнито Chrome — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Сторонняя кука }
   - { id: s2, label: CHIPS }
   - { id: s3, label: Уйдёт ли кука }
@@ -33,13 +32,10 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import TpcCookieVerdict from '@/widgets/tpc-cookie-verdict/ui/TpcCookieVerdict.vue';
 import {
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_THIRD_PARTY,
   PLAIN_PARTITION,
   PLAIN_SAA,
@@ -98,8 +94,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

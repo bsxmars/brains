@@ -7,7 +7,6 @@ lead: "Прокси встаёт перед объектом и получает
 summary: "Ловушка и `Reflect`; все тринадцать ловушек и операции, которые их вызывают; receiver и `set` → `boolean`; двадцать инвариантов; что прокси не перехватывает — личность, слоты, `#`-поля, `Array.isArray`, `DataCloneError` у `structuredClone`; реактивность на прокси, сверенная с Vue, и Immer; `Proxy.revocable` и мембрана; цена перехвата."
 verifiedOn: "Node 24.11.0 (V8 13.6) и 26.8.2 (V8 14.6), Chromium 153.0.8010.12 (Playwright 1.63), @vue/reactivity 3.5.42, immer 11.1.18, октябрь 2026: журналы ловушек сняты handler’ом темы, реактивность сверена с Vue, клонирование прокси — в Node и в Chromium. Всё, кроме браузера, повторяет tests/unit/proxy-reflect.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Ловушка }
   - { id: s2, label: Тринадцать }
   - { id: s3, label: Receiver }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ProxyCost from '@/widgets/proxy-traps/ui/ProxyCost.astro';
@@ -39,8 +37,7 @@ import ProxyTraps from '@/widgets/proxy-traps/ui/ProxyTraps.vue';
 import ProxyReactivity from '@/widgets/proxy-reactivity/ui/ProxyReactivity.vue';
 import SnippetLab from '@/widgets/snippet-lab/ui/SnippetLab.vue';
 import {
-  PLAIN_PROXY, GLOSSARY, PREREQ, PREREQ_NOTE,
-  PROXY_INTRO_NOTE, TRACE_CODE, PROXY_HANDLER_NOTE, REFLECT_PAIRS, REFLECT_NOTE,
+  PLAIN_PROXY, GLOSSARY, PROXY_INTRO_NOTE, TRACE_CODE, PROXY_HANDLER_NOTE, REFLECT_PAIRS, REFLECT_NOTE,
   TRAP_TABLE, TRAP_TABLE_NOTE, PROXY_TARGET, PROXY_OPS, PROXY_DEMO_NOTE,
   PLAIN_RECEIVER, RECEIVER_CODE, RECEIVER_NOTE, SET_BOOL_CODE, SET_BOOL_NOTE,
   INVARIANT_TABLE, INVARIANTS_NOTE,
@@ -71,8 +68,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

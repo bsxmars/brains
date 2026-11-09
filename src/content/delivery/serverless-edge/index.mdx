@@ -8,7 +8,6 @@ lead: "Функцию не держат запущенной: платформа
 summary: "Жизнь экземпляра: Init, вызов, заморозка, выгрузка; из чего состоит холодный старт и сколько модулей грузит импорт; ленивый `import()` и сборка в один файл; что переживает вызов и гонка `db ??= await connect()`; один запрос на экземпляр против многих и пул соединений против `max_connections`; изоляты V8, хост на `node:vm`, лимит процессора и что есть в edge-рантайме; edge у пользователя против региона у базы; потоковый ответ."
 verifiedOn: "Node 24.11.0 и 26.8.2, esbuild 0.28.2, zod 4.6.2, ioredis 5.11.1, yaml 2.9.1, Postgres 16.6 в Docker 27.4.0, октябрь 2026: модули холодного старта, сборка, соединения, хост на node:vm и потоковый ответ пересчитываются tests/unit/serverless-edge.test.ts; модель масштабирования совпала с эмулятором на настоящем Postgres во всех точках шести прогонов; всё про Lambda, Cloud Run, Vercel, Cloudflare Workers и Next.js — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Жизнь экземпляра }
   - { id: s2, label: Холодный старт }
   - { id: s3, label: Что переживает вызов }
@@ -33,7 +32,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ScaleLab from '@/widgets/serverless-lab/ui/ScaleLab.vue';
@@ -41,8 +39,6 @@ import PlaceLab from '@/widgets/serverless-lab/ui/PlaceLab.vue';
 import {
   GLOSSARY,
   PLAIN_SERVERLESS,
-  PREREQ,
-  PREREQ_NOTE,
   LIFECYCLE_CHIPS,
   LIFECYCLE_ROWS,
   LIFECYCLE_NOTE,
@@ -134,8 +130,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

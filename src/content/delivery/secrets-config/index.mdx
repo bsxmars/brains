@@ -8,7 +8,6 @@ lead: "Сборщик вписывает переменные окружения
 summary: "Конфигурация против секрета; 12 факторов; как `import.meta.env.VITE_*`, `process.env.NEXT_PUBLIC_*` и `define` вписывают значения в бандл и как обходят защиту префиксом; порядок `.env`-файлов в Vite; конфиг при сборке против конфига при запуске; переменная окружения против файла, `/proc/<pid>/environ`, Secret в Kubernetes; история git, сканер утечек и ротация."
 verifiedOn: "Vite 8.3.0, esbuild 0.28.2, Node 24.11.0, kubectl 1.30.5, git 2.44.0, октябрь 2026: бандлы, порядок .env-файлов (768 сочетаний против loadEnv), выводы Node, YAML Secret, история git и находки сканера на бандлах Vue, React и d3 пересобираются tests/unit/secrets-config.test.ts. /proc/<pid>/environ и docker inspect сняты в Docker 27.4 (node:24-alpine) без повтора в тесте; порядок файлов Next, хранение Secret в etcd и ротация — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Конфиг и секрет }
   - { id: s2, label: Что попадает в бандл }
   - { id: s3, label: .env-файлы }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import EnvLab from '@/widgets/env-lab/ui/EnvLab.vue';
@@ -38,8 +36,6 @@ import ScanLab from '@/widgets/env-lab/ui/ScanLab.vue';
 import {
   GLOSSARY,
   PLAIN_SECRET,
-  PREREQ,
-  PREREQ_NOTE,
   TWELVE_TEXT,
   PUBLIC_TABLE,
   PUBLIC_NOTE,
@@ -126,8 +122,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

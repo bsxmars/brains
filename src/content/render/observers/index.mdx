@@ -8,7 +8,6 @@ lead: "Три API с одинаковым словом в имени живут 
 summary: "Порядок наблюдателей относительно задач, микрозадач и `rAF`, снятый в Chromium; IntersectionObserver: `root`, `rootMargin`, пороги, `intersectionRatio`, первый вызов и `isIntersecting` ниже первого порога, v2 кратко; ResizeObserver: три коробки, `transform`, цикл по глубине и ошибка; MutationObserver: виды записей, `subtree`, `oldValue`, `takeRecords`, почему стили не видны; ленивая загрузка, лента со сторожем, `@container` против ResizeObserver."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026; порог и isIntersecting — ещё Firefox 155.0 и WebKit 26.6. Порядок вызовов, записи MutationObserver и примеры кода снимаются заново в tests/unit/observers.test.ts; модель IntersectionObserver сверена с Chromium на сетке случайных геометрий, модель кругов ResizeObserver — на случайных деревьях"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Место в кадре }
   - { id: s2, label: Пересечения }
   - { id: s3, label: Размеры }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ObserverLab from '@/widgets/observer-lab/ui/ObserverLab.vue';
 import {
   GLOSSARY,
   PLAIN_OBSERVER,
-  PREREQ,
-  PREREQ_NOTE,
   ORDER_HTML,
   ORDER_CODE,
   ORDER_LOG,
@@ -113,8 +109,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

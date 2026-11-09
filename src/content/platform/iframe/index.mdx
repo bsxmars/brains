@@ -8,7 +8,6 @@ lead: "Чат поддержки, платёжная форма, видео, к�
 summary: "Как встроить документ: `src` и `srcdoc`, `title`, `loading=\"lazy\"`, размер 300 × 150; что родитель видит в своём и в чужом фрейме; `postMessage` с проверкой `origin` и `source` и почему `'*'` опасен; песочница по флагам, непрозрачный источник и как пара `allow-scripts allow-same-origin` её снимает; `allow`, `referrerpolicy`, `credentialless`; высота по содержимому через `ResizeObserver`; общая история и клавиатура; цена фрейма и когда он не нужен — всё снято в Chromium, Firefox и WebKit."
 verifiedOn: "Chromium 153.0.8010.12 (headless shell и полный channel: 'chromium' — для процессов), Firefox 155.0, WebKit 26.6 — сборки Playwright 1.63 на Node 26.8.2, ноябрь 2026. Сайты https://shop.example, https://widget.example и https://evil.example подставлены перехватом запросов Playwright. Таймерный замер один — поток фрейма при занятом родителе, и закреплён порядком величины. По документации, без запуска: чтение title программами экранного доступа, флаги allow-popups-to-escape-sandbox, allow-downloads, allow-top-navigation-by-user-activation, allow-storage-access-by-user-activation, работа credentialless (снята только поддержка). Всё остальное повторяет tests/unit/iframe.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Как встроить }
   - { id: s2, label: Свой и чужой }
   - { id: s3, label: postMessage }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import IframeLab from '@/widgets/iframe-lab/ui/IframeLab.vue';
 import {
   GLOSSARY,
   PLAIN_FRAME,
-  PREREQ,
-  PREREQ_NOTE,
   EMBED_CODE,
   EMBED_FACTS,
   ACCESS_CODE,
@@ -105,8 +101,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

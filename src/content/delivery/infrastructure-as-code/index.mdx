@@ -8,7 +8,6 @@ lead: "Вы пишете не «создай сервер», а «сервер �
 summary: "Декларативность и цикл init/plan/apply; terraform.tfstate изнутри — serial, lineage, dependencies; пароль в состоянии открытым текстом, sensitive, шифрование OpenTofu и ephemeral; удалённое состояние и замок на своём http-бэкенде; граф зависимостей и граф apply; символы плана, forces replacement, known after apply и create_before_destroy; дрейф, refresh-only, import, -target; count против for_each и moved; модули; мини-планировщик, сверенный с tofu plan."
 verifiedOn: "OpenTofu 1.12.7 (образ ghcr.io/opentofu/opentofu, linux/arm64), hashicorp/local 2.9.1, hashicorp/random 3.9.1, Docker Desktop на macOS, октябрь 2026: 51 план (действия, причины, переносы, дрейф, граф apply), состояние, шифрование, замок на http-бэкенде, import, -target, ephemeral и модуль пересобираются tests/unit/infrastructure-as-code.test.ts при наличии Docker; мини-планировщик сверен со всеми 51 планом. Terraform на стенде не запускался: его отличия, бэкенды S3/GCS/azurerm/pg, Pulumi, AWS CDK и Crossplane — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Желаемое состояние }
   - { id: s2, label: Файл состояния }
   - { id: s3, label: Секреты в состоянии }
@@ -36,7 +35,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import IacLab from '@/widgets/iac-lab/ui/IacLab.vue';
@@ -44,8 +42,6 @@ import { STATE_COUNT, STATE_FOREACH } from './stand';
 import {
   GLOSSARY,
   PLAIN_IAC,
-  PREREQ,
-  PREREQ_NOTE,
   BASE_CONFIG,
   MAIN_TF,
   EXAMPLE_PARTS,
@@ -149,8 +145,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

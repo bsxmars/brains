@@ -8,7 +8,6 @@ lead: "Внутри `.git` нет «версий файлов» и «веток�
 summary: "Четыре вида объектов и как считается их SHA-1, zlib в `.git/objects`, дерево и коммит байт за байтом, ветка как файл с хешем, `HEAD`, reflog и индекс, общий предок и трёхстороннее слияние, fast-forward, rebase и cherry-pick с новыми хешами, потерянный коммит в reflog, packfile и дельты."
 verifiedOn: "git 2.44.0, isomorphic-git 1.42.6, Node 24.11.0 и 26.8.2, октябрь 2026: хеши, выводы команд и размеры сняты на репозиториях с фиксированным автором и временем и пересобираются tests/unit/git-internals.test.ts; функции темы сверены с git и isomorphic-git, шаги демо повторяются в git"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Объекты и хеш }
   - { id: s2, label: Дерево и коммит }
   - { id: s3, label: Ветки и индекс }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import GitLab from '@/widgets/git-lab/ui/GitLab.vue';
 import {
   GLOSSARY,
   PLAIN_GIT,
-  PREREQ,
-  PREREQ_NOTE,
   OBJECT_ROWS,
   HELLO_SHELL,
   HELLO_NOTE,
@@ -114,8 +110,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

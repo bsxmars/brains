@@ -6,7 +6,6 @@ lead: "Пять структурных паттернов устроены од�
 summary: "Книжный адаптер и почему `private` заставляет его наследовать базу, адаптер через интерфейс, `promisify` и потерянный `this`; фасад над тремя сервисами и над `fetch`, который не считает 500 ошибкой; заместитель-класс против встроенного `Proxy` и кеш промисов, который хранит отказ; «декоратор», меняющий сам объект, порядок обёрток в стопке и `@` снизу вверх; мост между уведомлениями и провайдерами и рендерер Vue как мост."
 verifiedOn: "TypeScript 6.0.3 (`tsc --strict`), Node 26.8.2, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, `promisify` запущен настоящим `node`, `fetch` — против настоящего HTTP-сервера — `tests/unit/patterns-wrappers.test.ts`"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Зачем }
   - { id: s2, label: Адаптер }
   - { id: s3, label: Фасад }
@@ -25,14 +24,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   PLAIN_WRAPPER,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   WRAPPER_ROWS,
   WRAPPERS_NOTE,
   PLAIN_ADAPTER,
@@ -73,8 +69,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

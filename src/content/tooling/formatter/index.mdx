@@ -8,7 +8,6 @@ lead: "Prettier не правит ваш файл — он печатает ег
 summary: "Путь кода парсер → AST → Doc → текст, команды Doc (`group`, `indent`, `line`, `softline`, `hardline`, `ifBreak`, `fill`, `conditionalGroup`, `breakParent`), алгоритм Вадлера и жадный `fits`, порядок «снаружи внутрь», ширина по East Asian Width, что Prettier берёт из исходника, совместная жизнь с ESLint, идемпотентность и известные нестабильные случаи."
 verifiedOn: "Prettier 3.9.6, Node 24.11.0, октябрь 2026: Doc примеров сняты printToDoc и пересобираются tests/unit/formatter.test.ts; учебный принтер сверен с printDocToString на случайных Doc и на Doc настоящего кода на ширинах 10…100; выводы, ширины и нестабильные случаи сняты prettier.format"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: От кода к Doc }
   - { id: s2, label: Печать по ширине }
   - { id: s3, label: Ширина строки }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FormatLab from '@/widgets/format-lab/ui/FormatLab.vue';
 import {
   GLOSSARY,
   PLAIN_FORMATTER,
-  PREREQ,
-  PREREQ_NOTE,
   PIPELINE_CHIPS,
   PIPELINE_NOTE,
   PLAIN_DOC,
@@ -121,8 +117,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

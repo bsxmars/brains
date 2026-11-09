@@ -6,7 +6,6 @@ lead: "Почему `setState` тем же значением иногда вс�
 summary: "Хуки изнутри: диспетчер и список ячеек, useRef и useMemo, очередь useReducer и ранний выход useState, контекст как стек и пометка читателей мимо memo, useSyncExternalStore и разрыв экрана без него."
 verifiedOn: React 19.3 · Node 26.8
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Каркас }
   - { id: s2, label: Диспетчер }
   - { id: s3, label: useRef и useMemo }
@@ -26,7 +25,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniHooks from '@/widgets/mini-hooks/ui/MiniHooks.vue';
@@ -62,8 +60,6 @@ import {
   PLAIN_EAGER,
   PLAIN_PROVIDER_STACK,
   PLAIN_TEARING,
-  PREREQ,
-  PREREQ_NOTE,
   QUEUE_LINK,
   REDUCER_NOTE,
   REDUCER_SAME_CODE,
@@ -104,8 +100,6 @@ import {
 >
   <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} min={260} />
 
 <Section
   id="s1"

@@ -8,7 +8,6 @@ lead: "Карта на сайте выглядит как одна больша�
 summary: "Встраивание карты: контейнер с высотой, стиль, центр, масштаб, маркер, `remove()`; порядок `[lng, lat]` против `[lat, lng]`. Web Mercator: формулы, обрезка на 85,05°, растяжение к полюсам, метры на пиксель, `zoom` от 256 и от 512. Тайлы: адрес `z/x/y`, какие видны в окне, сколько запросов на сдвиг и смену масштаба, `@2x`, шаблон адреса. Растровые и векторные тайлы, стиль, два кеша. DOM-маркеры против слоя на холсте, кластеры как в supercluster. Карта в React и Vue: ref, эффект с очисткой, StrictMode, Proxy, серверный рендер, потеря WebGL. Ключи, атрибуция, свои тайлы, доступность."
 verifiedOn: "@math.gl/web-mercator 4.1.0, supercluster 9.1.0, React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, Node 26.8.2, ноябрь 2026: проекция, тайлы окна и метры на пиксель сверены с math.gl, кластеры на каждом уровне — с supercluster, компоненты React и Vue исполнены с подставной картой. Всё повторяет tests/unit/maps.test.ts. Код MapLibre GL JS 5 и Leaflet 1.9 написан по их документации и не исполнялся"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Карта на странице }
   - { id: s2, label: Проекция }
   - { id: s3, label: Тайлы }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MapLab from '@/widgets/map-lab/ui/MapLab.vue';
 import {
   GLOSSARY,
   PLAIN_TILES,
-  PREREQ,
-  PREREQ_NOTE,
   EMBED_HTML,
   EMBED_CODE,
   EMBED_NOTE,
@@ -124,8 +120,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

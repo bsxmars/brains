@@ -6,7 +6,6 @@ lead: "Компоновщик отвечает на вопрос «скольк�
 summary: "Книжный компоновщик и цена «прозрачного» варианта, дерево как размеченное объединение, DOM как готовый компоновщик и `HierarchyRequestError`; итератор с `current/next/prev` против протокола `Symbol.iterator`, сортировка коллекции в конструкторе и пропущенный первый элемент; обход рекурсивным генератором, явным стеком и очередью, `RangeError` на дереве из JSON и квадратичная цена `yield*`; тип id меню из самого меню, предел вывода, `ts(7023)` и помощники итераторов в `lib`."
 verifiedOn: "TypeScript 6.0.3 (`tsc --strict`, `lib` ES2025 + DOM), Node 26.8.2, Chromium 153, октябрь 2026. Каждый пример исполнен, ошибки компилятора сверены по строкам, пределы стека сняты отдельным процессом `node` — `tests/unit/patterns-trees.test.ts`"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Зачем }
   - { id: s2, label: Компоновщик }
   - { id: s3, label: Итератор }
@@ -24,14 +23,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   PLAIN_TREE,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PROBLEM_CODE,
   PATTERN_ROWS,
   PLAIN_COMPOSITE,
@@ -67,8 +63,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

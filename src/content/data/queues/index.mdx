@@ -8,7 +8,6 @@ lead: "Обработчик начислил бонусы и упал, не ус
 summary: "Зачем очередь; «не больше одного раза» и «не меньше одного раза»; `XACK` до работы и после по шагам; список ожидания, `XPENDING`, счётчик доставок и `XAUTOCLAIM`; ядовитые сообщения и очередь мёртвых писем; ключ идемпотентности и `INSERT … ON CONFLICT DO NOTHING` в одной транзакции с эффектом; двойная запись и outbox; порядок и партиции; перебор всех точек падения."
 verifiedOn: "Redis 7.4.11 (redis:7-alpine в Docker), ioredis 5.11.1, @electric-sql/pglite 0.5.8 (PostgreSQL 18.3), PostgreSQL 16.15 (postgres:16-alpine, два сеанса psql), Node 24.11.0, октябрь 2026: журналы всех сценариев, перебор точек падения для двенадцати вариантов кода, медленный обработчик, удалённая запись и одновременная вставка ключа сняты стендом (пересборка — tests/unit/queues.test.ts при QUEUES_REDIS_CONTAINER и QUEUES_PG_CONTAINER); учебная модель сверена с ними строка в строку и с PGlite — при каждом прогоне. По документации: RabbitMQ, SQS и Kafka, Debezium"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Зачем очередь }
   - { id: s2, label: Подтверждение }
   - { id: s3, label: Список ожидания }
@@ -33,7 +32,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import QueueLab from '@/widgets/queue-lab/ui/QueueLab.vue';
@@ -41,8 +39,6 @@ import CrashLab from '@/widgets/queue-lab/ui/CrashLab.vue';
 import {
   GLOSSARY,
   PLAIN_QUEUE,
-  PREREQ,
-  PREREQ_NOTE,
   WHY_ROWS,
   EXAMPLE_TEXT,
   SCHEMA_SQL,
@@ -118,8 +114,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

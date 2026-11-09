@@ -6,7 +6,6 @@ lead: "Readable, Writable, Duplex и Transform — это буфер, пара �
 summary: "Внутреннее состояние Readable и Writable по шагам, четыре режима чтения на модели, сверенной с Node, objectMode и размер, порядок end/finish/close, destroy и finished, генераторы, cork и _writev, отличия от Web Streams."
 verifiedOn: "Node 26.8.2, сентябрь 2026: каждый пример исполняет тест, вывод в теме — их вывод; модель демо сверена с node:stream на каждом сочетании переключателей"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Четыре класса }
   - { id: s2, label: Состояние }
   - { id: s3, label: Режимы чтения }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import NsTickLab from '@/widgets/ns-tick-lab/ui/NsTickLab.vue';
@@ -78,7 +76,6 @@ import {
   PLAIN_READ,
   PLAIN_SHELF,
   PLAIN_SIZE,
-  PREREQ,
   RELATED,
   SAMPLE_CODE,
   SAMPLE_EVENTS_NOTE,
@@ -121,8 +118,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} />
 
 <Section
   id="s1"

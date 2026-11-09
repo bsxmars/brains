@@ -6,7 +6,6 @@ lead: "Для браузера WebGL-канвас — отдельный сло�
 summary: "Где кончается конвейер браузера и начинается конвейер GPU: вершины и фрагменты, цена вызова отрисовки, почему время здесь почти нечем померить и что происходит при потере контекста."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), рендерер ANGLE · Vulkan · SwiftShader — программный растеризатор; сентябрь 2026"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Граница }
   - { id: s2, label: Конвейер GPU }
   - { id: s3, label: Что стоит дорого }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ContextLoss from '@/widgets/context-loss/ui/ContextLoss.vue';
@@ -43,8 +41,6 @@ import {
   CALL_PATH,
   CALL_PATH_NOTE,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   RELATED,
   COST_ROWS,
   DRAW_MODES,
@@ -113,8 +109,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

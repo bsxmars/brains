@@ -6,7 +6,6 @@ lead: "Kubernetes не выполняет команды «запусти» и �
 summary: "Под, ReplicaSet и Deployment, а рядом DaemonSet, Job и CronJob; как сервис находит поды и кто вообще может до них достучаться; что решают три проверки здоровья — пробы; сколько стоят выкат новой версии и откат — на числах, снятых в учебном кластере kind; бюджет перерывов и автомасштабирование."
 verifiedOn: kind 0.33.0 · kubectl 1.30.5 · Kubernetes 1.37.0
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Под и контроллеры }
   - { id: s2, label: Сервис }
   - { id: s3, label: Пробы }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import RolloutTimeline from '@/widgets/rollout-timeline/ui/RolloutTimeline.vue';
 import ServiceDiagram from '@/widgets/kubernetes-service-diagram/ui/ServiceDiagram.astro';
@@ -95,8 +93,6 @@ import {
   STATUS_NOTE,
   UNDO_STEPS,
   WORKLOADS,
-  PREREQ,
-  PREREQ_NOTE,
   ROLLOUT_DEMO_NOTE,
   RELATED,
   STARTUP_MEASURE,
@@ -129,8 +125,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

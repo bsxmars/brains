@@ -8,7 +8,6 @@ lead: "Человек нажал клавишу — поле получило п
 summary: "Порядок `keydown` → `keypress` → `beforeinput` → `input` → `keyup`, `inputType` и что отменяемо; `key` против `code` на русской раскладке, устаревшие `keyCode` и `keypress`; IME: `insertCompositionText`, неотменяемый `beforeinput`, Enter с `isComposing` и код 229; вставка и `clipboardData`, HTML в `contenteditable`; `el.value` без событий и без истории, `setRangeText`; автозаполнение — токены `autocomplete`, события без нажатий и `:autofill`; `contenteditable`, `execCommand` и `beforeinput`. Учебная модель поля сверена с журналами Chromium."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63: headless shell и полный Chromium для автозаполнения), Node 24.11.0, macOS, октябрь 2026: журналы событий, вставка, история правок, contenteditable и автозаполнение сняты в Chromium и снимаются заново tests/unit/text-input.test.ts; модель simulateField сверена с журналами на всех сценариях. Раскладка и IME имитированы командами CDP; keyCode 229, Safari, менеджер паролей и one-time-code — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Одно нажатие }
   - { id: s2, label: Что можно отменить }
   - { id: s3, label: key и code }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import InputLab from '@/widgets/input-lab/ui/InputLab.vue';
 import {
   GLOSSARY,
   PLAIN_INPUT,
-  PREREQ,
-  PREREQ_NOTE,
   STAND_RUNS,
   DEMO_SCENARIOS,
   ORDER_ROWS,
@@ -107,8 +103,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -6,7 +6,6 @@ lead: "Сервис Kubernetes видит адрес и порт, но не хо
 summary: "Путь запроса снаружи до пода; Ingress — хост, путь, pathType и как выбирается совпадение; IngressClass и аннотации контроллера; TLS и cert-manager; Gateway API — роли, условия, веса, редирект и переписывание; статус ingress-nginx; SPA, кеш и WebSocket на входе."
 verifiedOn: "Правила выбора бэкенда — учебной функцией темы по спецификациям Ingress (networking.k8s.io/v1) и Gateway API (gateway.networking.k8s.io/v1); её сверяет тест на таблицах примеров из самих спецификаций. Кластер не поднимался: умолчания ingress-nginx, cert-manager и статус проектов — по документации, сентябрь 2026, и помечены в тексте"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Путь запроса }
   - { id: s2, label: 'Ingress: хост и путь' }
   - { id: s3, label: Класс и аннотации }
@@ -28,7 +27,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import PathDiagram from '@/widgets/ingress-path-diagram/ui/PathDiagram.astro';
 import RolesDiagram from '@/widgets/ingress-roles-diagram/ui/RolesDiagram.astro';
@@ -72,8 +70,6 @@ import {
   PLAIN_PREFIX,
   PLAIN_ROLES,
   PORTABILITY_NOTE,
-  PREREQ,
-  PREREQ_NOTE,
   REDIRECT_CODE,
   RELATED,
   REWRITE_TABLE,
@@ -107,8 +103,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

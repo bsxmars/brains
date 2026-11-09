@@ -8,7 +8,6 @@ lead: "Липкая шапка вдруг перестаёт липнуть, л�
 summary: "Кто прокручивает и что заставляет ждать JS, `touch-action`; `position: sticky` — сдвиг, ближайший контейнер прокрутки, почему `overflow: hidden` и растянутый элемент не липнут; якорь прокрутки — выбор узла, исключения, подавление поправки, `overflow-anchor`; `overscroll-behavior` и цепочка; scroll snap, `scrollsnapchange`, `scrollend`; `scroll-padding` и `scroll-margin` под липкой шапкой; `scrollbar-gutter`; `history.scrollRestoration`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: позиции, сдвиги прокрутки, события и возврат на место сняты стендом и снимаются заново в tests/unit/scrolling.test.ts; функция темы stickyOffset сверена с getBoundingClientRect на 150 случайных раскладках, selectAnchor — со сдвигом прокрутки после вставки перед каждым узлом на случайных деревьях"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Кто крутит }
   - { id: s2, label: Липкая шапка }
   - { id: s3, label: Якорь }
@@ -33,7 +32,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ScrollLab from '@/widgets/scroll-lab/ui/ScrollLab.vue';
@@ -41,8 +39,6 @@ import {
   GLOSSARY,
   PLAIN_SCROLL,
   PLAIN_STICKY,
-  PREREQ,
-  PREREQ_NOTE,
   WHO_NOTE,
   TOUCH_ROWS,
   TOUCH_NOTE,
@@ -110,8 +106,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

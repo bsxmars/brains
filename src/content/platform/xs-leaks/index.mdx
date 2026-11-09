@@ -8,7 +8,6 @@ lead: "Правило одного источника не даёт чужой �
 summary: "Что такое межсайтовая утечка одного бита и почему SOP её не закрывает; классы утечек и что закрывает каждый; Fetch Metadata и серверная политика изоляции ресурсов, CORP, COOP и frame-ancestors — с поведением каждого заголовка, снятым на стенде из двух сайтов."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless) против своего сервера на Node 26.8.2, https с самоподписанным сертификатом и http для контроля; три хоста a.test, sub.a.test и b.test через --host-resolver-rules, сентябрь 2026. Снималось только поведение защитных заголовков — с ними и без них. Разделение HTTP-кеша — по документации Chrome, без запуска. Firefox и WebKit не снимались"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Один бит вместо ответа }
   - { id: s2, label: Классы утечек }
   - { id: s3, label: Fetch Metadata }
@@ -32,13 +31,10 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import FetchMetadataPolicy from '@/widgets/fetch-metadata-policy/ui/FetchMetadataPolicy.vue';
 import {
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_LEAK,
   PLAIN_FETCH_METADATA,
   LEAK_CHIPS,
@@ -98,8 +94,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

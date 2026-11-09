@@ -8,7 +8,6 @@ lead: "`package.json` не описывает, что у вас установл
 summary: "Как читаются диапазоны semver и почему `^0.2.3` не пускает `0.3.0`; как npm поднимает пакеты в плоский `node_modules` и откуда берутся фантомы и одинаковые копии; что записано в lock-файле и чем `npm ci` отличается от `npm install`; peer-зависимости, `ERESOLVE` и `overrides`; хранилище и симлинки pnpm, Yarn PnP; скрипты установки и пороги возраста версий."
 verifiedOn: "Node 26.8.2, npm 11.19.1, pnpm 11.0.9 и Yarn 4.18.0 (оба из кеша corepack) — на учебном реестре из двадцати одного тарбола на 127.0.0.1, без сети, сентябрь 2026, macOS (APFS). Диапазоны сверены с пакетом semver 7.8.5 — 3219 сравнений; раскладки npm и pnpm и integrity тарбола закреплены `tests/unit/package-managers.test.ts`. База уязвимостей `npm audit` (ответ реестра подставлен), provenance и подпись пакетов, Yarn Classic и lockfileVersion 1–2 — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Semver и диапазоны }
   - { id: s2, label: Разрешение и подъём }
   - { id: s3, label: Lock-файл }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import PmRange from '@/widgets/pm-lab/ui/PmRange.vue';
 import PmTree from '@/widgets/pm-lab/ui/PmTree.vue';
 import PnpmDiagram from '@/widgets/package-managers-pnpm-diagram/ui/PnpmDiagram.astro';
 import {
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_MANAGER,
   PLAIN_RANGE,
   PLAIN_HOIST,
@@ -115,8 +111,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

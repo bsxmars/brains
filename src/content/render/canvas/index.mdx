@@ -8,7 +8,6 @@ lead: "Холст — не дерево элементов, а одна табл
 summary: "Битмап против DOM и SVG, попадание и доступность, буфер против CSS-размера и `devicePixelRatio`, покрытие пикселя и полупиксельные линии, `save`/`restore`, пути и `beginPath`, `clearRect` под матрицей, цена кадра и слои, запачканный холст и CORS, `OffscreenCanvas` в воркере при занятом главном потоке, `ImageBitmap` и `createImageBitmap`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless, программная растеризация), Node 24.11.0, октябрь 2026; сброс пятна — ещё Firefox 155.0 и WebKit 26.6. Пиксели, снимки экрана, дерево доступности, слои, ошибки и кадры воркера сняты стендом и снимаются заново в tests/unit/canvas.test.ts; модель покрытия сверена с Chromium в 64 случаях"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Битмап, а не дерево }
   - { id: s2, label: Два размера холста }
   - { id: s3, label: Полпикселя }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import LineLab from '@/widgets/canvas-lab/ui/LineLab.vue';
@@ -39,8 +37,6 @@ import BusyLab from '@/widgets/canvas-lab/ui/BusyLab.vue';
 import {
   GLOSSARY,
   PLAIN_CANVAS,
-  PREREQ,
-  PREREQ_NOTE,
   HIT_CODE,
   HIT_FACTS,
   A11Y_HTML,
@@ -118,8 +114,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

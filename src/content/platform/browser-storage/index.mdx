@@ -8,7 +8,6 @@ lead: "Куки, `localStorage`, `sessionStorage`, IndexedDB, Cache API и OPFS 
 summary: "Шесть хранилищ браузера и что где хранить; `localStorage` и `sessionStorage`: только строки, предел в символах UTF-16, событие `storage` в соседних вкладках; IndexedDB: версии, `onupgradeneeded` и `blocked`, индексы и курсоры; жизнь транзакции — активность, автокоммит и `TransactionInactiveError` после `await fetch`, с моделью, сверенной с Chromium и fake-indexeddb; Cache API; OPFS и синхронный доступ из воркера; `estimate()`, `persist()`, вытеснение и инкогнито."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63.0) на своём сервере node:http, Node 24.11.0, fake-indexeddb 6.2.5, октябрь 2026: предел localStorage, события storage между вкладками, sessionStorage при открытии окон, девять сценариев транзакции, versionchange и blocked, индексы и курсоры, Cache API, OPFS в воркере, estimate() и persist() в профиле на диске и без профиля сняты стендом; модель транзакции сверена tests/unit/browser-storage.test.ts с fake-indexeddb и журналами Chromium. Порядок вытеснения, выдача persist() и поведение Firefox и Safari — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Что где хранить }
   - { id: s2, label: localStorage и sessionStorage }
   - { id: s3, label: IndexedDB }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TxLab from '@/widgets/tx-lab/ui/TxLab.vue';
 import {
   GLOSSARY,
   PLAIN_STORAGE,
-  PREREQ,
-  PREREQ_NOTE,
   MAP_ROWS,
   CHOICE,
   LS_TYPES_CODE,
@@ -107,8 +103,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

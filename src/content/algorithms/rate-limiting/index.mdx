@@ -8,7 +8,6 @@ lead: "Поле поиска шлёт событие на каждую букв�
 summary: "Чем debounce отличается от throttle, debounce с `leading`, `trailing` и `maxWait`, почему throttle в lodash — это debounce с `maxWait = wait`, обёртка на `requestAnimationFrame`, ведро жетонов и дырявое ведро, фиксированное окно с всплеском вдвое на границе, скользящий журнал и скользящий счётчик — как один бюджет событий во времени."
 verifiedOn: "lodash-es 4.18.1, vitest 5.0.0 (vi.useFakeTimers), Node 24.11.0, октябрь 2026: debounce и throttle темы на виртуальных часах сверены с lodash-es на фальшивых таймерах — одни и те же ленты, одинаковые вызовы; ограничители проверены на свойствах в tests/unit/rate-limiting.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Разница }
   - { id: s2, label: Часы }
   - { id: s3, label: Debounce }
@@ -34,7 +33,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DebounceThrottle from '@/widgets/debounce-throttle/ui/DebounceThrottle.vue';
@@ -42,8 +40,6 @@ import RateLab from '@/widgets/rate-lab/ui/RateLab.vue';
 import {
   GLOSSARY,
   PLAIN_BUDGET,
-  PREREQ,
-  PREREQ_NOTE,
   DEBOUNCE_DEMO_NOTE,
   DEMO_SEQUENCES,
   DEMO_WAIT,
@@ -116,8 +112,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

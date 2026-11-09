@@ -6,7 +6,6 @@ lead: "Образ Docker — не архив с приложением, а ст�
 summary: "Из чего состоит образ; как Docker решает, какой шаг сборки взять из кеша; почему важен порядок строк в Dockerfile; как многоступенчатая сборка оставляет инструменты сборки за бортом и откуда на самом деле берётся вес образа."
 verifiedOn: "Docker 27.4.0 (BuildKit), платформа arm64/linux, macOS, сентябрь 2026. Базовые образы node:22, node:22-slim, node:22-alpine (Node 22.23.2, Alpine 3.24.1). Числа сняты на arm64 — на amd64 веса другие. Реестры, опись и подпись образов, сканирование уязвимостей, bake и права контейнера при запуске замером не закрыты — описаны по документации."
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Что такое образ }
   - { id: s2, label: Как кеш решает }
   - { id: s3, label: Порядок инструкций }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import LayersDiagram from '@/widgets/docker-layers-diagram/ui/LayersDiagram.astro';
 import StagesDiagram from '@/widgets/docker-stages-diagram/ui/StagesDiagram.astro';
@@ -88,8 +86,6 @@ import {
   SUPPLY_FACTS,
   SUPPLY_LEAD,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   CACHE_SCENE,
   CACHE_STEPS,
   CACHE_SCENE_FOOT,
@@ -134,8 +130,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -8,7 +8,6 @@ lead: "Выкатили новую версию, а у пользователя 
 summary: "Регистрация и область, первая страница без контроллера, `install` и `waitUntil`, предзагрузка в Cache API, `waiting` и почему F5 его не снимает, `activate` и чистка кешей, `skipWaiting` и `claim` с их ценой, байтовое сравнение и `updateViaCache`, `respondWith` и три стратегии, navigation preload, офлайн, сон воркера, отладка."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: жизненный цикл снят по протоколу DevTools на десяти сценариях; модель темы и стратегии сверяются с журналами стенда в tests/unit/service-worker.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Регистрация и область }
   - { id: s2, label: Установка и активация }
   - { id: s3, label: Почему новая ждёт }
@@ -34,7 +33,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SwLab from '@/widgets/sw-lab/ui/SwLab.vue';
@@ -42,8 +40,6 @@ import StrategyLab from '@/widgets/sw-lab/ui/StrategyLab.vue';
 import {
   GLOSSARY,
   PLAIN_SW,
-  PREREQ,
-  PREREQ_NOTE,
   PAGE_CODE,
   SW_CODE,
   FIRST_FACTS,
@@ -118,8 +114,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

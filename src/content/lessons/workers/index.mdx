@@ -5,7 +5,6 @@ lead: "Воркер — не «ещё один поток» с общими пе
 summary: "Агент и его изоляция, три канала через границу — копия, передача владения и общая память — и цена каждого, снятая замером в браузере."
 verifiedOn: Chromium 153.0.8010.12 · Node 26.8.2 (вычитка 2026-10-29)
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Агент }
   - { id: s2, label: Клонирование }
   - { id: s3, label: Владение }
@@ -29,7 +28,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import TransferCost from '@/widgets/transfer-cost/ui/TransferCost.vue';
 import TransferDiagram from '@/widgets/workers-transfer-diagram/ui/TransferDiagram.astro';
@@ -96,8 +94,6 @@ import {
   WASM_NOTE,
   WHY_NO_DOM,
   WORKER_TYPES,
-  PREREQ,
-  PREREQ_NOTE,
   RELATED,
   PLAIN_AGENT,
   PLAIN_CLONE,
@@ -111,8 +107,6 @@ import {
 <Section variant="intro" eyebrow="Один поток на всё" lead={INTRO_NOTE}>
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

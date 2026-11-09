@@ -8,7 +8,6 @@ lead: "Данные в базе поменялись, а страница пок
 summary: "Склейка одинаковых `fetch` в рендере, кеш данных (`force-cache`, `revalidate`, теги, `unstable_cache`), кеш маршрута (статика, ISR, `x-nextjs-cache`: `HIT`, `STALE`, `MISS`), кеш роутера во вкладке (префетч, переходы без запроса), `revalidateTag`, `updateTag`, `revalidatePath`, что сменилось по умолчанию в 15-й версии и новая модель `'use cache'`. Учебная модель четырёх слоёв сверена тестом с журналом настоящего Next 16.3.8."
 verifiedOn: "next 16.3.8 (Turbopack), React 19.3.0, Node 24.11.0, Chromium 153 (Playwright 1.63), октябрь 2026: приложение темы собрано next build и запущено next start рядом со счётчиком-бэкендом; запросы к бэкенду, x-nextjs-cache, Cache-Control, содержимое страниц и запросы вкладки пересобирает tests/unit/next-cache-stand.test.ts, модель четырёх слоёв сверена с этим журналом шаг в шаг. История значений по умолчанию, сроки кеша роутера числами и поведение next dev — по документации 16.3.8"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Четыре слоя }
   - { id: s2, label: Запрос в рендере }
   - { id: s3, label: Кеш данных }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import NextCacheLab from '@/widgets/next-cache-lab/ui/NextCacheLab.vue';
 import {
   GLOSSARY,
   PLAIN_LAYERS,
-  PREREQ,
-  PREREQ_NOTE,
   LAYERS,
   LAYERS_NOTE,
   STAND_INTRO,
@@ -105,8 +101,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

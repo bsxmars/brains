@@ -8,7 +8,6 @@ lead: "Три одинаковых бэкенда за nginx — и три во�
 summary: "L4 против L7: соединения или запросы, почему HTTP/2 и WebSocket прилипают; round-robin и плавный взвешенный круг nginx, `zone` и рабочие процессы; `least_conn`, случайный выбор и «два случайных»; `hash % N` против согласованного хеширования с виртуальными узлами, `ip_hash`, липкие сессии; активные и пассивные проверки, `max_fails`/`fail_timeout`, `no live upstreams`; `proxy_next_upstream` и идемпотентность; плавный вывод и ловушка keep-alive в `server.close()`."
 verifiedOn: "nginx 1.30.0 (nginx:1.30.0-alpine-slim) в Docker 27.4.0, бэкенды на node:http (Node 24.11.0), октябрь 2026: последовательности бэкендов, повторы и вывод из работы сняты стендом; PICK_CODE и RING_CODE воспроизводят выбор nginx побуквенно (tests/unit/load-balancing.test.ts), доля переехавших ключей сверена с 1/(N+1); DRAIN_CODE исполнен на node:http; активные проверки и sticky NGINX Plus, gRPC MAX_CONNECTION_AGE, proxy_next_upstream_tries/_timeout и Idempotency-Key — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Соединения или запросы }
   - { id: s2, label: Круг и веса }
   - { id: s3, label: Кто свободнее }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BalancerLab from '@/widgets/lb-lab/ui/BalancerLab.vue';
@@ -40,8 +38,6 @@ import RingLab from '@/widgets/lb-lab/ui/RingLab.vue';
 import {
   GLOSSARY,
   PLAIN_BALANCER,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_L4L7,
   L4L7_CONF,
   L4L7_ROWS,
@@ -125,8 +121,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

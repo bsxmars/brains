@@ -8,7 +8,6 @@ lead: "Текст, который человек набрал в поле, ле�
 summary: "Контролируемые и неконтролируемые поля React, во что компилируется `v-model` и что делают его директивы, модификаторы `.lazy`/`.trim`/`.number`, сколько компонентов перерисовывает один символ при разном устройстве состояния, почему уезжает каретка, IME и `compositionend`, встроенная проверка и `:user-invalid`, `FormData`, действия формы в React 19."
 verifiedOn: "React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, esbuild 0.28.2, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: вывод компилятора Vue пересобирается; мини-v-model сверен с директивами Vue, модель рендеров — со счётчиками React и Vue на всех вариантах формы; каретка, IME (имитация через CDP), проверка полей, FormData и действия React 19 сняты в Chromium тестом tests/unit/forms.test.ts. react-hook-form — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Две копии }
   - { id: s2, label: v-model }
   - { id: s3, label: Цена символа }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VModelLab from '@/widgets/form-lab/ui/VModelLab.vue';
@@ -40,8 +38,6 @@ import RenderLab from '@/widgets/form-lab/ui/RenderLab.vue';
 import {
   GLOSSARY,
   PLAIN_TWO_COPIES,
-  PREREQ,
-  PREREQ_NOTE,
   REACT_LIFT_CODE,
   CONTROL_STEPS,
   CONTROL_ROWS,
@@ -117,8 +113,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -6,7 +6,6 @@ lead: "Реактивность Vue помещается в три сотни с
 summary: "Мини-Vue за шесть шагов — `reactive`, `track`/`trigger`, `effect`, `ref`, `computed`, планировщик — исполняется в демо и сверяется тестом с `@vue/runtime-core` 3.5 в обеих сборках."
 verifiedOn: Vue 3.5.42 · Node 26.8.2
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: reactive }
   - { id: s2, label: track и trigger }
   - { id: s3, label: effect }
@@ -27,14 +26,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniReactivity from '@/widgets/mini-reactivity/ui/MiniReactivity.vue';
 import {
   MINI_VUE_CODE, STEP_REACTIVE, STEP_TRACK, STEP_EFFECT, STEP_REF, STEP_COMPUTED, STEP_SCHEDULER,
-  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ, PREREQ_NOTE,
-  PLAIN_PROXY, RECEIVER_CODE, RECEIVER_NOTE, CACHE_NOTE, SET_NOTE,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PLAIN_PROXY, RECEIVER_CODE, RECEIVER_NOTE, CACHE_NOTE, SET_NOTE,
   TABLE_SHAPE, PLAIN_TABLE, ACTIVE_NOTE, BACKREF_NOTE, ITERATE_NOTE, NOTIFY_NOTE,
   PLAIN_CLEANUP, BRANCH_CODE, CLEANUP_NOTE, NESTED_NOTE, RECURSE_NOTE,
   PLAIN_REF, REF_NOTE, SHALLOW_NOTE,
@@ -57,8 +54,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} min={270} />
 
 <Section
   id="s1"

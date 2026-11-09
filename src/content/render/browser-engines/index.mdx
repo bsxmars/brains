@@ -6,7 +6,6 @@ lead: "Браузеров десятки, а движков три — Blink, Ge
 summary: "Какие браузеры на каком движке и почему все браузеры на iPhone — WebKit; что в языке на усмотрение движка — тексты ошибок, формат стека, разбор дат, глубина рекурсии; где расходится платформа — CSS, API, наблюдатели производительности; почему точность таймера зависит от движка и изоляции; как проверять возможность вместо имени браузера и тестировать в трёх движках."
 verifiedOn: "Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 — Playwright 1.63, macOS 26.6 (arm64); октябрь 2026"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Кто есть кто }
   - { id: s2, label: Язык }
   - { id: s3, label: Платформа }
@@ -25,7 +24,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import EngineProbe from '@/widgets/engine-probe/ui/EngineProbe.vue';
@@ -49,7 +47,6 @@ import {
   PLAIN_ENGINES,
   PLATFORM_FACTS,
   PLAYWRIGHT_NOTE,
-  PREREQ,
   RELATED,
   SOURCES,
   STACK_NOTE,
@@ -75,8 +72,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} />
 
 <Section
   id="s1"

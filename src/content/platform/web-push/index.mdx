@@ -8,7 +8,6 @@ lead: "Сайт закрыт, браузер свёрнут — а уведом�
 summary: "Три участника — ваш сервер, push-сервис (FCM, autopush) и Service Worker; подписка `pushManager.subscribe` и что лежит в `PushSubscription`; VAPID — JWT ES256 для push-сервиса; шифрование тела по RFC 8291: ECDH, HKDF с `auth`, AES-128-GCM и заголовок aes128gcm по байтам; `TTL`, `Urgency`, `Topic` и ответы 201, 403, 410; событие `push`, `showNotification` и `tag`; где push не дойдёт."
 verifiedOn: "web-push 3.6.7, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63, постоянный профиль, настоящая подписка FCM), октябрь 2026: доставка, ответы push-сервиса и замена по Topic сняты стендом; шифрование темы сверено с примером RFC 8291 байт в байт и с web-push в tests/unit/web-push.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Три участника }
   - { id: s2, label: Подписка }
   - { id: s3, label: VAPID }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PushLab from '@/widgets/push-lab/ui/PushLab.vue';
 import {
   GLOSSARY,
   PLAIN_PUSH,
-  PREREQ,
-  PREREQ_NOTE,
   FLOW_CHIPS,
   PLAIN_SERVICE,
   PARTICIPANTS,
@@ -106,8 +102,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

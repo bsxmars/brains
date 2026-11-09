@@ -6,7 +6,6 @@ lead: "В Node работу уносят из главного потока тр
 summary: "Первый воркер на `worker_threads`; что воркер делит с процессом, а что нет; ошибки и выход воркера; `spawn`, `exec`, `execFile` и `fork` — оболочка, вывод, канал; JSON в канале между процессами; как `cluster` раздаёт соединения и почему не раздаёт запросы."
 verifiedOn: "Node 26.8.2, ноябрь 2026: каждый пример с выводом исполняет tests/unit/node-processes.test.ts в отдельном процессе Node; время старта воркера и процесса — медиана семи запусков на ноутбуке"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Первый воркер }
   - { id: s2, label: worker_threads }
   - { id: s3, label: child_process }
@@ -26,14 +25,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
   PLAIN_PROCESS,
-  PREREQ,
-  PREREQ_NOTE,
   FIRST_MAIN_CODE,
   FIRST_WORKER_CODE,
   FIRST_OUT,
@@ -92,8 +88,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

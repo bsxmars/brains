@@ -8,7 +8,6 @@ lead: "Шаблон Angular читает обычные поля класса, �
 summary: "Что подменяет zone.js и как прячет подмену, мини-зона и `onMicrotaskEmpty`, цена проверки всего дерева и `OnPush`, `NG0100`, почему родной `await` теряет зону и CLI переписывает `async`, планировщик без зоны: кто заказывает тик и почему три записи — один тик, сигналы Angular среди других."
 verifiedOn: "@angular/core 21.2.25, zone.js 0.16.3, esbuild 0.28.2, Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: приложение темы собрано и запущено в Chromium с зоной и без, на десяти сценариях; мини-версия сверена с этими счётчиками в tests/unit/angular-zoneless.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Обычные поля }
   - { id: s2, label: zone.js }
   - { id: s3, label: Цена }
@@ -31,14 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ZoneLab from '@/widgets/zone-lab/ui/ZoneLab.vue';
 import {
   GLOSSARY,
   PLAIN_TICK,
-  PREREQ,
   ANGULAR_APP_CODE,
   BOOT_ZONE_CODE,
   BOOT_ZONELESS_CODE,
@@ -100,8 +97,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"

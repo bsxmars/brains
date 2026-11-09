@@ -3,11 +3,10 @@ title: Генераторы и асинхронные итераторы
 heading: "Генераторы и асинхронные итераторы: пауза, которую можно продолжить"
 headingWidth: 24
 order: 10
-lead: "Генератор умеет остановиться на `yield` и продолжить с того же места, когда его попросят. Если просить, когда выполнился промис, получится `async/await` — и пара десятков строк кода показывает, как именно. Асинхронный генератор соединяет оба механизма и добавляет то, чего нет ни у одного: очередь вызовов."
+lead: "Генератор останавливается на `yield` и ждёт, пока его не продолжат. Если продолжать его каждый раз, когда выполнится промис, получится `async/await`: весь механизм умещается в пару десятков строк. Асинхронный генератор умеет и то и другое, и ещё одно, чего нет ни у обычного генератора, ни у `async`-функции: вызовы `next()`, пришедшие раньше ответа, встают в очередь и получают ответы по порядку."
 summary: "Пауза генератора и во что он превращается без движка; `async/await` как генератор плюс `spawn`, пошагово и против настоящего движка; `__awaiter` TypeScript; асинхронные итераторы и `for await`; очередь `next()` у асинхронного генератора; `break`, `return()` и закрытие ресурса, которое не прерывает ожидание."
 verifiedOn: "Node 24.11.0 (V8 13.6), TypeScript 6.0.3, октябрь 2026: порядок событий учебной spawn, __awaiter и настоящего async/await совпадает на всех сценариях темы; примеры асинхронных генераторов исполняются tests/unit/generators.test.ts. Без таймерных замеров"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Пауза генератора }
   - { id: s2, label: async/await из генератора }
   - { id: s3, label: Асинхронные итераторы }
@@ -29,15 +28,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SpawnLab from '@/widgets/spawn-lab/ui/SpawnLab.vue';
 import {
   GLOSSARY,
   PLAIN_PAUSE,
-  PREREQ,
-  PREREQ_NOTE,
   HELPERS_CODE,
   STEPS_CODE,
   STEPS_NOTE,
@@ -104,8 +100,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

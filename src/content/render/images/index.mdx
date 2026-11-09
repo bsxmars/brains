@@ -8,7 +8,6 @@ lead: "Одна и та же картинка на телефоне весит 1
 summary: "Выбор кандидата из `srcset` по `sizes` и DPR, `x`-дескрипторы, файл из кеша, `<picture>` с `type` и `media`, `Accept`, размеры JPEG / WebP / AVIF / PNG при разном качестве, `loading=\"lazy\"` и его запас, приоритеты и `fetchpriority`, декодирование и память битмапа, `img.decode()`, `width` / `height` и `aspect-ratio`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), sharp 0.35.4 (libvips 8.18.6), Node 24.11.0, октябрь 2026: запросы, приоритеты, пороги lazy, память битмапов и сдвиги сняты стендом со своим сервером и картинками из sharp; функция выбора из srcset и байты файлов сверены в tests/unit/images.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: srcset и sizes }
   - { id: s2, label: x и кеш }
   - { id: s3, label: picture }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SrcsetLab from '@/widgets/srcset-lab/ui/SrcsetLab.vue';
 import {
   GLOSSARY,
   PLAIN_IMAGES,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_SRCSET,
   MARKUP_CODE,
   SRCSET_CODE,
@@ -102,8 +98,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

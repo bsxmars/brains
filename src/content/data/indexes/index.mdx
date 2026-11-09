@@ -8,7 +8,6 @@ lead: "Индекс создан, а `EXPLAIN` упрямо пишет `Seq Scan
 summary: "Таблица как набор страниц и Seq Scan; B-дерево: уровни, листья, поиск и диапазон, расщепление страниц; как читать `EXPLAIN (ANALYZE, BUFFERS)` — узлы, оценка против факта, `cost`, `loops`; как планировщик выбирает между Seq, Index и Bitmap Scan; почему индекс не берётся; Index Only Scan, `INCLUDE`, частичные индексы и индексы по выражению; цена индекса на запись."
 verifiedOn: "@electric-sql/pglite 0.5.8 (PostgreSQL 18.3 в WebAssembly) с pageinspect, Node 24.11.0, октябрь 2026: планы, прочитанные страницы, уровни и листья B-дерева, цены вариантов плана и цена записи сняты стендом и пересобираются tests/unit/indexes.test.ts; мини-B-дерево сверено с pageinspect и SQL, модель стоимости — с выбором и ценами EXPLAIN на 17 запросах. По документации Postgres: text_pattern_ops для LIKE в сортировке не C, отсутствие дедупликации у индексов с INCLUDE, появление skip scan в версии 18, пороги автоматического ANALYZE"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Таблица — это страницы }
   - { id: s2, label: B-дерево }
   - { id: s3, label: Как читать EXPLAIN }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BtreeLab from '@/widgets/index-lab/ui/BtreeLab.vue';
@@ -40,8 +38,6 @@ import PlanLab from '@/widgets/index-lab/ui/PlanLab.vue';
 import {
   GLOSSARY,
   PLAIN_HEAP,
-  PREREQ,
-  PREREQ_NOTE,
   SETUP_SQL,
   SETUP_NOTE,
   CTID_SQL,
@@ -129,8 +125,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

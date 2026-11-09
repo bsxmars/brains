@@ -7,7 +7,6 @@ lead: "`new Uint32Array(bytes.buffer)[0]` читает ширину картин
 summary: "`ArrayBuffer` и виды на него; `subarray` против `slice`; выравнивание и `RangeError`; переполнение и `Uint8ClampedArray`; little- и big-endian, `DataView` с флагом; `TextEncoder`/`TextDecoder` и `stream: true`; base64: `btoa` и его ловушка, `Uint8Array.toBase64`; `Blob` и `File`, `slice` без чтения; растущий буфер и `transfer()`; разбор PNG: сигнатура, блоки, `IHDR`, CRC-32."
 verifiedOn: "Node 24.11.0, Node 26.8.2 и Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: все примеры кода темы исполнены в трёх средах; PNG снят с кодировщика Chromium; parsePng и crc32 сверены с zlib.crc32 и размерами из createImageBitmap на четырёх настоящих PNG. Всё, что воспроизводит Node, повторяет tests/unit/binary-data.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Буфер и вид }
   - { id: s2, label: Выравнивание }
   - { id: s3, label: Порядок байт }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BytesLens from '@/widgets/bytes-lab/ui/BytesLens.vue';
@@ -39,8 +37,6 @@ import PngLab from '@/widgets/bytes-lab/ui/PngLab.vue';
 import {
   GLOSSARY,
   PLAIN_BUFFER,
-  PREREQ,
-  PREREQ_NOTE,
   PNG_BYTES,
   VIEWS_CODE,
   VIEWS_NOTE,
@@ -110,8 +106,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

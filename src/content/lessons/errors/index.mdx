@@ -7,7 +7,6 @@ lead: "В отчёте об ошибке из продакшена пусто: `
 summary: "Что лежит в объекте ошибки и почему `JSON.stringify` даёт `{}`; `cause`, `AggregateError` и брошенные не-ошибки; стек снимается в `new Error`, а печатается при первом чтении; `captureStackTrace`, `stackTraceLimit` и CallSite API; какие кадры V8 восстанавливает после `await`; `onerror`, `unhandledrejection` и «Script error.» в браузере, `uncaughtException` и коды выхода в Node; `finally`, `using` и `SuppressedError`; сборка отчёта с цепочкой причин и разбор стека на кадры; как работать с ошибками: где ловить, `res.ok`, узкий `catch`, `cause`, висящие промисы."
 verifiedOn: "Node 26.8.2 (V8 14.6), Chromium 153.0.8010.12 (Playwright 1.63, headless), октябрь 2026: примеры исполнены отдельными процессами Node, асинхронные стеки и глобальные обработчики — в Chromium со своего node:http на двух источниках. Разбор стека сверен с CallSite API V8, сборка отчёта — со structuredClone. Всё повторяет tests/unit/errors.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Объект ошибки }
   - { id: s2, label: Когда снимается стек }
   - { id: s3, label: Асинхронный стек }
@@ -28,7 +27,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import StackLab from '@/widgets/error-lab/ui/StackLab.vue';
@@ -36,8 +34,6 @@ import ReportLab from '@/widgets/error-lab/ui/ReportLab.vue';
 import {
   GLOSSARY,
   PLAIN_ERROR,
-  PREREQ,
-  PREREQ_NOTE,
   FRONT_RUN,
   PLAIN_HIDDEN,
   FRONT_NOTE,
@@ -132,8 +128,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

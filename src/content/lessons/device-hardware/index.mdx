@@ -6,7 +6,6 @@ lead: "Страница может говорить с платой Arduino, б�
 summary: "Полный цикл Web Serial: окно выбора, `open`, запись, чтение строк из потока, закрытие; общая для пяти API модель разрешений — безопасный контекст, жест, окно выбора, `getPorts`, `forget`, фреймы; поддержка в трёх движках и позиции Mozilla и Apple; чем отличаются USB, Bluetooth LE, HID и MIDI; blocklist и почему это опасно; как проверить код без устройства."
 verifiedOn: "Chromium 153, Firefox 155, WebKit 26.6 (Playwright 1.63), ноябрь 2026: tests/e2e/device-hardware.spec.ts исполняет примеры — Serial на тестовом порту Firefox, Bluetooth на фальшивом устройстве Chromium; USB и HID без устройства — только до окна выбора"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Первый порт }
   - { id: s2, label: Разрешения }
   - { id: s3, label: Где работает }
@@ -29,14 +28,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   PLAIN_DEVICE,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   SERIAL_CODE,
   SERIAL_OUT,
   SERIAL_NOTE,
@@ -97,8 +93,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

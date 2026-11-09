@@ -5,7 +5,6 @@ lead: "Снимок памяти среднего одностраничного
 summary: "Семь шагов поиска утечки, два веса объекта — собственный и удерживаемый — и цепочка «кто держит»: как от строки в снимке дойти до строки в коде."
 verifiedOn: "Node 24.11 и 26.8 · DevTools Chrome 153"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: График }
   - { id: s2, label: Процедура }
   - { id: s3, label: Comparison }
@@ -26,7 +25,6 @@ import FlowChips from '@/shared/ui/FlowChips.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import ComparisonTable from '@/widgets/comparison-table/ui/ComparisonTable.vue';
 import HeapGraph from '@/widgets/heap-graph/ui/HeapGraph.vue';
 import MemoryMonitor from '@/widgets/memory-monitor/ui/MemoryMonitor.vue';
@@ -66,8 +64,6 @@ import {
   QUERY_OBJECTS_CODE,
   SOURCES,
   GLOSSARY_CARDS,
-  PREREQ,
-  PREREQ_NOTE,
   HEAP_GRAPH_DEMO_NOTE,
   RETAIN_GRAPH_DEMO_NOTE,
   PROCEDURE_DEMO_NOTE,
@@ -113,8 +109,6 @@ import {
   <Plain text={PLAIN_RETAINED} />
 
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -8,7 +8,6 @@ lead: "Одна строка `browserslist` решает, во что превр
 summary: "Синтаксис против встроенных функций, запрос browserslist → цели → плагины `@babel/preset-env`, во что превращаются `?.`, `??`, `#x`, `async` и spread и сколько это стоит, `useBuiltIns: 'usage'` и `'entry'`, core-js, что нельзя ни переписать, ни дописать, esbuild и tsc без полифилов."
 verifiedOn: "@babel/preset-env 7.29.7, core-js 3.50.0, browserslist 4.28.9 (caniuse-lite 1.0.30001810), esbuild 0.28.2, TypeScript 6.0.3, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: вывод Babel, esbuild и tsc, списки полифилов и байты сняты стендом и пересобираются tests/unit/transpilation.test.ts; учебная функция решения сверена с preset-env на двадцати одном запросе browserslist"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Переписать или дописать }
   - { id: s2, label: От запроса к плагинам }
   - { id: s3, label: Во что превращается синтаксис }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TranspileLab from '@/widgets/transpile-lab/ui/TranspileLab.vue';
 import {
   GLOSSARY,
   PLAIN_TRANSPILE,
-  PREREQ,
-  PREREQ_NOTE,
   SAMPLE_CODE,
   KIND_ROWS,
   POLYFILL_AT_CODE,
@@ -116,8 +112,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

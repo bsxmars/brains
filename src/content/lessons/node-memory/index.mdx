@@ -6,7 +6,6 @@ lead: "Процесс на Node, который съел слишком мног
 summary: "Что значат пять полей memoryUsage, как читать лог --trace-gc, как снять снимок с работающего процесса и как подогнать потолок кучи под лимит контейнера."
 verifiedOn: "Node 24.11 и 26.8 · V8 13.6 и 14.6 · плюс контейнеры node:18/20/24-alpine с cgroup-лимитом"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Пять полей }
   - { id: s2, label: Развилка }
   - { id: s3, label: trace-gc }
@@ -26,7 +25,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import FlagSheet from '@/widgets/flag-sheet/ui/FlagSheet.astro';
 import GcLine from '@/widgets/gc-line/ui/GcLine.vue';
 import GrowthTriage from '@/widgets/growth-triage/ui/GrowthTriage.vue';
@@ -73,8 +71,6 @@ import {
   WORKER_LIMITS_OUT,
   SOURCES,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   HEAP_CHART_DEMO_NOTE,
   FIELDS_DEMO_NOTE,
   TRIAGE_DEMO_NOTE,
@@ -103,8 +99,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

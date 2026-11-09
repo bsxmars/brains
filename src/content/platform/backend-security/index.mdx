@@ -7,7 +7,6 @@ lead: "API-роут в Next, Nuxt или Astro — настоящий серве
 summary: "Доступ к чужому объекту по id и проверка владельца в запросе к базе; исходящий запрос на адрес пользователя (SSRF): разбор URL, адреса после резолва, проверка в lookup соединения и редиректы — с калькулятором, где рядом работает чёрный список строк; параметры SQL, экранирование HTML и execFile вместо exec; лишние поля в теле запроса и схема zod; ошибки без стека и секреты вне бандла; lock-файл глазами сервера. Весь код исполняется тестом темы."
 verifiedOn: "Node 26.8.2: node:sqlite, child_process (exec, execFile, shell: true и DEP0190), http.get с опцией lookup на своём сервере 127.0.0.1, парсер WHATWG URL; zod 4.6.2; package-lock.json этого курса; npm 11.19.1 (только справка npm audit). Сентябрь 2026. Agent из undici 8.10.2 с connect.lookup — тем же тестом. Реестры специальных адресов IANA, OWASP, Server Actions и бюллетень CVE-2025-29927, префиксы публичных переменных Vite, Next.js, Nuxt и Astro, адрес сервиса метаданных AWS, Google Cloud и Azure — сверены с первоисточниками 29 сентября 2026"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Чужой объект по id }
   - { id: s2, label: Запрос на адрес пользователя }
   - { id: s3, label: Инъекции }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import BsEgressCheck from '@/widgets/bs-egress-check/ui/BsEgressCheck.vue';
 import BsFieldAllowlist from '@/widgets/bs-field-allowlist/ui/BsFieldAllowlist.vue';
@@ -40,7 +38,6 @@ import {
   INTRO_THESIS,
   PLAIN_SERVER,
   GLOSSARY,
-  PREREQ,
   SEED_CODE,
   ALICE,
   PLAIN_IDOR,
@@ -123,8 +120,6 @@ import {
     </CardNote>
   </Card>
 </Section>
-
-<Prereq items={PREREQ} />
 
 <Section
   id="s1"

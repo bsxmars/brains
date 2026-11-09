@@ -8,7 +8,6 @@ lead: "«Удалить 1 файлов?» — так выглядит перев
 summary: "Почему склейка строк ломается: порядок слов, число, род, падеж. ICU MessageFormat: аргументы, `select`, `plural` с категориями CLDR, `=N`, `offset`, `#`, `selectordinal`, вложенность, апострофы; учебный разбор и формат, сверенный с `intl-messageformat` и `@messageformat/core`. Разбор в браузере против сборки заранее — в байтах. MessageFormat 2 коротко. vue-i18n: свой формат, правило множественного числа, ленивые словари, цепочка запасных локалей, реактивность. Выбор локали: адрес, cookie, `Accept-Language`, `hreflang`, RTL."
 verifiedOn: "intl-messageformat 12.1.2, @messageformat/core 3.4.0, vue-i18n 11.4.12, Vue 3.5.42, esbuild 0.28.2, Node 24.11.0 (ICU 77.1, CLDR 47.0), Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: учебный разбор ICU сверен с двумя библиотеками на 34 506 сочетаниях сообщений, чисел и шести локалей; байты бандлов, вывод compileModule, поведение vue-i18n и Chromium пересобирает tests/unit/i18n.test.ts. MessageFormat 2 — по спецификации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Склейка }
   - { id: s2, label: Синтаксис ICU }
   - { id: s3, label: Свой парсер }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import I18nLab from '@/widgets/i18n-lab/ui/I18nLab.vue';
 import {
   GLOSSARY,
   PLAIN_MESSAGE,
-  PREREQ,
-  PREREQ_NOTE,
   CONCAT_CODE,
   CONCAT_NOTE,
   BREAK_CARDS,
@@ -117,8 +113,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

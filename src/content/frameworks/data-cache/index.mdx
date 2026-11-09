@@ -8,7 +8,6 @@ lead: "Данные с сервера в браузере — всегда ко�
 summary: "Серверное состояние против клиентского, запись кеша по ключу, `status` и `fetchStatus`, дедупликация, `staleTime` против `gcTime`, обновление при фокусе и возврате сети, повторы с паузами, инвалидация, оптимистичное обновление и откат, структурное разделение. Мини-кеш в демо сверен тестом с `@tanstack/query-core` 5 и SWR 2 на одних сценариях."
 verifiedOn: "@tanstack/query-core 5.104.0, swr 2.5.1, React 19.3.0, happy-dom 20.14.5, Node 24.11.0, vitest 5.0.0, октябрь 2026: моменты запросов и состояния наблюдателей сняты на фейковых таймерах и повторяются tests/unit/data-cache.test.ts; мини-кеш темы сверен с query-core на семи сценариях при трёх staleTime; хук useQuery (@tanstack/react-query) не устанавливался — его отслеживание полей описано по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Серверное состояние }
   - { id: s2, label: Кеш по ключу }
   - { id: s3, label: Свежесть и сборка мусора }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import QueryCacheLab from '@/widgets/query-cache-lab/ui/QueryCacheLab.vue';
 import {
   GLOSSARY,
   PLAIN_SERVER_STATE,
-  PREREQ,
-  PREREQ_NOTE,
   STATE_ROWS,
   NAIVE_CODE,
   NAIVE_NOTE,
@@ -118,8 +114,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

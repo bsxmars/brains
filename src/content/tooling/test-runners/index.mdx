@@ -8,7 +8,6 @@ lead: "`vitest run` выглядит как «запусти мои тесты»
 summary: "Поиск тестовых файлов, сбор дерева и исполнение с хуками `beforeAll`/`beforeEach`/`afterEach`/`afterAll`, изоляция файлов в процессах и vm-контекстах, реестр модулей, подъём `vi.mock` и `jest.mock`, шпионы `vi.fn`, фейковые таймеры и очередь, утечки между тестами и перемешивание."
 verifiedOn: "vitest 5.0.0, jest 30.5.2 (jest-circus, babel-jest 30.5.2, babel-plugin-jest-hoist 30.5.0), @sinonjs/fake-timers 15.4.0, Node 24.11.0, октябрь 2026: журналы хуков, изоляции, таймеров, перемешивания и трансформации моков сняты настоящими раннерами на фикстурах темы и пересобираются tests/unit/test-runners.test.ts; учебный раннер сверен с обоими на шести фикстурах, учебные часы — с @sinonjs/fake-timers, шпион — с @vitest/spy и jest-mock"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Сбор и исполнение }
   - { id: s2, label: Изоляция файлов }
   - { id: s3, label: Моки и подъём }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import RunnerLab from '@/widgets/test-runner-lab/ui/RunnerLab.vue';
@@ -39,8 +37,6 @@ import ClockLab from '@/widgets/test-runner-lab/ui/ClockLab.vue';
 import {
   GLOSSARY,
   PLAIN_RUNNER,
-  PREREQ,
-  PREREQ_NOTE,
   FIND_ROWS,
   FIND_NOTE,
   PLAIN_TWO_PHASES,
@@ -123,8 +119,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

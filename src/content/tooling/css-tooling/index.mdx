@@ -8,7 +8,6 @@ lead: "Между CSS, который вы пишете, и CSS, который 
 summary: "Дерево PostCSS и плагины-посетители, повторный обход изменённых узлов; lightningcss и targets: что понижается, а что нет, и почему dev и сборка Vite отдают разный CSS; имена CSS-модулей из хеша, `composes` и `:global`; атрибут `data-v` во Vue `scoped`; сканер кандидатов Tailwind v4, слои и байты вывода; порядок CSS в сборке."
 verifiedOn: "postcss 8.5.28, lightningcss 1.33.0, Tailwind 4.3.3 (oxide, @tailwindcss/node, @tailwindcss/postcss), Vite 8.3.0, @vitejs/plugin-vue 6.0.8, Vue 3.5.42, Node 24.11.0, Chromium 153, октябрь 2026: деревья, выводы, имена классов, атрибуты и байты сняты стендом и пересобираются tests/unit/css-tooling.test.ts; учебные функции совпадают с Vite посимвольно и с Tailwind по набору утилит"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: PostCSS и дерево }
   - { id: s2, label: Понижение }
   - { id: s3, label: CSS-модули }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ModuleNameLab from '@/widgets/css-tooling-lab/ui/ModuleNameLab.vue';
@@ -40,8 +38,6 @@ import TwScanLab from '@/widgets/css-tooling-lab/ui/TwScanLab.vue';
 import {
   GLOSSARY,
   PLAIN_PIPELINE,
-  PREREQ,
-  PREREQ_NOTE,
   BUTTON_CSS,
   PLAIN_TREE,
   POSTCSS_TREE_PRINT,
@@ -126,8 +122,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

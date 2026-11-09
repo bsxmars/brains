@@ -8,7 +8,6 @@ lead: "Ctrl+Z кажется кнопкой «назад во времени», 
 summary: "Две стопки и почему новая правка стирает redo, снимки и общие ветки Immer, обратные правки и патчи, группировка по времени, виду и месту, выделение в записи, история `<textarea>` в Chromium — что она склеивает и где ломается, своя история через `beforeinput` и `keydown`, локальная отмена при чужих правках: пересчёт позиций и `Y.UndoManager`, дерево отмены в Vim и Emacs."
 verifiedOn: "immer 11.1.18, yjs 13.6.33, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: учебная история сверена с патчами Immer, с Y.UndoManager на 3000 случайных сценариев двух клиентов и с историей textarea в Chromium в tests/unit/undo-redo.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Две стопки }
   - { id: s2, label: Снимки }
   - { id: s3, label: Обратные правки }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import UndoLab from '@/widgets/undo-lab/ui/UndoLab.vue';
 import {
   GLOSSARY,
   PLAIN_HISTORY,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_STACKS,
   STACK_ROWS,
   STACKS_FACTS,
@@ -107,8 +103,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

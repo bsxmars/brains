@@ -6,7 +6,6 @@ lead: "У dev, stage и prod одинаковые манифесты с разн
 summary: "Окружения как данные и один образ на все; Kustomize — база и слои, images, namePrefix, commonLabels, генератор ConfigMap и хеш в имени; strategic merge против JSON 6902 и ловушка замены списка; Helm — чарт, шаблоны, values и их порядок, релиз, история, откат и хуки; GitOps — Argo CD и Flux, дрейф и self-heal, pull против push; секреты в Git — Sealed Secrets и SOPS."
 verifiedOn: "Слияние патчей, порядок values, синтаксис --set и поведение шаблонов — учебной моделью темы; её сверяет тест на таблицах случаев из документации Kubernetes, kustomize, Helm и RFC 6902/7386. kubectl, kustomize и helm не запускались, кластера не было: Argo CD, Flux, хранение релизов, хуки, Sealed Secrets и SOPS — по документации, сентябрь 2026, и помечены в тексте"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Три окружения }
   - { id: s2, label: Kustomize }
   - { id: s3, label: Патчи }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import KzEnvs from '@/widgets/kz-envs/ui/KzEnvs.vue';
@@ -82,8 +80,6 @@ import {
   PRECEDENCE,
   PREFIX_CODE,
   PREFIX_NOTE,
-  PREREQ,
-  PREREQ_NOTE,
   PUSH_NOTE,
   PUSH_PULL,
   RELATED,
@@ -123,8 +119,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

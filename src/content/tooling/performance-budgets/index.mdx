@@ -8,7 +8,6 @@ lead: "Страница не стала медленнее за один ден�
 summary: "Сырые байты против gzip и Brotli, критический путь против всех чанков, JS отдельно от CSS и шрифтов; живой бюджет сайта — weight.spec и его пороги; граф чанков из текста, из манифеста Vite и metafile esbuild; кратчайшая цепочка «кто тянет модуль»; Lighthouse CI, size-limit и RUM; порог, допуск, сравнение с базовой веткой и отчёт в пул-реквесте; хеши, общие чанки и одноимённые файлы."
 verifiedOn: "Astro 7.3.2 (Vite 8.3.0), es-module-lexer 2.3.2, acorn 8.18.0, esbuild 0.28.2, Node 24.11.0, Chromium 153 (Playwright 1.63), сборка сайта от 2 октября 2026: граф и размеры сняты с dist/ и сверяются tests/unit/performance-budgets.test.ts; функции темы сверены с weight.spec на всех страницах, с es-module-lexer и acorn на всех 313 чанках, с настоящими манифестом Vite и metafile esbuild; Lighthouse CI и size-limit — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Какие байты }
   - { id: s2, label: Живой бюджет }
   - { id: s3, label: Граф чанков }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BudgetLab from '@/widgets/budget-lab/ui/BudgetLab.vue';
 import {
   GLOSSARY,
   PLAIN_BUDGET,
-  PREREQ,
-  PREREQ_NOTE,
   RESOURCE_ROWS,
   PLAIN_COMPRESSED,
   MEASURE_FACTS,
@@ -104,8 +100,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

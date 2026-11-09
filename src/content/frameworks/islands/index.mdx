@@ -8,7 +8,6 @@ lead: "Полная гидратация отправляет в браузер 
 summary: "Полная гидратация против островов, устройство `<astro-island>`, сериализация пропсов, директивы `client:*` и их браузерные API, вес JS по шагам прокрутки, связь между островами, идея resumability в Qwik."
 verifiedOn: "Astro 7.3.2, @astrojs/vue 7.0.2, Vue 3.5.42, React 19.3.0, Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: острова, пропсы и граф чанков сняты с собранного dist/ этого сайта, загрузки при прокрутке — в Chromium; расчёт темы совпадает с записью браузера на двух страницах в трёх режимах и на стенде директив (tests/unit/islands.test.ts); пропсы сверены с serializeProps и восстановителем Astro. Qwik не устанавливался — раздел о нём по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Целиком или кусками }
   - { id: s2, label: astro-island }
   - { id: s3, label: Пропсы }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import IslandsLab from '@/widgets/islands-lab/ui/IslandsLab.vue';
 import {
   GLOSSARY,
   PLAIN_ISLANDS,
-  PREREQ,
-  PREREQ_NOTE,
   COMPARE,
   SITE_FACTS,
   ISLAND_HTML,
@@ -96,8 +92,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

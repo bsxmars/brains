@@ -6,7 +6,6 @@ lead: "Рендерер Vue помещается в несколько соте�
 summary: "Свой `createRenderer` — VNode, `patch`, дети без ключей и с ключами, LIS, флаги патча и блоки, компонент как эффект — на журналирующем хосте, сверенный по операциям с `@vue/runtime-core` 3.5 в обеих сборках."
 verifiedOn: Vue 3.5.42 · Node 26.8.2
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: VNode }
   - { id: s2, label: mount и patch }
   - { id: s3, label: Без ключей }
@@ -27,15 +26,13 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniPatch from '@/widgets/mini-patch/ui/MiniPatch.vue';
 import {
   MINI_PATCH_CODE, STEP_VNODE, STEP_HOST, STEP_PATCH, STEP_CHILDREN, STEP_KEYED, STEP_LIS,
   STEP_FLAGS, STEP_QUEUE, STEP_COMPONENT, RENDERER_SHAPE,
-  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ, PREREQ_NOTE,
-  PLAIN_VNODE, VNODE_CODE, VNODE_LOG, SHAPE_NOTE, KEY_NOTE, EL_NOTE, BLOCK_TEASER,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PLAIN_VNODE, VNODE_CODE, VNODE_LOG, SHAPE_NOTE, KEY_NOTE, EL_NOTE, BLOCK_TEASER,
   PLAIN_HOST, HOST_NOTE, MOUNT_CODE, MOUNT_LOG, SAME_TYPE_NOTE, INSERT_LAST_NOTE, UNMOUNT_NOTE,
   PLAIN_KEY, UNKEYED_CODE, UNKEYED_LOG, UNKEYED_NOTE, NOKEY_NOTE, INDEX_KEY_NOTE,
   SYNC_NOTE, MAP_NOTE, KEYED_WALK, KEYED_LOG, PLAIN_LIS, LIS_NOTE, BACKWARD_NOTE,
@@ -58,8 +55,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} min={270} />
 
 <Section
   id="s1"

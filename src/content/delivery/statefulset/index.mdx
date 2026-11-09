@@ -6,7 +6,6 @@ lead: "Deployment считает поды одинаковыми и заменя
 summary: "Почему Deployment не годится для базы; StatefulSet — имена по номерам, headless-сервис и DNS-имена подов, порядок создания и удаления, обновление с конца и partition; PV, PVC, StorageClass, режимы доступа, Retain и Delete, привязка к зоне; свой PVC на реплику и retention policy; emptyDir и hostPath; снапшоты, операторы и честный ответ, нужна ли база в кластере."
 verifiedOn: "Порядок действий контроллера, судьба PVC и DNS-имена — учебной моделью темы по документации Kubernetes (StatefulSets, StatefulSet Basics); её сверяет тест на случаях и таблицах из самой документации. Кластер не поднимался, kubectl не запускался: тома, классы хранения, снапшоты и операторы — по документации, сентябрь 2026, и помечены в тексте"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Имя и адрес }
   - { id: s2, label: Тома }
   - { id: s3, label: Диск на реплику }
@@ -28,7 +27,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import IdentityDiagram from '@/widgets/statefulset-identity-diagram/ui/IdentityDiagram.astro';
 import OrderDiagram from '@/widgets/statefulset-order-diagram/ui/OrderDiagram.astro';
@@ -76,8 +74,6 @@ import {
   PLAIN_PARTITION,
   POLICIES,
   POLICY_NOTE,
-  PREREQ,
-  PREREQ_NOTE,
   PROVISION_STEPS,
   RECLAIM,
   RECLAIM_NOTE,
@@ -110,8 +106,6 @@ import {
 <Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

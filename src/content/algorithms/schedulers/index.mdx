@@ -8,7 +8,6 @@ lead: "Клик, рендер списка, предзагрузка и анал
 summary: "Очередь с приоритетом и почему не отсортированный массив, двоичная куча на массиве и просеивание по шагам, устойчивость через счётчик, пакет `scheduler` из React: две кучи, приоритеты как сроки, квант, продолжения, `MessageChannel`, голодание и старение по сроку — и чем от него отличается `scheduler.postTask`."
 verifiedOn: "scheduler 0.28.0 (из react-dom 19.3.0), Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: мини-планировщик темы и настоящий пакет прогнаны на одних виртуальных часах в tests/unit/schedulers.test.ts, журналы совпадают дословно; куча сверена с сортировкой и с кучей из исходника scheduler"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Очередь }
   - { id: s2, label: Куча }
   - { id: s3, label: Равные сроки }
@@ -31,7 +30,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import HeapLab from '@/widgets/sched-lab/ui/HeapLab.vue';
@@ -39,8 +37,6 @@ import SchedLab from '@/widgets/sched-lab/ui/SchedLab.vue';
 import {
   GLOSSARY,
   PLAIN_PQ,
-  PREREQ,
-  PREREQ_NOTE,
   TASK_ROWS,
   QUEUE_NOTE,
   SORTED_CODE,
@@ -105,8 +101,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

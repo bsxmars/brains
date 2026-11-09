@@ -5,7 +5,6 @@ lead: "`.then` не ставит колбэк в очередь, а только
 summary: Пять скрытых полей, три операции спеки, линейка тиков, комбинаторы и цена промиса.
 verifiedOn: Node 24.11 и 26.8
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Модель }
   - { id: s2, label: Операции }
   - { id: s3, label: Линейка }
@@ -28,7 +27,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import PromiseAnatomy from '@/widgets/promise-anatomy/ui/PromiseAnatomy.astro';
 import PromiseLifecycle from '@/widgets/promise-lifecycle/ui/PromiseLifecycle.vue';
 import PromiseResolveCard from '@/widgets/promise-resolve-card/ui/PromiseResolveCard.astro';
@@ -65,8 +63,6 @@ import {
   ANY_NOTE,
   SOURCES,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   THREE_OPS_LEAD,
   THREE_OPS,
   ANATOMY_DEMO_NOTE,
@@ -107,8 +103,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

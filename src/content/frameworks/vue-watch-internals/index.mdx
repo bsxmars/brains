@@ -6,7 +6,6 @@ lead: "`watch` — эффект с планировщиком и сравнен�
 summary: "`watch` с `deep`, `once` и `onCleanup`, режимы `flush`, дерево `effectScope` и `computed` на версиях и узлах `Link` — мини-реализация в демо, сверенная тестом с `@vue/runtime-core` 3.5 в обеих сборках."
 verifiedOn: Vue 3.5.42 · Node 26.8.2
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: watch }
   - { id: s2, label: onCleanup }
   - { id: s3, label: flush }
@@ -26,7 +25,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import RaceLab from '@/widgets/mini-watch/ui/RaceLab.vue';
@@ -34,8 +32,7 @@ import ScopeTree from '@/widgets/mini-watch/ui/ScopeTree.vue';
 import ComputedChain from '@/widgets/mini-watch/ui/ComputedChain.vue';
 import {
   MINI_WATCH_CODE, STEP_SCOPE, STEP_LINK, STEP_EFFECT, STEP_SOURCES, STEP_COMPUTED, STEP_WATCH, STEP_QUEUE,
-  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
-  PLAIN_WATCH, SOURCES_CODE, SOURCES_HEAD, SOURCES_ROWS, WATCH_NOTE, DEEP_CODE, TRAVERSE_NOTE, COST_NOTE, OPTIONS_FACTS,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PLAIN_WATCH, SOURCES_CODE, SOURCES_HEAD, SOURCES_ROWS, WATCH_NOTE, DEEP_CODE, TRAVERSE_NOTE, COST_NOTE, OPTIONS_FACTS,
   PLAIN_CLEANUP, CLEANUP_ORDER_CODE, CLEANUP_NOTE, RACE_NAIVE_CODE, RACE_CODE, RACE_STEPS, RACE_NOTE,
   FLUSH_LEAD, FLUSH_CODE, FLUSH_NOTE, SSR_NOTE, EFFECT_VS_WATCH_HEAD, EFFECT_VS_WATCH_ROWS,
   PLAIN_SCOPE, SCOPE_CODE, SCOPE_NOTE, COMPONENT_NOTE, SCOPE_NODE_CODE, SCOPE_DEMO_NOTE, SCOPE_COMPUTED_CODE, SCOPE_COMPUTED_NOTE, PAUSE_CODE, PAUSE_NOTE,
@@ -55,8 +52,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} />
 </Section>
-
-<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"

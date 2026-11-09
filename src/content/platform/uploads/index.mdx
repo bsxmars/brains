@@ -8,7 +8,6 @@ lead: "Кнопка «Загрузить» отправляет обычный H
 summary: "Тело `multipart/form-data` по байтам: граница, заголовки частей, экранирование имён и CRLF; прогресс отправки — `xhr.upload` против `fetch` и тела-стрима по HTTP/2; протокол tus — `POST`, `PATCH`, `HEAD` и `Upload-Offset`, обрыв посреди куска и `409`; presigned URL по образцу S3 SigV4 — что подписано, а что нет; тип по первым байтам, лимит размера, имя файла."
 verifiedOn: "Node 24.11.0 (undici 7.16.0), Chromium 153.0.8010.12 (Playwright 1.63), tus-js-client 4.3.1, @tus/server 2.4.5, @tus/file-store 2.1.1, октябрь 2026: тела multipart из Node и Chromium, прогресс XHR, preflight, журнал tus с обрывом и повтор PATCH в Chromium пересобираются tests/unit/uploads.test.ts; подпись сверена с примером из документации AWS, с настоящим S3 не сверялась"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Тело multipart }
   - { id: s2, label: Прогресс }
   - { id: s3, label: Докачка }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MultipartLab from '@/widgets/upload-lab/ui/MultipartLab.vue';
@@ -41,8 +39,6 @@ import SignLab from '@/widgets/upload-lab/ui/SignLab.vue';
 import {
   GLOSSARY,
   PLAIN_UPLOAD,
-  PREREQ,
-  PREREQ_NOTE,
   MP_FORM_CODE,
   MP_BODY_PRINT,
   MP_HEADER_CODE,
@@ -97,8 +93,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

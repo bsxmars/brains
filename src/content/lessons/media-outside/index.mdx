@@ -6,7 +6,6 @@ lead: "`requestPictureInPicture` выносит видео в маленькое
 summary: "`requestPictureInPicture` и `PictureInPictureWindow`; почему окно открывается только по клику и сколько живёт временная активация; Document PiP — перенос элемента и стилей, одно окно на вкладку; Media Session — метаданные, действия и `setPositionState`, что из этого знает каждый движок; `getDisplayMedia`, `displaySurface`, звук вкладки, `CaptureController` и два способа закончить показ; как проверить всё это в Chromium без окна."
 verifiedOn: "Playwright 1.63: Chromium 153, Firefox 155, WebKit 26.6, ноябрь 2026. Каждый пример с выводом и каждая таблица отказов исполняются tests/e2e/media-outside.spec.ts; захват экрана — на поддельном экране Chromium"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Картинка в картинке }
   - { id: s2, label: Document PiP }
   - { id: s3, label: Media Session }
@@ -26,14 +25,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
   PLAIN_OUTSIDE,
-  PREREQ,
-  PREREQ_NOTE,
   PIP_CODE,
   PIP_OUT,
   PIP_NOTE,
@@ -84,8 +80,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -8,7 +8,6 @@ lead: "Почему без одной строки в `<head>` телефон п
 summary: "`<meta viewport>` и 980px, layout и visual viewport, `visualViewport` при щипке и клавиатуре; `vh`/`svh`/`lvh`/`dvh` и `100vw` с полосой прокрутки; диапазоны в `@media`, `em` от шрифта браузера, `prefers-*` и `hover`; `container-type`, изоляция размера и что схлопывается, выбор контейнера по имени, `cqi`, style-запросы; вычислитель сработавших правил; `clamp()` и масштаб страницы по WCAG 1.4.4."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless; эмуляция Pixel 7), Node 24, октябрь 2026: вьюпорт, щипок, единицы, полоса прокрутки, медиазапросы, контейнеры и масштаб сняты стендом и снимаются заново в tests/unit/responsive.test.ts; учебный вычислитель правил сверен с getComputedStyle на сетке ширин окна и контейнеров. Разница svh/lvh/dvh и экранная клавиатура в эмуляции не воспроизводятся — взяты из CSS Values 4 и документации Chrome"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Вьюпорт }
   - { id: s2, label: Единицы окна }
   - { id: s3, label: Медиазапросы }
@@ -31,15 +30,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ResponsiveLab from '@/widgets/responsive-lab/ui/ResponsiveLab.vue';
 import {
   GLOSSARY,
   PLAIN_RESPONSIVE,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_VIEWPORTS,
   META_CODE,
   META_ROWS,
@@ -108,8 +104,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

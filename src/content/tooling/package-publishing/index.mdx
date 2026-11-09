@@ -8,7 +8,6 @@ lead: "Код пакета может быть безупречным, а пак
 summary: "Алгоритм `exports`: сокращения, точный ключ и шаблоны с `*`, условия по порядку, `null` и ошибки Node; кто какие условия включает и почему TypeScript возвращается из условия, а Node — нет; `type` и расширения, `require(esm)` в Node 24, двойной пакет и два экземпляра состояния; `.d.mts`/`.d.cts` и маскарад типов по attw и publint; что уезжает в тарбол; какие правки карты ломают версию."
 verifiedOn: "Node 24.11.0, npm 11.6.1, TypeScript 6.0.3, publint 0.3.25, @arethetypeswrong/core 0.18.5, октябрь 2026: четырнадцать пакетов-фикстур, ответы Node, TypeScript, publint, attw и npm pack --dry-run пересобираются tests/unit/package-publishing.test.ts; учебный резолвер exports совпадает с Node на всех спецификаторах в четырёх режимах. Ничего не публиковалось."
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Поле exports }
   - { id: s2, label: Условия }
   - { id: s3, label: ESM и CJS }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ExportsLab from '@/widgets/exports-lab/ui/ExportsLab.vue';
 import {
   GLOSSARY,
   PLAIN_EXPORTS,
-  PREREQ,
-  PREREQ_NOTE,
   PRICE_PKG_JSON,
   RESOLVE_STEPS,
   RESOLVE_CODE,
@@ -108,8 +104,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

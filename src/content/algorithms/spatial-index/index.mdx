@@ -8,7 +8,6 @@ lead: "Курсор над холстом с десятью тысячами ф�
 summary: "Перебор и где его хватает, равномерная сетка и её провал на сгустках, квадродерево для точек: ёмкость, глубина, стопка одинаковых точек; R-дерево: MBR, вставка, квадратичное разбиение против разбиения rbush, перекрытие узлов; упаковка OMT в rbush и по кривой Гильберта во flatbush; k ближайших с очередью по расстоянию; удаление и движущиеся объекты."
 verifiedOn: "rbush 4.0.1, flatbush 4.6.2, Node 24.11.0, октябрь 2026: учебные сетка, квадродерево, R-дерево и поиск ближайших дают те же множества id, что rbush, flatbush и перебор, на наборах с зерном в tests/unit/spatial-index.test.ts; числа проверок и узлов в таблицах пересчитываются там же"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Перебор }
   - { id: s2, label: Сетка }
   - { id: s3, label: Квадродерево }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SpatialLab from '@/widgets/spatial-lab/ui/SpatialLab.vue';
 import {
   GLOSSARY,
   PLAIN_INDEX,
-  PREREQ,
-  PREREQ_NOTE,
   SETUP,
   SPATIAL_CODES,
   TASK_ROWS,
@@ -119,8 +115,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

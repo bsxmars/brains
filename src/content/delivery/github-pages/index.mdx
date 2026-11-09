@@ -6,7 +6,6 @@ lead: "Опубликовать статический сайт — значит
 summary: "Чего у Pages нет (сервера, переписывания адресов, своих заголовков); базовый путь и почему он ломает ссылки; страница 404 и адреса, которые разбирает скрипт в браузере; кеш и хеш в именах файлов; публикация через GitHub Actions и лимиты."
 verifiedOn: "Astro 7.3.2, Node v26.8.2 (macOS, arm64), 15 сентября 2026 — две сборки этого самого сайта, обычная и `--base /repo/`. Всё, что касается самого хостинга (заголовки, редиректы, кеш CDN, свой домен, лимиты), проверено документацией GitHub, а не прогоном, и помечено в тексте"
 nav:
-  - { id: s0, label: 'Перед началом' }
   - { id: s1, label: 'Что это и чего тут нет' }
   - { id: s2, label: 'Базовый путь' }
   - { id: s3, label: 'Маршрутизация без сервера' }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BasePathLab from '@/widgets/base-path-lab/ui/BasePathLab.vue';
@@ -73,8 +71,6 @@ import {
   WORKFLOW_CODE,
   WORKFLOW_STEPS,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   PAGE_COST_NOTE,
   RELATED,
   BASE_DEMO_NOTE,
@@ -140,8 +136,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

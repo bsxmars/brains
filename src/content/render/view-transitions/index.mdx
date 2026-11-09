@@ -6,7 +6,6 @@ lead: "`document.startViewTransition` снимает страницу до из�
 summary: "`startViewTransition`: порядок колбэка и промисов, дерево `::view-transition-*`, дубли имён, `skipTransition` и переход поверх перехода, `@view-transition` с `pageswap`/`pagereveal` и предрендером — сверено в Chromium 153, Firefox 155 и WebKit 26.6."
 verifiedOn: Chromium 153 · Firefox 155 · WebKit 26.6 · React 19.3 · Vue 3.5.42
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Снимки и промисы }
   - { id: s2, label: Имена }
   - { id: s3, label: Место в кадре }
@@ -26,13 +25,11 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VtLab from '@/widgets/vt-lab/ui/VtLab.vue';
 import {
-  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PREREQ,
-  PLAIN_SNAPSHOT, BASIC_CODE, TREE_CODE, TREE_NOTE, PROMISES_HEAD, PROMISES_ROWS, ORDER_NOTE, PLAIN_PROMISES,
+  INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PLAIN_SNAPSHOT, BASIC_CODE, TREE_CODE, TREE_NOTE, PROMISES_HEAD, PROMISES_ROWS, ORDER_NOTE, PLAIN_PROMISES,
   VT_SCENARIOS, VT_REDUCED_NOTE, VT_MISSING_NOTE, VT_FOOTER,
   PLAIN_NAME, HANDOFF_CODE, HANDOFF_NOTE, DUP_HEAD, DUP_ROWS, DUP_NOTE, CLASS_CODE, CLASS_FACTS,
   FRAME_FACTS, FRAME_NOTE, FRAMEWORK_CODE, FRAMEWORK_NOTE,
@@ -53,8 +50,6 @@ import {
 
   <Glossary items={GLOSSARY} min={240} />
 </Section>
-
-<Prereq items={PREREQ} min={270} />
 
 <Section
   id="s1"

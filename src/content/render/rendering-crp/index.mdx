@@ -6,7 +6,6 @@ lead: "Пока страница не показала первый пиксел
 summary: "Что останавливает разбор HTML, что задерживает первую отрисовку, как считаются LCP, INP и CLS — и почему зелёная оценка Lighthouse ничего не обещает."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), сентябрь 2026; пороги CWV — политика Google, сверяйте с web.dev"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Критический путь }
   - { id: s2, label: LCP }
   - { id: s3, label: CLS }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ClsLive from '@/widgets/cls-live/ui/ClsLive.vue';
@@ -79,8 +77,6 @@ import {
   THRESHOLDS,
   WEB_VITALS_CODE,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   CRUX_LEAD,
   PLAIN_CRUX,
   CRUX_QUERY_CODE,
@@ -132,8 +128,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

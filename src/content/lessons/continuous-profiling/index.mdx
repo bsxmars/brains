@@ -6,7 +6,6 @@ lead: "Снять снимок кучи с боевого сервера — з�
 summary: "Выборочный профиль выделений вместо снимка: два его режима, цена интервала, свёртка в flame graph, метрики процесса для алертов и как отличить утечку от кеша по полу кучи."
 verifiedOn: "Node 26.8.2 (V8 14.6) и 24.11.0, macOS arm64, под параллельной нагрузкой (load average 1.8–3.5 на 8 ядрах) — поэтому время только отношениями. Браузерная часть — Chromium 153.0.8010.12. Pyroscope, Datadog и Parca — по их документации (сверено 29 сентября 2026), не запускались."
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Вместо снимка }
   - { id: s2, label: Цена выборки }
   - { id: s3, label: Flame graph }
@@ -25,7 +24,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PpFlame from '@/widgets/pp-flame/ui/PpFlame.vue';
@@ -51,7 +49,6 @@ import {
   PITFALLS,
   SOURCES,
   GLOSSARY,
-  PREREQ,
   FLAME_DEMO_NOTE,
   INTERVAL_DEMO_NOTE,
   PLAIN_SAMPLING,
@@ -75,8 +72,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} />
 
 <Section
   id="s1"

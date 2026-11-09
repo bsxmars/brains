@@ -8,7 +8,6 @@ lead: "Пять пакетов в одном репозитории: прило�
 summary: "Воркспейсы npm и pnpm: симлинки на соседей, `workspace:*` и его замена при публикации; фантомы и разные версии между пакетами; граф пакетов, топологический порядок и барьеры уровней; `--filter \"...[origin/main]\"` и его слепые зоны; ключ кеша задачи как хеш входов и отравленный кеш из-за забытой переменной окружения."
 verifiedOn: "Node 24.11.0, npm 11.6.1, pnpm 11.0.9, git 2.44.0 — учебный монорепозиторий из пяти пакетов и учебный реестр на 127.0.0.1, без сети, октябрь 2026, macOS: раскладки, порядок сборки, выборки фильтра и тарболы `pnpm pack` сняты стендом; функции темы сверены с ними в tests/unit/monorepo.test.ts. Кеш задач — учебная модель; поведение Turborepo и Nx — по документации"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Воркспейсы }
   - { id: s2, label: Фантомы и копии }
   - { id: s3, label: Граф и порядок }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AffectedLab from '@/widgets/monorepo-lab/ui/AffectedLab.vue';
@@ -38,8 +36,6 @@ import CacheLab from '@/widgets/monorepo-lab/ui/CacheLab.vue';
 import {
   GLOSSARY,
   PLAIN_MONOREPO,
-  PREREQ,
-  PREREQ_NOTE,
   PACKAGES,
   LAYOUT_CODE,
   WEB_MANIFEST_CODE,
@@ -109,8 +105,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

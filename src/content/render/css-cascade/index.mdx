@@ -6,7 +6,6 @@ lead: "Когда несколько правил задают элементу 
 summary: "Как браузер выбирает одно значение свойства из многих: шесть критериев каскада вживую, специфичность как тройка чисел, `inherit`/`initial`/`unset`/`revert` на настоящих элементах и цена чтения через `getComputedStyle`."
 verifiedOn: Chromium 153 (headless, Playwright 1.63), сентябрь 2026
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Шесть критериев }
   - { id: s2, label: Специфичность }
   - { id: s3, label: Наследование }
@@ -29,7 +28,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CascadeReferee from '@/widgets/cascade-referee/ui/CascadeReferee.vue';
@@ -126,8 +124,6 @@ import {
   STARTING_FACTS,
   STARTING_NOTE,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   SOURCES,
   RELATED,
   LAYER_SCENE_CODE,
@@ -190,8 +186,6 @@ import {
 
   </Card>
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

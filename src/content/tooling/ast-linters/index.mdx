@@ -8,7 +8,6 @@ lead: "ESLint не ищет `==` поиском по тексту. Он разб
 summary: "Токены и ESTree с `range` и `loc`, обход с входом и выходом, селекторы, области видимости и `no-unused-vars`, своё правило с `fix`, проходы автоисправления и потолок в десять, слияние плоского конфига, codemod правками по `range` против перепечатки дерева, Prettier как принтер."
 verifiedOn: "ESLint 10.10.0 (espree 11.2.0, eslint-scope 9.1.2, eslint-visitor-keys 5.0.1, esquery 1.7.0), typescript-eslint 8.70.0, Babel 7.29.8, Prettier 3.9.6, rolldown 1.2.8, Node 24.11.0, октябрь 2026: деревья, порядок обхода, области видимости, сообщения, проходы и конфиги сняты стендом через Linter и ESLint API и пересобираются tests/unit/ast-linters.test.ts; учебные обход, правила и автоисправление сверены с ESLint"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: От текста к дереву }
   - { id: s2, label: Обход и селекторы }
   - { id: s3, label: Области видимости }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AstLab from '@/widgets/ast-lab/ui/AstLab.vue';
 import {
   GLOSSARY,
   PLAIN_AST,
-  PREREQ,
-  PREREQ_NOTE,
   DISCOUNT_CODE,
   TOKENS_LINE3,
   TOKENS_NOTE,
@@ -125,8 +121,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -8,7 +8,6 @@ lead: "Строгая CSP пишется в одну строку: `script-src '
 summary: "Как браузер решает, выполнить ли скрипт: цепочка директив, nonce, хеш, `'strict-dynamic'`, обработчики и `javascript:`, `'unsafe-hashes'`. Отчёты `report-uri` и `report-to`, режим report-only и поэтапное внедрение, заголовок против `<meta>`. Trusted Types: места вставки, политики, `default`, и как с ними живут Vue и React."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, Vue 3.5.42, React 19.3.0, esbuild 0.28.2, октябрь 2026: журнал «31 политика × 15 проб», тексты консоли, тела отчётов, <meta>, Trusted Types и поведение Vue и React снимаются заново tests/unit/csp.test.ts, функция темы сверена с журналом на всех 465 парах. Доставка report-to на сервер на стенде не наблюдалась — её вид по спецификации Reporting API; другие движки не проверялись"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Как браузер решает }
   - { id: s2, label: "Nonce, хеш, strict-dynamic" }
   - { id: s3, label: "Обработчики и javascript:" }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CspLab from '@/widgets/csp-lab/ui/CspLab.vue';
 import {
   GLOSSARY,
   PLAIN_CSP,
-  PREREQ,
-  PREREQ_NOTE,
   SITE,
   PAGE_HTML,
   AFTER_LOAD_CODE,
@@ -122,8 +118,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

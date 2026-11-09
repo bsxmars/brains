@@ -8,7 +8,6 @@ lead: "gzip, PNG, zip и `CompressionStream` сжимают одним и тем
 summary: "LZ77: окно 32 КБ, пары (расстояние, длина) 3–258, перекрытие; хеш-цепочки, жадный и ленивый поиск, configuration_table zlib; дерево Хаффмана, префиксный код, ограничение 15 бит; канонический код и fixed-коды; блоки stored, fixed, dynamic, алфавиты с extra-битами, заголовок HLIT/HDIST/HCLEN; распаковщик в девяносто строк; обёртки gzip и zlib, CRC-32 и Adler-32; энтропия, окно, Brotli и zstd."
 verifiedOn: "Node 24.11.0 (zlib 1.3.1), fflate 0.8.3, pako 1.0.11, Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: учебный inflate распаковывает вывод zlib, fflate и pako на уровнях 0–9 байт в байт, длины кодов совпадают с dynamic-блоками zlib, размеры и биты заголовка пересчитываются tests/unit/deflate.test.ts; поведение Chromium с битым gzip снято стендом; устройство Brotli и zstd — по RFC"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: LZ77 }
   - { id: s2, label: Поиск повторов }
   - { id: s3, label: Хаффман }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DeflateLab from '@/widgets/deflate-lab/ui/DeflateLab.vue';
 import {
   GLOSSARY,
   PLAIN_DEFLATE,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_LZ77,
   BLAH_TEXT,
   BLAH_TOKENS,
@@ -122,8 +118,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

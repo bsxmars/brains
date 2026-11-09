@@ -1,8 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-/** Темы, где раздела «Перед началом» нет по решению автора курса. */
-const WITHOUT_PREREQ = new Set(['lessons/object-model']);
 
 /**
  * Обязательные блоки темы — и проверка, что они на месте.
@@ -86,11 +84,10 @@ function navIds(mdx: string): string[] {
 
 /**
  * Идентификаторы секций: тег `<Section>` бывает многострочным, поэтому разбор по всему тегу.
- * Раздел `s0` ставит блок `<Prereq>` — он считается секцией с этим якорем.
  */
 function sectionIds(mdx: string): string[] {
-  return [...mdx.matchAll(/<(Section|Prereq)\b([\s\S]*?)>/g)]
-    .map((m) => (m[1] === 'Prereq' ? 's0' : m[2].match(/\bid="([a-z0-9-]+)"/)?.[1]))
+  return [...mdx.matchAll(/<Section\b([\s\S]*?)>/g)]
+    .map((m) => m[1].match(/\bid="([a-z0-9-]+)"/)?.[1])
     .filter((id): id is string => Boolean(id));
 }
 
@@ -124,23 +121,20 @@ describe('анатомия темы: обязательные блоки у ка
       ).toBe(true);
     });
 
-    it('есть раздел «Перед началом» и он первым в оглавлении', () => {
-      // Решение автора курса 2026-09-30: в «Объектной модели» блок не нужен — тема
-      // начинается с самого объекта `dog`, а обе карточки «Перед началом» были про
-      // внутренние имена V8, которые этой теме ни к чему.
-      if (WITHOUT_PREREQ.has(topic.id)) return;
-      const nav = navIds(topic.mdx);
-      const sections = sectionIds(topic.mdx);
-
-      expect(
-        sections.includes('s0'),
-        `${topic.id}: нет секции id="s0" — раздела «Перед началом». В нём тема честно ` +
-          'говорит, что считает известным, и куда идти, если это не на месте.',
-      ).toBe(true);
-      expect(
-        nav[0],
-        `${topic.id}: «Перед началом» должно стоять первым пунктом nav, а там ${nav[0] ?? '—'}.`,
-      ).toBe('s0');
+    /**
+     * Блока «Что тема считает известным» на сайте нет — решение автора курса (2026-11-09).
+     * Карточки остались в `data.ts` (`PREREQ`), компонент `Prereq` — на диске. Раздел `s0`
+     * «Граница наблюдаемого» остаётся там, где он есть: это предмет темы, а не список опор.
+     */
+    it('блок «Что тема считает известным» не выводится', () => {
+      expect(topic.mdx, `${topic.id}: <Prereq> снят с сайта`).not.toMatch(/<Prereq\b/);
+      const s0 = navIds(topic.mdx).includes('s0');
+      if (s0) {
+        expect(
+          sectionIds(topic.mdx).includes('s0'),
+          `${topic.id}: s0 в nav, но такого раздела нет.`,
+        ).toBe(true);
+      }
     });
 
     /**
@@ -219,11 +213,11 @@ describe('анатомия темы: обязательные блоки у ка
 
     /**
      * Обязательные блоки выводятся общими компонентами, а не разметкой, переписанной в теме:
-     * так правка вида словаря или «Перед началом» — правка одного файла, а не ста шестидесяти.
+     * так правка вида словаря или врезки — правка одного файла, а не ста шестидесяти.
      */
-    it('словарь, «Перед началом» и врезки выведены общими блоками', () => {
+    it('словарь и врезки выведены общими блоками', () => {
       expect(topic.mdx, `${topic.id}: словарь выводят <Glossary items={GLOSSARY} />`).not.toMatch(/GLOSSARY\.map\(/);
-      expect(topic.mdx, `${topic.id}: «Перед началом» выводит <Prereq items={PREREQ} />`).not.toMatch(/PREREQ\.map\(/);
+      expect(topic.mdx, `${topic.id}: карточки PREREQ сняты с сайта`).not.toMatch(/PREREQ\.map\(/);
       expect(topic.mdx, `${topic.id}: врезку PLAIN_* выводит <Plain text={PLAIN_…} />`).not.toMatch(/<Card\b[^>]*text=\{PLAIN_/);
     });
 

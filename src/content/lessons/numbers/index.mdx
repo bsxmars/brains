@@ -6,7 +6,6 @@ lead: "Каждое `number` в JS — 64 бита по стандарту IEEE 
 summary: "Биты double и его точное десятичное значение; почему `0.1 + 0.2 !== 0.3` и как сравнивать с допуском; `MAX_SAFE_INTEGER` и JSON с большими id; `-0` и `NaN`; печать, `toFixed` и банковское округление; `BigInt` и `asIntN`; побитовые операции и `ToInt32`; Smi и HeapNumber в V8 — границы в Node и Chrome и байты на элемент; деньги в целых."
 verifiedOn: "Node 24.11.0 (V8 13.6) и 26.8.2 (V8 14.6), Chromium 153.0.8010.12, Firefox 155, WebKit 26.6, октябрь 2026: таблицы выражений исполняет tests/unit/numbers.test.ts; учебные функции сверены с Float64Array, toFixed и x | 0 на сотнях тысяч чисел; Smi и байты на элемент — %IsSmi, %DebugPrint и heapUsed в отдельном процессе Node, колонка Chromium — стенд. Без таймерных замеров"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Устройство double }
   - { id: s2, label: 0.1 + 0.2 }
   - { id: s3, label: Предел целых }
@@ -32,15 +31,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DoubleLab from '@/widgets/double-lab/ui/DoubleLab.vue';
 import {
   GLOSSARY,
   PLAIN_DOUBLE,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_FIELDS,
   DOUBLE_CODE,
   DOUBLE_NOTE,
@@ -121,8 +117,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

@@ -7,7 +7,6 @@ lead: "Функция в JavaScript помнит место, где её соз�
 summary: "Окружения и цепочка `outer`; какие окружения создают программа, модуль, функция и блок; подъём `var` и `function`, мёртвая зона `let` и `const`, `typeof`; замыкание как функция плюс `[[Environment]]`: переменная, а не снимок значения, устаревшее замыкание, `this` у стрелки; `for (let …)` и копия в окружение итерации; приватность через замыкание, `once` и `memoize`, и чем она отличается от `#`-полей."
 verifiedOn: "Node 26.8.2 (V8 14.6), Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: учебный интерпретатор сверен с vm в Node и с Chromium на программах темы и двух десятках своих; контексты циклов сняты %DebugPrint и байткодом. Всё повторяет tests/unit/closures.test.ts"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Окружения }
   - { id: s2, label: Подъём и TDZ }
   - { id: s3, label: Замыкание }
@@ -27,15 +26,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ScopeLab from '@/widgets/scope-lab/ui/ScopeLab.vue';
 import {
   GLOSSARY,
   PLAIN_CLOSURE,
-  PREREQ,
-  PREREQ_NOTE,
   PLAIN_ENV,
   ENV_KINDS,
   ENV_CODE,
@@ -109,8 +105,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

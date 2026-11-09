@@ -8,7 +8,6 @@ lead: "Переименовали пользователя, удалили кл�
 summary: "Cache-aside, read-through, write-through и write-behind; TTL и сброс срока обычным `SET`; гонка инвалидации по шагам — медленный читатель, удаление до `COMMIT`, реплика; аренда через `SET NX`, версия и двойное удаление; толпа на истечении — замок `SET NX PX`, XFetch и мягкий срок; `maxmemory-policy`, приближённый LRU и `maxmemory-samples`, `OBJECT IDLETIME`; холодный кеш после рестарта."
 verifiedOn: "Redis 7.4.11 (redis:7-alpine в Docker), ioredis 5.11.1, Node 24.11.0, октябрь 2026: журналы семи гонок, 50 одновременных читателей с замком и без, сроки ключей, кража замка, вытеснение при восьми политиках и выборках 1/5/10, рестарт со снимком и без — сняты стендом (пересборка — tests/unit/redis-cache.test.ts при REDIS_CACHE_CONTAINER). Учебная модель сверена со стендом шаг в шаг, поток через истечение — с формулами. По документации: пул кандидатов на вытеснение, фоновое удаление истёкших ключей, аренды Facebook"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Cache-aside }
   - { id: s2, label: Срок ключа }
   - { id: s3, label: Гонка инвалидации }
@@ -32,7 +31,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CacheRaceLab from '@/widgets/cache-race-lab/ui/CacheRaceLab.vue';
@@ -42,8 +40,6 @@ import {
   GLOSSARY,
   PLAIN_CACHE,
   INTRO_CALLOUT,
-  PREREQ,
-  PREREQ_NOTE,
   REDIS_CODE,
   LUA_CODE,
   DB_CODE,
@@ -124,8 +120,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

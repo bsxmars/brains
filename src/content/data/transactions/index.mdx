@@ -8,7 +8,6 @@ lead: "Два запроса одновременно пополнили оди�
 summary: "ACID без мистики; версии строк, `xmin` и `xmax`, снимок и правило видимости; Read Committed, Repeatable Read и Serializable в Postgres; потерянное обновление, неповторяемое чтение, фантом и write skew по шагам двух сеансов; конфликт записи и `40001`; `SELECT … FOR UPDATE`, `FOR NO KEY UPDATE` и внешние ключи; оптимистичная блокировка; SSI; повтор транзакции и дедлок `40P01`."
 verifiedOn: "PostgreSQL 16.15 (postgres:16-alpine в Docker, два сеанса psql) и @electric-sql/pglite 0.5.8 (PostgreSQL 18.3, одна сессия, pageinspect), Node 24.11.0, октябрь 2026: вывод каждого шага десяти сценариев на трёх уровнях, матрица блокировок строк, внешний ключ, SKIP LOCKED и порядок захвата сняты двумя сеансами (пересборка — tests/unit/transactions.test.ts при TX_PG_CONTAINER); версии на странице, xmin/xmax, снимки и повтор на 40001 — PGlite при каждом прогоне. Учебная модель сверена с обоими стендами шаг в шаг. По документации Postgres: таблица аномалий стандарта, выбор жертвы дедлока, предикатные блокировки SSI и его ложные срабатывания, READ ONLY DEFERRABLE, долговечность через WAL"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Что обещает транзакция }
   - { id: s2, label: Версии строк }
   - { id: s3, label: Снимки и уровни }
@@ -33,15 +32,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MvccLab from '@/widgets/mvcc-lab/ui/MvccLab.vue';
 import {
   GLOSSARY,
   PLAIN_TX,
-  PREREQ,
-  PREREQ_NOTE,
   ACID_ROWS,
   ACID_NOTE,
   IDB_NOTE,
@@ -115,8 +111,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

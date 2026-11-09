@@ -5,7 +5,6 @@ lead: "Колбэк — функция, которую вы отдаёте чу�
 summary: "Инверсия управления, граница синхронного и асинхронного, Zalgo, `this`, error-first, шесть гарантий промиса и реентерантность: колбэк, который меняет того, кто его вызвал."
 verifiedOn: Node 24.11 и 26.8
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Стек }
   - { id: s2, label: Передача }
   - { id: s3, label: Zalgo }
@@ -30,7 +29,6 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import IocBoundary from '@/widgets/ioc-boundary/ui/IocBoundary.astro';
 import CallbackGuarantees from '@/widgets/callback-guarantees/ui/CallbackGuarantees.astro';
 import CallbackCompare from '@/widgets/callback-guarantees/ui/CallbackCompare.astro';
@@ -70,8 +68,6 @@ import {
   BIND_COST_NOTE,
   SOURCES,
   GLOSSARY,
-  PREREQ,
-  PREREQ_NOTE,
   ERRORS_DEMO_NOTE,
   STACK_DEMO_NOTE, ZALGO_DEMO_NOTE, THIS_DEMO_NOTE, DISPATCH_DEMO_NOTE, LAB_DEMO_NOTE,
   PLAIN_IOC,
@@ -98,8 +94,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"

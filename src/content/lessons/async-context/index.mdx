@@ -7,7 +7,6 @@ lead: "Каждая строка лога должна знать id своег�
 summary: "Гонка на глобальной переменной на сервере `node:http`; `run`, `getStore`, `exit` и опасный `enterWith`; момент снимка — регистрация, а не вызов: `then`, `await`, таймеры, `nextTick`, `EventEmitter` и `AsyncResource.bind`; `AsyncContextFrame` в Node 24 против `async_hooks` по числу вызовов хука; учебная переменная контекста на подмене `then` и `setTimeout` и её предел на `await`; предложение `AsyncContext`, zone.js, React, Vue и OpenTelemetry."
 verifiedOn: "Node 24.11.0 (V8 13.6) в обоих режимах AsyncLocalStorage и 26.8.2 (V8 14.6), @opentelemetry/api 1.9.1, @vue/compiler-sfc 3.5.42, Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: сервер, снимки, enterWith и счётчики хука повторяет tests/unit/async-context.test.ts; учебная обёртка сверена с настоящим AsyncLocalStorage на шести сценариях"
 nav:
-  - { id: s0, label: Перед началом }
   - { id: s1, label: Гонка }
   - { id: s2, label: AsyncLocalStorage }
   - { id: s3, label: Момент снимка }
@@ -30,15 +29,12 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ContextLab from '@/widgets/context-lab/ui/ContextLab.vue';
 import {
   GLOSSARY,
   PLAIN_CONTEXT,
-  PREREQ,
-  PREREQ_NOTE,
   SERVER_GLOBAL_CODE,
   SERVER_ALS_CODE,
   CLIENT_CODE,
@@ -109,8 +105,6 @@ import {
 
   <Glossary items={GLOSSARY} />
 </Section>
-
-<Prereq items={PREREQ} lead={PREREQ_NOTE} />
 
 <Section
   id="s1"
