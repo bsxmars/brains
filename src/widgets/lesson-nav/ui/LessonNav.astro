@@ -209,19 +209,30 @@ const { title, items } = Astro.props;
      */
     let target: HTMLElement | null = null;
 
+    /** Подсвеченный сейчас пункт: классы переписываются, только когда он сменился. */
+    let shown: HTMLAnchorElement | null = null;
+
     const recompute = () => {
       frame = 0;
+      /**
+       * Сначала все чтения, потом записи. Пересчёт идёт на каждом кадре прокрутки, и чтение
+       * геометрии после записи классов заставляло браузер раскладывать страницу дважды за кадр.
+       */
       // Последний раздел, который уже ушёл под шапку, — тот, где читатель сейчас.
       let active = links[0];
       sections.forEach((section, i) => {
         if (section && section.getBoundingClientRect().top < 140) active = links[i];
       });
+      const atEnd = row ? row.scrollLeft + row.clientWidth >= row.scrollWidth - 1 : false;
 
-      for (const link of links) {
-        const on = link === active;
-        link.classList.toggle('is-active', on);
-        if (on) link.setAttribute('aria-current', 'true');
-        else link.removeAttribute('aria-current');
+      if (active !== shown) {
+        shown = active;
+        for (const link of links) {
+          const on = link === active;
+          link.classList.toggle('is-active', on);
+          if (on) link.setAttribute('aria-current', 'true');
+          else link.removeAttribute('aria-current');
+        }
       }
 
       if (row) {
@@ -283,8 +294,8 @@ const { title, items } = Astro.props;
          * снимается: иначе последний пункт выцветал бы без всякой причины.
          *
          * Запас в один пиксель — на дробные значения прокрутки при масштабировании страницы.
+         * `atEnd` прочитан в начале кадра, до записей.
          */
-        const atEnd = row.scrollLeft + row.clientWidth >= row.scrollWidth - 1;
         row.toggleAttribute('data-nav-end', atEnd);
       }
     };
