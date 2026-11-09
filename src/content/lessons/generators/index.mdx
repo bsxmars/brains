@@ -4,7 +4,7 @@ heading: "Генераторы и асинхронные итераторы: п�
 headingWidth: 24
 order: 10
 lead: "Генератор останавливается на `yield` и ждёт, пока его не продолжат. Если продолжать его каждый раз, когда выполнится промис, получится `async/await`: весь механизм умещается в пару десятков строк. Асинхронный генератор умеет и то и другое, и ещё одно, чего нет ни у обычного генератора, ни у `async`-функции: вызовы `next()`, пришедшие раньше ответа, встают в очередь и получают ответы по порядку."
-summary: "Пауза генератора и во что он превращается без движка; `async/await` как генератор плюс `spawn`, пошагово и против настоящего движка; `__awaiter` TypeScript; асинхронные итераторы и `for await`; очередь `next()` у асинхронного генератора; `break`, `return()` и закрытие ресурса, которое не прерывает ожидание."
+summary: "Пауза генератора и во что он превращается без движка; `async/await` как генератор плюс `spawn` и где этот цикл живёт сегодня; асинхронные итераторы и `for await`; очередь `next()` у асинхронного генератора; `break`, `return()` и закрытие ресурса, которое не прерывает ожидание."
 verifiedOn: "Node 24.11.0 (V8 13.6), TypeScript 6.0.3, октябрь 2026: порядок событий учебной spawn, __awaiter и настоящего async/await совпадает на всех сценариях темы; примеры асинхронных генераторов исполняются tests/unit/generators.test.ts. Без таймерных замеров"
 nav:
   - { id: s1, label: Пауза генератора }
@@ -19,7 +19,6 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
-import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
@@ -30,10 +29,10 @@ import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
-import SpawnLab from '@/widgets/spawn-lab/ui/SpawnLab.vue';
 import {
   GLOSSARY,
   PLAIN_PAUSE,
+  SPAWN_WHY,
   HELPERS_CODE,
   STEPS_CODE,
   STEPS_NOTE,
@@ -44,17 +43,6 @@ import {
   EDGE_FACTS,
   PLAIN_SPAWN,
   SPAWN_CODE,
-  DRIVER_CODE,
-  FIXTURE,
-  SCENARIOS,
-  DEMO_CAPTION,
-  MATCH_FACTS,
-  TS_AWAITER_CODE,
-  TS_AWAITER_NOTE,
-  THEN_PATCH_CODE,
-  STACK_CODE,
-  STACK_FRAMES,
-  DIFF_FACTS,
   PLAIN_ASYNC_ITER,
   PROTOCOL_ROWS,
   PAGER_CODE,
@@ -105,7 +93,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Пауза генератора: что она хранит"
-  lead="Состояния генератора и методы `next`, `return`, `throw` разобраны в «Объектной модели». Здесь важно одно их свойство: значение выражения `yield` выбирает не генератор, а тот, кто его продолжает."
+  lead="Как генератор останавливается и что делают `next`, `return` и `throw`, разобрано в [«Объектной модели»](/js/object-model/#s8). Для этой темы нужно одно: `yield` не знает заранее, что вернёт. Это решает тот, кто продолжает генератор: что он передаст в `next(значение)`, то и станет результатом `yield`."
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="«Запросы» для всей темы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -161,78 +149,15 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="async/await из генератора и промисов"
-  lead="Продолжайте генератор, когда выполнится промис, который он отдал через `yield`, и передавайте результат этого промиса в `next` — и генератор начнёт вести себя как async-функция. Функцию, которая так продолжает генератор, по традиции называют `spawn` или `co`."
+  lead="Пусть генератор отдаёт через `yield` промис и останавливается. Дождёмся этого промиса и передадим его результат обратно через `next` — генератор продолжит работу с готовым значением. Повторяем так до конца, и генератор работает как async-функция: `yield` в нём делает то же, что `await`. Функцию, которая крутит такой цикл, обычно называют `spawn` или `co`."
 >
   <Plain text={PLAIN_SPAWN} />
 
-  <Card title="spawn — пара десятков строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Md text={SPAWN_WHY} />
+
+  <Card title="Функция spawn целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SPAWN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
-
-  ### Одна функция двумя способами
-
-  Функция `load` из раздела про паузу генератора, записанная дважды: как обычная
-  async-функция и как генератор под `spawn`. Рядом с вызовом стоит «линейка» — цепочка
-  из трёх `then`, каждое звено которой занимает ровно одну микрозадачу. По тому, между
-  какими тиками напечаталась строка, видно, сколько микрозадач на неё ушло.
-
-  <CardGrid min={300} gap={16} align="start">
-    <Card title="async-функция" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCENARIOS[0].asyncCode} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-
-    <Card title="генератор под spawn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCENARIOS[0].genCode} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-  </CardGrid>
-
-  <Card title="Вызов и линейка — общие для обеих версий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={DRIVER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
-
-  ### По шагам: очередь, пауза, вывод
-
-  <SpawnLab client:visible fixture={FIXTURE} scenarios={SCENARIOS} caption={DEMO_CAPTION} />
-
-  <CardGrid min={280} gap={14} align="start">
-    {MATCH_FACTS.map((fact) => (
-      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
-    ))}
-
-  </CardGrid>
-
-  ### Так это делает TypeScript
-
-  <Card title="load после TypeScript с target: ES2016" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TS_AWAITER_CODE} size={11} lh={1.65} pad="14px 16px" />
-
-    <CardNote tone="prose">
-      <Md text={TS_AWAITER_NOTE} />
-    </CardNote>
-  </Card>
-
-  ### Где `spawn` и `await` всё-таки расходятся
-
-  Порядок событий у них одинаковый. Различается то, как они подписываются на промис,
-  и то, что остаётся в стеке ошибки.
-
-  <CardGrid min={300} gap={16} align="start">
-    <Card title="Подменённый then" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={THEN_PATCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-
-    <Card title="Ошибка через две паузы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={STACK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={'// outer(): кадры e.stack\n' + STACK_FRAMES.native.map((f) => 'at ' + f).join('\n') + '\n\n// outerG(): кадры e.stack\n' + STACK_FRAMES.spawn.map((f) => 'at ' + f).join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-  </CardGrid>
-
-  <CardGrid min={280} gap={14} align="start">
-    {DIFF_FACTS.map((fact) => (
-      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
-    ))}
-
-  </CardGrid>
 </Section>
 
 <Section

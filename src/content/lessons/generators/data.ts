@@ -19,17 +19,13 @@ import type { SpawnFixture, SpawnScenario } from '@/widgets/spawn-lab/model/type
  *   — сценарии `SCENARIOS` исполнены трижды: `async`-версия на настоящем `Promise`, версия через
  *     `spawn` на настоящем `Promise` и та же через `__awaiter`, который TypeScript пишет для
  *     `target: ES2016`. Все три вывода совпали построчно — это `SCENARIO_LOGS`;
- *   — `TS_ES5_CODE` и `TS_AWAITER_CODE` — дословный вывод `ts.transpileModule` (ES5 и ES2016);
- *   — пропатченный `Promise.prototype.then`: `await` его не позвал ни разу, `spawn` — дважды;
- *   — стек: у `async` есть кадр `async outer`, у `spawn` вместо него `inner.next`, `step`,
- *     `onFulfilled`. Снято в отдельном процессе Node: vitest переписывает стеки;
+ *   — `TS_ES5_CODE` — дословный вывод `ts.transpileModule` для ES5;
  *   — асинхронные генераторы: очередь `next()`, `break` с `await` в `finally`, `return()` при
  *     висящем `await`, исправление через `AbortController` — выводы `*_LOG`.
  *
  * Всё перечисленное исполняет `tests/unit/generators.test.ts`: код примеров — эти же строки,
- * литералы выводов сверяются с тем, что движок печатает сейчас. Демо (`widgets/spawn-lab`)
- * исполняет `SPAWN_CODE` на промисе с видимой очередью; тест требует, чтобы его вывод совпал
- * с настоящим `async/await` на каждом сценарии.
+ * литералы выводов сверяются с тем, что движок печатает сейчас. Что кадров `at async` у
+ * собранного кода нет, проверяет `tests/unit/errors.test.ts` (текст — в «Ошибках и стеках»).
  */
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
@@ -198,6 +194,9 @@ export const EDGE_FACTS = [
 export const PLAIN_SPAWN =
   'Повар готовит по рецепту и на каждом «нужно: соус» протягивает руку и замирает. Откуда возьмётся соус, он не знает. Помощник смотрит, что попросили, ждёт, пока соус будет готов, и кладёт его в руку — повар продолжает. Если соус сгорел, помощник не молчит, а говорит «сгорел» — и повар решает, что делать, на том же шаге. Генератор — повар, `spawn` — помощник, `async/await` — оба в одном лице, встроенные в язык.';
 
+export const SPAWN_WHY =
+  'Писать `spawn` руками сегодня не нужно: `await` делает то же самое, и движок крутит этот цикл сам. Но устроен он именно так, и это объясняет, почему `await` не держит поток (функция стоит на паузе, как генератор на `yield`) и почему код после него всегда идёт позже, даже если промис уже выполнен. Сам приём жив и сейчас. Саги в redux-saga — генераторы, которые продолжает middleware, и `flow` в MobX устроены так же. А если TypeScript собирает под ES2015 или ES2016, а Babel — с плагином async-to-generator, каждая async-функция превращается в генератор и обёртку `__awaiter` или `_asyncToGenerator`: это та же `spawn`, и кадров `at async …` в стеке ошибки у такой функции нет — подробнее в [«Ошибках и стеках», раздел «Асинхронный стек»](/js/errors/#s3).';
+
 /**
  * Учебная `spawn` — та же функция, что в библиотеке `co` и в `__awaiter` TypeScript, без
  * обработки крайних случаев. Её печатает страница, исполняют демо и тест.
@@ -209,16 +208,16 @@ export const SPAWN_CODE = `function spawn(genFn, ...args) {
     function step(method, arg) {
       let r;
       try {
-        r = gen[method](arg);     // продолжить генератор: next(x) или throw(e)
+        r = gen[method](arg);     // будим генератор: next(значение) или throw(ошибка)
       } catch (err) {
-        reject(err);              // ошибка вылетела из генератора
+        reject(err);              // генератор бросил ошибку — spawn отклоняется
         return;
       }
       if (r.done) {
-        resolve(r.value);         // return в генераторе — результат промиса
+        resolve(r.value);         // генератор дошёл до return — это результат spawn
         return;
       }
-      // yield отдал «то, чего ждать»: дождаться и продолжить
+      // генератор встал на yield и отдал промис: ждём его, потом будим генератор
       Promise.resolve(r.value).then(
         function onFulfilled(v) { step('next', v); },
         function onRejected(e) { step('throw', e); },
@@ -237,6 +236,11 @@ Promise.resolve()
   .then(() => log('тик 3'));
 log('синхронный код после вызова');`;
 
+/**
+ * Демо «по шагам» со страницы снято (решение автора 2026-11-09): сравнение `spawn` с `await`
+ * читателю не нужно. Сценарии остались — по ним тест сверяет учебную `spawn` с настоящим
+ * `async/await` и с `__awaiter`, то есть то, что утверждает `SPAWN_WHY`.
+ */
 export const FIXTURE: SpawnFixture = {
   spawnCode: SPAWN_CODE,
   helpersCode: HELPERS_CODE,
@@ -329,92 +333,6 @@ export const SCENARIO_LOGS: Record<string, string[]> = {
   'return-promise': ['старт 1', 'синхронный код после вызова', 'тик 1', 'тик 2', 'итог: пост 1,пост 2', 'тик 3'],
   thenable: ['синхронный код после вызова', 'then вызван', 'тик 1', 'получил 7', 'тик 2', 'итог: 7', 'тик 3'],
 };
-
-export const DEMO_CAPTION =
-  'Шаг — одна микрозадача. Очередь, вывод и место остановки генератора считает та же `spawn`, что напечатана выше, на промисе с видимой очередью. Под демо её вывод сверен с настоящим `async/await` в вашем браузере.';
-
-export const MATCH_FACTS = [
-  {
-    t: '`yield` в `spawn` стоит столько же, сколько `await`',
-    d: '`Promise.resolve(p)` отдаёт сам `p`, если это настоящий промис, а `then` на нём — одна реакция. `await p` делает ровно то же: один тик. Поэтому линейка печатается в одинаковых местах.',
-  },
-  {
-    t: '`return` и `throw` — тоже один в один',
-    d: '`return x` в генераторе — `resolve(x)` у промиса `load`, как у async-функции. Ошибка, вылетевшая из генератора, — `reject`. Отказ промиса, на котором стоит `yield`, — `gen.throw(e)`, то есть исключение на строке с `yield`.',
-  },
-  {
-    t: 'Синхронная часть выполняется сразу',
-    d: 'Исполнитель `new Promise` синхронный, и первый `step` идёт в нём же. Поэтому «старт 1» печатается до «синхронного кода после вызова» — как у async-функции, которая до первого `await` работает как обычная.',
-  },
-];
-
-/** Дословный вывод `ts.transpileModule(asyncCode сценария «Два await», { target: ES2016 })`. */
-export const TS_AWAITER_CODE = `var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-function load(id) {
-    return __awaiter(this, void 0, void 0, function* () {
-        log('старт ' + id);
-        const user = yield getUser(id);
-        log('пользователь ' + user);
-        const posts = yield getPosts(user);
-        return posts.length;
-    });
-}`;
-
-export const TS_AWAITER_NOTE =
-  'Так TypeScript компилирует `async` для `target` ниже ES2017: `__awaiter` — та же `spawn`, `adopt` — тот же `Promise.resolve`, `fulfilled` и `rejected` — `onFulfilled` и `onRejected`. На всех четырёх сценариях из демо этот вывод печатает то же, что и настоящий `async/await`. С `target: ES2017` и выше TypeScript оставляет `async` как есть.';
-
-/** Тест исполняет эту строку в отдельном процессе Node вместе с `SPAWN_CODE`. */
-export const THEN_PATCH_CODE = `let calls = 0;
-const then = Promise.prototype.then;
-Promise.prototype.then = function (...args) {
-  calls += 1;
-  return then.apply(this, args);
-};
-
-await (async () => { await Promise.resolve(1); await Promise.resolve(2); })();
-const byAwait = calls;   // 0 — await не вызывает then у настоящего промиса
-
-calls = 0;
-await spawn(function* () { yield Promise.resolve(1); yield Promise.resolve(2); });
-const bySpawn = calls;   // 2 — spawn зовёт then на каждом yield
-
-Promise.prototype.then = then;`;
-
-/** Тест исполняет эту строку в отдельном процессе Node и сверяет `STACK_FRAMES`. */
-export const STACK_CODE = `const tick = () => new Promise((ok) => setTimeout(ok, 0));
-
-async function inner() { await tick(); throw new Error('бум'); }
-async function outer() { await inner(); }
-
-const innerG = () => spawn(function* inner() { yield tick(); throw new Error('бум'); });
-const outerG = () => spawn(function* outer() { yield innerG(); });`;
-
-/** Имена кадров стека `e.stack` при ошибке из `inner`, без путей и номеров строк. */
-export const STACK_FRAMES = {
-  native: ['inner', 'async outer'],
-  spawn: ['inner', 'inner.next', 'step', 'onFulfilled'],
-};
-
-export const DIFF_FACTS = [
-  {
-    t: '`await` не зовёт `then` у настоящего промиса',
-    d: 'Подмените `Promise.prototype.then` — `await` его не заметит: движок подписывается на промис напрямую, внутренней операцией. `spawn` зовёт `then` как обычный метод, на каждом `yield`. Так ведут себя все библиотеки и полифиллы поверх генераторов.',
-    tone: 'neutral' as const,
-  },
-  {
-    t: 'Стек ошибки обрывается на первой паузе',
-    d: 'У `async`-функций V8 восстанавливает цепочку ожидания: в стеке есть `at async outer`, хотя `outer` давно не на стеке. У `spawn` движок видит только колбэк промиса: `inner.next`, `step`, `onFulfilled` — и ни слова о том, кто ждал `inner`.',
-    tone: 'warn' as const,
-  },
-];
 
 // ─── Раздел 3. Асинхронные итераторы и for await ───────────────────────────────────────────
 

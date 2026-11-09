@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Browser, chromium, type Page } from 'playwright';
+import ts from 'typescript';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/lessons/errors/data';
 import { loadParse, loadSerialize, runCase } from '@/widgets/error-lab/model/run';
@@ -711,5 +712,26 @@ describe('SERIALIZE_CORE_CODE — то же, что полная версия, �
   ])('%s', (_name, make) => {
     const err = make();
     expect(core(err, 3)).toEqual(strip(serialize(err, { maxFrames: 3 }) as Record<string, unknown>));
+  });
+});
+
+describe('ASYNC_PRACTICE: собранный под ES2016 async теряет кадры «at async»', () => {
+  const SRC = `const tick = () => new Promise((ok) => setTimeout(ok, 0));
+async function inner() { await tick(); throw new Error('бум'); }
+async function outer() { await inner(); }
+outer().catch((e) => console.log(e.stack));`;
+
+  const stackOf = (code: string) =>
+    spawnSync(process.execPath, ['--input-type=commonjs', '-e', code], { encoding: 'utf8' }).stdout;
+
+  it('настоящий async: есть «at async outer»; через __awaiter — нет', () => {
+    expect(stackOf(SRC)).toContain('at async outer');
+    const es2016 = ts.transpileModule(SRC, { compilerOptions: { target: ts.ScriptTarget.ES2016 } }).outputText;
+    expect(es2016).toContain('__awaiter');
+    const stack = stackOf(es2016);
+    expect(stack).toContain('бум');
+    expect(stack).not.toContain('at async');
+    // Оборот, который держит текст.
+    expect(t.ASYNC_PRACTICE).toContain('кадров `at async …` в стеке не будет');
   });
 });

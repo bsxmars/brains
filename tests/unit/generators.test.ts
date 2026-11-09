@@ -1,8 +1,7 @@
-import { execFileSync } from 'node:child_process';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import * as t from '@/content/lessons/generators/data';
-import { linesWith, loadSpawn, runNative, traceScenario } from '@/widgets/spawn-lab/model/run';
+import { loadSpawn, runNative } from '@/widgets/spawn-lab/model/run';
 
 /**
  * Тема «Генераторы и асинхронные итераторы».
@@ -10,9 +9,8 @@ import { linesWith, loadSpawn, runNative, traceScenario } from '@/widgets/spawn-
  * Код примеров — строки из `data.ts`: те же, что печатает страница. Здесь они исполняются,
  * а литералы выводов сверяются с тем, что движок печатает сейчас.
  *
- * Главная проверка — учебная `spawn` против настоящего `async/await`: на каждом сценарии
- * вывод `async`-версии, версии через `spawn`, `__awaiter` из TypeScript и пошагового демо
- * (`spawn` на промисе с видимой очередью) обязан совпасть построчно, вместе с тиками линейки.
+ * Учебная `spawn` проверяется против настоящего `async/await`: на каждом сценарии вывод
+ * `async`-версии, версии через `spawn` и `__awaiter` из TypeScript обязан совпасть построчно.
  */
 
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
@@ -23,12 +21,6 @@ const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
 function runSnippet(code: string, names: string[], params: Record<string, unknown> = {}) {
   const fn = new AsyncFunction(...Object.keys(params), `${code}\nreturn { ${names.join(', ')} };`);
   return fn(...Object.values(params)) as Promise<Record<string, unknown>>;
-}
-
-/** Исполнить строку в отдельном процессе Node как модуль; вернуть stdout как JSON. */
-function runInNode(code: string): unknown {
-  const out = execFileSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
-  return JSON.parse(out);
 }
 
 describe('раздел «Пауза генератора»', () => {
@@ -83,64 +75,6 @@ describe('раздел «async/await из генератора»: spawn прот
     const out = ts.transpileModule(sc.asyncCode, { compilerOptions: { target: ts.ScriptTarget.ES2016 } }).outputText;
     expect(out).toContain('__awaiter');
     expect(await runNative(t.FIXTURE, out.replace(/^"use strict";\n/, ''))).toEqual(t.SCENARIO_LOGS[sc.id]);
-  });
-
-  it('TS_AWAITER_CODE — дословный вывод TypeScript для ES2016', () => {
-    const out = ts.transpileModule(t.SCENARIOS[0].asyncCode, { compilerOptions: { target: ts.ScriptTarget.ES2016 } }).outputText;
-    expect(out.replace(/^"use strict";\n/, '').trimEnd()).toBe(t.TS_AWAITER_CODE);
-    const es2017 = ts.transpileModule(t.SCENARIOS[0].asyncCode, { compilerOptions: { target: ts.ScriptTarget.ES2017 } }).outputText;
-    expect(es2017).not.toContain('__awaiter');
-    expect(es2017).toContain('async function load');
-  });
-
-  it.each(t.SCENARIOS)('$label: пошаговое демо на видимой очереди даёт тот же вывод', async (sc) => {
-    const trace = traceScenario(t.FIXTURE, sc);
-    expect(trace.log).toEqual(t.SCENARIO_LOGS[sc.id]);
-    // Очередь опустела, последний шаг — без заданий.
-    expect(trace.steps.at(-1)!.queue).toEqual([]);
-    // Каждой паузе генератора соответствует своя строка с yield и строка с await.
-    const yields = linesWith(sc.genCode, 'yield');
-    const awaits = linesWith(sc.asyncCode, 'await');
-    expect(yields.length).toBe(awaits.length);
-    expect(Math.max(...trace.steps.map((s) => s.pause))).toBeLessThanOrEqual(yields.length);
-    expect(trace.steps.at(-1)!.done).toBe(true);
-  });
-
-  it('«Два await»: каждый yield — одна микрозадача, шагов столько, сколько заданий', () => {
-    const trace = traceScenario(t.FIXTURE, t.SCENARIOS[0]);
-    expect(trace.steps[0].queue).toEqual(["onFulfilled('Аня')", "() => log('тик 1')"]);
-    expect(trace.steps[0].pause).toBe(1);
-    expect(trace.steps.length).toBe(7);
-  });
-
-  it('«return промиса» стоит задания «развернуть промис»', () => {
-    const trace = traceScenario(t.FIXTURE, t.SCENARIOS.find((s) => s.id === 'return-promise')!);
-    expect(trace.steps[0].queue[0]).toBe('развернуть промис: подписаться на него');
-  });
-
-  it('await не зовёт пропатченный then, spawn зовёт на каждом yield', () => {
-    const r = runInNode(
-      `${t.SPAWN_CODE}\n${t.THEN_PATCH_CODE}\nconsole.log(JSON.stringify({ byAwait, bySpawn }));`,
-    );
-    expect(r).toEqual({ byAwait: 0, bySpawn: 2 });
-  });
-
-  it('стек: у async есть «async outer», у spawn — кадры колбэков (отдельный процесс)', () => {
-    const frames = (s: string) =>
-      s
-        .split('\n')
-        .slice(1)
-        .map((l) => /^\s+at (.+?) \(/.exec(l)?.[1])
-        .filter((x): x is string => Boolean(x));
-    const r = runInNode(
-      `${t.SPAWN_CODE}\n${t.STACK_CODE}\n` +
-        'const a = await outer().catch((e) => e.stack);\n' +
-        'const b = await outerG().catch((e) => e.stack);\n' +
-        'console.log(JSON.stringify({ a, b }));',
-    ) as { a: string; b: string };
-    expect(frames(r.a).slice(0, 2)).toEqual(t.STACK_FRAMES.native);
-    expect(frames(r.b)).toEqual(t.STACK_FRAMES.spawn);
-    expect(r.b).not.toContain('async outer');
   });
 
   it('spawn исполняется в браузерном виде так же, как в Node: функция собирается из строки', () => {
@@ -247,14 +181,29 @@ describe('числа и ссылки текста', () => {
     }
   });
 
+  it('SPAWN_WHY: TypeScript ниже ES2017 пишет __awaiter, с ES2017 — нет; у Babel _asyncToGenerator', async () => {
+    const ts = (await import('typescript')).default;
+    const out = (target: number) =>
+      ts.transpileModule('async function f() { await 1; }', { compilerOptions: { target } }).outputText;
+    expect(out(ts.ScriptTarget.ES2015)).toContain('__awaiter');
+    expect(out(ts.ScriptTarget.ES2016)).toContain('__awaiter');
+    expect(out(ts.ScriptTarget.ES2017)).not.toContain('__awaiter');
+    const babel = await import('@babel/core');
+    const code = babel.transformSync('async function f() { await 1; }', {
+      plugins: ['@babel/plugin-transform-async-to-generator'],
+      configFile: false,
+      babelrc: false,
+    })?.code;
+    expect(code).toContain('_asyncToGenerator');
+    // Короткие подстроки — имена, которые называет текст.
+    expect(t.SPAWN_WHY).toContain('ES2015 или ES2016');
+    expect(t.SPAWN_WHY).toContain('`_asyncToGenerator`');
+  });
+
   it('«пара десятков строк» spawn — правда', () => {
     const n = t.SPAWN_CODE.split('\n').filter((l) => l.trim()).length;
     expect(n).toBeGreaterThanOrEqual(20);
     expect(n).toBeLessThan(30);
   });
 
-  it('TS_AWAITER_NOTE говорит о четырёх сценариях — их четыре', () => {
-    expect(t.SCENARIOS).toHaveLength(4);
-    expect(t.TS_AWAITER_NOTE).toContain('четырёх сценариях');
-  });
 });
