@@ -142,6 +142,23 @@ export interface SliceReport {
   graphemes: number;
   /** Разрез прошёл внутри суррогатной пары: осталась одинокая верхняя половина. */
   broken: boolean;
+  /**
+   * Разрез прошёл между кодовыми точками, но внутри графемы: текст валиден, а знак уже
+   * другой — палец без тона кожи, семья без части людей, флаг из одной буквы.
+   * При `broken` всегда `false`: там поломка грубее.
+   */
+  splitsGrapheme: boolean;
+}
+
+/** Индексы кодовых единиц, по которым проходят границы графем, включая 0 и длину строки. */
+export function graphemeBoundaries(value: string): Set<number> {
+  const bounds = new Set([0]);
+  let at = 0;
+  for (const part of graphemes(value)) {
+    at += part.length;
+    bounds.add(at);
+  }
+  return bounds;
 }
 
 /**
@@ -153,11 +170,13 @@ export interface SliceReport {
 export function sliceUnits(value: string, cut: number): SliceReport {
   const limit = Math.min(Math.max(cut, 0), value.length);
   const text = value.slice(0, limit);
+  const broken = limit > 0 && isHighSurrogate(value.charCodeAt(limit - 1));
   return {
     text,
     units: text.length,
     points: codePoints(text).length,
     graphemes: graphemeCount(text),
-    broken: limit > 0 && isHighSurrogate(value.charCodeAt(limit - 1)),
+    broken,
+    splitsGrapheme: !broken && !graphemeBoundaries(value).has(limit),
   };
 }

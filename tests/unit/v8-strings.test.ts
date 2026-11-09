@@ -19,8 +19,6 @@ import {
   TWO_BYTE_FALSE_ALARMS,
   TWO_BYTE_TRAPS,
   UNICODE_SAMPLES,
-  UTF8_GAP_ROWS,
-  UTF8_GAP_TONES,
 } from '@/content/lessons/v8-strings/data';
 import {
   LATIN1_MAX,
@@ -191,13 +189,6 @@ function numberIn(cell: string): number {
   const found = cell.match(/-?\d+(?:\.\d+)?/);
   if (!found) throw new Error(`в ячейке «${cell}» нет числа`);
   return Number.parseFloat(found[0]);
-}
-
-/** Байты из ячейки `UTF8_GAP_ROWS`: «2 байта» → 2, «2 × 2 байта» → 4. */
-function bytesIn(cell: string): number {
-  const nums = cell.match(/\d+/g);
-  if (!nums) throw new Error(`в ячейке «${cell}» нет числа`);
-  return nums.map(Number).reduce((a, b) => a * b, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -697,21 +688,34 @@ describe('юникод — четыре уровня считает модель
     expect(sliceUnits(value, -5).units).toBe(0);
   });
 
-  it('внутреннее представление и UTF-8 — две разные кодировки (UTF8_GAP_ROWS)', () => {
-    expect(UTF8_GAP_ROWS).toHaveLength(UTF8_GAP_TONES.length);
+  it('срез целой графемы не считается разрезом, срез между точками внутри графемы — считается', () => {
+    const thumb = UNICODE_SAMPLES.find((s) => s.label === '👍🏽')!.value;
+    // Палец целиком: 4 единицы, 2 точки, 1 графема — ничего не разрезано.
+    expect(sliceUnits(thumb, 4)).toMatchObject({ broken: false, splitsGrapheme: false, graphemes: 1 });
+    // Без модификатора тона: точки целы, графема — нет.
+    expect(sliceUnits(thumb, 2)).toMatchObject({ broken: false, splitsGrapheme: true });
+    // Внутри пары — грубая поломка, графемный разрез тогда не отмечается.
+    expect(sliceUnits(thumb, 1)).toMatchObject({ broken: true, splitsGrapheme: false });
+    expect(sliceUnits(thumb, 0).splitsGrapheme).toBe(false);
 
-    for (const [i, row] of UTF8_GAP_ROWS.entries()) {
-      const point = row[0].match(/U\+([0-9A-F]+)/);
-      expect(point, `в подписи «${row[0]}» нет кодовой точки`).not.toBeNull();
-      const char = String.fromCodePoint(Number.parseInt(point![1], 16));
+    const flag = UNICODE_SAMPLES.find((s) => s.label === '🇷🇺')!.value;
+    expect(sliceUnits(flag, 2).splitsGrapheme, 'одна буква от флага').toBe(true);
+  });
 
-      expect(storageBytes(char), `${row[0]}: байт в памяти V8`).toBe(bytesIn(row[1]));
-      expect(utf8Bytes(char), `${row[0]}: байт в UTF-8`).toBe(bytesIn(row[2]));
-
-      // Красным помечены ровно те строки, где два счёта разошлись, — не больше и не меньше.
-      const diverged = bytesIn(row[1]) !== bytesIn(row[2]);
-      expect(UTF8_GAP_TONES[i], `${row[0]}: тон строки`).toBe(diverged ? 'err' : 'ok');
+  it('внутреннее представление и UTF-8 — две разные кодировки', () => {
+    // Абзац «Внутри один байт, в UTF-8 — два» отсылает к образцу «é в NFC» в инспекторе
+    // и называет é, °, ± — у всех трёх байт в памяти V8 и два в UTF-8.
+    const nfc = UNICODE_SAMPLES.find((s) => s.label === 'é в NFC');
+    expect(nfc, 'образца «é в NFC» нет — абзац ссылается на него').toBeDefined();
+    for (const char of [nfc!.value, '°', '±']) {
+      expect(storageBytes(char), `${char}: байт в памяти V8`).toBe(1);
+      expect(utf8Bytes(char), `${char}: байт в UTF-8`).toBe(2);
     }
+    // Карточка «`s.length` — не байты»: у 'é°±' length, байты в памяти и UTF-8 — 3, 3 и 6.
+    expect(['é°±'.length, storageBytes('é°±'), utf8Bytes('é°±')]).toEqual([3, 3, 6]);
+    // Граница UTF-8 — U+007F: до неё оба счёта совпадают.
+    expect(utf8Bytes('\u007f')).toBe(1);
+    expect(utf8Bytes('\u0080')).toBe(2);
   });
 
   it('разделитель разрядов: у ru он однобайтный, у fr-FR — нет', () => {

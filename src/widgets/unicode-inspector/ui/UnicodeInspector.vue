@@ -52,6 +52,17 @@ const twoByte = computed(() => isTwoByte(sample.value.value));
 const storage = computed(() => storageBytes(sample.value.value));
 
 const slice = computed(() => sliceUnits(sample.value.value, cut.value));
+
+const sliceTone = computed(() => (slice.value.broken ? 'err' : slice.value.splitsGrapheme ? 'warn' : 'ok'));
+
+const verdict = computed(() => {
+  if (slice.value.broken)
+    return 'Разрез прошёл внутри суррогатной пары: остался одинокий верхний суррогат. Строка валидна для JS и невалидна как текст — на экране квадратик, в UTF-8 знак замены U+FFFD.';
+  if (slice.value.splitsGrapheme)
+    return 'Кодовые точки целы, а графема разрезана: от знака осталась часть. Текст валиден, только знак уже другой — палец без тона кожи, семья без части людей, флаг из одной буквы.';
+  if (slice.value.units === 0) return 'Пустая строка: резать нечего.';
+  return 'Разрез прошёл по границе графемы: все оставшиеся знаки целы. Сам slice за этим не следит — индекс просто попал между знаками.';
+});
 </script>
 
 <template>
@@ -134,20 +145,14 @@ const slice = computed(() => sliceUnits(sample.value.value, cut.value));
           />
         </div>
 
-        <div class="ui-result" :data-tone="slice.broken ? 'err' : 'ok'">
+        <div class="ui-result" :data-tone="sliceTone">
           <div class="ui-result__head">
             <span class="ui-result__glyph">{{ slice.text || '␀' }}</span>
             <span class="ui-result__meta">
               length {{ slice.units }} · точек {{ slice.points }} · графем {{ slice.graphemes }}
             </span>
           </div>
-          <div class="ui-result__verdict">
-            {{
-              slice.broken
-                ? 'Разрез прошёл внутри суррогатной пары: остался одинокий верхний суррогат. Строка валидна для JS и невалидна как текст — на экране квадратик, в UTF-8 знак замены U+FFFD.'
-                : 'Границы кодовых точек целы. Но графему это ещё не защищает: составной эмодзи и флаг разваливаются на части, оставаясь валидным текстом.'
-            }}
-          </div>
+          <div class="ui-result__verdict">{{ verdict }}</div>
         </div>
       </div>
     </div>
@@ -378,6 +383,10 @@ const slice = computed(() => sliceUnits(sample.value.value, cut.value));
   border: 1px solid var(--tone-ok-line);
   background: var(--tone-ok-bg);
 }
+.ui-result[data-tone='warn'] {
+  border: 1px solid var(--tone-warn-line);
+  background: var(--tone-warn-bg);
+}
 .ui-result[data-tone='err'] {
   border: 1px solid var(--tone-err-line);
   background: var(--tone-err-bg);
@@ -404,6 +413,9 @@ const slice = computed(() => sliceUnits(sample.value.value, cut.value));
 }
 .ui-result[data-tone='ok'] .ui-result__verdict {
   color: var(--tone-ok-text);
+}
+.ui-result[data-tone='warn'] .ui-result__verdict {
+  color: var(--tone-warn-text);
 }
 .ui-result[data-tone='err'] .ui-result__verdict {
   color: var(--tone-err-text);
