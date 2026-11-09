@@ -33,7 +33,7 @@ const html = useHighlight(() => props.lines.join('\n'), () => props.lang);
     <div v-if="label" class="t-label">{{ label }}</div>
     <div class="lines">
       <template v-for="(line, i) in lines" :key="i">
-        <!-- eslint-disable-next-line vue/no-v-html -- tokensToLines экранирует текст, свои только <span style="color:var(…)"> -->
+        <!-- eslint-disable-next-line vue/no-v-html -- tokensToLines экранирует текст, свои только <span class="c-…"> -->
         <div v-if="html?.[i]" class="line" :class="{ active: i === active }" v-html="html[i]" />
         <div v-else class="line" :class="{ active: i === active }">{{ line || ' ' }}</div>
       </template>

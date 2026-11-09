@@ -87,7 +87,11 @@
   (`shared/lib/highlight.ts`): `CodeBlock`, fenced-блоки MDX (`markdown.shikiConfig`). Острова
   красят у читателя (`shared/lib/useHighlight.ts`): Shiki грузится динамическим импортом после
   монтирования, около 72 КБ сжатого JS на страницу, до загрузки код одноцветный. Общее для обеих
-  сторон — `shared/lib/highlight-theme.ts`.
+  сторон — `shared/lib/highlight-theme.ts`. Токен получает класс роли (`c-k`, `c-s`…), цвет —
+  `shared/styles/code-tokens.css`, вне слоёв и с `!important`, как прежний инлайн-стиль: инлайн
+  на каждом токене был третью HTML страниц с кодом. Грамматику GraphQL острова берут без
+  встроенных JS/TS (`virtual:lean-grammar/*`, `scripts/vite/lean-grammar.mjs`; раскраску сверяет
+  `lean-grammar.test.ts`).
 - **Код в строке** — IBM Plex Mono `0.92em` на подложке `--surface-3` (`shared/styles/base.css`).
   Тёмный контейнер с прозой **обязан** снять подложку: `--inline-code-bg: transparent` (так сделаны
   `DarkCard`, `DarkPanel`, `DarkText`, `Callout`, шапка `Table`). `palette.spec` это не ловит:
@@ -424,6 +428,10 @@ src/
 - ⚠️ CSS-модуль, импортированный в `.vue`, роняет серверный рендер. Для обеих сторон — обычный CSS
   с префиксом классов, импортированный из `.astro`-обёртки (`widgets/two-models/ui/panes.css`).
 - ⚠️ Всё в `setup` исполняется **и в Node**: `window` без проверки роняет сборку страницы.
+- ⚠️ **`props` острова печатаются в HTML страницы**, и Astro оборачивает каждое значение в `[0, …]`:
+  23 КБ массива становятся 84 КБ атрибута. Большие данные — JSON-строкой (`FuzzyLab`, `topicsJson`)
+  или правилом, которое остров разворачивает сам (`SchedLab`, `expandScenario`). Тысячи узлов SVG,
+  которые всё равно перерисует гидратация, рисуются после `onMounted` (`SpatialLab`).
 - ⚠️ Дорогая работа в `setup` оплачивается дважды — на сборке и при гидратации, до клика. Переносится
   на явное действие (кнопка, как в `widgets/ic-bench`, `widgets/yield-meter`); до нажатия остров честно
   показывает, что считать нечего.

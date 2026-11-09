@@ -7,6 +7,6 @@ defineProps<{ html?: string | null; text: string }>();
 </script>
 
 <template>
-  <!-- eslint-disable-next-line vue/no-v-html -- tokensToLines экранирует текст, свои только <span style="color:var(…)"> -->
+  <!-- eslint-disable-next-line vue/no-v-html -- tokensToLines экранирует текст, свои только <span class="c-…"> -->
   <span v-if="html != null" v-html="html" /><template v-else>{{ text }}</template>
 </template>

@@ -15,7 +15,7 @@ export type CodeLang = (typeof CODE_LANGS)[number] | 'text';
 
 let highlighter: ReturnType<typeof createHighlighter> | undefined;
 
-/** Внутренность `<pre>`: строки из `<span style="color:…">`, переводы строк — как в исходнике. */
+/** Внутренность `<pre>`: строки из `<span class="c-…">`, переводы строк — как в исходнике. */
 export async function highlight(code: string, lang: Exclude<CodeLang, 'text'>): Promise<string> {
   highlighter ??= createHighlighter({
     themes: [createCssVariablesTheme(THEME_OPTIONS)],

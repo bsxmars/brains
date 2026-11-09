@@ -17,7 +17,7 @@ const html = useHighlight(() => props.code, () => props.lang);
 
 <template>
   <!-- `data-code`: обратные кавычки внутри — настоящие, проверка разметки их пропускает. -->
-  <!-- eslint-disable-next-line vue/no-v-html -- tokensToLines экранирует текст, свои только <span style="color:var(…)"> -->
+  <!-- eslint-disable-next-line vue/no-v-html -- tokensToLines экранирует текст, свои только <span class="c-…"> -->
   <pre v-if="html" data-code :data-lang="lang" :data-code-tone="tone" v-html="html.join('\n')" />
   <pre v-else data-code :data-lang="lang">{{ code }}</pre>
 </template>

@@ -1,0 +1,15 @@
+/*
+ * Цвета токенов подсветки. Разметку дают `tokensToLines` и `fencedTransformer`
+ * (`shared/lib/highlight-theme.ts`): `<span class="c-k">` вместо `style="color:var(…)"` на
+ * каждом токене — на страницах с кодом это треть HTML.
+ *
+ * Вне слоёв и с `!important` — чтобы вести себя как прежний инлайн-стиль: цвет токена
+ * не перебивает ни scoped-стиль компонента, ни правило слоя. Светлый листинг — те же классы,
+ * значения переменных переопределяет `[data-code-tone='light']` в `base.css`.
+ */
+.c-k { color: var(--code-keyword) !important; }
+.c-s { color: var(--code-string) !important; }
+.c-c { color: var(--code-comment) !important; }
+.c-f { color: var(--code-function) !important; }
+.c-n { color: var(--code-constant) !important; }
+.c-p { color: var(--code-parameter) !important; }

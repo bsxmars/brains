@@ -11,7 +11,8 @@
  *   4. `aura.css`      — токены и классы библиотеки, слой `aura`;
  *   5. `overrides.css` — слой `lesson-overrides`, объявленный после `aura`;
  *   6. `type.css`      — типографические классы приложения, вне слоёв;
- *   7. `motion.css`    — уважение к `prefers-reduced-motion`. Обязан идти последним и вне
+ *   7. `code-tokens.css` — цвета токенов подсветки, вне слоёв (заменяют инлайн-стиль);
+ *   8. `motion.css`    — уважение к `prefers-reduced-motion`. Обязан идти последним и вне
  *                        слоёв: он гасит переходы, объявленные в scoped-стилях компонентов,
  *                        а те тоже вне слоёв — выигрывает тот, кто позже.
  *
@@ -24,4 +25,5 @@
 @import './aura.css';
 @import './overrides.css';
 @import './type.css';
+@import './code-tokens.css';
 @import './motion.css';

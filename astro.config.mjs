@@ -8,6 +8,7 @@ import { compileStyle } from '@vue/compiler-sfc';
 import { defineConfig } from 'astro/config';
 import { createCssVariablesTheme } from 'shiki';
 import { fencedTransformer, THEME_OPTIONS } from './src/shared/lib/highlight-theme.ts';
+import { leanGrammarPlugin } from './scripts/vite/lean-grammar.mjs';
 
 /**
  * Выключатель React Fast Refresh.
@@ -166,7 +167,11 @@ export default defineConfig({
   },
 
   vite: {
-    plugins: [disableReactRefresh, vueScopedStylesInDev],
+    plugins: [disableReactRefresh, vueScopedStylesInDev, leanGrammarPlugin],
     resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+    // Шрифты — отдельными файлами, даже маленькие. Иначе Vite встраивает woff2 меньше 4 КБ
+    // в общий CSS base64-строкой, и каждая страница платит за них при первой загрузке —
+    // включая подмножества, глифы которых браузер так и не запросит (`unicode-range`).
+    build: { assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined) },
   },
 });

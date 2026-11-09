@@ -25,7 +25,8 @@ const GRAMMAR = {
   html: () => import('shiki/langs/html.mjs'),
   css: () => import('shiki/langs/css.mjs'),
   json: () => import('shiki/langs/json.mjs'),
-  graphql: () => import('shiki/langs/graphql.mjs'),
+  // Без встроенных JS/TS/JSX/TSX: −700 КБ (`scripts/vite/lean-grammar.mjs`).
+  graphql: () => import('virtual:lean-grammar/graphql'),
   sql: () => import('shiki/langs/sql.mjs'),
   yaml: () => import('shiki/langs/yaml.mjs'),
   hcl: () => import('shiki/langs/hcl.mjs'),
