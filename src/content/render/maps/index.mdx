@@ -1,0 +1,468 @@
+---
+title: "Карты в интерфейсе: как устроена веб-карта и как её встроить"
+heading: "Карты в интерфейсе"
+headingWidth: 24
+order: 24
+kicker: браузер и рендеринг
+lead: "Карта на сайте выглядит как одна большая картинка, которую можно тянуть мышью. На деле это мозаика из квадратных кусков — тайлов. Библиотека переводит широту и долготу в пиксели, решает, какие куски видны, скачивает их и рисует, а ваш код даёт ей контейнер, центр и масштаб — и не забывает удалить карту, когда она не нужна. Здесь всё это по шагам: встраивание, проекция Меркатора, пирамида тайлов, растр и вектор, тысячи маркеров и кластеры, карта в компоненте React и Vue."
+summary: "Встраивание карты: контейнер с высотой, стиль, центр, масштаб, маркер, `remove()`; порядок `[lng, lat]` против `[lat, lng]`. Web Mercator: формулы, обрезка на 85,05°, растяжение к полюсам, метры на пиксель, `zoom` от 256 и от 512. Тайлы: адрес `z/x/y`, какие видны в окне, сколько запросов на сдвиг и смену масштаба, `@2x`, шаблон адреса. Растровые и векторные тайлы, стиль, два кеша. DOM-маркеры против слоя на холсте, кластеры как в supercluster. Карта в React и Vue: ref, эффект с очисткой, StrictMode, Proxy, серверный рендер, потеря WebGL. Ключи, атрибуция, свои тайлы, доступность."
+verifiedOn: "@math.gl/web-mercator 4.1.0, supercluster 9.1.0, React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, Node 26.8.2, ноябрь 2026: проекция, тайлы окна и метры на пиксель сверены с math.gl, кластеры на каждом уровне — с supercluster, компоненты React и Vue исполнены с подставной картой. Всё повторяет tests/unit/maps.test.ts. Код MapLibre GL JS 5 и Leaflet 1.9 написан по их документации и не исполнялся"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Карта на странице }
+  - { id: s2, label: Проекция }
+  - { id: s3, label: Тайлы }
+  - { id: s4, label: Растр и вектор }
+  - { id: s5, label: Маркеры }
+  - { id: s6, label: Во фреймворке }
+  - { id: s7, label: Ключи и доступность }
+  - { id: s8, label: Тонкие места }
+  - { id: s9, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import DarkPanel from '@/shared/ui/DarkPanel.astro';
+import DarkText from '@/shared/ui/DarkText.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import MapLab from '@/widgets/map-lab/ui/MapLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_TILES,
+  PREREQ,
+  PREREQ_NOTE,
+  EMBED_HTML,
+  EMBED_CODE,
+  EMBED_NOTE,
+  LIB_DOES,
+  LEAFLET_CODE,
+  LEAFLET_NOTE,
+  LIB_ROWS,
+  PLAIN_PROJECTION,
+  MERCATOR_CODE,
+  MERCATOR_NOTE,
+  CITY_ROWS,
+  CITY_NOTE,
+  STRETCH_ROWS,
+  STRETCH_NOTE,
+  MAX_LAT_NOTE,
+  ZOOM_512_NOTE,
+  PYRAMID_ROWS,
+  PYRAMID_NOTE,
+  TILES_CODE,
+  TILES_NOTE,
+  GESTURE_ROWS,
+  GESTURE_NOTE,
+  LOW_ZOOM,
+  TEMPLATE_CODE,
+  TEMPLATE_NOTE,
+  DEMO_TILES_CAPTION,
+  PLAIN_VECTOR,
+  VECTOR_ROWS,
+  MVT_NOTE,
+  STYLE_CODE,
+  STYLE_NOTE,
+  CACHE_NOTE,
+  MARKER_ROWS,
+  DOM_NOTE,
+  PLAIN_CLUSTER,
+  CLUSTER_CODE,
+  CLUSTER_NOTE,
+  POINTS_CODE,
+  CLUSTER_ROWS,
+  CLUSTER_ROWS_NOTE,
+  GEOJSON_CLUSTER_CODE,
+  GEOJSON_CLUSTER_NOTE,
+  DEMO_CLUSTER_CAPTION,
+  PLAIN_REMOTE,
+  REACT_MAP_CODE,
+  REACT_NOTE,
+  REACT_BAD_CODE,
+  LIFECYCLE_ROWS,
+  LIFECYCLE_NOTE,
+  WEBGL_NOTE,
+  VUE_MAP_CODE,
+  VUE_NOTE,
+  SSR_NOTE,
+  SHOW_LATER_NOTE,
+  PRACTICE,
+  A11Y_NOTE,
+  A11Y_CODE,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+  MAP_CODES,
+  CLUSTER_SETUP,
+} from './data';
+
+<Section variant="intro" eyebrow="Что такое веб-карта" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    Веб-карта — не картинка, а сетка квадратных тайлов. Библиотека переводит широту и долготу
+    в пиксели, решает, какие тайлы видны в окне, скачивает их и рисует. От вашего кода нужны
+    контейнер, центр, масштаб — и `remove()`, когда карта больше не нужна.
+
+  </Callout>
+
+  Карта с адресами магазинов, точка доставки, участки на продажу — обычная задача фронтенда.
+  Обычно её решают за десять строк: подключили библиотеку, указали центр, поставили маркер.
+  Проблемы начинаются потом. Метка встаёт в другой стране. Карта пустая, хотя ошибок нет.
+  Тысячи точек тормозят. После пары переходов по страницам карта гаснет. Все эти
+  проблемы объясняются тем, как карта устроена внутри.
+
+  <Plain text={PLAIN_TILES} />
+
+  <Glossary items={GLOSSARY} />
+</Section>
+
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Карта на странице"
+  lead="Сначала — как карту ставят на страницу. Нужен пустой блок, куда библиотека вставит карту, и несколько строк настройки: откуда брать тайлы, где центр, какой масштаб. Всё остальное — тайлы, жесты, подписи — библиотека делает сама."
+>
+  <Card title="Контейнер" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={EMBED_HTML} lang="html" size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Card title="Карта, маркер и удаление — MapLibre GL JS" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={EMBED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={EMBED_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что библиотека делает за вас
+
+  <CardGrid min={240} gap={14} align="start">
+    {LIB_DOES.map((item) => (
+      <Card tone="neutral" title={item.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Та же карта на Leaflet
+
+  <Card title="Leaflet и растровые тайлы OpenStreetMap" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={LEAFLET_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="warn">
+      <Md text={LEAFLET_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['библиотека', 'чем рисует', 'тайлы', 'порядок координат']}
+    rows={LIB_ROWS.map((r) => [r.k, r.draw, r.tiles, r.order])}
+    kinds={['prose', 'prose', 'prose', 'prose']}
+    cols="minmax(150px,.8fr) minmax(200px,1.2fr) minmax(150px,.9fr) minmax(200px,1.1fr)"
+    minWidth={700}
+  />
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Проекция: шар на плоскость"
+  lead="Земля — шар, экран — плоскость. Прежде чем рисовать, библиотека переводит долготу и широту в пиксели. Почти все веб-карты делают это одной формулой — Web Mercator. Её стоит знать, потому что из неё следуют и обрезанные полюса, и огромная Гренландия, и то, что километр на карте бывает разной длины."
+>
+  <Plain text={PLAIN_PROJECTION} />
+
+  <Card title="Web Mercator в двадцать строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MERCATOR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={MERCATOR_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Table
+    head={['город', 'долгота, широта', 'тайл z/x/y', 'пиксель в тайле', 'метров в пикселе']}
+    rows={CITY_ROWS.map((r) => [r.city, `${r.lng.toLocaleString('ru-RU')}; ${r.lat.toLocaleString('ru-RU')}`, r.tile, r.px, r.mpp.toLocaleString('ru-RU')])}
+    kinds={['prose', 'mono', 'mono', 'mono', 'mono']}
+    cols="minmax(110px,.8fr) minmax(170px,1.1fr) minmax(130px,.9fr) minmax(130px,.8fr) minmax(130px,.8fr)"
+    minWidth={680}
+  />
+
+  <Md text={CITY_NOTE} />
+
+  ### Почему полюса обрезаны
+
+  <Md text={MAX_LAT_NOTE} />
+
+  ### Почему Гренландия огромная
+
+  <Table
+    head={['где', 'широта', 'длины растянуты в', 'площади растянуты в']}
+    rows={STRETCH_ROWS.map((r) => [r.place, `${r.lat.toLocaleString('ru-RU')}°`, r.len.toLocaleString('ru-RU'), r.area.toLocaleString('ru-RU')])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(170px,1.2fr) minmax(100px,.7fr) minmax(150px,.9fr) minmax(160px,.9fr)"
+    minWidth={600}
+  />
+
+  <Md text={STRETCH_NOTE} />
+
+  ### Уровень от 256 и от 512
+
+  <Md text={ZOOM_512_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Тайлы: пирамида z/x/y"
+  lead="Мир на каждом уровне режется на квадраты 256 × 256. Номер квадрата — его адрес: уровень, столбец, строка. Карта на экране — это несколько таких квадратов, приставленных друг к другу. Двигаете карту — библиотека докачивает новые с края."
+>
+  <Table
+    head={['уровень', 'тайлов в мире', 'метров в пикселе на экваторе', 'метров в пикселе в Москве']}
+    rows={PYRAMID_ROWS.map((r) => [String(r.z), r.tiles.toLocaleString('ru-RU'), r.equator.toLocaleString('ru-RU'), r.moscow.toLocaleString('ru-RU')])}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(90px,.5fr) minmax(170px,1fr) minmax(200px,1.1fr) minmax(200px,1.1fr)"
+    minWidth={660}
+  />
+
+  <Md text={PYRAMID_NOTE} />
+
+  ### Какие тайлы видны
+
+  <Card title="Тайлы окна" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TILES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TILES_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Сколько запросов стоит жест
+
+  <Table
+    head={['что сделали', 'тайлов в окне', 'новых запросов']}
+    rows={GESTURE_ROWS.map((r) => [r.k, String(r.tiles), String(r.fresh)])}
+    tones={GESTURE_ROWS.map((r) => r.tone ?? 'info')}
+    kinds={['prose', 'mono', 'mono']}
+    cols="minmax(280px,1.6fr) minmax(120px,.6fr) minmax(140px,.6fr)"
+    minWidth={560}
+  />
+
+  <Md text={GESTURE_NOTE} />
+
+  <Md text={LOW_ZOOM} />
+
+  ### Пирамида над городом
+
+  <MapLab client:visible codes={MAP_CODES} cities={CITY_ROWS} mode="tiles" caption={DEMO_TILES_CAPTION} />
+
+  ### Шаблон адреса и экраны @2x
+
+  <Card title="Растровый источник в стиле MapLibre" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TEMPLATE_CODE} lang="json" size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={TEMPLATE_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Растровые и векторные тайлы"
+  lead="Тайл может быть готовой картинкой, а может быть данными, из которых браузер рисует картинку сам. От этого зависит, кто платит за рисование, можно ли сменить оформление без новых запросов и насколько резкой будет карта между уровнями."
+>
+  <Plain text={PLAIN_VECTOR} />
+
+  <Table
+    head={['что сравниваем', 'растровый тайл', 'векторный тайл']}
+    rows={VECTOR_ROWS.map((r) => [r.k, r.raster, r.vector])}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(220px,1.1fr) minmax(260px,1.3fr)"
+    minWidth={660}
+  />
+
+  <Md text={MVT_NOTE} />
+
+  ### Стиль: как красить данные
+
+  <Card title="Слой дорог в стиле MapLibre" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={STYLE_CODE} lang="json" size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={STYLE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Два кеша
+
+  <Md text={CACHE_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Маркеры: DOM, холст и кластеры"
+  lead="Маркер можно сделать элементом страницы, а можно — частью рисунка карты. Пока точек десятки, разницы нет. Когда их тысячи, элементы тормозят, а слой на холсте — нет. А когда точки сливаются в кашу, их собирают в кластеры."
+>
+  <Table
+    head={['способ', 'как устроен', 'когда годится']}
+    rows={MARKER_ROWS.map((r) => [r.k, r.how, r.when])}
+    tones={MARKER_ROWS.map((r) => r.tone ?? 'info')}
+    kinds={['prose', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(300px,1.6fr) minmax(200px,1fr)"
+    minWidth={680}
+  />
+
+  <Md text={DOM_NOTE} />
+
+  ### Кластеры
+
+  <Plain text={PLAIN_CLUSTER} />
+
+  <Card title="Кластеры по уровням, как в supercluster" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CLUSTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CLUSTER_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Card title="Набор мест для таблицы и демо" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={POINTS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['уровень', 'точек в окне', 'меток после кластеров', 'из них кластеров']}
+    rows={CLUSTER_ROWS.map((r) => [String(r.z), r.raw.toLocaleString('ru-RU'), String(r.marks), String(r.clusters)])}
+    kinds={['mono', 'mono', 'mono', 'mono']}
+    cols="minmax(90px,.5fr) minmax(130px,.8fr) minmax(190px,1fr) minmax(160px,.9fr)"
+    minWidth={600}
+  />
+
+  <Md text={CLUSTER_ROWS_NOTE} />
+
+  ### Кластеры над Москвой
+
+  <MapLab client:visible codes={MAP_CODES} setup={CLUSTER_SETUP} mode="cluster" caption={DEMO_CLUSTER_CAPTION} />
+
+  ### Кластеры силами MapLibre
+
+  <Card title="Источник GeoJSON с кластерами" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={GEOJSON_CLUSTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={GEOJSON_CLUSTER_NOTE} />
+    </CardNote>
+  </Card>
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Карта внутри React и Vue"
+  lead="Фреймворк хочет управлять тем, что на странице. Карта хочет того же: у неё свой DOM, свой холст и свой цикл рисования. Договариваются они так: компонент даёт карте пустой блок, создаёт её один раз, передаёт изменения командами и удаляет при уходе."
+>
+  <Plain text={PLAIN_REMOTE} />
+
+  <Card title="React: ref, два эффекта, очистка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REACT_MAP_CODE} lang="jsx" size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={REACT_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Что будет без очистки
+
+  <Card title="Так писать не надо" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={REACT_BAD_CODE} lang="jsx" size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['что произошло', 'создано карт', 'удалено', 'живых']}
+    rows={LIFECYCLE_ROWS.map((r) => [r.k, String(r.created), String(r.removed), String(r.live)])}
+    tones={LIFECYCLE_ROWS.map((r) => r.tone ?? 'info')}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(300px,1.8fr) minmax(110px,.6fr) minmax(90px,.5fr) minmax(80px,.5fr)"
+    minWidth={600}
+  />
+
+  <Md text={LIFECYCLE_NOTE} />
+
+  <Md text={WEBGL_NOTE} />
+
+  ### Vue
+
+  <Card title="Vue: onMounted, watch, onBeforeUnmount" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={VUE_MAP_CODE} lang="vue" size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={VUE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Серверный рендер и скрытый контейнер
+
+  <Md text={SSR_NOTE} />
+
+  <Md text={SHOW_LATER_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="Ключи, права и доступность"
+  lead="Карта работает — осталось то, о чём вспоминают перед запуском: кто платит за тайлы, что требует лицензия и как карту прочитает человек, который её не видит."
+>
+  <CardGrid min={260} gap={14} align="start">
+    {PRACTICE.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  ### Карта для тех, кто её не видит
+
+  <Md text={A11Y_NOTE} />
+
+  <Card title="Карта и её текстовый двойник" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={A11Y_CODE} lang="html" size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <DarkPanel eyebrow="Что из этого следует">
+    <DarkText size={18} lh={1.55} tone="prose">
+
+      **Карта — внешний объект со своей жизнью.** Компонент создаёт её один раз, говорит
+      с ней командами и удаляет при уходе. Координаты — `[долгота, широта]` там, где GeoJSON,
+      и наоборот там, где Leaflet. Расстояния — в метрах через широту, а не в пикселях. Тысячи
+      точек — слоем на холсте и кластерами, а рядом — список тех же мест текстом.
+
+    </DarkText>
+  </DarkPanel>
+</Section>
+
+<Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

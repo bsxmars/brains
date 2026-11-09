@@ -1,0 +1,367 @@
+---
+title: "iframe: чужой и свой документ внутри страницы"
+heading: "iframe: чужой и свой документ внутри страницы"
+headingWidth: 24
+order: 23
+kicker: сеть и безопасность
+lead: "Чат поддержки, платёжная форма, видео, карта, предпросмотр письма — всё это фреймы. Фрейм показывает внутри страницы отдельный документ со своим адресом, своим `window` и своим источником. Если источник чужой, страница видит рамку, но не содержимое, и договаривается с ним только сообщениями. Атрибут `sandbox` отнимает у документа способности, `allow` раздаёт права, а высоту, историю и клавиатуру фрейм делит с родителем по своим правилам."
+summary: "Как встроить документ: `src` и `srcdoc`, `title`, `loading=\"lazy\"`, размер 300 × 150; что родитель видит в своём и в чужом фрейме; `postMessage` с проверкой `origin` и `source` и почему `'*'` опасен; песочница по флагам, непрозрачный источник и как пара `allow-scripts allow-same-origin` её снимает; `allow`, `referrerpolicy`, `credentialless`; высота по содержимому через `ResizeObserver`; общая история и клавиатура; цена фрейма и когда он не нужен — всё снято в Chromium, Firefox и WebKit."
+verifiedOn: "Chromium 153.0.8010.12 (headless shell и полный channel: 'chromium' — для процессов), Firefox 155.0, WebKit 26.6 — сборки Playwright 1.63 на Node 26.8.2, ноябрь 2026. Сайты https://shop.example, https://widget.example и https://evil.example подставлены перехватом запросов Playwright. Таймерный замер один — поток фрейма при занятом родителе, и закреплён порядком величины. По документации, без запуска: чтение title программами экранного доступа, флаги allow-popups-to-escape-sandbox, allow-downloads, allow-top-navigation-by-user-activation, allow-storage-access-by-user-activation, работа credentialless (снята только поддержка). Всё остальное повторяет tests/unit/iframe.test.ts"
+nav:
+  - { id: s0, label: Перед началом }
+  - { id: s1, label: Как встроить }
+  - { id: s2, label: Свой и чужой }
+  - { id: s3, label: postMessage }
+  - { id: s4, label: Песочница }
+  - { id: s5, label: Права фрейма }
+  - { id: s6, label: Высота }
+  - { id: s7, label: История и клавиатура }
+  - { id: s8, label: Цена }
+  - { id: s9, label: Тонкие места }
+  - { id: s10, label: Источники }
+---
+
+import Callout from '@/shared/ui/Callout.astro';
+import Card from '@/shared/ui/Card.astro';
+import CardGrid from '@/shared/ui/CardGrid.astro';
+import CardNote from '@/shared/ui/CardNote.astro';
+import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Md from '@/shared/ui/Md.astro';
+import Section from '@/shared/ui/Section.astro';
+import Table from '@/shared/ui/Table.astro';
+import Plain from '@/shared/ui/Plain.astro';
+import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import Prereq from '@/widgets/topic-blocks/ui/Prereq.astro';
+import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import IframeLab from '@/widgets/iframe-lab/ui/IframeLab.vue';
+import {
+  GLOSSARY,
+  PLAIN_FRAME,
+  PREREQ,
+  PREREQ_NOTE,
+  EMBED_CODE,
+  EMBED_FACTS,
+  ACCESS_CODE,
+  PLAIN_WALL,
+  CROSS_ORIGIN_ROWS,
+  ACCESS_NOTE,
+  MESSAGE_PARENT_CODE,
+  MESSAGE_CHILD_CODE,
+  MESSAGE_RULES,
+  MESSAGE_NOTE,
+  TARGET_CODE,
+  TARGET_ROWS,
+  TARGET_NOTE,
+  PLAIN_SANDBOX,
+  SANDBOX_CODE,
+  SANDBOX_NOTE,
+  MATRIX_HEAD,
+  matrixRows,
+  LAB_CAPTION,
+  ESCAPE_CODE,
+  ESCAPE_NOTE,
+  SANDBOX_FLAGS,
+  FLAGS_NOTE,
+  PLAIN_ALLOW,
+  ALLOW_CODE,
+  FULLSCREEN_ROWS,
+  ALLOW_NOTE,
+  TOPNAV_NOTE,
+  REFERRER_ROWS,
+  REFERRER_NOTE,
+  CREDENTIALLESS_NOTE,
+  RESIZE_CHILD_CODE,
+  RESIZE_PARENT_CODE,
+  PLAIN_RESIZE,
+  RESIZE_NOTE,
+  GROW_NOTE,
+  HISTORY_ROWS,
+  HISTORY_NOTE,
+  KEYS_NOTE,
+  THREAD_ROWS,
+  THREAD_NOTE,
+  WHEN_CASES,
+  PITFALLS,
+  SOURCES,
+  RELATED,
+} from './data';
+
+<Section variant="intro" eyebrow="Документ в документе" gap={24}>
+  <Callout size={19} pad="24px 26px">
+
+    `<iframe>` — окно в другой документ. У документа внутри свой адрес, свой `window`, свой
+    DOM и свой источник. Если источник чужой, страница видит рамку, но не то, что в ней.
+    Договориться с таким документом можно только сообщениями.
+
+  </Callout>
+
+  Фреймы встречаются чаще, чем кажется. Кнопка оплаты, чат поддержки, видео с YouTube,
+  карта, капча, рекламный баннер, предпросмотр письма, песочница кода в документации — всё
+  это отдельные документы, вставленные в страницу. Одни нужны, чтобы показать чужое. Другие —
+  чтобы чужое не дотянулось до вашего.
+
+  <Plain text={PLAIN_FRAME} />
+
+  <Glossary items={GLOSSARY} />
+</Section>
+
+<Prereq items={PREREQ} lead={PREREQ_NOTE} />
+
+<Section
+  id="s1"
+  eyebrow="Раздел 1"
+  title="Как встроить документ"
+  lead="Показать во фрейме можно документ по адресу (`src`) или HTML прямо из строки (`srcdoc`). К этому стоит всегда добавлять `title`, а фреймам ниже первого экрана — `loading` со значением `lazy`."
+>
+  <CodeBlock lang="html" code={EMBED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <CardGrid min={280} gap={14} align="start">
+    {EMBED_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Свой и чужой фрейм: что видно из родителя"
+  lead="Из родителя к фрейму ведут два свойства тега: `contentWindow` — его `window`, и `contentDocument` — его документ. Что за ними открыто, решает правило одного источника. Фрейм своего источника открыт целиком. Чужой почти закрыт."
+>
+  <Card title="Два фрейма на странице магазина" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={ACCESS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Plain text={PLAIN_WALL} />
+
+  ### Что остаётся у чужого окна
+
+  <Table
+    head={['свойство', 'что с ним можно']}
+    rows={CROSS_ORIGIN_ROWS.map((r) => [r.k, r.d])}
+    kinds={['mono', 'prose']}
+    cols="minmax(200px,.8fr) minmax(300px,2fr)"
+    minWidth={560}
+  />
+
+  <Md text={ACCESS_NOTE} />
+</Section>
+
+<Section
+  id="s3"
+  eyebrow="Раздел 3"
+  title="Разговор через postMessage"
+  lead="Передать данные через границу источников можно только сообщением. `postMessage` кладёт копию данных в очередь чужого окна. Там срабатывает событие `message`: в нём данные, источник отправителя и ссылка на его окно."
+>
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Родитель" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MESSAGE_PARENT_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Фрейм" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={MESSAGE_CHILD_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14} align="start">
+    {MESSAGE_RULES.map((rule) => (
+      <Card tone={rule.tone ?? 'neutral'} title={rule.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={rule.d} />
+    ))}
+
+  </CardGrid>
+
+  <Md text={MESSAGE_NOTE} />
+
+  ### Адресат `'*'`: кому уйдёт сообщение
+
+  <Card title="Фрейм увели на другой сайт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={TARGET_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['второй аргумент', 'evil.example', 'почему']}
+    rows={TARGET_ROWS.map((r) => [r.k, r.got, r.why])}
+    tones={TARGET_ROWS.map((r) => r.tone)}
+    kinds={['mono', 'mono', 'prose']}
+    cols="minmax(220px,1fr) minmax(110px,.5fr) minmax(260px,1.6fr)"
+    minWidth={640}
+  />
+
+  <Md text={TARGET_NOTE} />
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4 · демо"
+  eyebrowTone="demo"
+  title="Песочница: атрибут sandbox"
+  lead="`sandbox` без значения отнимает у документа почти всё: скрипты, формы, окна, переход вкладки и даже собственный источник. Каждый флаг `allow-*` возвращает одну способность. Так показывают чужой HTML и выполняют чужой код, не подпуская их к своей странице."
+>
+  <Plain text={PLAIN_SANDBOX} />
+
+  <CodeBlock lang="html" code={SANDBOX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Md text={SANDBOX_NOTE} />
+
+  <Table
+    head={MATRIX_HEAD}
+    rows={matrixRows()}
+    kinds={['mono', 'prose', 'prose', 'prose', 'prose', 'prose', 'prose', 'prose']}
+    cols="minmax(200px,1.4fr) minmax(60px,.4fr) minmax(110px,.8fr) minmax(110px,.8fr) minmax(110px,.8fr) minmax(140px,1fr) minmax(90px,.6fr) minmax(100px,.7fr)"
+    minWidth={1000}
+  />
+
+  ### Песочница в вашем браузере
+
+  <IframeLab client:visible caption={LAB_CAPTION} />
+
+  ### Пара, которая отменяет песочницу
+
+  <Card tone="err" title="allow-scripts + allow-same-origin для своего содержимого" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <CodeBlock code={ESCAPE_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ESCAPE_NOTE} />
+    </CardNote>
+  </Card>
+
+  ### Остальные флаги
+
+  <Table
+    head={['флаг', 'что разрешает', 'без него']}
+    rows={SANDBOX_FLAGS.map((r) => [r.k, r.d, r.without])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(220px,1fr) minmax(200px,1fr) minmax(260px,1.4fr)"
+    minWidth={720}
+  />
+
+  <Md text={FLAGS_NOTE} />
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Права фрейма: allow, referrerpolicy, credentialless"
+  lead="Песочница отнимает, а атрибут `allow` раздаёт: полноэкранный режим, камеру, геолокацию. Чужой фрейм по умолчанию не получает ничего из этого, даже если пользователь уже разрешил это сайту-родителю."
+>
+  <Plain text={PLAIN_ALLOW} />
+
+  <CodeBlock lang="html" code={ALLOW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  <Table
+    head={['фрейм', '`document.fullscreenEnabled` внутри']}
+    rows={FULLSCREEN_ROWS.map((r) => [r.k, r.v])}
+    tones={FULLSCREEN_ROWS.map((r) => r.tone)}
+    toneColumn={1}
+    kinds={['prose', 'mono']}
+    cols="minmax(280px,1.6fr) minmax(160px,1fr)"
+    minWidth={480}
+  />
+
+  <Md text={ALLOW_NOTE} />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={TOPNAV_NOTE} />
+
+  ### Что фрейм узнаёт о родителе: `referrerpolicy`
+
+  <Table
+    head={['атрибут', 'Chromium 153', 'Firefox 155', 'WebKit 26.6']}
+    rows={REFERRER_ROWS.map((r) => [r.k, r.chromium, r.firefox, r.webkit])}
+    kinds={['mono', 'prose', 'prose', 'prose']}
+    cols="minmax(220px,1.1fr) minmax(200px,1.1fr) minmax(170px,.9fr) minmax(170px,.9fr)"
+    minWidth={760}
+  />
+
+  <Md text={REFERRER_NOTE} />
+
+  ### Фрейм без кук: `credentialless`
+
+  <Md text={CREDENTIALLESS_NOTE} />
+</Section>
+
+<Section
+  id="s6"
+  eyebrow="Раздел 6"
+  title="Высота по содержимому"
+  lead="Высоты «по содержимому» у фрейма нет. Без размеров он 300 на 150 пикселей, что бы ни было внутри. Родитель не может измерить чужой документ, поэтому размер сообщает сам фрейм."
+>
+  <Plain text={PLAIN_RESIZE} />
+
+  <CardGrid min={320} gap={16} align="start">
+    <Card title="Фрейм сообщает высоту" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RESIZE_CHILD_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card title="Родитель ставит её тегу" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RESIZE_PARENT_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Md text={RESIZE_NOTE} />
+
+  <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={GROW_NOTE} />
+</Section>
+
+<Section
+  id="s7"
+  eyebrow="Раздел 7"
+  title="История, фокус и клавиатура"
+  lead="Фрейм — полноправный участник навигации. Его переходы пишутся в общую историю вкладки. А клавиатура, пока фокус внутри фрейма, достаётся ему, а не странице."
+>
+  <Table
+    head={['что случилось', '`history.length` вкладки']}
+    rows={HISTORY_ROWS.map((r) => [r.k, r.d])}
+    tones={HISTORY_ROWS.map((r) => r.tone)}
+    toneColumn={1}
+    kinds={['prose', 'prose']}
+    cols="minmax(260px,1.3fr) minmax(220px,1fr)"
+    minWidth={520}
+  />
+
+  <Md text={HISTORY_NOTE} />
+
+  ### Фокус и клавиши
+
+  <Md text={KEYS_NOTE} />
+</Section>
+
+<Section
+  id="s8"
+  eyebrow="Раздел 8"
+  title="Цена фрейма и когда он не нужен"
+  lead="Каждый фрейм — целый документ: свой разбор HTML, свои стили, свои встроенные объекты, иногда свой процесс. Это цена изоляции. Платить её стоит, только когда изоляция и нужна."
+>
+  <Table
+    head={['родитель занят 500 мс', 'Chromium 153, headless', 'Chromium 153, полный', 'Firefox 155 и WebKit 26.6']}
+    rows={THREAD_ROWS.map((r) => [r.k, r.chromium, r.full, r.others])}
+    kinds={['prose', 'mono', 'mono', 'mono']}
+    cols="minmax(170px,1fr) minmax(150px,.9fr) minmax(150px,.9fr) minmax(170px,1fr)"
+    minWidth={680}
+  />
+
+  <Md text={THREAD_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {WHEN_CASES.map((item) => (
+      <Card tone={item.tone ?? 'neutral'} title={item.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={item.d} />
+    ))}
+
+  </CardGrid>
+</Section>
+
+<Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
+  <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
+  <Card title="Источники" titleSize={18} pad={22} gap={14}>
+
+    <SourceList items={SOURCES} />
+  </Card>
+
+  <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
+    <Md text={RELATED} />
+  </Card>
+</Section>

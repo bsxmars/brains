@@ -12,7 +12,7 @@ import { defineConfig } from 'vitest/config';
  */
 const HEAVY = [
   'canvas', 'cdn-cache', 'continuous-profiling', 'cost-invariants', 'csp', 'db-migrations',
-  'deflate', 'errors', 'fuzzy-search', 'git-internals', 'http2-http3', 'images', 'indexes',
+  'deflate', 'errors', 'fuzzy-search', 'git-internals', 'http2-http3', 'iframe', 'images', 'indexes',
   'memory-gc', 'message-channel', 'node-event-loop', 'node-memory', 'numbers', 'observers',
   'package-publishing', 'rate-limiting', 'realtime', 'regex', 'responsive', 'router',
   'schedulers', 'scrolling', 'spatial-index', 'ssr-hydration', 'supply-chain', 'suspense-errors',
