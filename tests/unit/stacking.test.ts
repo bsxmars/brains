@@ -461,8 +461,8 @@ describe('модальное окно: MODAL_ROWS и MODAL_FACTS', () => {
 });
 
 describe('подпись к STACKING_CODE', () => {
-  it('«Сто строк» — столько и напечатано', () => {
-    expect(t.STACKING_NOTE.startsWith('Сто строк')).toBe(true);
+  it('«В сотне строк» — столько и напечатано', () => {
+    expect(t.STACKING_NOTE).toContain('В сотне строк');
     expect(t.STACKING_CODE.split('\n')).toHaveLength(100);
   });
 });

@@ -556,7 +556,7 @@ describe('схема обратной волны', () => {
     expect(row.step).not.toContain('требует проверки');
     expect(row.step).toContain('65 535');
     expect(BACKPRESSURE_WAVE).toHaveLength(7);
-    expect(BACKPRESSURE_WAVE[6]).toContain('снято стендом');
+    expect(BACKPRESSURE_WAVE[6]).toContain('проверено запуском');
     expect(BACKPRESSURE_WAVE[6]).toContain('65 535');
     for (const r of WAVE_DIAGRAM.rows) expect(r.step).not.toContain('требует проверки');
   });
