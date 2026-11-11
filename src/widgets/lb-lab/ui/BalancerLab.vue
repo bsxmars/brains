@@ -78,7 +78,7 @@ const tone = (name: string) => `lb-tone-${name}`;
             <span class="lb-chip__b">{{ s.chosen }}</span>
           </button>
         </div>
-        <span class="lb-label">nginx 1.30 на стенде</span>
+        <span class="lb-label">nginx 1.30 в нашей проверке</span>
         <div class="lb-chips">
           <span
             v-for="(c, i) in scenario.nginx"

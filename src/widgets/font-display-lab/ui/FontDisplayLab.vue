@@ -77,10 +77,10 @@ const verdict = computed(() => {
   const m = LABEL[modelNow.value];
   const s = standNow.value;
   const at = `В момент **${moment.value} мс**`;
-  if (!s) return `${at} модель показывает: **${m}**. Такой прогон стенд не снимал.`;
+  if (!s) return `${at} модель показывает: **${m}**. Такой случай мы не проверяли.`;
   return s === modelNow.value
     ? `${at} и модель, и Chromium показывают: **${m}**.`
-    : `${at} модель говорит **${m}**, Chromium — **${LABEL[s]}**: точка у самой границы, где точность стенда ~30 мс.`;
+    : `${at} модель говорит **${m}**, Chromium — **${LABEL[s]}**: точка у самой границы, где точность замера ~30 мс.`;
 });
 
 function onRange(e: Event) {
@@ -117,7 +117,7 @@ function onRange(e: Event) {
         </div>
 
         <div class="fd-lane">
-          <span class="fd-label">Chromium 153 на стенде</span>
+          <span class="fd-label">Chromium 153 в нашей проверке</span>
           <div v-if="run" class="fd-bar">
             <span
               v-for="(s, i) in run.segs"
@@ -130,7 +130,7 @@ function onRange(e: Event) {
             <span class="fd-now" :style="{ left: pct(moment) }" />
             <span class="fd-load" :style="{ left: pct(Math.min(run.loaded, AXIS)) }" />
           </div>
-          <div v-else class="fd-bar fd-bar--empty">стенд этот случай не снимал</div>
+          <div v-else class="fd-bar fd-bar--empty">этот случай мы не проверяли</div>
         </div>
 
         <div class="fd-axis" aria-hidden="true">

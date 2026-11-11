@@ -110,7 +110,7 @@ const verdict = computed(() => {
     const diff = live.value.filter((v, i) => v !== standRow.value![i]).length;
     parts.push(
       diff === 0
-        ? 'Ваш браузер нарисовал ровно то же, что Chromium стенда.'
+        ? 'Ваш браузер нарисовал ровно то же, что Chromium в нашей проверке.'
         : `Ваш браузер разошёлся с Chromium в ${diff} столбцах${sameColumns(live.value, standRow.value) ? ' — на единицу, округление' : ''}.`,
     );
   } else if (liveRun.value.failed) {

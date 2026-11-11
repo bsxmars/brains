@@ -254,12 +254,12 @@ function pick(url: string) {
           <CodeView class="hmr-pre" lang="json" tone="light" :code="payloadJson" />
 
           <div v-if="journal" class="hmr-journal">
-            <span class="hmr-label">снято стендом · Vite 8.3.0</span>
+            <span class="hmr-label">снято в нашей проверке · Vite 8.3.0</span>
             <CodeView class="hmr-pre" lang="json" tone="light" :code="journalJson" />
             <span class="hmr-journal__line">терминал: <code>{{ journal.log.join(' · ') }}</code></span>
             <span class="hmr-journal__line">кнопка: <code>{{ journal.before }}</code> → <code>{{ journal.after }}</code></span>
           </div>
-          <span v-else class="hmr-label">это сочетание на стенде не прогонялось</span>
+          <span v-else class="hmr-label">это сочетание мы не проверяли</span>
         </div>
       </div>
     </div>

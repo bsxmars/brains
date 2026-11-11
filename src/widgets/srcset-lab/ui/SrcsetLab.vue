@@ -92,12 +92,12 @@ const resultText = computed(() => {
 });
 
 const standText = computed(() => {
-  if (cache.value === 'one') return 'Кеш стенд снимал отдельными сценариями, колонки Chromium для этого случая нет.';
+  if (cache.value === 'one') return 'Кеш мы проверяли отдельными сценариями, колонки Chromium для этого случая нет.';
   const run = scenario.value.runs.find((r) => r.vw === Number(vw.value) && r.dpr === Number(dpr.value));
-  if (!run) return 'Этот случай стенд не снимал.';
+  if (!run) return 'Этот случай мы не проверяли.';
   return run.got === choice.value.pick
-    ? `Chromium 153 на стенде запросил тот же \`${run.got}\`.`
-    : `Chromium 153 на стенде запросил \`${run.got}\`, модель — \`${choice.value.pick}\`: расхождение.`;
+    ? `Chromium 153 в нашей проверке запросил тот же \`${run.got}\`.`
+    : `Chromium 153 в нашей проверке запросил \`${run.got}\`, модель — \`${choice.value.pick}\`: расхождение.`;
 });
 </script>
 

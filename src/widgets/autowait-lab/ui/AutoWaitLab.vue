@@ -74,7 +74,7 @@ const verdict = computed(() => {
 const standNote = computed(() =>
   atStand.value
     ? `Стенд, три прогона: клик на ${fx.value.standClicks.join(', ')} мс.`
-    : `Журнал стенда снят при «готова через ${fx.value.changeAt} мс» и \`timeout ${STAND_TIMEOUT}\` — верните эти значения, чтобы сравнить.`,
+    : `Журнал проверки снят при «готова через ${fx.value.changeAt} мс» и \`timeout ${STAND_TIMEOUT}\` — верните эти значения, чтобы сравнить.`,
 );
 </script>
 
@@ -125,7 +125,7 @@ const standNote = computed(() =>
           <pre class="aw-log">{{ fmt(result.log) }}</pre>
         </div>
         <div class="aw-pane">
-          <span class="aw-label">Playwright 1.63, стенд</span>
+          <span class="aw-label">Playwright 1.63, наша проверка</span>
           <pre v-if="atStand" class="aw-log">{{ fmt(fx.stand) }}</pre>
           <Md class="aw-stand-note" :text="standNote" />
         </div>

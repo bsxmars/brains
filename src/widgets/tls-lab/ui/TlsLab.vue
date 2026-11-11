@@ -175,7 +175,7 @@ const note = computed(() => (result.value.code ? props.codeNotes[result.value.co
 
           <div class="tl-verdict" :data-ok="result.code ? 'no' : 'yes'">
             <Md class="tl-verdict__main" :text="`Учебная проверка: ${verdictText}`" />
-            <Md class="tl-verdict__node" :text="`Node 24 на стенде: ${nodeText}`" />
+            <Md class="tl-verdict__node" :text="`Node 24 в нашей проверке: ${nodeText}`" />
           </div>
           <Md v-if="note" class="tl-note" :text="note" />
           <Md v-if="!agree" class="tl-note tl-note--diff" :text="diffNote" />

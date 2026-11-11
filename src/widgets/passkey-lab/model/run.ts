@@ -48,6 +48,6 @@ export function withFlags(api: WebAuthnApi, s: PasskeyScenario, flags: number): 
 export async function runScenario(api: WebAuthnApi, s: PasskeyScenario, reg: PasskeyScenario): Promise<VerifyResult> {
   if (s.kind === 'create') return api.verifyRegistration(s.cred, s.expected);
   const registered = await api.verifyRegistration(reg.cred, reg.expected);
-  if (!registered.credential) throw new Error('регистрация стенда не прошла проверку');
+  if (!registered.credential) throw new Error('тестовая регистрация не прошла проверку');
   return api.verifyAssertion(s.cred, s.expected, { ...registered.credential, signCount: s.stored ?? 0 });
 }

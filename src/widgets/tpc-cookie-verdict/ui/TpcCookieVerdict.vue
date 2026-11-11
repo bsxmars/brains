@@ -195,7 +195,7 @@ const tone = (o: Outcome) => (o === 'sent' ? 'ok' : o === 'blocked' ? 'warn' : '
 
     <div class="tpc-body">
       <div class="tpc-block">
-        <span class="t-label">снято на стенде — нажмите, чтобы подставить</span>
+        <span class="t-label">снято в нашей проверке — нажмите, чтобы подставить</span>
         <SegmentedControl v-model="group" class="l-pills" label="Группа случаев" :options="GROUPS" />
         <div class="tpc-presets">
           <button
@@ -228,16 +228,16 @@ const tone = (o: Outcome) => (o === 'sent' ? 'ok' : o === 'blocked' ? 'warn' : '
             <li v-for="(step, i) in verdict.steps" :key="i"><Md as="span" :text="step" /></li>
           </ol>
           <span v-if="match" class="tpc-verdict__stand">
-            стенд: {{ outcomeLabel[match.got[engine.id]] }}
+            в проверке: {{ outcomeLabel[match.got[engine.id]] }}
           </span>
         </div>
       </div>
 
       <div v-if="ready && match" class="tpc-match" :data-tone="agree === verdicts.length ? 'ok' : 'err'">
-        Эта комбинация снята на стенде: модель совпала с браузером в {{ agree }} из {{ verdicts.length }}.
+        Эта комбинация есть в нашей проверке: модель совпала с браузером в {{ agree }} из {{ verdicts.length }}.
       </div>
       <div v-else-if="ready" class="tpc-match" data-tone="idle">
-        Такой комбинации на стенде не было — ответ модели, собранной из соседних снятых случаев.
+        Такой комбинации в нашей проверке не было — ответ модели, собранной из соседних снятых случаев.
       </div>
     </div>
   </DemoFrame>

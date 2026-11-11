@@ -159,7 +159,7 @@ const verdict = computed(() => {
       <div class="svl-legend">
         <span class="svl-key svl-key--inst">экземпляры</span>
         <span class="svl-key svl-key--conn">соединения с базой</span>
-        <span class="svl-key svl-key--dot">соединения на стенде (pg_stat_activity)</span>
+        <span class="svl-key svl-key--dot">соединения в нашей проверке (pg_stat_activity)</span>
       </div>
 
       <p class="svl-verdict" :data-ok="agree === false ? 'no' : 'yes'">{{ verdict }}</p>

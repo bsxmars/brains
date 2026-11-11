@@ -71,7 +71,7 @@ const rowsLine = computed(
 
 const verdict = computed(() => {
   const same = model.value.winner === point.value.chosen;
-  return `Модель выбирает **${model.value.winner}**. Postgres на стенде выбрал **${point.value.chosen}**${same ? ' — то же самое.' : '.'}`;
+  return `Модель выбирает **${model.value.winner}**. Postgres в нашей проверке выбрал **${point.value.chosen}**${same ? ' — то же самое.' : '.'}`;
 });
 
 const fmt = (n: number) => n.toFixed(2);

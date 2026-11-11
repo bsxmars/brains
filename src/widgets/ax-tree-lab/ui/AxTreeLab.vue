@@ -176,7 +176,7 @@ const verdict = computed(() => {
     r.sameRows === r.totalRows
       ? `роль и имя совпали у всех ${r.totalRows} элементов`
       : `роль и имя совпали у ${r.sameRows} из ${r.totalRows} элементов`;
-  return `Chromium 153 на стенде: ${rows}; порядок Tab ${r.sameTabs ? 'тот же' : '**другой**'}.`;
+  return `Chromium 153 в нашей проверке: ${rows}; порядок Tab ${r.sameTabs ? 'тот же' : '**другой**'}.`;
 });
 </script>
 

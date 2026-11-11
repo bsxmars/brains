@@ -151,7 +151,7 @@ function touch() {
 
     <div class="fmp-body">
       <div class="fmp-block">
-        <span class="t-label">что прислал Chromium 153 на стенде — нажмите, чтобы подставить</span>
+        <span class="t-label">что прислал Chromium 153 в нашей проверке — нажмите, чтобы подставить</span>
         <div class="fmp-presets">
           <button
             v-for="(preset, i) in presets"
@@ -188,7 +188,7 @@ function touch() {
     <template #footer>
       <div class="fmp-note">
         Решение принимает функция <code>isolationPolicy</code> из кода над демо — та же строка
-        исполняется тестом темы и стояла перед сервером стенда. В сеть демо не ходит: запрос
+        исполняется тестом темы и стояла перед тестовым сервером. В сеть демо не ходит: запрос
         собран здесь и передан функции как объект.
       </div>
     </template>

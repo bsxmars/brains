@@ -141,7 +141,7 @@ const passLine = computed(() => {
 
 const standLine = computed(() => {
   const p = probe.value;
-  if (!p) return { tone: 'none', text: 'Этого адреса в журнале стенда нет — ответ дала только модель.' };
+  if (!p) return { tone: 'none', text: 'Этого адреса в журнале проверки нет — ответ дала только модель.' };
   const same =
     p.location === (found.value.location?.text ?? null) &&
     p.backend === backendPath.value &&
@@ -149,7 +149,7 @@ const standLine = computed(() => {
   const what = p.status === 301
     ? `${c('301')}, ${c('Location: ' + (p.redirect ?? ''))}`
     : `location ${c(p.location ?? '—')}, бэкенд увидел ${c(p.backend ?? '—')}`;
-  return { tone: same ? 'ok' : 'err', text: `nginx 1.30 на стенде: ${what}.` };
+  return { tone: same ? 'ok' : 'err', text: `nginx 1.30 в нашей проверке: ${what}.` };
 });
 
 /** Строки конфига с пометкой, какая роль у location этой строки в текущем выборе. */
@@ -181,7 +181,7 @@ const confLines = computed(() =>
     </template>
 
     <div class="ng-body">
-      <div class="ng-picks" role="group" aria-label="Адреса из журнала стенда">
+      <div class="ng-picks" role="group" aria-label="Адреса из журнала проверки">
         <button
           v-for="u in group.uris"
           :key="u"
@@ -206,7 +206,7 @@ const confLines = computed(() =>
 
       <div class="ng-split">
         <div class="ng-pane">
-          <span class="ng-label">конфиг стенда</span>
+          <span class="ng-label">конфиг проверки</span>
           <pre class="ng-code"><template v-for="(l, i) in confLines" :key="i"><span
             class="ng-line"
             :data-role="l.role"

@@ -268,7 +268,7 @@ function agree(expects: 'collected' | 'held', collected: boolean): Agreement {
 function noteOf(agreement: Agreement, attempts: number, lever: boolean): string {
   switch (agreement) {
     case 'proved':
-      return 'Объект собран — значит пути к нему от корней не было. Это **единственное**, что стенд умеет доказать, и здесь он это сделал.';
+      return 'Объект собран — значит пути к нему от корней не было. Это **единственное**, что демо умеет доказать, и здесь он это сделал.';
     case 'as-expected':
       return `За ${attempts} попыток объект не собрался. Это согласуется с тем, что говорит тема, но **ничего не доказывает**: «не собрался» и «жив» — разные утверждения, и второе из первого не следует.`;
     case 'inconclusive':

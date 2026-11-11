@@ -101,7 +101,7 @@ const time = (s: number) => `${s} с`;
             <code class="ncl-step__label">{{ row.label }}</code>
             <span class="ncl-step__t">t = {{ time(row.result.now) }}</span>
             <span v-if="row.result.xcache" class="ncl-badge" :data-x="row.result.xcache">x-nextjs-cache: {{ row.result.xcache }}</span>
-            <span v-if="row.stand !== null" class="ncl-badge" :data-stand="row.stand ? 'yes' : 'no'">{{ row.stand ? 'как на стенде' : 'не как на стенде' }}</span>
+            <span v-if="row.stand !== null" class="ncl-badge" :data-stand="row.stand ? 'yes' : 'no'">{{ row.stand ? 'как в настоящем Next' : 'не как в настоящем Next' }}</span>
           </header>
 
           <ul v-if="row.result.trace.length" class="ncl-trace">

@@ -82,8 +82,8 @@ function pickOther(e: Event) {
           <span class="cl-logged" :data-on="logged ? 'yes' : 'no'">
             {{ logged ? `журнал Chromium: «${logged.id}»` : 'своя политика — журнала Chromium нет' }}
           </span>
-          <select class="cl-select" aria-label="Другие политики стенда" @change="pickOther">
-            <option value="">ещё {{ otherIds.length }} политик стенда…</option>
+          <select class="cl-select" aria-label="Другие проверенные политики" @change="pickOther">
+            <option value="">ещё {{ otherIds.length }} проверенных политик…</option>
             <option v-for="m in otherIds" :key="m.id" :value="m.id">{{ m.csp ?? 'без CSP' }}</option>
           </select>
         </div>
