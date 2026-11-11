@@ -57,6 +57,18 @@ const runSnippet = (zone: string, code: string) =>
 
 describe('Date — это число', () => {
   it('таблица NUMBER_ROWS', () => evalRows(t.NUMBER_ROWS));
+
+  it('UTC-геттеры не зависят от TZ; parse понимает также toString и toUTCString', () => {
+    const script = `const date = new Date('2026-03-29T00:00:00.000Z');
+      console.log(JSON.stringify([date.getUTCDate(), date.getUTCHours(),
+        Date.parse(date.toString()) === date.getTime(),
+        Date.parse(date.toUTCString()) === date.getTime()]));`;
+    for (const zone of ['Europe/Moscow', 'America/New_York']) {
+      expect(inZone(zone, script)).toEqual([29, 0, true, true]);
+    }
+    // Обязательный формат на основе ISO не единственная гарантия Date.parse.
+    expect(t.GLOSSARY.find((term) => term.k === 'ISO 8601')?.d).toContain('toUTCString');
+  });
 });
 
 describe('строка без зоны', () => {

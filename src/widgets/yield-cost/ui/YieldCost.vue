@@ -110,8 +110,8 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
   return {
     tone: 'ok',
     text:
-      `Так и надо: поток отдан ${groups(yields.value)} раз, по бюджету ${props.budget} мс, накладные ` +
-      `${fmt(over.value)} на ${fmt(work.value)} работы. Куски не длиннее бюджета, а ${tool.value.note}.`,
+      `В этой модели поток отдан ${groups(yields.value)} раз, по бюджету ${props.budget} мс, накладные ` +
+      `${fmt(over.value)} на ${fmt(work.value)} работы. При выбранной цене элементов куски укладываются в бюджет, а ${tool.value.note}.`,
   };
 });
 </script>
@@ -120,6 +120,7 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
   <DemoFrame>
     <template #toolbar>
       <div class="controls">
+        <div class="model-label">Модель затрат: работа не запускается, время вычисляется по заданным константам.</div>
         <div class="control">
           <span class="t-label">элементов</span>
           <SegmentedControl v-model="sizeKey" class="l-pills" label="Сколько элементов" :options="sizeOptions" />
@@ -143,7 +144,7 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
     <div class="body">
       <div class="metrics">
         <div class="metric">
-          <span class="t-label">полезная работа</span>
+          <span class="t-label">работа по модели</span>
           <span class="metric__value" data-tone="ok">{{ fmt(work) }}</span>
         </div>
         <div class="metric">
@@ -151,11 +152,11 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
           <span class="metric__value" data-tone="chip">{{ groups(yields) }}</span>
         </div>
         <div class="metric">
-          <span class="t-label">накладные</span>
+          <span class="t-label">накладные по модели</span>
           <span class="metric__value" :data-tone="overTone">{{ fmt(over) }}</span>
         </div>
         <div class="metric">
-          <span class="t-label">итого</span>
+          <span class="t-label">итого по модели</span>
           <span class="metric__value metric__value--strong" :data-tone="totalTone">{{ fmt(total) }}</span>
         </div>
       </div>
@@ -185,6 +186,12 @@ const verdict = computed<{ text: string; tone: 'ok' | 'warn' | 'err' }>(() => {
 </template>
 
 <style scoped>
+.model-label {
+  font-size: var(--fs-4);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
 .controls {
   display: flex;
   flex-direction: column;

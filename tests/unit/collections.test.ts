@@ -49,10 +49,12 @@ const LISTINGS = {
   OBJ_DICT_CODE: t.OBJ_DICT_CODE,
   NULL_PROTO_CODE: t.NULL_PROTO_CODE,
   MAP_CODE: t.MAP_CODE,
+  MAP_MISSING_CODE: t.MAP_MISSING_CODE,
   SAMEVALUE_CODE: t.SAMEVALUE_CODE,
   UPSERT_CODE: t.UPSERT_CODE,
   MAP_CONVERT_CODE: t.MAP_CONVERT_CODE,
   SET_CODE: t.SET_CODE,
+  DEDUP_CODE: t.DEDUP_CODE,
   SET_OPS_CODE: t.SET_OPS_CODE,
   SET_LIKE_CODE: t.SET_LIKE_CODE,
   ORDER_CODE: t.ORDER_CODE,
@@ -79,6 +81,30 @@ describe('листинги: каждый комментарий-вывод — �
 });
 
 describe('утверждения прозы', () => {
+  it('WeakSet в walk хранит отметки одного обхода, а не всех вызовов', () => {
+    const { walk } = new Function(`${t.WEAKSET_CODE}\nreturn { walk };`)() as {
+      walk: (node: { next?: object }) => string;
+    };
+    const tail = {};
+    const head = { next: tail };
+    expect(walk(head)).toBe('конец');
+    expect(walk(head), 'повторный обход того же списка не создаёт цикл').toBe('конец');
+    const cyclic: { next?: object } = {};
+    cyclic.next = cyclic;
+    expect(walk(cyclic)).toBe('цикл');
+  });
+
+  it('слабые ключи: примитивы отклоняются по типу, незарегистрированные символы принимаются', () => {
+    const m = new WeakMap();
+    for (const key of ['id', 1, 1n, true, null, undefined, Symbol.for('id')]) {
+      expect(() => m.set(key as unknown as object, {})).toThrow(TypeError);
+    }
+    const object = {};
+    const symbol = Symbol('local');
+    expect(m.set(object, 'объект').get(object)).toBe('объект');
+    expect(m.set(symbol, 'символ').get(symbol)).toBe('символ');
+  });
+
   it('«Объект как словарь»: два разных объекта попадают под один ключ', () => {
     const o: Record<string, string> = {};
     o[String({ a: 1 })] = 'первый';

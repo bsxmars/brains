@@ -53,6 +53,7 @@ const standText = computed(() =>
     </template>
 
     <div class="pl-body">
+      <p class="pl-note">Учебная модель: длительности задач заданы для сравнения порядка. Рядом — записанные прогоны настоящего Node.</p>
       <div class="pl-lanes">
         <div v-for="(lane, i) in lanes" :key="i" class="pl-lane">
           <span class="pl-lane-name">поток {{ i + 1 }}</span>

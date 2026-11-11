@@ -99,7 +99,7 @@ export const PREREQ: Prereq[] = [
     t: 'Категории множественного числа',
     d: 'Правила CLDR для «1 файл, 2 файла, 5 файлов», учебная функция `pluralRu` и `Intl.PluralRules` — со всеми операндами и дробями. Здесь они используются как готовый инструмент.',
     href: '/js/unicode-intl/#s7',
-    hrefLabel: '«Unicode и Intl», раздел «Числа и слова»',
+    hrefLabel: '«Unicode и Intl», раздел «Форма слова при числе»',
     tone: 'info',
   },
   {
@@ -211,7 +211,7 @@ export const ICU_NOTE =
   'Пробелы внутри веток сохраняются: `{n, plural, one { # }}` даст число с пробелами по краям. А ветка `other` обязательна и у `select`, и у `plural` — без неё и `intl-messageformat`, и `@messageformat/core` отказываются разбирать сообщение.';
 
 export const PLURAL_LINK =
-  'Откуда берутся `one`, `few`, `many` и `other`, подробно разобрано в теме [«Unicode и Intl», раздел «Числа и слова»](/js/unicode-intl/#s7). Для сообщений важно одно: категорию выбирает `Intl.PluralRules` локали, и у дроби она своя. `new Intl.PluralRules(\'ru\').select(1.5)` — `\'other\'`, поэтому «1,5 файла», а не «1,5 файл».';
+  'Откуда берутся `one`, `few`, `many` и `other`, подробно разобрано в теме [«Unicode и Intl», раздел «Форма слова при числе»](/js/unicode-intl/#s7). Для сообщений важно одно: категорию выбирает `Intl.PluralRules` локали, и у дроби она своя. `new Intl.PluralRules(\'ru\').select(1.5)` — `\'other\'`, поэтому «1,5 файла», а не «1,5 файл».';
 
 export const PLAIN_OFFSET =
   'Как подпись под постом: «Аня и ещё 2 человека». Имя Ани уже названо, и считать надо остальных. `offset:1` вычитает её из числа — и для `#`, и для выбора формы слова. А точные `=0` и `=1` сравниваются с полным числом: «никого» и «только Аня» — особые случаи для всей группы.';
@@ -859,4 +859,4 @@ export const SOURCES: Source[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Unicode и Intl, раздел «Числа и слова»](/js/unicode-intl/#s7) — категории CLDR, `Intl.PluralRules`, `NumberFormat`, `ListFormat`. [Время и даты, раздел «Сравнение и вывод»](/js/time-dates/#s4) — `Intl.DateTimeFormat` и часовые пояса. [SSR и гидратация, раздел «Несовпадения»](/frameworks/ssr-hydration/#s3) — что делает разная локаль сервера и клиента. [Роутер изнутри, раздел «Шаблон пути»](/frameworks/router/#s4) — как разбирается `/:locale/…`. [Бандлер изнутри, раздел «Чанки»](/tooling/bundler-internals/#s4) — во что превращается `import()` словаря. [CSP, раздел «Как браузер решает»](/platform/csp/#s1) — почему `new Function` бывает запрещён.';
+  'Смежное на сайте: [Unicode и Intl, раздел «Форма слова при числе»](/js/unicode-intl/#s7) — категории CLDR, `Intl.PluralRules`, `NumberFormat`, `ListFormat`. [Время и даты, раздел «Сравнение и вывод»](/js/time-dates/#s4) — `Intl.DateTimeFormat` и часовые пояса. [SSR и гидратация, раздел «Несовпадения»](/frameworks/ssr-hydration/#s3) — что делает разная локаль сервера и клиента. [Роутер изнутри, раздел «Шаблон пути»](/frameworks/router/#s4) — как разбирается `/:locale/…`. [Бандлер изнутри, раздел «Чанки»](/tooling/bundler-internals/#s4) — во что превращается `import()` словаря. [CSP, раздел «Как браузер решает»](/platform/csp/#s1) — почему `new Function` бывает запрещён.';

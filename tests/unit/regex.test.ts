@@ -12,8 +12,8 @@ import { growth, loadEngine } from '@/widgets/regex-lab/model/run';
  * и на тысячах случайных шаблонов. Числа шагов из текста пересчитываются тем же движком.
  *
  * Настоящий V8 проверяется **порогом**, а не секундомером: шаблон исполняется в отдельном
- * процессе `node` с ограничением времени. Плохой шаблон на длине 40 — это около 3·10¹² шагов,
- * часы работы; исправленный на длине 100 000 — сотни тысяч шагов. Между ними двенадцать
+ * процессе `node` с ограничением времени. Учебная модель для плохого шаблона на длине 40
+ * даёт около 3·10¹² шагов; исправленный на длине 100 000 — сотни тысяч шагов. Между ними двенадцать
  * порядков, и лимит в 8 секунд не мигает под нагрузкой.
  */
 
@@ -259,6 +259,7 @@ describe('числа шагов в тексте', () => {
 
 describe('примеры кода печатают то, что обещают комментарии', () => {
   it.each([
+    ['FIRST_MATCH_CODE', t.FIRST_MATCH_CODE],
     ['GREEDY_CODE', t.GREEDY_CODE],
     ['ESCAPE_CODE', t.ESCAPE_CODE],
     ['ATOMIC_CODE', t.ATOMIC_CODE],
@@ -274,6 +275,29 @@ describe('примеры кода печатают то, что обещают �
 
   it('a|ab на «ab» — первый вариант, а не длинный', () => {
     expect(/a|ab/.exec('ab')?.[0]).toBe('a');
+  });
+
+  it('g хранит позицию, но не обязан чередовать true и false; y не убирает вложенный перебор', () => {
+    const digits = /\d/g;
+    expect([digits.test('12'), digits.test('12'), digits.test('12')]).toEqual([true, true, false]);
+    const sticky = /^(a+)+$/y;
+    expect(sticky.test('aaaa!')).toBe(false);
+    // y ограничивает стартовую позицию. Неоднозначность вложенного повтора остаётся:
+    // оба способа поделить aa дают то же полное совпадение.
+    expect(/^(a+)(a*)$/y.exec('aa')?.slice(1)).toEqual(['aa', '']);
+    expect(/^(a+?)(a*)$/y.exec('aa')?.slice(1)).toEqual(['a', 'a']);
+    expect(t.STICKY_NOTE).toContain('перебор внутри самого шаблона остаётся');
+  });
+
+  it('v не меняет точку на графему, а класс до > меняет результат поиска', () => {
+    const family = '👨‍👩‍👧';
+    expect([...family]).toHaveLength(5);
+    expect(/^.$/v.test(family)).toBe(false);
+    expect(/^\p{RGI_Emoji}$/v.test(family)).toBe(true);
+    const markup = '<b>текст</b>';
+    expect(/<.+>/.exec(markup)?.[0]).toBe(markup);
+    expect(/<[^>]+>/.exec(markup)?.[0]).toBe('<b>');
+    expect(t.FIX_NOTE).toContain('намеренно меняет результат поиска');
   });
 
   it('таблица флагов: u и v вместе нельзя, d даёт индексы, s и m', () => {
@@ -410,4 +434,12 @@ describe('настоящий V8: порог в отдельном процесс
     },
     30_000,
   );
+});
+
+
+it('пустые обязательные повторы допустимы, дальнейшее пустое расширение прекращается', () => {
+  for (const [pattern, group] of [['()*', undefined], ['(){1}', ''], ['(){2}', '']] as const) {
+    expect(v8(pattern, '')!.groups).toEqual(['', group]);
+    expect(engine.match(pattern, '').match).toEqual(v8(pattern, ''));
+  }
 });

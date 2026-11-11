@@ -88,8 +88,8 @@ const restore = () => {
 
 const TITLES: Record<MethodResult['id'], string> = {
   spread: 'спред — один уровень',
-  json: 'JSON туда и обратно',
-  clone: 'structured clone',
+  json: 'JSON — учебный stringify',
+  clone: 'клон — учебная функция',
 };
 
 const nativeText = (r: MethodResult) =>

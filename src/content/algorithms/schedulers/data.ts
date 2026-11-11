@@ -105,14 +105,14 @@ export const PREREQ: Prereq[] = [
   {
     t: 'Отдать поток',
     d: 'Длинную работу режут на куски и между кусками отдают управление циклу. Чем отдавать — `setTimeout`, `MessageChannel`, `scheduler.postTask`, `scheduler.yield` — и сколько это стоит, разобрано отдельно.',
-    href: '/js/task-scheduling/#s1',
+    href: '/js/task-scheduling/#s2',
     hrefLabel: '«Планирование задач», раздел «Чем возвращать управление циклу»',
     tone: 'info',
   },
   {
     t: 'Сообщение порта — задача без задержки',
     d: '`port.postMessage` ставит новую задачу сразу, без минимальной паузы в 4 мс, как у вложенного `setTimeout`. Поэтому на нём и построен планировщик React.',
-    href: '/js/message-channel/#s2',
+    href: '/js/message-channel/#s4',
     hrefLabel: '«MessageChannel», раздел «Чем отдать поток: `setTimeout` против сообщения порта»',
     tone: 'info',
   },
@@ -508,7 +508,7 @@ export const SCHED_FACTS = [
 ];
 
 export const HOST_FACTS =
-  'Чем ставить следующий квант, настоящий пакет выбирает при загрузке: `setImmediate`, если он есть (Node и старый IE), иначе `MessageChannel`, иначе `setTimeout(…, 0)`. В Chromium 153 `setImmediate` нет, и четыре куска одной задачи — это четыре вызова `port.postMessage` и ни одного `setTimeout`. Почему не таймер — в [«MessageChannel», раздел «Тайминг»](/js/message-channel/#s2); как `setImmediate` встаёт в фазы Node — в [«Цикле событий Node», раздел «setTimeout и setImmediate»](/js/node-event-loop/#s4).';
+  'Чем ставить следующий квант, настоящий пакет выбирает при загрузке: `setImmediate`, если он есть (Node и старый IE), иначе `MessageChannel`, иначе `setTimeout(…, 0)`. В Chromium 153 `setImmediate` нет, и четыре куска одной задачи — это четыре вызова `port.postMessage` и ни одного `setTimeout`. Почему не таймер — в [«MessageChannel», раздел «Канал как планировщик»](/js/message-channel/#s4); как `setImmediate` встаёт в фазы Node — в [«Цикле событий Node», раздел «setTimeout и setImmediate»](/js/node-event-loop/#s4).';
 
 export const PRIORITY_DEMO_LOG_NOTE =
   'Шесть задач поставлены в момент 0, у каждой кусок в 1 мс. Срок решает всё: Immediate (`−1`), UserBlocking (250), Normal (5000), Low (10 000), Idle. Шестая — Normal с `delay: 10`: она лежит в куче таймеров и попадает в работу только на десятой миллисекунде, отдельным квантом.';
@@ -662,7 +662,7 @@ export const EXPIRED_NOTE =
   'У просрочки второй эффект — в рабочем цикле: `if (task.expirationTime > now && shouldYield()) break`. Просроченная задача квант не спрашивает. Планировщик вызывает её, даже если 5 мс давно прошли, и передаёт `didTimeout = true` — React в этом случае рендерит остаток без проверок `shouldYield`. Страница в это время не отвечает — это осознанная цена: лучше один долгий кадр, чем обновление, которое не наступает никогда.';
 
 export const POSTTASK_NOTE =
-  '`scheduler.postTask` в браузере устроен иначе: три приоритета — три очереди, и спецификация выбирает самую срочную непустую. Сроков и старения в ней нет. В Chromium 153 задачи `background` и `user-visible`, поставленные **раньше**, ждали всю цепочку из 300 задач `user-blocking` (каждая ставила следующую) и выполнились 301-й и 302-й. Для фоновой работы это нормально, но если низкий приоритет обязан когда-нибудь наступить, срок приходится вести самому — или поднимать приоритет через `TaskController.setPriority`, как в [«Планировании задач»](/js/task-scheduling/#s1).';
+  '`scheduler.postTask` в браузере устроен иначе: три приоритета — три очереди, и спецификация выбирает самую срочную непустую. Сроков и старения в ней нет. В Chromium 153 задачи `background` и `user-visible`, поставленные **раньше**, ждали всю цепочку из 300 задач `user-blocking` (каждая ставила следующую) и выполнились 301-й и 302-й. Для фоновой работы это нормально, но если низкий приоритет обязан когда-нибудь наступить, срок приходится вести самому — или поднимать приоритет через `TaskController.setPriority`, как в [«Планировании задач»](/js/task-scheduling/#s2).';
 
 export const LANES_LINK =
   'У React есть и второй уровень защиты от голодания — на полосах: обновление, ждущее слишком долго, помечается просроченным и рендерится синхронно. Это уже не планировщик, а реконсилер — разобрано в [«React изнутри: конкурентность и lanes», раздел «Голодание»](/frameworks/react-concurrent-internals/#s6).';
@@ -759,4 +759,4 @@ export const SOURCES: Source[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Планирование задач](/js/task-scheduling/) — чем отдавать поток, `scheduler.postTask` и `scheduler.yield`, во что обходится каждая пауза. [MessageChannel, раздел «Тайминг»](/js/message-channel/#s2) — почему кванты ставятся сообщением порта. [React изнутри: конкурентность и lanes](/frameworks/react-concurrent-internals/#s2) — как React отдаёт планировщику рендер и что делает с полосами. [Ре-рендеринг в React, раздел «Батчинг и нарезка»](/frameworks/react-rerender/#s4) — нарезка глазами компонента. [Event Loop](/js/event-loop/) и [Цикл событий Node](/js/node-event-loop/#s4) — откуда берутся макрозадачи. [Debounce, throttle и token bucket](/algorithms/rate-limiting/) — один бюджет событий во времени: обёртки и ограничители. [Пространственные индексы](/algorithms/spatial-index/) — сетка, quadtree и R-tree для попадания курсором и рамки. [Кеши с вытеснением](/algorithms/eviction/) — LRU на `Map` и в `lru-cache`, провалы LRU на скане и цикле, LFU, W-TinyLFU и SIEVE.';
+  'Смежное на сайте: [Планирование задач](/js/task-scheduling/) — чем отдавать поток, `scheduler.postTask` и `scheduler.yield`, во что обходится каждая пауза. [MessageChannel, раздел «Канал как планировщик»](/js/message-channel/#s4) — почему кванты ставятся сообщением порта. [React изнутри: конкурентность и lanes](/frameworks/react-concurrent-internals/#s2) — как React отдаёт планировщику рендер и что делает с полосами. [Ре-рендеринг в React, раздел «Батчинг и нарезка»](/frameworks/react-rerender/#s4) — нарезка глазами компонента. [Event Loop](/js/event-loop/) и [Цикл событий Node](/js/node-event-loop/#s4) — откуда берутся макрозадачи. [Debounce, throttle и token bucket](/algorithms/rate-limiting/) — один бюджет событий во времени: обёртки и ограничители. [Пространственные индексы](/algorithms/spatial-index/) — сетка, quadtree и R-tree для попадания курсором и рамки. [Кеши с вытеснением](/algorithms/eviction/) — LRU на `Map` и в `lru-cache`, провалы LRU на скане и цикле, LFU, W-TinyLFU и SIEVE.';

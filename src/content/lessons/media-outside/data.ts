@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
@@ -87,7 +88,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: 'безопасный контекст',
-    d: 'Страница, открытая по `https:` или с `localhost`. Окно Document PiP и захват экрана есть только там: на `http:` этих имён в браузере нет вовсе.',
+    d: 'Страница, открытая по `https:` или с `localhost`. Document PiP и захват экрана требуют такого контекста. Обычный удалённый http-источник не подходит, а localhost — исключение.',
   },
   {
     k: '`MediaStream`',
@@ -104,7 +105,7 @@ export const GLOSSARY: GlossaryTerm[] = [
 ];
 
 export const PLAIN_OUTSIDE =
-  'Представьте вкладку комнатой, из которой человек то и дело выходит: переключается в другую программу, гасит экран телефона, жмёт кнопку на наушниках. Picture-in-Picture — окошко в двери: видео видно и из коридора. Media Session — дверной звонок: человек нажал кнопку снаружи, а страница внутри услышала. Захват экрана работает в обратную сторону: страница просит человека показать, что у него на экране, и он сам выбирает, что именно.';
+  'Как у обычного музыкального плеера: окно с видео может оставаться поверх другой программы, а кнопка на наушниках управляет звуком без возврата к плееру. В браузере это разные механизмы. Picture-in-Picture отвечает за окно, Media Session — за связь с системными кнопками. Захват экрана решает другую задачу: получает выбранное человеком изображение экрана как поток.';
 
 export const PREREQ_NOTE = 'Тема опирается на три вещи из соседних тем.';
 
@@ -170,7 +171,7 @@ export const PIP_NOTE =
   'Порядок такой: сначала приходит событие `enterpictureinpicture`, потом выполняется промис. Промис возвращает объект `PictureInPictureWindow` с шириной и высотой окна в пикселях. Размер окна выбирает браузер. Chromium без окна (headless) сделал его ровно по кадру ролика, 320×180, а полный Chromium на том же ролике открыл 284×160. Потом человек может растянуть окно, и у него сработает событие `resize`. Наши проверки идут без экрана и растянуть окно не могут, поэтому это поведение мы не снимали. Когда окно закрылось, объект `PictureInPictureWindow` никуда не девается, но его `width` и `height` становятся 0.';
 
 export const PLAIN_ACTIVATION =
-  'Временная активация — как талон, который браузер выдаёт на каждый клик. Талон живёт около пяти секунд, и одно открытие окна его гасит. Без талона окно не открыть — иначе любая реклама сама вылезала бы поверх всех программ. В наших проверках талон во всех трёх движках истёк между 4,5 и 5,5 секундами после клика.';
+  'Временная активация — как талон, который браузер выдаёт на каждый клик. Срок талона ограничен и задаётся браузером, и одно открытие окна его гасит. Без талона окно не открыть — иначе любая реклама сама вылезала бы поверх всех программ. На стенде трёх движков активация истекала между 4,5 и 5,5 секундами; полагаться на фиксированные пять секунд нельзя.';
 
 export const PIP_RULES = [
   '**Окно одно на документ.** `requestPictureInPicture` у другого видео не открывает второе окно: первое видео получает `leavepictureinpicture`, второе — `enterpictureinpicture`.',
@@ -198,7 +199,14 @@ export const DPIP_CODE = `const player = document.querySelector('#player');
 const home = player.parentElement;
 
 document.querySelector('#float').addEventListener('click', async () => {
-  const pip = await documentPictureInPicture.requestWindow({ width: 360, height: 240 });
+  if (!('documentPictureInPicture' in window)) return;
+  let pip;
+  try {
+    pip = await documentPictureInPicture.requestWindow({ width: 360, height: 240 });
+  } catch (error) {
+    console.log(error.name);
+    return;
+  }
 
   // Окно приходит пустым: стили страницы переносим сами
   for (const sheet of document.styleSheets) {
@@ -249,7 +257,11 @@ let current = 0;
 function playTrack(i) {
   current = (i + tracks.length) % tracks.length;
   audio.src = tracks[current];
-  audio.play();
+  return play();
+}
+
+function play() {
+  return audio.play().catch((error) => console.log('play:', error.name));
 }
 
 navigator.mediaSession.metadata = new MediaMetadata({
@@ -260,7 +272,7 @@ navigator.mediaSession.metadata = new MediaMetadata({
 });
 
 const handlers = {
-  play: () => audio.play(),
+  play: () => play(),
   pause: () => audio.pause(),
   previoustrack: () => playTrack(current - 1),
   nexttrack: () => playTrack(current + 1),
@@ -277,6 +289,11 @@ for (const [action, handler] of Object.entries(handlers)) {
 audio.addEventListener('play', () => { navigator.mediaSession.playbackState = 'playing'; });
 audio.addEventListener('pause', () => { navigator.mediaSession.playbackState = 'paused'; });
 audio.addEventListener('timeupdate', () => {
+  // Нет конечной длительности — сбрасываем системную позицию.
+  if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
+    navigator.mediaSession.setPositionState();
+    return;
+  }
   navigator.mediaSession.setPositionState({
     duration: audio.duration,
     position: audio.currentTime,
@@ -336,35 +353,60 @@ export const MS_LIMITS =
 
 /** Печатается в теме и исполняется `media-outside.spec.ts` в Chromium с поддельным экраном. */
 export const GDM_CODE = `const preview = document.querySelector('video');
+const share = document.querySelector('#share');
 let stream = null;
+let requesting = false;
+let generation = 0;
 
-document.querySelector('#share').addEventListener('click', async () => {
+function finish() {
+  generation++;                         // поздний ответ закрытого запроса не применяем
+  if (!stream) return;
+  const current = stream;
+  stream = null;
+  for (const track of current.getTracks()) track.stop();
+  preview.srcObject = null;
+}
+
+share.addEventListener('click', async () => {
+  if (stream || requesting) return;       // не оставлять прежний захват работающим
+  requesting = true;
+  const request = generation;
   const controller = 'CaptureController' in window ? new CaptureController() : undefined;
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({
+    const next = await navigator.mediaDevices.getDisplayMedia({
       video: { displaySurface: 'browser', frameRate: 5 },
       audio: true,
       controller,
     });
-  } catch (err) {
-    console.log(err.name);    // NotAllowedError — человек отказался
-    return;
+    if (request !== generation) {
+      for (const track of next.getTracks()) track.stop();
+      return;
+    }
+    stream = next;
+    const [track] = stream.getVideoTracks();
+    const { displaySurface } = track.getSettings();
+    if (displaySurface === 'browser' || displaySurface === 'window') {
+      controller?.setFocusBehavior('no-focus-change');  // без await перед этой строкой
+    }
+    console.log(displaySurface, stream.getAudioTracks().length);
+    preview.srcObject = stream;
+    track.addEventListener('ended', () => {
+      finish();                         // в том числе останавливает оставшееся аудио
+      console.log('показ остановил браузер');
+    }, { once: true });
+  } catch (error) {
+    finish();
+    console.log(error.name);
+  } finally {
+    requesting = false;
   }
-
-  const [track] = stream.getVideoTracks();
-  const { displaySurface } = track.getSettings();
-  if (displaySurface === 'browser' || displaySurface === 'window') {
-    controller?.setFocusBehavior('no-focus-change');  // без await между ответом и этой строкой
-  }
-  console.log(displaySurface, stream.getAudioTracks().length);
-
-  preview.srcObject = stream;
-  track.addEventListener('ended', () => console.log('показ остановил браузер'));
 });
 
 document.querySelector('#stop').addEventListener('click', () => {
-  for (const t of stream.getTracks()) t.stop();
-  console.log('остановили сами:', stream.getVideoTracks()[0].readyState);
+  if (!stream) { finish(); return; }     // в том числе отменяем применение позднего ответа
+  const [track] = stream.getVideoTracks();
+  finish();
+  console.log('остановили сами:', track.readyState);
 });`;
 
 /** Клик по `#share`, затем по `#stop`. Chromium shell с поддельным экраном. */
@@ -402,7 +444,7 @@ export const GDM_ERRORS: { k: string; v: string }[] = [
   { k: 'без клика', v: 'Firefox и WebKit — `InvalidStateError`; Chromium не отказывает и ждёт выбора человека' },
   { k: '`video: false`', v: 'Firefox и WebKit — `TypeError`, Chromium в наших проверках — `NotFoundError`: без видео захват не работает' },
   { k: '`min` или `exact` в ограничениях', v: '`TypeError`' },
-  { k: 'страница на `http:`', v: '`navigator.mediaDevices` — `undefined`, вызывать нечего' },
+  { k: 'обычный удалённый `http:`-источник', v: '`navigator.mediaDevices` — `undefined`, вызывать нечего' },
 ];
 
 export const HEADLESS_NOTE =
@@ -412,7 +454,7 @@ export const GDM_NEXT =
   'Поток с экрана — обычный `MediaStream`. Записать его в файл — тем же `MediaRecorder`, что и голос: [«Голос: запись с микрофона и речь»](/js/media-voice/). Отправить собеседнику — дорожкой в `RTCPeerConnection`: [«WebRTC», раздел «Каналы данных и медиа»](/platform/webrtc/#s6).';
 
 export const CLOSING =
-  'Окно поверх программ, кнопки в шторке и захват продолжают работать, когда вкладка скрыта. Но сама страница в это время живёт по правилам фоновой вкладки: `requestAnimationFrame` не вызывается, таймеры срабатывают реже. Звук и WebRTC отменяют только самое сильное замедление — разбор в [«Планирование задач», раздел «Фоновая вкладка, заморозка и bfcache»](/js/task-scheduling/#s4).';
+  'Отдельное окно и системные кнопки не превращают страницу в постоянно активное приложение. Фоновое выполнение, таймеры и показ кадров зависят от состояния вкладки и политики браузера. Условия замедления, заморозки и возврата разобраны в [«Планировании задач», раздел «Фоновая вкладка, заморозка и bfcache»](/js/task-scheduling/#s4).';
 
 // ─── Тонкие места ──────────────────────────────────────────────────────────────────────────
 
@@ -498,3 +540,33 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Видео в браузере](/js/media-video/) — `<video>`, события, кодеки и автоплей. [Голос: запись с микрофона и речь](/js/media-voice/) — `getUserMedia` и `MediaRecorder`, которым записывают и захват экрана. [WebRTC, раздел «Каналы данных и медиа»](/platform/webrtc/#s6) — как поток с экрана уходит собеседнику. [Планирование задач, раздел «Фоновая вкладка, заморозка и bfcache»](/js/task-scheduling/#s4) — что происходит со страницей, пока играет окно поверх. [Безопасность фронтенда, раздел «Origin и правило одного источника»](/platform/security/#s1) — безопасный контекст, без которого нет ни Document PiP, ни захвата.';
+
+export const PIP_MARKUP = `<video src="/clip.webm" muted controls width="320" height="180"></video>
+<button id="pip">Открыть или закрыть PiP</button>`;
+export const DPIP_MARKUP = `<div id="home"><div id="player">Плеер с кнопками</div></div>
+<button id="float">Открыть отдельное окно</button>`;
+export const MS_MARKUP = `<audio src="/tone.webm" controls></audio>`;
+export const GDM_MARKUP = `<video autoplay muted></video>
+<button id="share">Показать экран</button>
+<button id="stop">Остановить показ</button>`;
+
+export const CAPTURE_STOP_DIAGRAM: ConceptDiagramData = {
+  id: 'media-outside-stop-and-ended',
+  title: 'Два способа закончить показ, одна очистка ресурсов',
+  description: 'Браузер завершает дорожку и присылает ended. Прямой вызов track.stop тоже меняет readyState на ended, но сам это событие не отправляет. Поэтому очистка вызывается из обеих ветвей.',
+  width: 920, height: 560,
+  nodes: [
+    { id: 'browser', x: 20, y: 32, width: 230, height: 160, label: 'Человек завершил показ', detail: 'Например, кнопкой браузера.', tone: 'neutral' },
+    { id: 'event', x: 330, y: 32, width: 230, height: 160, label: 'Дорожка присылает `ended`', detail: 'Обработчик вызывает `finish()`.', tone: 'info' },
+    { id: 'button', x: 20, y: 368, width: 230, height: 160, label: 'Кнопка страницы', detail: 'Код сам вызывает `finish()`.', tone: 'neutral' },
+    { id: 'stop', x: 330, y: 368, width: 230, height: 160, label: '`track.stop()`', detail: '`readyState = ended`, но события `ended` нет.', tone: 'warn' },
+    { id: 'cleanup', x: 650, y: 192, width: 250, height: 192, label: 'Завершить всю сессию', detail: 'Остановить оставшиеся дорожки, снять `srcObject`, очистить ссылку на поток.', tone: 'ok' },
+  ],
+  edges: [
+    { from: 'browser', to: 'event' },
+    { from: 'event', to: 'cleanup', via: [[605, 112], [605, 288]] },
+    { from: 'button', to: 'stop' },
+    { from: 'stop', to: 'cleanup', via: [[605, 448], [605, 288]] },
+  ],
+  note: 'Очистка безопасна при повторном вызове. Если поток ещё запрашивается, поздний ответ не подключается к превью, а его дорожки останавливаются.',
+};

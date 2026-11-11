@@ -2,16 +2,16 @@
 title: "Голос: запись с микрофона и речь"
 headingWidth: 24
 order: 25
-lead: "`getUserMedia` даёт живой поток с микрофона, `MediaRecorder` сжимает его и отдаёт кусками, а из кусков получается файл, который можно послушать или отправить. Рядом — синтез речи, который работает на вашем компьютере, и распознавание, которое в Chrome по умолчанию отправляет голос на сервер. Микрофон держит включённым не запись, а дорожка потока: остановить запись мало, нужен `track.stop()`. А формат записи у трёх движков разный."
+lead: "Голосовая заметка начинается с живого потока: MediaRecorder превращает его в сжатые куски, а Blob объединяет их в запись. Остановка записи и освобождение микрофона — разные действия. Синтез и распознавание речи используют отдельные API и могут зависеть от внешнего сервиса."
 summary: "Запись с микрофона: `getUserMedia`, `MediaRecorder`, куски `dataavailable` и `Blob`; форматы и `isTypeSupported` в Chromium, Firefox и WebKit; разрешение, ошибки и `track.stop()`; эхо- и шумоподавление, `getSettings`; синтез речи — голоса, очередь, запрет без клика; распознавание — где есть, облако и `processLocally`; запись кусками на сервер."
 verifiedOn: "Playwright 1.63 на macOS arm64, ноябрь 2026: Chromium 153 с поддельным микрофоном, Firefox 155, WebKit 26.6; каждый пример с выводом исполняет tests/e2e/media-voice.spec.ts. Распознавание живой речи не проверялось: у поддельного микрофона её нет"
 nav:
   - { id: s1, label: Запись }
   - { id: s2, label: Разрешение }
   - { id: s3, label: Обработка }
-  - { id: s4, label: Синтез речи }
-  - { id: s5, label: Распознавание }
-  - { id: s6, label: На сервер }
+  - { id: s4, label: На сервер }
+  - { id: s5, label: Синтез речи }
+  - { id: s6, label: Распознавание }
   - { id: s7, label: Тонкие места }
   - { id: s8, label: Источники }
 ---
@@ -20,8 +20,8 @@ import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -31,7 +31,6 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
-  PLAIN_STREAM,
   RECORD_CODE,
   RECORD_OUT,
   RECORD_NOTE,
@@ -47,7 +46,7 @@ import {
   ERROR_ROWS,
   DEVICES_NOTE,
   STOP_CODE,
-  STOP_NOTE,
+  RECORD_LIFETIME_DIAGRAM,
   PROCESSING_CODE,
   PROCESSING_OUT,
   PLAIN_PROCESSING,
@@ -67,25 +66,19 @@ import {
   LOCAL_NOTE,
   HEADLESS_NOTE,
   UPLOAD_CODE,
+  UPLOAD_USE_CODE,
   UPLOAD_NOTE,
   LOSS_ROWS,
   LOSS_NOTE,
-  CLOSING,
   PITFALLS,
   SOURCES,
   RELATED,
 } from './data';
 
 <Section variant="intro" eyebrow="Микрофон в браузере" gap={24}>
-  <Callout size={19} pad="24px 26px">
-
-    Микрофон в браузере — это поток, а не файл. Пока страница держит поток, микрофон включён
-    и индикатор записи горит. Файл появляется, только когда поток записали, и формат этого
-    файла в каждом браузере свой.
-
-  </Callout>
-
-  <Plain text={PLAIN_STREAM} />
+  При записи голосовой заметки браузер сначала получает живой поток. MediaRecorder делает
+  из него сжатые данные, но не становится владельцем микрофона: даже после окончания записи
+  дорожка может оставаться живой. Поэтому у записи и у захвата разные действия завершения.
 
   <Glossary items={GLOSSARY} />
 </Section>
@@ -94,15 +87,27 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Запись с микрофона: от потока до файла"
-  lead="Три шага: попросить поток, записать его `MediaRecorder` и сложить куски в `Blob`. Пример пишет две секунды и отдаёт запись тегу `<audio>`."
+  lead="Три шага: попросить поток, записать его `MediaRecorder` и сложить куски в `Blob`. Функция пишет около двух секунд после получения доступа и отдаёт запись тегу audio. При любом исходе она останавливает полученные дорожки."
 >
   <CodeBlock code={RECORD_CODE} />
 
-  <CodeBlock code={RECORD_OUT} tone="ok" />
+  <Card title="Снимок Chromium 153 · поддельный микрофон" pad={18} gap={10}>
+    <CodeBlock code={RECORD_OUT} lang="text" tone="ok" />
+  </Card>
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={RECORD_NOTE} />
   </Card>
+
+  <ConceptDiagram data={RECORD_LIFETIME_DIAGRAM} />
+
+  ### Завершение захвата
+
+  <CodeBlock code={STOP_CODE} />
+
+  Остановка всех дорожек прекращает этот захват. Если устройство используется ещё одной
+  дорожкой или другой страницей, оно может оставаться включённым. Одно сохранённое значение
+  MediaStream после stop само по себе не означает, что микрофон продолжает работать.
 
   ### В каком формате приходит запись
 
@@ -127,17 +132,17 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Разрешение, ошибки и индикатор записи"
-  lead="Микрофон страница получает только с согласия человека и только в безопасном контексте. Узнать, спросит ли браузер, можно заранее, а вот получить поток без вопроса — нельзя."
+  lead="Микрофон страница получает только с согласия человека и только в безопасном контексте. Сохранённое разрешение иногда позволяет получить поток без нового вопроса. Состояние Permissions API — подсказка, а результат захвата определяется getUserMedia."
 >
   <CodeBlock code={PERMISSION_CODE} />
 
   <CardGrid min={290} gap={14} align="start">
     <Card title="Право уже дано" titleSize={16} pad={18} radius={5} gap={9}>
-      <CodeBlock code={PERMISSION_OUT_GRANTED} tone="ok" />
+      <CodeBlock code={PERMISSION_OUT_GRANTED} lang="text" tone="ok" />
     </Card>
 
     <Card title="Человек отказал" titleSize={16} pad={18} radius={5} gap={9}>
-      <CodeBlock code={PERMISSION_OUT_DENIED} tone="ok" />
+      <CodeBlock code={PERMISSION_OUT_DENIED} lang="text" tone="ok" />
     </Card>
   </CardGrid>
 
@@ -157,26 +162,22 @@ import {
     <Md text={DEVICES_NOTE} />
   </Card>
 
-  ### Как отпустить микрофон
 
-  <CodeBlock code={STOP_CODE} />
-
-  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={STOP_NOTE} />
-  </Card>
 </Section>
 
 <Section
   id="s3"
   eyebrow="Раздел 3"
   title="Обработка звука микрофона"
-  lead="Браузер не отдаёт звук микрофона как есть. Сначала он убирает эхо и шум и выравнивает громкость. Включено ли это на деле, говорит дорожка, а не ваш запрос."
+  lead="Захват может применять эхоподавление, шумоподавление и автоматическое усиление. Поддержку и выбранные настройки нужно читать у конкретной дорожки: пожелания в audio не гарантируют результат."
 >
   <Plain text={PLAIN_PROCESSING} />
 
   <CodeBlock code={PROCESSING_CODE} />
 
-  <CodeBlock code={PROCESSING_OUT} tone="ok" />
+  <Card title="Настройки поддельного микрофона · Chromium 153" pad={18} gap={10}>
+    <CodeBlock code={PROCESSING_OUT} lang="text" tone="ok" />
+  </Card>
 
   <Table
     head={['настройка', '`audio: true`', 'обработка выключена']}
@@ -200,20 +201,75 @@ import {
 <Section
   id="s4"
   eyebrow="Раздел 4"
+  title="Голос на сервер кусками"
+  lead="Те же куски `dataavailable` можно отправлять, пока человек говорит. Сервер получает куски по номеру и подтверждает приём. Отдельное done имеет смысл только после успешной отправки всех кусков."
+>
+  Отправитель связывает три события: dataavailable ставит кусок в очередь, stop ждёт
+  завершения очереди, а ошибка останавливает запись и отклоняет общий промис.
+
+  <Disclosure title="Полный протокол отправителя: подтверждение кусков перед done">
+
+  <CodeBlock code={UPLOAD_CODE} />
+
+  </Disclosure>
+
+  <CodeBlock code={UPLOAD_USE_CODE} />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={UPLOAD_NOTE} />
+  </Card>
+
+  Пока сеть медленнее записи, новые Blob остаются в памяти очереди. timeslice не создаёт
+  обратное давление на микрофон. Этот пример не возобновляет отправку после обрыва: для
+  длинной записи нужны отдельная политика ограничения очереди и сохранение ещё не отправленного.
+
+  ### Потеря куска: опыт с WebM/Opus в Chromium 153
+
+  В опыте части удалялись намеренно из уже полученной записи. Это проверка поведения
+  декодера при неполных данных; отправитель выше при ошибке PUT не посылает done.
+
+  <Table
+    head={['что склеил сервер', 'что получилось']}
+    rows={LOSS_ROWS.map((r) => [r.k, r.v])}
+    kinds={['prose', 'prose']}
+    cols="minmax(200px,1fr) minmax(300px,1.6fr)"
+    minWidth={520}
+  />
+
+  <Md text={LOSS_NOTE} />
+
+
+</Section>
+
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
   title="Синтез речи: speechSynthesis"
-  lead="Чтобы браузер произнёс текст, нужна фраза `SpeechSynthesisUtterance` и вызов `speechSynthesis.speak`. Сервер не нужен: голоса берутся у операционной системы."
+  lead="Чтобы браузер произнёс текст, нужна фраза `SpeechSynthesisUtterance` и вызов `speechSynthesis.speak`. Доступные голоса зависят от системы и браузера. Синтез может быть локальным или удалённым; это сообщает localService выбранного голоса."
 >
   <CodeBlock code={SPEAK_CODE} />
 
-  <CodeBlock code={SPEAK_OUT} tone="ok" />
+  <CodeBlock code={SPEAK_OUT} lang="text" tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={SPEAK_NOTE} />
   </Card>
 
-  ### Откуда берутся голоса
+  ### Выбор голоса и ожидание списка
+
+  getVoices может сразу вернуть список или пустой массив. voicesReady ждёт событие,
+  но ограничивает ожидание: отсутствие голосов не должно навсегда блокировать кнопку.
+  Если подходящий голос не найден, voice = null оставляет выбор движку; успех не гарантирован,
+  поэтому обработчик error нужен и при таком запасном пути.
+
+  У выбранного SpeechSynthesisVoice поле localService показывает, локальный ли это сервис.
+  Сам вызов speechSynthesis не гарантирует работу без сети.
+
+  <Disclosure title="Какие голоса были доступны на стенде">
 
   <Md text={VOICES_NOTE} />
+
+  </Disclosure>
 
   <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={ACTIVATION_NOTE} />
@@ -221,12 +277,18 @@ import {
 </Section>
 
 <Section
-  id="s5"
-  eyebrow="Раздел 5"
+  id="s6"
+  eyebrow="Раздел 6"
   title="Распознавание речи: SpeechRecognition"
-  lead="Распознавание превращает речь в текст по ходу разговора: сначала приходят черновики, потом итог. Но есть оно не везде, и в Chrome по умолчанию голос распознаёт сервер, а не ваш компьютер."
+  lead="Распознавание превращает речь в текст по ходу разговора: сначала приходят черновики, потом итог. Поддержка зависит от браузера. Без явно выбранного локального режима реализация может обращаться к сетевому сервису."
 >
   <CodeBlock code={RECOGNIZE_CODE} />
+
+  Кнопка запускает одну сессию и остаётся выключенной до end. resultIndex указывает первый
+  изменившийся результат; обновлений может быть несколько. Черновик может измениться снова:
+  в интерфейсе его заменяют, а не каждый раз добавляют к сохранённому тексту.
+  stop просит завершить распознавание с накопленным результатом, abort прекращает сессию
+  без ожидания такого результата. При закрытии интерфейса активную сессию останавливают.
 
   <Table
     head={['движок', 'что есть']}
@@ -242,7 +304,11 @@ import {
 
   ### Распознавание без сервера
 
+  <Disclosure title="Полный помощник локального режима: поддержка, установка и готовность">
+
   <CodeBlock code={LOCAL_CODE} />
+
+  </Disclosure>
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={LOCAL_NOTE} />
@@ -251,37 +317,6 @@ import {
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={HEADLESS_NOTE} />
   </Card>
-</Section>
-
-<Section
-  id="s6"
-  eyebrow="Раздел 6"
-  title="Голос на сервер кусками"
-  lead="Те же куски `dataavailable` можно отправлять, пока человек говорит. Сервер получает запись по частям и склеивает файл сам."
->
-  <CodeBlock code={UPLOAD_CODE} />
-
-  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={UPLOAD_NOTE} />
-  </Card>
-
-  ### Что сервер получит, если кусок потерялся
-
-  <Table
-    head={['что склеил сервер', 'что получилось']}
-    rows={LOSS_ROWS.map((r) => [r.k, r.v])}
-    kinds={['prose', 'prose']}
-    cols="minmax(200px,1fr) minmax(300px,1.6fr)"
-    minWidth={520}
-  />
-
-  <Md text={LOSS_NOTE} />
-
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
-      <Md text={CLOSING} />
-    </DarkText>
-  </DarkPanel>
 </Section>
 
 <Section id="s7" eyebrow="Раздел 7" title="Тонкие места">

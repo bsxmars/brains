@@ -1,5 +1,6 @@
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { NumberSample, StringSample } from '@/widgets/unicode-lab/model/types';
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 
 /**
  * Данные темы «Unicode и Intl: символы, графемы и сравнение строк».
@@ -37,12 +38,22 @@ import type { NumberSample, StringSample } from '@/widgets/unicode-lab/model/typ
  * одна графема. Модель повторяет ICU: в `kind` суррогатов среди Control нет. Найдено случайным
  * корпусом — с `\p{Cs}` в Control модель расходилась на 2 726 строках из 94 116.
  *
+ * Исправление 2026-11-11: GB11 требует точного контекста Pict Extend* ZWJ; повторный
+ * ZWJ сбрасывает контекст. Закреплено тестом и образцом double-zwj в демо.
+ *
  * Без проверки, только по документации: номера и формулировки правил UAX #29 (GB3…GB999)
  * и правила CLDR для русского — они переписаны из спецификаций и проверены только поведением,
  * через сверку с ICU; что стандартный `Intl` Node и Chromium строится на ICU.
  */
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
+
+/** Наблюдаемый случай: ту же строку измеряют разные API. Исполняется построчно тестом. */
+export const INTRO_CODE = `const text = '👍🏽';
+text.length;                              // → 4
+[...text].length;                         // → 2
+[...new Intl.Segmenter('ru', { granularity: 'grapheme' }).segment(text)].length; // → 1
+text.slice(0, 2);                         // → '👍'`;
 
 export const GLOSSARY: GlossaryTerm[] = [
   {
@@ -82,7 +93,7 @@ export const PREREQ: Prereq[] = [
     t: 'Строка в JS — ряд 16-битных ячеек',
     d: '`length` считает ячейки, а не символы, и у 😀 он равен 2. Отсюда же разница между длиной строки, байтами в памяти и байтами UTF-8.',
     href: '/js/v8-strings/#s5',
-    hrefLabel: '«Строки в V8», раздел «„Символ“ — это четыре разных числа»',
+    hrefLabel: '«Строки в V8», раздел «Кодовые единицы, байты V8 и байты UTF-8»',
     tone: 'info',
   },
   {
@@ -147,6 +158,13 @@ export const PLAIN_GRAPHEME =
  * Учебная разбивка на графемы. Строку печатает тема, исполняет демо (`widgets/unicode-lab`)
  * и тест — против `Intl.Segmenter` на полном переборе пар и на случайном корпусе.
  */
+export const SEGMENT_CODE = `const segmenter = new Intl.Segmenter('ru', { granularity: 'grapheme' });
+const text = '👍🏽 Иван';
+const parts = [...segmenter.segment(text)].map((part) => part.segment);
+parts;                                // → ['👍🏽', ' ', 'И', 'в', 'а', 'н']
+parts.slice(0, 1).join('');            // → '👍🏽'
+[...segmenter.segment('fi')].length;   // → 2`;
+
 export const GRAPHEME_CODE = String.raw`// Вид кодовой точки для правил границ. Подмножество UAX #29:
 // без хангыля, SpacingMark, Prepend и индийских связок.
 function kind(c) {
@@ -165,19 +183,20 @@ function graphemeBreaks(str) {
   const cps = [...str];
   const steps = [];
   let riRun = 0;        // сколько индикаторов региона подряд стоит слева
-  let emoji = false;    // идём по цепочке «эмодзи Extend* ZWJ»?
+  let emoji = false;    // слева уже прочитано Pict Extend*?
   for (let i = 1; i < cps.length; i++) {
     const a = kind(cps[i - 1]), b = kind(cps[i]);
     riRun = a === 'RI' ? riRun + 1 : 0;
+    const afterEmojiZwj = a === 'ZWJ' && emoji;
     if (a === 'Pict') emoji = true;
-    else if (a !== 'Extend' && a !== 'ZWJ') emoji = false;
+    else if (a !== 'Extend') emoji = false;  // ZWJ завершает, а не продлевает Pict Extend*
 
     let rule, join;
     if (a === 'CR' && b === 'LF') { rule = 'GB3'; join = true; }
     else if (a === 'CR' || a === 'LF' || a === 'Control') { rule = 'GB4'; join = false; }
     else if (b === 'CR' || b === 'LF' || b === 'Control') { rule = 'GB5'; join = false; }
     else if (b === 'Extend' || b === 'ZWJ') { rule = 'GB9'; join = true; }
-    else if (a === 'ZWJ' && b === 'Pict' && emoji) { rule = 'GB11'; join = true; }
+    else if (afterEmojiZwj && b === 'Pict') { rule = 'GB11'; join = true; }
     else if (a === 'RI' && b === 'RI') { rule = 'GB12/13'; join = riRun % 2 === 1; }
     else { rule = 'GB999'; join = false; }
     steps.push({ at: i, rule, join });
@@ -235,6 +254,12 @@ export const STRING_SAMPLES: StringSample[] = [
     note: 'Три эмодзи и два невидимых соединителя. Соединитель прилипает к левому соседу по GB9, а правого присоединяет GB11 — потому что слева от ZWJ стоит эмодзи.',
   },
   {
+    id: 'double-zwj',
+    label: 'два соединителя',
+    value: '😀\u200d\u200d😀',
+    note: 'Два ZWJ подряд не соответствуют GB11: перед последним соединителем уже нет цепочки Pict Extend*. Поэтому второй эмодзи начинает новую графему. Соединитель не склеивает любые соседние знаки.',
+  },
+  {
     id: 'flags',
     label: '🇺🇸🇪🇸',
     value: '\u{1F1FA}\u{1F1F8}\u{1F1EA}\u{1F1F8}',
@@ -283,7 +308,7 @@ export const RULE_NOTES: Record<string, string> = {
 };
 
 export const DEMO_CAPTION =
-  'Между соседними кодовыми точками стоит решение `graphemeBreaks`: `×` — склеить, `÷` — разорвать, и номер правила, которое это решило. Для сравнения показан ответ `Intl.Segmenter` вашего браузера. Если ответы разошлись, строке нужно правило, которого в учебной функции нет. Интереснее всего строки, где точек много, а графема одна: эмодзи с тоном кожи, флаги, буква с несколькими значками.';
+  'Учебная функция исполняет показанный исходник: × означает объединение, ÷ — границу, рядом указан номер правила. Ответ Intl.Segmenter вычисляет браузер независимо. Подмножество не покрывает хангыль, SpacingMark, Prepend и индийские связки; расхождение на таких строках ожидаемо.';
 
 // ─── Раздел 3. Разбитый символ ─────────────────────────────────────────────────────────────
 
@@ -328,7 +353,38 @@ export const TRUNCATE_NOTE =
 
 // ─── Раздел 4. Нормализация ────────────────────────────────────────────────────────────────
 
-export const NORMALIZE_CODE = String.raw`const city = 'Йошкар-Ола'.normalize('NFD');    // так приходят имена файлов с macOS
+/** Формы нормализации: каждое выражение с `// →` исполняется тестами unicode-intl
+ * и v8-strings-unicode. Пример перенесён сюда вместе с каноническим объяснением форм. */
+export const NORMALIZATION_FORMS_CODE = `const nfd = 'й'.normalize('NFD');
+nfd.length;                                  // → 2
+nfd === 'й';                                 // → false
+nfd.normalize('NFC') === 'й';                // → true
+
+'ﬁ'.normalize('NFKC');                       // → 'fi'
+'①'.normalize('NFKC');                       // → '1'
+'x²'.normalize('NFKC');                      // → 'x2'
+'½'.normalize('NFKC');                       // → '1⁄2'
+'ﬁ'.normalize('NFKC').normalize('NFC');      // → 'fi'`;
+
+/** Порядок сравнения снят на Node 26.8.2 / ICU 78.3 и сверяется построчно тестами.
+ * `ё` при sensitivity: 'base' равна `е`; шведский и немецкий порядок `ä` различается. */
+export const COLLATION_EXAMPLES_CODE = `const words = ['ёж', 'ель', 'жук', 'Еда'];
+[...words].sort();                           // → ['Еда', 'ель', 'жук', 'ёж']
+
+const ru = new Intl.Collator('ru');
+[...words].sort(ru.compare);                 // → ['Еда', 'ёж', 'ель', 'жук']
+
+['ä', 'z', 'a'].sort(new Intl.Collator('sv').compare);   // → ['a', 'z', 'ä']
+['ä', 'z', 'a'].sort(new Intl.Collator('de').compare);   // → ['a', 'ä', 'z']
+
+const loose = new Intl.Collator('ru', { sensitivity: 'base' });
+loose.compare('ёлка', 'ЕЛКА');               // → 0
+new Intl.Collator('ru').compare('é', 'e\u0301');  // → 0
+
+const nat = new Intl.Collator('ru', { numeric: true });
+['file10', 'file2', 'file1'].sort(nat.compare);  // → ['file1', 'file2', 'file10']`;
+
+export const NORMALIZE_CODE = String.raw`const city = 'Йошкар-Ола'.normalize('NFD');    // другая запись той же буквы
 city.length;                                     // → 11
 city.includes('Й');                              // → false
 city.normalize('NFC').includes('Й');             // → true
@@ -338,15 +394,22 @@ const a = 'a\u0301\u0323', b = 'a\u0323\u0301';  // ударение и точк
 a === b;                                         // → false
 a.normalize('NFC') === b.normalize('NFC');       // → true
 
+// У одинакового combining class порядок сохраняется: ударение и гравис имеют класс 230
+'a\u0301\u0300'.normalize('NFD') === 'a\u0300\u0301'.normalize('NFD'); // → false
+
 // Популярный рецепт «убрать диакритику» портит русский
 const strip = (s) => s.normalize('NFD').replace(/\p{M}/gu, '');
 strip('ёжик и йогурт');                          // → 'ежик и иогурт'`;
+
+/** Части одного сквозного исходника: поиск показан раньше справочника форм. */
+export const NORMALIZE_SEARCH_CODE = NORMALIZE_CODE.split('\n\n')[0];
+export const NORMALIZE_DETAILS_CODE = NORMALIZE_CODE.split('\n\n').slice(1).join('\n\n');
 
 export const NORMALIZE_NOTE =
   'Функция `strip` — частая ошибка поиска «без учёта ё». Разложение NFD отделяет от буквы всё, что Юникод считает значком: и точки над «ё», и краткую над «й». После удаления значков «йогурт» становится «иогуртом». Для русского заменяют одну букву: `s.replace(/ё/g, \'е\')`, — или сравнивают коллатором с `sensitivity: \'base\'` (о нём — в разделе [«Сортировка для человека»](#s6)).';
 
 export const NORMALIZE_RULE =
-  '**Нормализуйте на входе.** Текст из формы, из файла, из буфера обмена приводится к NFC в том месте, где он входит в систему, — до записи в базу и до построения индекса. Тогда `===`, `includes`, ключи `Map` и уникальные индексы базы работают на одной форме. Если сравнивать и искать без нормализации, «Йошкар-Ола» из формы и «Йошкар-Ола» из имени файла окажутся двумя разными городами.';
+  '**Выберите форму для сравнения.** Если поиск и строковые ключи должны считать канонически равные записи одним текстом, приводите обе стороны к одной форме, обычно NFC, до сравнения и построения ключа. Нормализация не заменяет языковые правила: поиск без учёта ё, регистра или совместимых вариантов — отдельное решение. Если исходное написание важно, сохраняйте его отдельно от поискового ключа.';
 
 // ─── Раздел 5. Регистр ─────────────────────────────────────────────────────────────────────
 
@@ -366,7 +429,7 @@ export const CASE_NOTE =
   'Смена регистра — не замена буквы на букву. Немецкая «ß» в верхнем регистре становится двумя буквами, лигатура «ﬁ» — тоже, и строка удлиняется. Обратно «ß» уже не вернуть: из «STRASSE» получится «strasse». Греческая «Σ» в конце слова становится «ς», а в середине — «σ», то есть результат зависит от соседей. А турецкий алфавит различает «i» с точкой и «ı» без неё, поэтому пара «i ↔ I» в нём неверна.';
 
 export const CASE_ROWS = [
-  { k: '`toUpperCase()`', how: 'Правила Юникода без языка. Одинаково на любой машине.', tone: 'ok' as const },
+  { k: '`toUpperCase()`', how: 'Правила Unicode без влияния локали. Для новых знаков результат может зависеть от версии Unicode.', tone: 'ok' as const },
   { k: "`toLocaleUpperCase('tr')`", how: 'Правила языка из аргумента. Отличаются у турецкого, азербайджанского и литовского.', tone: 'ok' as const },
   { k: '`toLocaleUpperCase()`', how: 'Правила языка **машины**. На сервере с турецкой локалью `\'file\'` станет `\'FİLE\'`, и сравнение с `\'FILE\'` провалится.', tone: 'err' as const },
 ];
@@ -378,15 +441,19 @@ const de = new Intl.Collator('de', { sensitivity: 'base' });
 de.compare('STRASSE', 'straße');                 // → 0`;
 
 export const CASELESS_NOTE =
-  '`toLowerCase` с обеих сторон — привычный способ сравнить без учёта регистра, и на «ß» он ошибается: `strasse` и `straße` остаются разными. Коллатор сравнивает по правилам языка и считает их одним словом. Для ключей, логинов и адресов почты, где важна точность, а не язык, обе стороны обычно приводят к одной форме: `normalize(\'NFKC\').toLowerCase()`.';
+  '`toLowerCase` с обеих сторон не даёт общего сравнения без учёта регистра: `strasse` и `straße` остаются разными. Коллатор считает их равными при выбранных языке и sensitivity. Это правило сравнения, а не преобразование в общий ключ. Для логинов и других идентификаторов политика системы отдельно определяет допустимые знаки, нормализацию и регистр; универсального рецепта NFKC + toLowerCase для них нет.';
 
 // ─── Раздел 6. Сортировка ──────────────────────────────────────────────────────────────────
 
 export const SORT_FILES = ['файл10.txt', 'файл9.txt', 'Файл2.txt', 'файл1.txt', 'ёлка.txt', 'елка.txt', 'Ёж.txt', 'яблоко.txt'];
 
-export const SORT_CODE = String.raw`files.sort();                                        // по кодовым единицам
-files.sort(new Intl.Collator('ru').compare);         // по правилам языка
-files.sort(new Intl.Collator('ru', { numeric: true }).compare);  // цифры — числом`;
+export const SORT_CODE = `const files = ${JSON.stringify(SORT_FILES, null, 2)};
+const unitOrder = [...files].sort();
+const ru = new Intl.Collator('ru');
+const russianOrder = [...files].sort(ru.compare);
+const numeric = new Intl.Collator('ru', { numeric: true });
+const numericOrder = [...files].sort(numeric.compare);`;
+
 
 /** Колонки — три вызова из `SORT_CODE`, построчно. Пересчитывает тест. */
 export const SORT_ROWS = [
@@ -448,7 +515,7 @@ export const COLLATOR_OPTIONS = [
   },
   {
     t: '`localeCompare`',
-    d: 'Тот же коллатор, только собирается заново на каждый вызов. Для сортировки массива создают `Intl.Collator` один раз — подробнее в [«Строках в V8»](/js/v8-strings/#s5).',
+    d: 'Сравнивает по тем же правилам языка. Для сортировки массива создают `Intl.Collator` один раз и передают его `compare`, чтобы не передавать локаль и опции на каждом сравнении.',
   },
 ];
 
@@ -473,7 +540,7 @@ function pluralRu(n) {
 }`;
 
 export const PLURAL_NOTE =
-  'Целое число попадает в одну из трёх категорий по последней цифре и по двум последним: «на 1, но не на 11» — `one`; «на 2–4, но не на 12–14» — `few`; всё остальное — `many`. Дробное — всегда `other`. Важно, как число записано: `1` — это `one`, а `1.0`, показанное с нулём после запятой, — уже `other`, «1,0 файла».';
+  'Целое число попадает в одну из трёх категорий по последней цифре и по двум последним: «на 1, но не на 11» — `one`; «на 2–4, но не на 12–14» — `few`; всё остальное — `many`. В учебной функции дробная запись всегда даёт `other`. Строка `"1.0"` сохраняет видимый ноль, а число `1.0` в JS равно `1`. В Intl видимые цифры определяют параметры форматирования: с одной обязательной дробной цифрой число 1 даёт `other`, «1,0 файла».';
 
 export const PLURAL_FORMS: Record<string, string> = { one: 'файл', few: 'файла', many: 'файлов', other: 'файла' };
 
@@ -497,10 +564,17 @@ export const NUMBER_SAMPLES: NumberSample[] = [
 ];
 
 export const NUMBER_CAPTION =
-  'Категорию считает `pluralRu` из кода выше, а проверяет `Intl.PluralRules(\'ru\')` вашего браузера. Число с нулями после точки (`1.0`, `2.50`) проверяется с `minimumFractionDigits`, равным числу этих нулей: так число и будет показано на экране, и форма у него `other`. Для сравнения выведена фраза по «английской» логике `n === 1 ? \'файл\' : \'файлов\'`. Она верна на 1 и на 5–20, а ошибается на 2–4, 21, 22 и на любой дроби.';
+  'Категорию считает `pluralRu` из кода выше, а проверяет `Intl.PluralRules(\'ru\')` вашего браузера. Дробная запись (`1.0`, `2.50`) проверяется с `minimumFractionDigits`, равным числу цифр после точки: так число и будет показано на экране, и форма у него `other`. Для сравнения выведена фраза по «английской» логике `n === 1 ? \'файл\' : \'файлов\'`. Она верна на 1 и на 5–20, а ошибается на 2–4, 21, 22 и на любой дроби.';
 
-export const FILES_CODE = String.raw`const pr = new Intl.PluralRules('ru');
-const nf = new Intl.NumberFormat('ru');
+export const FILES_FORMAT_NUMBER = 1;
+export const FILES_FORMAT_OPTIONS = {
+  standard: { maximumFractionDigits: 3 },
+  decimal: { minimumFractionDigits: 1, maximumFractionDigits: 3 },
+} as const;
+
+export const FILES_CODE = `const options = ${JSON.stringify(FILES_FORMAT_OPTIONS.standard)};
+const pr = new Intl.PluralRules('ru', options);
+const nf = new Intl.NumberFormat('ru', options);
 const forms = { one: 'файл', few: 'файла', many: 'файлов', other: 'файла' };
 const files = (n) => nf.format(n) + ' ' + forms[pr.select(n)];
 
@@ -511,9 +585,45 @@ files(21);                   // → '21 файл'
 files(1.5);                  // → '1,5 файла'
 files(1.0004);               // → '1 файл'
 
+// То же число, но в подписи нужна одна дробная цифра
+const fixedOptions = ${JSON.stringify(FILES_FORMAT_OPTIONS.decimal)};
+const fixedPr = new Intl.PluralRules('ru', fixedOptions);
+const fixedNf = new Intl.NumberFormat('ru', fixedOptions);
+const filesFixed = (n) => fixedNf.format(n) + ' ' + forms[fixedPr.select(n)];
+filesFixed(${FILES_FORMAT_NUMBER}); // → '1,0 файла'
+
 const naive = (n) => n + ' ' + (n === 1 ? 'файл' : 'файлов');
 naive(21);                   // → '21 файлов'
 naive(3);                    // → '3 файлов'`;
+
+/** Результаты схемы получены тем же исходником, который читатель видит над ней. */
+const fileFormats = new Function(`${FILES_CODE}\nreturn {
+  standard: files(${FILES_FORMAT_NUMBER}), decimal: filesFixed(${FILES_FORMAT_NUMBER}),
+  standardCategory: pr.select(${FILES_FORMAT_NUMBER}), decimalCategory: fixedPr.select(${FILES_FORMAT_NUMBER}),
+  standardDigits: nf.resolvedOptions().minimumFractionDigits,
+  decimalDigits: fixedNf.resolvedOptions().minimumFractionDigits,
+};`)() as { standard: string; decimal: string; standardCategory: string; decimalCategory: string; standardDigits: number; decimalDigits: number };
+
+export const PLURAL_FORMAT_DIAGRAM: ConceptDiagramData = {
+  id: 'plural-format-visible-digits',
+  title: 'Одно число — две записи и две формы слова',
+  description: 'Для русского NumberFormat и PluralRules получают одинаковые настройки точности. Форма слова зависит от дробных цифр, которые эти настройки оставляют в записи.',
+  width: 900, height: 520,
+  nodes: [
+    { id: 'number', x: 20, y: 175, width: 220, height: 170, label: `Число ${FILES_FORMAT_NUMBER}`, detail: 'Number не хранит разницу между 1 и 1.0.', tone: 'info' },
+    { id: 'standard', x: 340, y: 30, width: 220, height: 170, label: 'Без обязательной дроби', detail: `Дробных цифр: от ${fileFormats.standardDigits}.`, tone: 'neutral' },
+    { id: 'decimal', x: 340, y: 320, width: 220, height: 170, label: 'Одна дробная цифра', detail: `Дробных цифр: от ${fileFormats.decimalDigits}.`, tone: 'warn' },
+    { id: 'standard-result', x: 660, y: 30, width: 220, height: 170, label: fileFormats.standard, detail: `Категория: ${fileFormats.standardCategory}.`, tone: 'ok' },
+    { id: 'decimal-result', x: 660, y: 320, width: 220, height: 170, label: fileFormats.decimal, detail: `Категория: ${fileFormats.decimalCategory}.`, tone: 'ok' },
+  ],
+  edges: [
+    { from: 'number', to: 'standard', via: [[290, 260], [290, 115]], label: 'настройки', labelX: 290, labelY: 95 },
+    { from: 'number', to: 'decimal', via: [[290, 260], [290, 405]], label: 'настройки', labelX: 290, labelY: 385 },
+    { from: 'standard', to: 'standard-result', label: 'вывод', labelX: 610, labelY: 95 },
+    { from: 'decimal', to: 'decimal-result', label: 'вывод', labelX: 610, labelY: 385 },
+  ],
+  note: 'PluralRules не читает готовую строку NumberFormat: оба объекта независимо применяют свои параметры к числу. В коде параметры согласованы. Результаты схемы вычислены исполнением того же примера; это не замер производительности.',
+};
 
 export const FILES_NOTE =
   '`PluralRules` и `NumberFormat` по умолчанию оставляют не больше трёх цифр после запятой. Поэтому `1.0004` показывается как «1» и получает форму `one` — число и слово согласованы. Если число печатают одним форматом, а форму выбирают по другому, получится «1 файла» или «1,0 файл». Опции округления у двух объектов должны совпадать.';
@@ -635,7 +745,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '05',
     t: '`===` и `includes` не знают о нормализации',
-    d: '«й» одной точкой и «и» плюс краткая выглядят одинаково и не равны. Имена файлов с macOS, текст из PDF и из некоторых клавиатур приходят в NFD. Нормализуют на входе в систему, один раз.',
+    d: '«й» одной точкой и «и» плюс краткая выглядят одинаково и не равны. Имена файлов с macOS, текст из PDF и из некоторых клавиатур приходят в NFD. Для сравнения канонически равного текста выбирают одну форму, обычно NFC, и применяют её на границе системы.',
     tone: 'err',
   },
   {
@@ -647,7 +757,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '07',
     t: '`toLocaleUpperCase()` без аргумента зависит от сервера',
-    d: 'Без локали берутся правила языка машины. На турецкой локали `\'i\'` становится `\'İ\'`, и ключ, приведённый к верхнему регистру, не находится. Для ключей и идентификаторов — `toUpperCase()`, для текста человеку — с явной локалью.',
+    d: 'Без локали берутся правила языка машины. На турецкой локали `\'i\'` становится `\'İ\'`, и ключ, приведённый к верхнему регистру, не находится. Для текста человеку задавайте локаль явно; для идентификаторов отдельно определите правила сравнения и преобразования регистра.',
     tone: 'err',
   },
   {
@@ -730,4 +840,4 @@ export const SOURCES: Source[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Строки в V8, раздел «„Символ“ — это четыре разных числа»](/js/v8-strings/#s5) — как строка лежит в памяти, однобайтные и двухбайтные строки, формы нормализации. [Регулярные выражения изнутри, раздел «Флаги и ловушки»](/js/regex/#s6) — флаги `u` и `v`, классы `\\p{…}` и эмодзи как один знак. [Числа в JS, раздел «Печать и округление»](/js/numbers/#s5) — как `Intl.NumberFormat` округляет. [Время и даты, раздел «Сравнение и вывод»](/js/time-dates/#s4) — `Intl.DateTimeFormat` и часовые пояса. [Ввод текста в браузере, раздел «IME»](/render/text-input/#s4) — как в поле попадает текст, который ещё набирается. [Шрифты и текст, раздел «Ширина строки»](/render/fonts-text/#s6) — как кодовые точки становятся глифами. [Как редактор хранит текст](/algorithms/text-buffers/) — курсор, который обязан шагать по графемам. [Бинарные данные](/js/binary-data/) — ArrayBuffer и виды на нём, порядок байт, TextDecoder на разрезанном символе, разбор PNG. [Интернационализация во фронтенде](/frameworks/i18n/) — ICU MessageFormat, ленивые словари vue-i18n и выбор локали. [Форматтер изнутри](/tooling/formatter/) — Doc и печать по ширине: как Prettier решает, где ломать строку.';
+  'Смежное на сайте: [Строки в V8, раздел «Кодовые единицы, байты V8 и байты UTF-8»](/js/v8-strings/#s5) — как строка лежит в памяти: одно- и двухбайтные буферы, их отличие от UTF-8. [Регулярные выражения изнутри, раздел «Флаги и ловушки»](/js/regex/#s6) — флаги `u` и `v`, классы `\\p{…}` и эмодзи как один знак. [Числа в JS, раздел «Печать и округление»](/js/numbers/#s5) — как `Intl.NumberFormat` округляет. [Время и даты, раздел «Сравнение и вывод»](/js/time-dates/#s4) — `Intl.DateTimeFormat` и часовые пояса. [Ввод текста в браузере, раздел «IME»](/render/text-input/#s4) — как в поле попадает текст, который ещё набирается. [Шрифты и текст, раздел «Ширина строки»](/render/fonts-text/#s6) — как кодовые точки становятся глифами. [Как редактор хранит текст](/algorithms/text-buffers/) — курсор, который обязан шагать по графемам. [Бинарные данные](/js/binary-data/) — ArrayBuffer и виды на нём, порядок байт, TextDecoder на разрезанном символе, разбор PNG. [Интернационализация во фронтенде](/frameworks/i18n/) — ICU MessageFormat, ленивые словари vue-i18n и выбор локали. [Форматтер изнутри](/tooling/formatter/) — Doc и печать по ширине: как Prettier решает, где ломать строку.';

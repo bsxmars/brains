@@ -87,6 +87,8 @@ const verdict = computed(() => {
     </template>
 
     <div class="pl-body">
+      <Md class="pl-caption" :text="caption" />
+
       <div class="pl-inputs">
         <label class="pl-label" for="pl-input">число</label>
         <input id="pl-input" class="pl-input" :value="text" inputmode="decimal" spellcheck="false" autocomplete="off" @input="onInput" />
@@ -119,7 +121,6 @@ const verdict = computed(() => {
       </div>
 
       <Md class="pl-verdict" :data-same="!result || result.same ? 'yes' : 'no'" :text="verdict" />
-      <Md class="pl-caption" :text="caption" />
     </div>
   </DemoFrame>
 </template>

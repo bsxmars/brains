@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { MODULE_ORDER_CODE, MODULE_ORDER_ROWS } from '@/content/lessons/node-event-loop/data';
 
 /**
  * Порядок служебных очередей в Node — тот, что показывает демо урока.
@@ -27,14 +28,18 @@ process.nextTick(() => console.log('n'));
 Promise.resolve().then(() => console.log('p'));
 `;
 
-function run(kind: 'cjs' | 'mjs'): string[] {
+function run(kind: 'cjs' | 'mjs', source = SNIPPET(kind === 'mjs')): string[] {
   const dir = mkdtempSync(join(tmpdir(), 'lesson-node-order-'));
   const file = join(dir, `order.${kind}`);
-  writeFileSync(file, SNIPPET(kind === 'mjs'));
+  writeFileSync(file, source);
   return execFileSync(process.execPath, [file], { encoding: 'utf8' }).trim().split('\n');
 }
 
 describe('порядок очередей в Node', () => {
+  it.each(MODULE_ORDER_ROWS)('$label: короткий листинг печатает обещанный порядок', ({ kind, output }) => {
+    expect(run(kind, MODULE_ORDER_CODE)).toEqual(output);
+  });
+
   it('CommonJS: nextTick сливается раньше реакций промисов', () => {
     const out = run('cjs');
     expect(out.slice(0, 2)).toEqual(['n', 'p']);

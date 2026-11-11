@@ -360,7 +360,7 @@ export const NOT_CAUGHT_ROWS = [
 ];
 
 export const NOT_CAUGHT_NOTE =
-  'Куда уходят ошибки, которые не поймал никто, — события `error` и `unhandledrejection` у `window`, `process.on(\'uncaughtException\')` в Node — разобрано в теме [«Ошибки и стеки», раздел «Необработанные»](/js/errors/#s4).';
+  'Куда уходят ошибки, которые не поймал никто, — события `error` и `unhandledrejection` у `window`, `process.on(\'uncaughtException\')` в Node — разобрано в теме [«Ошибки и стеки», раздел «Необработанные»](/js/errors/#s7).';
 
 export const FORWARD_CODE = `function Feed() {
   const [, setState] = useState();

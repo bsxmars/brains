@@ -1,24 +1,8 @@
 <script setup lang="ts">
 /**
- * Песочница жизненного цикла порта: две «реальности» и труба между ними.
- *
- * В оригинале панель была одна, и из неё не читалось главное — что у канала два конца
- * в разных агентах. Здесь слева воркер со своим `port2`, справа главный поток со своим
- * `port1`, между ними труба. Видно сразу три вещи, которых на одной панели не видно:
- *
- *   буферизация до `start()` — сообщения копятся в очереди порта, а не теряются;
- *   доставка отдельной задачей — между «отправлено» и «пришло в onmessage» есть ступень
- *                                «задача в цикле», и она не проскакивается;
- *   мёртвый порт после transfer — объект остался у вас, но он пустой: `postMessage`,
- *                                 `start()` и `close()` на нём ничего не делают, а канал
- *                                 живёт у нового владельца (Chromium: проверено запуском).
- *
- * Ступень «задача в цикле» не нарисована, а настоящая: виджет держит собственный
- * `MessageChannel` и гоняет доставку через него. То есть задержка между отправкой и
- * появлением строки в консоли — это ровно тот самый оборот цикла, про который урок.
- *
- * Свой канал виджет закрывает в `onBeforeUnmount` — ровно то, чего не делает утечка
- * из раздела «Тонкие места»: слушающий порт это GC-root.
+ * Учебная модель жизненного цикла MessagePort. Состояния запуска, закрытия и передачи
+ * вычисляются здесь; отдельные Worker и iframe не создаются. Вспомогательный настоящий
+ * MessageChannel нужен только для асинхронного перехода от очереди к доставке.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import ConsoleView from '@/shared/ui/ConsoleView.vue';
@@ -186,9 +170,14 @@ const deliveredLines = computed(() => delivered.value.map((msg) => `got ${msg}`)
       </div>
     </template>
 
+    <div class="model-note">
+      Учебная схема: кнопки меняют состояние изображённого порта. Запуск, закрытие и передача
+      здесь моделируются; реальный обмен между страницей и воркером показан в примере выше.
+    </div>
+
     <div class="realms">
       <div class="realm">
-        <div class="t-label">воркер · держит port2</div>
+        <div class="t-label">сторона отправителя · port2</div>
         <div class="port" data-state="live">port2</div>
         <p class="hint">
           port2 только отправляет — кнопкой «port2.postMessage()». Слушать он тоже может:
@@ -203,8 +192,8 @@ const deliveredLines = computed(() => delivered.value.map((msg) => `got ${msg}`)
       </div>
 
       <div class="realm realm--main">
-        <div class="t-label">главный поток · держит port1</div>
-        <div v-if="detached" class="port port--moved">port1 отдан в iframe — здесь пустой объект</div>
+        <div class="t-label">сторона получателя · port1</div>
+        <div v-if="detached" class="port port--moved">в модели port1 передан новому владельцу</div>
 
         <div class="flags">
           <span v-for="flag in flags" :key="flag.t" class="flag" :data-state="flag.state">
@@ -221,7 +210,7 @@ const deliveredLines = computed(() => delivered.value.map((msg) => `got ${msg}`)
         />
         <QueueView
           :items="inFlight"
-          label="задача в цикле главного потока"
+          label="ожидает доставки в модели"
           tone="neutral"
           layout="row"
           :min-height="34"
@@ -229,7 +218,7 @@ const deliveredLines = computed(() => delivered.value.map((msg) => `got ${msg}`)
         />
         <ConsoleView
           :lines="deliveredLines"
-          label="доставлено в onmessage"
+          label="обработано получателем"
           :min-height="70"
           empty-label="ничего не пришло"
         />
@@ -258,6 +247,13 @@ const deliveredLines = computed(() => delivered.value.map((msg) => `got ${msg}`)
 </template>
 
 <style scoped>
+.model-note {
+  padding: 16px 20px;
+  color: var(--text-muted);
+  font-size: var(--fs-4);
+  line-height: 1.6;
+}
+
 .acts {
   display: flex;
   flex-wrap: wrap;

@@ -2,8 +2,8 @@
 title: "Доступ к железу: Serial, USB, Bluetooth, HID и MIDI"
 headingWidth: 24
 order: 28
-lead: "Страница может говорить с платой Arduino, браслетом, геймпадом или синтезатором напрямую, без программы-посредника. У пяти API общие правила: запрос только по клику, устройство выбирает человек в окне браузера, сайт получает одно устройство и только его. Работает это в Chromium; Firefox даёт Serial и MIDI через дополнение, Safari — ничего."
-summary: "Полный цикл Web Serial: окно выбора, `open`, запись, чтение строк из потока, закрытие; общая для пяти API модель разрешений — безопасный контекст, жест, окно выбора, `getPorts`, `forget`, фреймы; поддержка в трёх движках и позиции Mozilla и Apple; чем отличаются USB, Bluetooth LE, HID и MIDI; blocklist и почему это опасно; как проверить код без устройства."
+lead: "Страница может обмениваться байтами с платой, читать датчик по Bluetooth или принимать ноты от MIDI-клавиатуры. Для этого мало разрешения: нужно знать протокол устройства, открыть соединение и освободить его после работы. У Serial, USB, Bluetooth и HID есть окно выбора устройства; MIDI запрашивает доступ к портам иначе."
+summary: "Web Serial: чтение строки, срок ожидания, блокировки потоков и закрытие при ошибке. Разрешение и соединение; окно выбора четырёх API и отдельный контракт MIDI. USB, Bluetooth, HID, MIDI: формат обмена и очистка ресурсов. Поддержка трёх движков, blocklist, Permissions-Policy и границы проверок без оборудования."
 verifiedOn: "Chromium 153, Firefox 155, WebKit 26.6 (Playwright 1.63), ноябрь 2026: tests/e2e/device-hardware.spec.ts исполняет примеры — Serial на тестовом порту Firefox, Bluetooth на фальшивом устройстве Chromium; USB и HID без устройства — только до окна выбора"
 nav:
   - { id: s1, label: Первый порт }
@@ -17,6 +17,8 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -38,6 +40,7 @@ import {
   SERIAL_NOTE,
   PLAIN_BAUD,
   STREAM_FACTS,
+  SERIAL_CLEANUP_DIAGRAM,
   STREAM_LINK,
   PERMISSION_STEPS,
   PLAIN_GESTURE,
@@ -84,8 +87,8 @@ import {
   <Callout size={19} pad="24px 26px">
 
     Пять API дают странице прямой доступ к устройству: Serial — к порту, USB — к интерфейсам,
-    Bluetooth — к характеристикам, HID — к отчётам, MIDI — к нотам и регуляторам. Правило
-    у всех одно: просить доступ можно только по клику, а устройство выбирает человек.
+    Bluetooth — к характеристикам, HID — к отчётам, MIDI — к нотам и регуляторам.
+    Браузер ограничивает доступ, но команды и ответы всё равно должен понимать код страницы.
 
   </Callout>
 
@@ -98,11 +101,18 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Первый порт: Web Serial от клика до закрытия"
-  lead="Плата Arduino подключена USB-кабелем. Страница просит порт, открывает его, отправляет `ping` и читает ответ построчно. Все пять шагов работают на обычных стримах — `ReadableStream` и `WritableStream`."
+  lead="У платы есть команда `ping` и ответ, который заканчивается переводом строки. Страница просит выбрать порт, открывает его, отправляет команду и ждёт первую строку ответа. Вход и выход порта — обычные `ReadableStream` и `WritableStream`."
 >
-  <CodeBlock code={SERIAL_CODE} />
+  `pingPort` владеет открытым портом: записывает команду и закрывает его в `finally`.
+  `readLine` собирает текст до `\n`, а по истечении срока отменяет ожидание.
+  Его `finally` освобождает читателя и при полученном ответе, и при ошибке.
+  В HTML нужна кнопка `<button id="connect">Подключить</button>`, код выполняется модулем.
 
-  <CodeBlock code={SERIAL_OUT} tone="ok" />
+  <Disclosure title="Полный исходник: команда, строка ответа и очистка">
+    <CodeBlock code={SERIAL_CODE} />
+  </Disclosure>
+
+  <CodeBlock code={SERIAL_OUT} lang="text" tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={SERIAL_NOTE} />
@@ -116,14 +126,16 @@ import {
     <NumberedList items={STREAM_FACTS} size={15.5} />
   </Card>
 
+  <ConceptDiagram data={SERIAL_CLEANUP_DIAGRAM} />
+
   <Md text={STREAM_LINK} />
 </Section>
 
 <Section
   id="s2"
   eyebrow="Раздел 2"
-  title="Разрешения: выбирает человек, а не сайт"
-  lead="У всех пяти API одна модель доступа. Сайт не видит списка устройств и не может открыть окно сам. Он просит по клику, человек выбирает одно устройство, и разрешение запоминается за источником страницы."
+  title="Разрешение ещё не означает открытое соединение"
+  lead="Для Serial разрешение позволяет получить объект порта, но байты появятся только после `open()`. Четыре API связывают выдачу доступа с выбором устройства. MIDI запрашивает разрешение иначе: при успехе страница получает списки доступных входов и выходов."
 >
   <Card title="Шесть правил доступа" titleSize={17} pad={20} gap={13}>
     <NumberedList items={PERMISSION_STEPS} size={15.5} />
@@ -135,9 +147,11 @@ import {
 
   <CodeBlock code={PERMISSION_CODE} />
 
-  <CodeBlock code={PERMISSION_OUT} tone="ok" />
+  <CodeBlock code={PERMISSION_OUT} lang="text" tone="ok" />
 
-  ### Что отвечает Chromium
+  ### Записанные отказы Chromium
+
+  <Disclosure title="Таблица: жест, отмена выбора и запрет фрейма">
 
   <Table
     head={['вызов', 'когда', 'что вышло']}
@@ -148,13 +162,14 @@ import {
   />
 
   <Md text={ERROR_NOTE} />
+  </Disclosure>
 </Section>
 
 <Section
   id="s3"
   eyebrow="Раздел 3"
   title="Где это работает и почему не везде"
-  lead="Все пять API придумали в Chromium, и полностью они есть только там. Mozilla и Apple отказались от большей части не из-за сложности: они считают, что согласие одной кнопкой не защищает ни человека, ни устройство."
+  lead="Наличие `navigator.serial` или `navigator.usb` — только первый вопрос. Открыть канал могут помешать разрешение, политика фрейма, занятый драйвер или несовместимое устройство. Таблица фиксирует наличие API в указанных сборках; она не обещает доступ к любой подключённой периферии."
 >
   <Table
     head={['API', 'Chromium 153', 'Firefox 155', 'WebKit 26.6']}
@@ -183,7 +198,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="USB, Bluetooth, HID и MIDI: чем отличаются"
-  lead="Окно выбора и разрешения у всех одинаковые. Различается то, о чём страница говорит с устройством: передачами, характеристиками, отчётами или нотами."
+  lead="Выбирайте API по протоколу устройства: USB-передачи, характеристики Bluetooth, отчёты HID или MIDI-сообщения. Номер интерфейса, формат отчёта и допустимые команды берут из документации устройства, а не угадывают по его названию."
 >
   <Table
     head={['API', 'единица обмена', 'путь в коде', 'для чего']}
@@ -195,7 +210,12 @@ import {
 
   ### WebUSB: интерфейсы и передачи
 
-  <CodeBlock code={USB_CODE} />
+  Интерфейс сначала занимают через `claimInterface`, затем освобождают через `releaseInterface`.
+  Вложенный `finally` вызывает `close` даже при ошибке освобождения интерфейса.
+
+  <Disclosure title="Исходник USB: одна команда и одна передача с очисткой">
+    <CodeBlock code={USB_CODE} />
+  </Disclosure>
 
   <Plain text={PLAIN_TRANSFERS} />
 
@@ -205,9 +225,15 @@ import {
 
   ### Web Bluetooth: сервисы и характеристики
 
-  <CodeBlock code={BT_CODE} />
+  Чтение даёт текущее значение характеристики. Уведомления дают новые значения, если
+  характеристика их поддерживает. Функция `watchBattery` возвращает завершение работы;
+  повторный клик вызывает его вместо нового подключения.
 
-  <CodeBlock code={BT_OUT} tone="ok" />
+  <Disclosure title="Исходник Bluetooth: чтение, подписка и отключение">
+    <CodeBlock code={BT_CODE} />
+  </Disclosure>
+
+  <CodeBlock code={BT_OUT} lang="text" tone="ok" />
 
   <Plain text={PLAIN_GATT} />
 
@@ -217,19 +243,30 @@ import {
 
   ### WebHID: отчёты
 
-  <CodeBlock code={HID_CODE} />
+  `inputreport` доставляет байты вместе с `reportId`. Пример выводит отчёты первого
+  выбранного устройства; повторный клик снимает обработчик и закрывает устройство.
 
-  <CodeBlock code={HID_OUT} tone="ok" />
+  <Disclosure title="Исходник HID: отчёты и освобождение устройства">
+    <CodeBlock code={HID_CODE} />
+  </Disclosure>
+
+  <CodeBlock code={HID_OUT} lang="text" tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={HID_NOTE} />
   </Card>
 
-  ### Web MIDI: сообщения из трёх байт
+  ### Web MIDI: порты и музыкальные сообщения
 
-  <CodeBlock code={MIDI_CODE} />
+  Здесь нет `requestDevice`: `requestMIDIAccess` возвращает входные и выходные порты.
+  Подписка на сообщения неявно открывает MIDI-вход. При завершении инструмента нужно
+  снять обработчики и закрыть использованные входы; изменения списка доставляет `statechange`.
 
-  <CodeBlock code={MIDI_OUT} tone="ok" />
+  <Disclosure title="Исходник MIDI: разбор сообщения, новые входы и очистка">
+    <CodeBlock code={MIDI_CODE} />
+  </Disclosure>
+
+  <CodeBlock code={MIDI_OUT} lang="text" tone="ok" />
 
   <Table
     head={['байты `e.data`', 'что вернёт `describe`']}
@@ -252,15 +289,15 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Почему это опасно и что закрыто"
-  lead="Окно выбора защищает от тихого доступа. Но устройства не рассчитывали, что с ними будет говорить веб-страница, и часть из них браузер не отдаёт ни при каком согласии."
+  lead="Пользователь разрешает доступ к каналу, а не подтверждает безопасность каждой команды. Поэтому браузер дополнительно ограничивает устройства, интерфейсы и сервисы. Эти ограничения не заменяют проверок в прошивке."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={DANGER_WHY} />
   </Card>
 
-  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+  <Disclosure title="Почему одного согласия мало: случай WebUSB и YubiKey">
     <Md text={YUBIKEY_NOTE} />
-  </Card>
+  </Disclosure>
 
   ### Что закрыто даже с согласия
 
@@ -291,7 +328,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Как проверить без железа"
-  lead="Без устройства проверяется больше, чем кажется: наличие API, все отказы, пустые списки. Полный цикл подделать можно для Serial в Firefox и для Bluetooth в Chromium. Для USB и HID подделки нет."
+  lead="Нативная эмуляция проверяет браузерный путь Serial и Bluetooth. Подставной объект проверяет логику приложения: что оно сделает при ошибке и что освободит. Ни тот, ни другой способ не подтверждает совместимость с настоящим устройством, его таймингами и прошивкой."
 >
   <Table
     head={['что', 'где', 'как']}
@@ -307,7 +344,9 @@ import {
 
   ### Фальшивое Bluetooth-устройство
 
-  <CodeBlock code={BT_EMULATION_CODE} />
+  <Disclosure title="Полный стенд Playwright: ответы фальшивого Bluetooth-устройства">
+    <CodeBlock code={BT_EMULATION_CODE} />
+  </Disclosure>
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={BT_EMULATION_NOTE} />

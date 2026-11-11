@@ -4,6 +4,10 @@ import * as vue from '@vue/reactivity';
 import { current, produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import {
+  PROXY_READ_CODE,
+  FROZEN_GET_CODE,
+  REVOCABLE_CODE,
+  SET_SIDE_EFFECT_CODE,
   CLONE_CODE,
   CLONE_PROBES,
   CLONE_SETUP,
@@ -544,5 +548,55 @@ describe('ссылки на другие темы ведут в существу
     const [, dir, slug, anchor] = /\/([a-z]+)\/([a-z0-9-]+)\/(#s\d+)?/.exec(link)!;
     const mdx = readFileSync(new URL(`../../src/content/${COLLECTION[dir]}/${slug}/index.mdx`, import.meta.url), 'utf8');
     if (anchor) expect(mdx, `${link}: нет пункта ${anchor} в nav`).toMatch(new RegExp(`id: ${anchor.slice(1)},`));
+  });
+});
+
+
+describe('вводный перехват и проверяемые границы Proxy', () => {
+  it('простой get читает имя и пишет журнал; Reflect не отключает перехват', () => {
+    const { p, target, log } = исполнить<{ p: { name: string }; target: { name: string }; log: string[] }>(PROXY_READ_CODE, ['p', 'target', 'log']);
+    expect(log).toEqual(['get name']);
+    expect(Reflect.get(target, 'name')).toBe('Аня');
+    expect(log).toEqual(['get name']);
+    expect(Reflect.get(p, 'name')).toBe('Аня');
+    expect(log).toEqual(['get name', 'get name']);
+    expect(Reflect.get(new Proxy(p, {}), 'name')).toBe('Аня');
+    expect(log).toHaveLength(3);
+  });
+
+  it('get не может подменить замороженное значение, но может вернуть другое у открытой цели', () => {
+    expect(() => new Function(FROZEN_GET_CODE)()).toThrow(TypeError);
+    const open = FROZEN_GET_CODE.replace('Object.freeze(', '(');
+    expect(new Function(`${open}\nreturn p.name;`)()).toBe('Оля');
+  });
+
+  it('set приводит ответ к boolean; успешный ответ сам по себе не записывает свойство', () => {
+    const target = {};
+    const p = new Proxy(target, { set: () => 'успех' as unknown as boolean });
+    expect(Reflect.set(p, 'x', 1)).toBe(true);
+    expect(Object.hasOwn(target, 'x')).toBe(false);
+  });
+
+  it('строгое присваивание бросает после записи: побочный эффект не откатывается', () => {
+    const observed = SET_SIDE_EFFECT_CODE.replace('p.x = 1;', 'try { p.x = 1; } catch (error) { caught = error.name; }');
+    const result = new Function(`"use strict"; let caught; ${observed}\nreturn { caught, value: p.x };`)();
+    expect(result).toEqual({ caught: 'TypeError', value: 1 });
+  });
+
+  it('отзыв первой обёртки сохраняет ранее прочитанную обычную ссылку', () => {
+    expect(() => new Function(REVOCABLE_CODE)()).toThrow(TypeError);
+    const beforeRefusedRead = REVOCABLE_CODE.split('\n').slice(0, -1).join('\n');
+    const { proxy, user, target, revoke } = исполнить<{ proxy: { user: object }; user: { name: string }; target: { user: object }; revoke: () => void }>(beforeRefusedRead, ['proxy', 'user', 'target', 'revoke']);
+    expect(user).toBe(target.user);
+    expect(user.name).toBe('Аня');
+    expect(() => proxy.user).toThrow(TypeError);
+    expect(() => revoke()).not.toThrow();
+  });
+
+  it('отказ записи не порождает trigger: мини-реализация совпадает с Vue', () => {
+    const scenario = REACTIVE_SCENARIOS.find(s => s.id === 'refused-write')!;
+    expect(outputOf(loadMini(REACTIVE_CODE), scenario.code)).toEqual(['n = 1', 'запись: false']);
+    expect(outputOf({ reactive: vue.reactive, effect: vue.effect } as ReactiveApi, scenario.code)).toEqual(['n = 1', 'запись: false']);
+    expect(journal(REACTIVE_CODE, scenario.code).filter(line => line.kind === 'trace' && line.text.startsWith('trigger'))).toEqual([]);
   });
 });

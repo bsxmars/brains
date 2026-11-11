@@ -5,6 +5,7 @@ import {
   BYTES_ROWS,
   CHAIN_ROWS,
   COPY_SETUP_CODE,
+  DETACH_CODE,
   COPY_WAYS,
   EQ_BARS,
   FLATTEN_LEAVES,
@@ -348,7 +349,8 @@ describe('по типу нельзя судить, копия перед вам�
     const [window, copy, normalized] = debugTypes(`
       const big = 'x'.repeat(100000);
       %DebugPrint(big.slice(0, 100));
-      %DebugPrint((' ' + big.slice(0, 100)).slice(1));
+      ${DETACH_CODE}
+      %DebugPrint(detach(big.slice(0, 100)));
       %DebugPrint(big.slice(0, 100).normalize());
     `);
 
@@ -585,6 +587,8 @@ describe('тонкое место «Максимальная длина стро
 describe('юникод — четыре уровня считает модель урока', () => {
   /** Ожидания по каждому образцу: единицы, точки, графемы, байты UTF-8, двухбайтность, байты в памяти. */
   const expected: Record<string, [number, number, number, number, boolean, number]> = {
+    'латиница': [26, 26, 26, 26, false, 26],
+    'одна «я»': [26, 26, 26, 27, true, 52],
     'a': [1, 1, 1, 1, false, 1],
     'ф': [1, 1, 1, 2, true, 2],
     '😀': [2, 1, 1, 4, true, 4],

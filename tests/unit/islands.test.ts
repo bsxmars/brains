@@ -281,6 +281,19 @@ describe('связь между островами и возобновление
 
 // ─── Собранный сайт: только если dist/ есть ────────────────────────────────────────────────
 
+/** Реальные атрибуты ресурсов: текст листинга или сериализованный props не загружает файл. */
+const htmlScriptRefs = (html: string) => [...new Set([...html.matchAll(
+  /\b(?:src|href|component-url|renderer-url)="(\/_astro\/[\w.-]+\.js)"/g,
+)].map((match) => match[1]))];
+
+it('адрес JS в примере или props не становится ссылкой загрузки страницы', () => {
+  const html = `<script src="/_astro/entry.js"></script>
+    <astro-island component-url="/_astro/demo.js" renderer-url="/_astro/client.js"
+      props="{&quot;code&quot;:&quot;new Worker('/_astro/example.js')&quot;}"></astro-island>
+    <pre>new URL('/_astro/missing-worker.js', import.meta.url)</pre>`;
+  expect(htmlScriptRefs(html)).toEqual(['/_astro/entry.js', '/_astro/demo.js', '/_astro/client.js']);
+});
+
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const hasDist = existsSync(join(DIST, 'index.html'));
 
@@ -324,7 +337,7 @@ describe.skipIf(!hasDist)(hasDist ? 'собранный dist/: инвариан�
     for (const p of pages) {
       const html = readFileSync(p, 'utf8');
       if (!html.includes('<astro-island')) continue;
-      const refs = new Set(html.match(/\/_astro\/[\w.-]+\.js/g) ?? []);
+      const refs = new Set(htmlScriptRefs(html));
       const roots = [...refs].map((u) => u.slice('/_astro/'.length));
       const seen = new Set<string>();
       const visit = (f: string) => {

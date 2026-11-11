@@ -11,7 +11,7 @@ const PORT = 4329;
  */
 /** Спеки, которые поднимают браузеры сами, мимо проекта. */
 const ENGINE_SPECS = [
-  'browser-engines', 'clipboard-dnd', 'device-hardware', 'media-audio', 'media-outside',
+  'browser-engines', 'browser-process-model', 'clipboard-dnd', 'device-hardware', 'media-audio', 'media-outside',
   'media-video', 'media-voice', 'os-integration', 'task-scheduling-engines',
 ].map((name) => new RegExp(`/${name}\\.spec\\.ts$`));
 

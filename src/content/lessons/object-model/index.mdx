@@ -1,8 +1,8 @@
 ---
 title: Объектная модель
 order: 2
-lead: "Объект — это набор свойств плюс ссылка на другой объект. Классы, символы, итераторы и прокси новой сущности не принесли: они надстроены над этим и в это же разворачиваются."
-summary: "Четыре слоя модели, `[[Get]]` и `[[Set]]` по шагам, порядок инициализации класса и декораторы, дескрипторы и замки, символы, генератор как корутина, ленивые итераторы, прокси как перехват внутренних методов."
+lead: "Объект хранит собственные свойства и ссылку на прототип. По этой ссылке язык ищет недостающие свойства и методы. Классы задают создание объектов, дескрипторы — правила доступа к свойствам, а символы связывают объект с операциями языка."
+summary: "Свойства и прототип, `[[Get]]` и `[[Set]]` по шагам, порядок инициализации класса и декораторы, дескрипторы и замки, символы и протокол итератора, ленивые конвейеры, прокси как перехват внутренних методов."
 verifiedOn: Node 26.8.2 · V8 14.6 · Apple M1
 nav:
   - { id: s1, label: Модель }
@@ -17,6 +17,7 @@ nav:
   - { id: s10, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Md from '@/shared/ui/Md.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
@@ -24,6 +25,7 @@ import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CheckList from '@/shared/ui/CheckList.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -32,7 +34,6 @@ import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import ClassInit from '@/widgets/class-internals/ui/ClassInit.vue';
 import PrivateSlots from '@/widgets/class-internals/ui/PrivateSlots.astro';
-import GeneratorMachine from '@/widgets/generator-machine/ui/GeneratorMachine.vue';
 import LookupChain from '@/widgets/lookup-chain/ui/LookupChain.vue';
 import NewSteps from '@/widgets/object-anatomy/ui/NewSteps.astro';
 import ObjectAnatomy from '@/widgets/object-anatomy/ui/ObjectAnatomy.astro';
@@ -52,11 +53,11 @@ import SetExits from '@/widgets/set-algorithm/ui/SetExits.astro';
 import {
   LAYERS, LAYERS_LEAD, GLOSSARY,
   ANATOMY_SLOTS, ANATOMY_PROPS, ANATOMY_CHAIN, ANATOMY_FACTS, ANATOMY_READING_HEAD, ANATOMY_READING,
-  SAMPLE_CODE, HIDDEN_KEYS, SET_DEMO_NOTE,
+  SAMPLE_CODE, DOG_CORE_CODE, DOG_OWN_FRAGMENT, DOG_GETTER_FRAGMENT, DOG_PRIVATE_FRAGMENT, GETTER_RECEIVER_DIAGRAM, HIDDEN_KEYS, SET_DEMO_NOTE,
   NEW_TARGET_NOTE, PRIVATE_CODE,
   TO_PRIMITIVE_HINT_NOTE,
   INIT_BUG_CODE, INIT_BUG_NOTE, CI_DEMO_NOTE, PRIVATE_DEMO_NOTE,
-  SYMBOL_DEMO_NOTE, ITER_DEMO_NOTE, GEN_DEMO_NOTE, LAB_DEMO_NOTE,
+  SYMBOL_DEMO_NOTE, ITER_DEMO_NOTE, LAB_DEMO_NOTE,
   PLAIN_BRACKETS, PLAIN_DESCRIPTOR, PLAIN_RECEIVER, PLAIN_SET,
   GET_CHAIN, GET_KEYS, GET_VALUES, GET_NOTES,
   SET_SCENARIOS, SET_NOTE, NEW_STEPS, NEW_NOTE, NEW_NOTE_CODE,
@@ -75,8 +76,7 @@ import {
   KEY_ORDER_CODE, KEY_ORDER_CHIPS, KEY_ORDER_RULES, KEY_ORDER_NOTE,
   SYMBOL_PROBE, SYMBOL_NOTE, WELL_KNOWN,
   TO_PRIMITIVE_HINTS, TO_PRIMITIVE_NOTE, SYMBOL_FOR_NOTE,
-  ITER_TERMS, ITER_PROTOCOL_CHIPS, ITER_RETURN_NOTE, ONCE_CODE, FACTORY_CODE, COROUTINE_NOTE,
-  GEN_CODE, GEN_LINES, GEN_LABELS, GEN_FACTS,
+  ITER_TERMS, ITER_PROTOCOL_CHIPS, ITER_RETURN_NOTE, ONCE_CODE, FACTORY_CODE,
   LAB_SNIPPETS,
   SOURCES,
   WEAKMAP_PRIVATE_CODE, PLAIN_WEAKMAP, WEAKMAP_VS_SLOT,
@@ -92,67 +92,67 @@ import {
   variant="intro"
   eyebrow="Сквозной пример"
 >
-  {/* Словарь идёт первым, а не после карты. Карта показывает, как устроена тема; словарь
-      нужен, чтобы понять саму карту — «слот», «внутренний метод» и «дескриптор» стоят прямо
-      в её подписях. Читатель, встретивший карту первой, читает её словами, которых ещё
-      не знает, и возвращается наверх.
+  У объекта `dog` есть имя — «Шарик». Его можно прочитать из собственного свойства,
+  а метод `speak` получить через прототип. Эти два пути выглядят одинаково через точку,
+  но ищут данные в разных местах:
 
-      ⚠️ Лида у раздела нет намеренно. Здесь стояло «Сначала четыре слова, потом карта слоёв» —
-      фраза, пересказывавшая порядок того, что читатель и так видит ниже: оглавление из двух
-      пунктов над двумя пунктами. Подзаголовки говорят то же самое и стоят на своих местах.
-
-      ⚠️ И не ставьте комментарий между атрибутами `<Section …>`: внутри открывающего тега
-      JSX комментариев не бывает, сборка падает на разборе. Место комментария — здесь, в теле. */}
-  Вся тема разбирает один объект — `dog`. Вот код, который его создаёт:
+<Disclosure title="Полный исходник объекта dog">
 
   <CodeBlock code={SAMPLE_CODE} size={12} />
 
-  <CodeBlock code={DOG_INSPECT} size={12.5} />
+</Disclosure>
 
-  <Md text={DOG_FIELDS_NOTE} />
-
-  <CodeBlock code={HOOK_CODE} size={12.5} />
-
-  <NumberedList items={HOOK_WHY} size={15.5} />
-
-  <Md text={HOOK_NOTE} />
-
-  ### Глоссарий
+  <CodeBlock code={DOG_CORE_CODE} />
 
   <Glossary items={GLOSSARY} min={240} />
 
-  ### Карта темы: четыре слоя
+  ### Связь механизмов объекта
 
   <Md text={LAYERS_LEAD} />
 
   <ObjectLayers layers={LAYERS} />
+
 </Section>
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Модель: объект и его окружение"
-  lead="`new Dog('Шарик')` создаёт обычный объект; класс лишь описывает, что в него положить. В `dog` оказываются три собственных свойства — `name`, `age` и `Symbol(id)`, — внутренние поля, которых из кода не видно (среди них приватное `#age`), и ссылка на прототип `Dog.prototype`. Если ключа нет в самом `dog`, чтение идёт по этой ссылке дальше: в `Dog.prototype`, затем в `Animal.prototype`."
+  lead="Собственное свойство находится в самом объекте. Если нужного ключа там нет, чтение продолжается по ссылке на прототип. Поэтому dog.name и dog.speak доступны через один синтаксис, хотя принадлежат разным объектам."
 >
-  {/* ⚠️ Раздел начинается с исходника, и это главная правка захода.
-      Раньше он открывался схемой готового объекта: читатель видел слот, приватное поле,
-      аксессор и геттер в прототипе — но кода, который всё это создаёт, в теме не было
-      ни строки. Классы приходилось достраивать в голове по обрывкам из схемы и демо.
-      Теперь у каждой строки схемы и каждого ключа обоих демо есть источник, и он перед
-      глазами. */}
+  ### Собственное свойство и метод из прототипа
+
+  В конструкторе `Dog` имя записывается в создаваемый объект обычным присваиванием:
+
+  <CodeBlock code={DOG_OWN_FRAGMENT} />
+
+  Поэтому `Object.hasOwn(dog, 'name')` отвечает `true`. Методы `bark` и `speak` находятся
+  в прототипах: у самого `dog` их нет. При чтении `dog.speak` поиск идёт из `dog`
+  в `Dog.prototype`, а затем в `Animal.prototype`, где и находится метод.
+
   <Plain text={PLAIN_BRACKETS} />
 
-  ### Что происходит при `new Dog('Шарик')`
+  ### Унаследованный геттер: где найдено свойство и чьи данные прочитаны
 
-  {/* ⚠️ Шаги `new` стояли последними в разделе. Вопрос «откуда взялся dog» возникает
-      на первом экране, а ответ приходил через три — теперь он идёт сразу за кодом
-      и читается как «что произошло с этими строками». */}
-  <NewSteps steps={NEW_STEPS} />
+  В `Animal` объявлен геттер `label`:
 
-  <Card tone="err" color="tone" pad="15px 17px" radius={4} gap={12} size={16} lh={1.6}>
-    <Md text={NEW_NOTE} />
-    <CodeBlock code={NEW_NOTE_CODE} size={12.5} />
-  </Card>
+  <CodeBlock code={DOG_GETTER_FRAGMENT} />
+
+  <ConceptDiagram data={GETTER_RECEIVER_DIAGRAM} />
+
+  <Plain text={PLAIN_RECEIVER} />
+
+  ### Приватное поле и публичный аксессор
+
+  В `Dog` число `7` хранится в приватном `#age`. Публичное свойство `age` читает его
+  через функцию-геттер. Это две отдельные записи:
+
+  <CodeBlock code={DOG_PRIVATE_FRAGMENT} />
+
+  `dog.age` вызывает геттер и возвращает `7`. Приватное `#age` не является обычным
+  свойством: его не покажут `Object.keys` или `Reflect.ownKeys`. Символьный ключ `ID`,
+  наоборот, создаёт обычное свойство; просто его ключ — символ, а не строка.
+  Поля класса и приватный доступ подробнее разобраны в разделе [«Классы»](#s4).
 
   ### Что получилось: объект и его окружение
 
@@ -184,11 +184,28 @@ import {
 
   <Card tone="dim" color="tone" title="Два ключа, которых не видно" titleSize={17} pad={20} gap={12} size={16} lh={1.6} text={HIDDEN_KEYS} />
 
+  ### Что происходит при `new Dog('Шарик')`
+
+  <NewSteps steps={NEW_STEPS} />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} gap={12} size={16} lh={1.6}>
+    <Md text={NEW_NOTE} />
+    <CodeBlock code={NEW_NOTE_CODE} size={12.5} />
+  </Card>
+
+<Disclosure title="Что покажут консоль и операции над этим объектом">
+
+  <CodeBlock code={DOG_INSPECT} />
+  <Md text={DOG_FIELDS_NOTE} />
+  <CodeBlock code={HOOK_CODE} />
+  <NumberedList items={HOOK_WHY} />
+  <Md text={HOOK_NOTE} />
+
+</Disclosure>
+
   ### Как читается свойство: `obj.[[Get]]`
 
   Ключ читается не «из объекта», а по цепочке — до первого, кто его знает.
-
-  <Plain text={PLAIN_RECEIVER} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={LOOKUP_DEMO_NOTE} />
@@ -476,26 +493,36 @@ import {
 
   </CardGrid>
 
-  ### Декораторы: функция, которая правит класс при сборке
+  ### Декораторы: изменение элемента при объявлении класса
 
   <Md text={DECORATOR_LEAD} />
 
+  Здесь показан современный вариант декораторов, который TypeScript компилирует при
+  выключенном `experimentalDecorators`. В Node 26.8.2 этот синтаксис напрямую не поддерживается.
+  Компилятор переписывает запись с `@`, а функции-декораторы выполняются позже —
+  при выполнении полученного кода и вычислении объявления класса.
+
+  Старый вариант TypeScript с `experimentalDecorators` получает другие аргументы
+  (`target`, имя, дескриптор). Примеры из Angular, NestJS и старых статей нужно проверять
+  на используемый вариант; они не взаимозаменяемы с кодом ниже.
+
+
   <Plain text={PLAIN_DECORATOR} />
 
-  <CodeBlock code={DECORATOR_CODE} size={12} />
+  <CodeBlock code={DECORATOR_CODE} lang="ts" size={12} />
 
   <Md text={DECORATOR_NOTE} />
 
-  <CodeBlock code={DECORATOR_INIT_CODE} size={12} />
+  <CodeBlock code={DECORATOR_INIT_CODE} lang="ts" size={12} />
 
   <Md text={DECORATOR_INIT_NOTE} />
 
-  <CodeBlock code={DECORATOR_PRIVATE_CODE} size={12} />
+  <CodeBlock code={DECORATOR_PRIVATE_CODE} lang="ts" size={12} />
 
   <Md text={DECORATOR_PRIVATE_NOTE} />
 
   <CardGrid min={280} gap={14} align="start">
-    {DECORATOR_FACTS.map((fact) => (
+    {DECORATOR_FACTS.filter((fact) => fact.k !== 'где это работает сегодня').map((fact) => (
       <Card tone={fact.k === 'где это работает сегодня' ? 'warn' : 'info'} color="tone" label={fact.k} labelTone="tone" labelSize={12.5} pad={16} radius={4} gap={9} size={15} lh={1.6} text={fact.d} />
 
     ))}
@@ -726,8 +753,8 @@ import {
 <Section
   id="s8"
   eyebrow="Раздел 8"
-  title="Итераторы и генераторы"
-  lead="Два интерфейса, которые постоянно путают. Iterable (перебираемый объект) по запросу выдаёт новый итератор. Iterator — сам процесс перебора: он помнит, где остановился. Объект-генератор — итератор, поэтому пройти его можно только один раз."
+  title="Протокол итератора"
+  lead="Iterable — объект с методом Symbol.iterator, который предоставляет итератор. Iterator — объект с методом next: он хранит состояние обхода и возвращает очередное значение вместе с признаком завершения. Генератор тоже предоставляет такой объект, но его паузы и продолжение разобраны отдельно."
 >
   <CardGrid min={280} gap={16} align="start">
     {ITER_TERMS.map((term) => (
@@ -782,23 +809,11 @@ import {
 
   </CardGrid>
 
-  ### Генератор — корутина, а не источник значений
+  Генератор удобно использовать для реализации этого протокола: язык создаёт
+  методы `next`, `return` и `throw` и сохраняет место остановки функции. Как значения
+  передаются в обе стороны через `yield`, разобрано в теме
+  [«Генераторы и асинхронные итераторы», раздел «Пауза генератора»](/js/generators/#s1).
 
-  <Card tone="info" color="tone" pad={16} radius={4} gap={9} size={15.5} lh={1.6} text={COROUTINE_NOTE} />
-
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={GEN_DEMO_NOTE} />
-  </Card>
-
-  <GeneratorMachine client:visible code={GEN_CODE} lineByPhase={GEN_LINES} labels={GEN_LABELS} />
-
-  <CardGrid min={280} gap={14} align="start">
-    {GEN_FACTS.map((fact) => (
-      <Card title={fact.t} titleSize={16.5} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
-
-    ))}
-
-  </CardGrid>
 </Section>
 
 <Section

@@ -7,10 +7,8 @@ import type { EnvRow } from './types';
  * её вычисляют»): величина, которую видно из браузера, обязана спрашиваться у браузера.
  * Всё, что ниже, спрашивается в момент нажатия и печатается как есть.
  *
- * ⚠️ Привычная обёртка `try { new SharedArrayBuffer(1) } catch` **ловит не то**. На этом сайте
- * конструктора нет как имени, и такая проверка поймает `ReferenceError` о несуществующей
- * переменной — ошибку про орфографию, а не про изоляцию. Единственная верная проверка —
- * `typeof SharedArrayBuffer === 'undefined'`.
+ * Возможность конструктора и режим изоляции проверяются отдельно. Общая Wasm-память
+ * может быть доступна даже без глобального конструктора SharedArrayBuffer.
  *
  * ⚠️ Имя ошибки нормативно, текст — нет. `Atomics.wait` на главном потоке обязан дать
  * `TypeError`; дословная фраза V8 — дело сборки, поэтому имя лежит в значении строки,
@@ -25,20 +23,32 @@ interface AtomicsLike {
   wait(view: Int32Array, index: number, value: number, timeout: number): string;
 }
 
-function waitRow(): EnvRow {
-  if (typeof Atomics === 'undefined') {
+export function probeWait(): EnvRow {
+  if (typeof Atomics === 'undefined' || typeof Atomics.wait !== 'function') {
     return {
       key: 'wait',
       label: 'Atomics.wait на главном потоке',
       value: 'спрашивать нечего',
       tone: 'dim',
-      note: 'самого `Atomics` в этой среде нет',
+      note: 'Atomics.wait в этой среде недоступен',
     };
   }
 
-  // Ожидаемое значение намеренно не совпадает с содержимым, а таймаут нулевой: даже там,
-  // где `wait` разрешён, он обязан вернуться немедленно. Демо не имеет права заморозить вкладку.
-  const view = new Int32Array(new ArrayBuffer(8));
+  // Проверка на обычном ArrayBuffer тоже дала бы TypeError, но по другой причине.
+  // Общая Wasm-память может быть доступна даже при скрытом глобальном конструкторе SAB.
+  let buffer: ArrayBufferLike;
+  try {
+    buffer = typeof SharedArrayBuffer === 'function'
+      ? new SharedArrayBuffer(8)
+      : new WebAssembly.Memory({ initial: 1, maximum: 1, shared: true }).buffer;
+  } catch {
+    return {
+      key: 'wait', label: 'Atomics.wait на главном потоке', value: 'не проверено', tone: 'dim',
+      note: 'не удалось создать общую память. Обычный ArrayBuffer не проверяет запрет блокировки агента: он сам недопустим для wait',
+    };
+  }
+  const view = new Int32Array(buffer);
+  // Ожидаемое значение отличается и timeout нулевой: разрешённый wait не блокировался бы.
 
   try {
     const result = (Atomics as unknown as AtomicsLike).wait(view, 0, 1, 0);
@@ -56,7 +66,7 @@ function waitRow(): EnvRow {
       label: 'Atomics.wait на главном потоке',
       value: error?.name ?? 'Error',
       tone: 'ok',
-      note: `так и задумано: заблокированный главный поток не прочитал бы сообщение, которое его разбудит. Имя ошибки нормативно, текст — нет: «${error?.message ?? ''}»`,
+      note: `проверка использует настоящую общую память. Главный поток документа не допускает блокирующий wait; timeout=0 этот запрет не отменяет. Имя ошибки нормативно, текст — нет: «${error?.message ?? ''}»`,
     };
   }
 }
@@ -71,7 +81,7 @@ export function probeEnvironment(): EnvRow[] {
     label: 'navigator.hardwareConcurrency',
     value: typeof cores === 'number' ? String(cores) : 'нет такого свойства',
     tone: typeof cores === 'number' ? 'ok' : 'dim',
-    note: 'Это **не «сколько у вас ядер»**, а верхняя оценка параллелизма: сколько воркеров имеет смысл заводить. Ядра бывают разной скорости, рядом живут другие вкладки, а браузер вправе округлить это число или занизить его ради приватности.',
+    note: 'Это **не «сколько у вас ядер»**, а подсказка о доступном параллелизме, а не готовый размер пула воркеров. Ядра бывают разной скорости, рядом живут другие вкладки, а браузер вправе округлить это число или занизить его ради приватности.',
   });
 
   const workers = typeof Worker !== 'undefined';
@@ -81,7 +91,7 @@ export function probeEnvironment(): EnvRow[] {
     value: workers ? "'function'" : "'undefined'",
     tone: workers ? 'ok' : 'err',
     note: workers
-      ? 'второй поток странице доступен — замер слева поднимает настоящий `Worker`, а не таймер'
+      ? 'второй поток странице доступен — прибор поднимает настоящий `Worker`, а не таймер'
       : 'второго потока здесь взять неоткуда',
   });
 
@@ -92,8 +102,8 @@ export function probeEnvironment(): EnvRow[] {
     value: String(isolated),
     tone: isolated ? 'ok' : 'warn',
     note: isolated
-      ? 'документ изолирован: общая память и точные часы доступны'
-      : 'сайт статический, заголовков `COOP`/`COEP` у него нет — и это видно отсюда, а не из документации: без изоляции браузер грубит часы и прячет общую память',
+      ? 'контекст изолирован: это условие доступа к общей памяти и более точным часам, но поддержку конкретного API проверяют отдельно'
+      : 'контекст не изолирован. По этому значению нельзя определить, какой именно заголовок или политика препятствует изоляции; наличие нужного API проверяется отдельно',
   });
 
   const shared = typeof SharedArrayBuffer;
@@ -114,10 +124,10 @@ export function probeEnvironment(): EnvRow[] {
     label: 'typeof Atomics',
     value: `'${atomics}'`,
     tone: atomics === 'object' ? 'ok' : 'dim',
-    note: 'объект на месте, хотя разделяемого буфера нет: прячут не `Atomics`, а память, на которую он смотрит',
+    note: 'наличие Atomics не доказывает доступность SharedArrayBuffer: это отдельные возможности. Некоторые операции Atomics принимают и обычные typed arrays',
   });
 
-  rows.push(waitRow());
+  rows.push(probeWait());
 
   return rows;
 }

@@ -62,6 +62,37 @@ describe('сценарии демо: учебные классы против н
     expect(() => new (AbortSignal as unknown as new () => unknown)()).toThrow(TypeError);
   });
 
+  it('MINI_CODE: повторное onabort после null не создаёт два вызова', () => {
+    for (const impl of [loadMini(t.MINI_CODE), nativeImpl()] as { AbortController: typeof AbortController; AbortSignal: typeof AbortSignal }[]) {
+      const ac = new impl.AbortController();
+      const out: string[] = [];
+      ac.signal.onabort = () => out.push('старый');
+      ac.signal.onabort = null;
+      ac.signal.onabort = () => out.push('новый');
+      ac.abort();
+      expect(out).toEqual(['новый']);
+    }
+    const mini = loadMini(t.MINI_CODE) as { AbortController: typeof AbortController };
+    const ac = new mini.AbortController();
+    ac.signal.onabort = () => {};
+    expect(getEventListeners(ac.signal, 'abort')).toHaveLength(1);
+    ac.signal.onabort = null;
+    expect(getEventListeners(ac.signal, 'abort')).toHaveLength(0); // деактивация по HTML
+  });
+
+  it('MINI_CODE: any принимает одноразовый iterable, читая его один раз', () => {
+    for (const impl of [loadMini(t.MINI_CODE), nativeImpl()] as { AbortController: typeof AbortController; AbortSignal: typeof AbortSignal }[]) {
+      const ac = new impl.AbortController();
+      let reads = 0;
+      function* signals() { reads++; yield ac.signal; }
+      const dependent = impl.AbortSignal.any(signals() as unknown as AbortSignal[]);
+      ac.abort('стоп');
+      expect(reads).toBe(1);
+      expect(dependent.aborted).toBe(true);
+      expect(dependent.reason).toBe('стоп');
+    }
+  });
+
   it('MINI_DIFF: isTrusted у учебного события false, у настоящего true; причина — не DOMException', () => {
     const mini = loadMini(t.MINI_CODE) as { AbortController: typeof AbortController };
     const flags: boolean[] = [];
@@ -87,25 +118,57 @@ describe('сценарии демо: учебные классы против н
 });
 
 describe('раздел «Контроллер и сигнал»', () => {
-  it('у сигнала нет abort; PAIR_CODE отменяет прошлый запрос', async () => {
-    expect('abort' in new AbortController().signal).toBe(false);
+  const attach = (fetchImpl: unknown) => new Function('fetch', `${t.PAIR_CODE}\nreturn attachSearch;`)(fetchImpl) as (
+    input: EventTarget & { value: string }, show: (value: unknown) => void, report: (error: unknown) => void,
+  ) => () => void;
 
-    const input = Object.assign(new EventTarget(), { value: '' });
-    const events: string[] = [];
-    const fetchStub = (url: string, { signal }: { signal: AbortSignal }) =>
-      new Promise((ok, fail) => {
-        const t2 = setTimeout(() => ok(url), 20);
-        signal.addEventListener('abort', () => {
-          clearTimeout(t2);
-          fail(signal.reason);
-        });
-      });
-    const show = (v: string) => events.push('показан ' + v);
-    const ignoreAbort = (e: Error) => events.push('отменён: ' + e.name);
-    const code = `${t.PAIR_CODE}\ninput.value = 'ка'; input.dispatchEvent(new Event('input'));\ninput.value = 'кот'; input.dispatchEvent(new Event('input'));`;
-    await new AsyncFunction('input', 'fetch', 'show', 'ignoreAbort', code)(input, fetchStub, show, ignoreAbort);
-    await sleep(40);
-    expect(events).toEqual(['отменён: AbortError', 'показан /api/search?q=кот']);
+  it('PAIR_CODE: отменяет прошлый запрос, кодирует строку и снимает input при закрытии', async () => {
+    expect('abort' in new AbortController().signal).toBe(false);
+    const input = Object.assign(new EventTarget(), { value: 'ка' });
+    const calls: { url: string; signal: AbortSignal; resolve: (response: unknown) => void }[] = [];
+    const fetchImpl = (url: string, { signal }: { signal: AbortSignal }) => new Promise((resolve, reject) => {
+      calls.push({ url, signal, resolve });
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+    const shown: unknown[] = [], errors: unknown[] = [];
+    const close = attach(fetchImpl)(input, (x) => shown.push(x), (e) => errors.push(e));
+    input.dispatchEvent(new Event('input'));
+    input.value = 'кот + ёж';
+    input.dispatchEvent(new Event('input'));
+    expect(calls[0].signal.aborted).toBe(true);
+    expect(calls[1].url).toBe('/api/search?q=' + encodeURIComponent(input.value));
+    calls[1].resolve({ ok: true, json: async () => ['найдено'] });
+    await sleep(0);
+    expect(shown).toEqual([['найдено']]);
+    expect(errors).toEqual([]);
+    close();
+    expect(getEventListeners(input, 'input')).toHaveLength(0);
+  });
+
+  it('PAIR_CODE: готовый результат старой задачи не применяется после отмены', async () => {
+    const input = Object.assign(new EventTarget(), { value: 'старый' });
+    const shown: unknown[] = [];
+    // Эта операция намеренно игнорирует signal: защиту применения должен выполнить пример.
+    const fetchImpl = async (url: string) => ({ ok: true, json: async () => url });
+    const close = attach(fetchImpl)(input, (x) => shown.push(x), (e) => { throw e; });
+    input.dispatchEvent(new Event('input'));
+    await Promise.resolve(); // первый fetch уже дал Response, чтение json ещё продолжается
+    input.value = 'новый';
+    input.dispatchEvent(new Event('input'));
+    await sleep(0);
+    expect(shown).toEqual(['/api/search?q=' + encodeURIComponent('новый')]);
+    close();
+  });
+
+  it('PAIR_CODE: HTTP-ошибка активной задачи попадает в report', async () => {
+    const input = Object.assign(new EventTarget(), { value: 'кот' });
+    const errors: unknown[] = [];
+    const close = attach(async () => ({ ok: false, status: 503 }))(input, () => {}, (e) => errors.push(e));
+    input.dispatchEvent(new Event('input'));
+    await sleep(0);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ message: 'HTTP 503' });
+    close();
   });
 
   it('ORDER_FACTS: ошибка слушателя в Node — после возврата abort(), uncaughtException роняет процесс', () => {
@@ -231,6 +294,34 @@ describe('раздел «timeout и any»', () => {
     ac.abort();
     expect(((await p) as Error).name).toBe('AbortError');
     expect(await (await load()(base + '/fast', { ms: 1000 })).text()).toBe('быстро');
+  });
+
+  it('COMBINE_CODE: первая причина остаётся таймаутом, даже если второй сигнал тоже успел отмениться', async () => {
+    const timeout = new AbortController(), user = new AbortController();
+    const reason = new DOMException('дедлайн', 'TimeoutError');
+    const fetchImpl = (_url: string, { signal }: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => {
+        reject(signal.reason);
+        user.abort(new Error('позже')); // до микрозадачи catch оба флага станут true
+      }, { once: true });
+    });
+    const load = new Function('fetch', 'AbortSignal', `${t.COMBINE_CODE}\nreturn load;`)(fetchImpl, {
+      timeout: () => timeout.signal, any: AbortSignal.any,
+    });
+    const pending = load('/test', { signal: user.signal, ms: 50 });
+    timeout.abort(reason);
+    await expect(pending).rejects.toMatchObject({ message: 'сервер не ответил за 50 мс', cause: reason });
+  });
+
+  it('COMBINE_CODE: поздняя отмена не маскирует независимую ошибку сети', async () => {
+    const timeout = new AbortController();
+    const network = new TypeError('сеть');
+    const load = new Function('fetch', 'AbortSignal', `${t.COMBINE_CODE}\nreturn load;`)(() => Promise.reject(network), {
+      timeout: () => timeout.signal, any: AbortSignal.any,
+    });
+    const pending = load('/test');
+    timeout.abort(new DOMException('дедлайн', 'TimeoutError'));
+    await expect(pending).rejects.toBe(network);
   });
 
   it('COMBINE_FACTS: таймер timeout() в Node не держит процесс — ES-модуль выходит с кодом 13', () => {
@@ -412,4 +503,42 @@ describe('раздел «Гонка»', () => {
     await sleep(30);
     expect(out).toEqual(t.SHARED_LOG);
   });
+  const sharedFactory = () => new Function(`${t.SHARED_CODE}\nreturn shareable;`)() as (
+    load: (signal: AbortSignal) => Promise<string>,
+  ) => (signal: AbortSignal) => Promise<string>;
+
+  it('SHARED_CODE: новый потребитель после ухода последнего сразу получает новый запрос', async () => {
+    const jobs: { signal: AbortSignal; resolve: (value: string) => void }[] = [];
+    const get = sharedFactory()((signal) => new Promise<string>((resolve, reject) => {
+      jobs.push({ signal, resolve });
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }));
+    const a = new AbortController(), b = new AbortController();
+    const old = get(a.signal).catch((e) => e);
+    a.abort();
+    const fresh = get(b.signal); // до микрозадач отказа и очистки старого запроса
+    expect(jobs).toHaveLength(2);
+    expect(jobs[0].signal.aborted).toBe(true);
+    expect(jobs[1].signal.aborted).toBe(false);
+    jobs[1].resolve('новый');
+    expect((await old).name).toBe('AbortError');
+    await expect(fresh).resolves.toBe('новый');
+    expect(getEventListeners(a.signal, 'abort')).toHaveLength(0);
+    expect(getEventListeners(b.signal, 'abort')).toHaveLength(0);
+    expect(jobs[1].signal.aborted).toBe(false); // нормальное завершение не вызывает лишний abort
+  });
+
+  it('SHARED_CODE: синхронная отмена потребителя внутри load не теряется', async () => {
+    const user = new AbortController();
+    let internal!: AbortSignal;
+    const get = sharedFactory()((signal) => {
+      internal = signal;
+      user.abort();
+      return Promise.resolve('уже не нужен');
+    });
+    await expect(get(user.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(internal.aborted).toBe(true);
+    expect(getEventListeners(user.signal, 'abort')).toHaveLength(0);
+  });
+
 });

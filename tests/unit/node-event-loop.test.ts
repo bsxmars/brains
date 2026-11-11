@@ -81,6 +81,10 @@ describe('LOOP_CODE: модель против самой себя и данны
 });
 
 describe('LOOP_CODE против настоящего Node', () => {
+  it('первый CommonJS-пример сохраняет checkpoint и порядок после I/O', () => {
+    expect(node('first-io', t.FIRST_IO_CODE)).toEqual(t.FIRST_IO_OUT);
+    expect(t.FIRST_IO_OUT.indexOf('late-tick')).toBeGreaterThan(t.FIRST_IO_OUT.indexOf('micro2'));
+  });
   for (const s of t.LOOP_SCENARIOS) {
     it(`${s.id}: каждый запуск Node — один из порядков модели`, () => {
       const allowed = allowedOrders(runLoop, s.code);

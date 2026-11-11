@@ -59,10 +59,14 @@ describe('стенд: версии Node, на которых снята тема
 
 describe('примеры кода исполняются, как напечатаны', () => {
   const blocks = {
+    INTRO_CODE: t.INTRO_CODE,
+    SEGMENT_CODE: t.SEGMENT_CODE,
     UNITS_CODE: t.UNITS_CODE,
     BROKEN_CODE: t.BROKEN_CODE,
     TRUNCATE_CODE: t.TRUNCATE_CODE,
     NORMALIZE_CODE: t.NORMALIZE_CODE,
+    NORMALIZATION_FORMS_CODE: t.NORMALIZATION_FORMS_CODE,
+    COLLATION_EXAMPLES_CODE: t.COLLATION_EXAMPLES_CODE,
     CASE_CODE: t.CASE_CODE,
     CASELESS_CODE: t.CASELESS_CODE,
     LEVELS_CODE: t.LEVELS_CODE,
@@ -110,11 +114,8 @@ describe('таблицы темы пересчитываются', () => {
   });
 
   it('SORT_ROWS — три способа сортировки из SORT_CODE', () => {
-    const cols = [
-      [...t.SORT_FILES].sort(),
-      [...t.SORT_FILES].sort(new Intl.Collator('ru').compare),
-      [...t.SORT_FILES].sort(new Intl.Collator('ru', { numeric: true }).compare),
-    ];
+    // Исполняется напечатанный SORT_CODE целиком: он обязан сам объявлять files.
+    const cols = new Function(`${t.SORT_CODE}\nreturn [unitOrder, russianOrder, numericOrder];`)() as string[][];
     const rows = t.SORT_FILES.map((_, i) => cols.map((c) => `\`${c[i]}\``));
     expect(rows).toEqual(t.SORT_ROWS);
   });
@@ -287,6 +288,18 @@ describe('GRAPHEME_CODE против Intl.Segmenter', () => {
     expect(bad).toEqual([]);
   }, 120_000);
 
+  it('GB11: лишний ZWJ сбрасывает левый контекст эмодзи', () => {
+    const cases = [
+      ['😀\u200d\u200d😀', ['😀\u200d\u200d', '😀']],
+      ['😀\u200d\u0301\u200d😀', ['😀\u200d\u0301\u200d', '😀']],
+      ['😀\u0301\u200d😀', ['😀\u0301\u200d😀']],
+    ] as const;
+    for (const [input, want] of cases) {
+      expect(icu(input), input).toEqual(want);
+      expect(g.splitGraphemes(input), input).toEqual(want);
+    }
+  });
+
   it('одинокий суррогат ICU склеивает с Extend, как обычный знак — модель так же', () => {
     expect(icu('\uD83D\u0306')).toHaveLength(1);
     expect(g.splitGraphemes('\uD83D\u0306')).toHaveLength(1);
@@ -368,8 +381,9 @@ describe('утверждения из текста', () => {
     expect('İ'.toLowerCase()).toHaveLength(2);
   });
 
-  it('CASELESS_NOTE: NFKC + toLowerCase', () => {
+  it('CASELESS_NOTE: NFKC + lower не является универсальным сравнением', () => {
     expect('ＡＢＣ'.normalize('NFKC').toLowerCase()).toBe('abc');
+    expect('ß'.normalize('NFKC').toLowerCase()).not.toBe('ss');
   });
 
   it('SORT_NOTE: номера Ё, А, ё, я', () => {

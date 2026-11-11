@@ -20,6 +20,8 @@ import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -59,6 +61,8 @@ import {
   WAIT_CODE,
   WAIT_OUT,
   WAIT_NOTE,
+  WAIT_LOOP_CODE,
+  WAIT_DIAGRAM,
   WAIT_STEPS,
   PLAIN_WAIT,
   CANBLOCK_NOTE,
@@ -78,10 +82,10 @@ import {
 <Section variant="intro" eyebrow="Одна память на всех" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Общая память даёт потокам доступ к одним данным без пересылки. Но обычные операции
-    с ней не обещают ни целостности, ни порядка. `Atomics` обещают и то и другое. Ошибки
-    без них редкие — порядка раза на миллион обменов — и чаще видны у пользователя, чем на машине
-    разработчика.
+    Общая память позволяет нескольким потокам обращаться к одним байтам. Но выражение
+    `counter[0]++` остаётся чтением, вычислением и записью: два потока могут потерять прибавку.
+    `Atomics.add` выполняет это изменение неделимо. Для публикации целой пачки данных
+    и ожидания результата нужны отдельные правила.
 
   </Callout>
 
@@ -94,11 +98,11 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Общий буфер: одна память на несколько потоков"
-  lead="Копия и перенос пересылают данные из одной памяти в другую. `SharedArrayBuffer` устроен иначе: это один участок памяти, который несколько потоков видят одновременно."
+  lead="Клонирование создаёт отдельные данные, а перенос передаёт владение буфером получателю. `SharedArrayBuffer` устроен иначе: это один участок памяти, который несколько потоков видят одновременно."
 >
   <CodeBlock code={SHARED_CODE} />
 
-  <CodeBlock code={SHARED_OUT} tone="ok" />
+  <CodeBlock lang="text" code={SHARED_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={SHARED_NOTE} />
@@ -123,7 +127,8 @@ import {
 
   <CodeBlock code={RACE_WORKER_CODE} />
 
-  <CodeBlock code={RACE_OUT} tone="ok" />
+  <Md text="Записанный результат одного запуска; при гонке число меняется от прогона к прогону." />
+  <CodeBlock lang="text" code={RACE_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={RACE_NOTE} />
@@ -136,7 +141,7 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Какие бывают атомарные операции"
-  lead="Каждая операция `Atomics` берёт типизированный массив и номер ячейки. Почти все возвращают значение, которое было в ячейке **до** операции, — на этом строится всё остальное."
+  lead="Каждая операция `Atomics` берёт типизированный массив и номер ячейки. Операции изменения вроде add и compareExchange возвращают старое значение. У load, store и ожидания другие результаты — их нужно различать."
 >
   <Table
     head={['операция', 'что возвращает']}
@@ -179,32 +184,43 @@ import {
     <Md text={PUBLISH_NOTE} />
   </Card>
 
+  <Disclosure title="Проверка порядка на ARM: полный код и записанные результаты">
   ### Флажок обгоняет данные: замер
 
   <CodeBlock code={LITMUS_MAIN_CODE} />
 
   <CodeBlock code={LITMUS_WORKER_CODE} />
 
-  <CodeBlock code={LITMUS_OUT} tone="ok" />
+  <CodeBlock lang="text" code={LITMUS_OUT} tone="ok" />
 
   <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={ARM_NOTE} />
   </Card>
+  </Disclosure>
+
 </Section>
 
 <Section
   id="s5"
   eyebrow="Раздел 5"
   title="Ждать и будить: wait, notify, waitAsync"
-  lead="Ждать флажка можно в цикле, но тогда поток занимает ядро и ничего не делает. `Atomics.wait` усыпляет поток, пока в ячейке не изменится значение, а `Atomics.notify` его будит."
+  lead="Ждать флажка можно в цикле, но тогда поток занимает ядро и ничего не делает. `Atomics.wait` проверяет ожидаемое значение и при совпадении блокирует поток до notify или таймаута. Само изменение ячейки ожидающих не будит, а пробуждение не доказывает, что условие уже выполнено."
 >
   <CodeBlock code={WAIT_CODE} />
 
-  <CodeBlock code={WAIT_OUT.join('\n')} tone="ok" />
+  <CodeBlock lang="text" code={WAIT_OUT.join('\n')} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={WAIT_NOTE} />
   </Card>
+
+  ### После пробуждения условие проверяется снова
+
+  `notify` — уведомление, а не изменение флажка. Результат `ok` означает, что ожидание
+  разблокировано. Для решения «данные готовы?» всё равно нужен `Atomics.load`.
+
+  <CodeBlock code={WAIT_LOOP_CODE} />
+  <ConceptDiagram data={WAIT_DIAGRAM} />
 
   ### Один флажок, три способа ждать
 
@@ -241,11 +257,15 @@ import {
 >
   <CodeBlock code={MUTEX_CODE} />
 
+  <Disclosure title="Полный пример: четыре воркера меняют два поля под замком">
   <CodeBlock code={MUTEX_WORKER_CODE} />
 
   <CodeBlock code={MUTEX_MAIN_CODE} />
 
-  <CodeBlock code={MUTEX_OUT} tone="ok" />
+  </Disclosure>
+
+  <Md text="Пример записанного вывода. Для случая без замка это не предсказание следующего запуска." />
+  <CodeBlock lang="text" code={MUTEX_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={MUTEX_NOTE} />

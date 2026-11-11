@@ -193,6 +193,18 @@ test.describe('копировать по кнопке', () => {
     });
   });
 
+  test('LATE_CODE: отказ сервера не выдаётся за успешное копирование', async ({ browser }) => {
+    const s = await stand(browser, html(COPY_MARKUP, `const copy = document.querySelector('#copy');\n${LATE_CODE}`), {
+      perms: ['clipboard-write'],
+    });
+    await s.page.route(`${ORIGIN}/api/invite`, (route) => route.fulfill({ status: 500, body: 'Ошибка сервера' }));
+    await s.page.click('#copy');
+    await expect(s.page.locator('#copy')).toHaveText('Не удалось скопировать');
+    // Ошибка промиса из ClipboardItem должна попасть в catch, а не стать unhandled rejection.
+    expect(s.logs.some((line) => line.startsWith('pageerror:'))).toBe(false);
+    await s.context.close();
+  });
+
   test('LATE_CODE: ClipboardItem с промисом дожидается ответа дольше жизни жеста', async ({ browser }) => {
     const invite = 'https://clipboard-dnd.test/invite/7f3a';
     const s = await stand(browser, html(COPY_MARKUP, `const copy = document.querySelector('#copy');\n${LATE_CODE}`), {
@@ -201,6 +213,7 @@ test.describe('копировать по кнопке', () => {
     });
     await s.page.click('#copy');
     await s.page.waitForTimeout(7200);
+    await expect(s.page.locator('#copy')).toHaveText('Скопировано');
     await s.context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: ORIGIN });
     expect(await s.page.evaluate(() => navigator.clipboard.readText())).toBe(invite);
     await s.context.close();
@@ -428,6 +441,22 @@ test.describe('перетаскивание', () => {
     expect(s.logs).toEqual(DRAG_OUT);
     expect(await s.page.locator('#paid #card-42').count()).toBe(1);
     expect(MODES_ROWS[1].what).toContain('пустая строка');
+    await s.context.close();
+  });
+
+  test('DRAG_CODE игнорирует посторонний идентификатор из переноса', async ({ browser }) => {
+    const s = await stand(browser, html(`${DRAG_MARKUP}<div id="other">Посторонний</div>`, DRAG_CODE));
+    // Здесь проверяется валидация входа, а не защищённый режим: синтетический drop уместен.
+    await s.page.evaluate(() => {
+      for (const id of ['other', 'missing', '']) {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.setData('text/plain', id);
+        document.querySelector('#paid')!.dispatchEvent(new DragEvent('drop', { dataTransfer, cancelable: true }));
+      }
+    });
+    await expect(s.page.locator('#paid')).toHaveText('Оплаченные');
+    await expect(s.page.locator('#other')).toHaveText('Посторонний');
+    expect(s.logs).toEqual([]);
     await s.context.close();
   });
 

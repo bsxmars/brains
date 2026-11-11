@@ -321,6 +321,22 @@ describe('OpenTelemetry и Vue', () => {
 });
 
 describe('утверждения текста', () => {
+  it('snapshot сохраняет ссылку на store, а не копию его полей', () => {
+    const als = new AsyncLocalStorage<{ id: string }>();
+    const store = { id: 'before' };
+    const read = als.run(store, () => AsyncLocalStorage.snapshot());
+    store.id = 'after';
+    expect(read(() => als.getStore())).toBe(store);
+    expect(read(() => als.getStore()?.id)).toBe('after');
+    expect(t.GLOSSARY.find((term) => term.k === 'снимок (snapshot)')?.d).toContain('не копируются глубоко');
+  });
+
+  it('withScope до await влияет на вызывающего, а run восстанавливает внешнюю границу', () => {
+    // Код с using из темы исполняется целиком в отдельном официальном Node.
+    const output = execFileSync(process.execPath, ['--input-type=module', '-e', t.WITH_SCOPE_CODE], { encoding: 'utf8' });
+    expect(output.trim().split('\n')).toEqual(["[ 'inner', 'inner' ]", 'undefined']);
+    expect(t.ENTER_WITH_NOTE).toContain('Для асинхронной работы предпочитайте run');
+  });
   it('в Node нет глобального AsyncContext', () => {
     expect(typeof (globalThis as { AsyncContext?: unknown }).AsyncContext).toBe('undefined');
   });

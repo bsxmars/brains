@@ -46,7 +46,7 @@ const errTone = computed(() => (report.value.err95 > 0.5 ? 'err' : report.value.
   <DemoFrame>
     <template #toolbar>
       <div class="pi-bar">
-        <span class="pi-bar__label">интервал выборки:</span>
+        <span class="pi-bar__label">Учебный расчёт · интервал:</span>
         <SegmentedControl v-model="intervalPick" class="l-pills" label="Интервал выборки" :options="options" />
       </div>
     </template>
@@ -97,8 +97,8 @@ const errTone = computed(() => (report.value.err95 > 0.5 ? 'err' : report.value.
           <dd>{{ fmtCount(report.fnSamples) }}</dd>
         </div>
         <div class="pi-cell" :data-tone="errTone">
-          <dt>погрешность её байт, 95%</dt>
-          <dd>±{{ fmtPct(Math.min(report.err95, 9.99)) }}</dd>
+          <dt>примерный интервал оценки, 95%</dt>
+          <dd>±{{ fmtPct(report.err95) }}</dd>
         </div>
         <div class="pi-cell">
           <dt>объект попадёт в выборку</dt>
@@ -106,13 +106,13 @@ const errTone = computed(() => (report.value.err95 > 0.5 ? 'err' : report.value.
         </div>
         <div class="pi-cell">
           <dt>самая малая доля с точностью ±20%</dt>
-          <dd>{{ fmtPct(report.minShare) }}</dd>
+          <dd>{{ report.minShare > 1 ? 'недостижима в этом окне' : fmtPct(report.minShare) }}</dd>
         </div>
       </dl>
 
       <Md
         class="pi-formula"
-        :text="`Формулы: сэмплов в секунду = скорость / интервал; погрешность = 1.96 / √n; объект размера s попадает в выборку с вероятностью 1 − e^(−s/интервал); для ±20% нужно n ≥ ${SAMPLES_FOR_20PCT}.`"
+        :text="`Модель мелких выделений: сэмплов в секунду ≈ скорость / интервал; погрешность = 1.96 / √n; объект размера s попадает в выборку с вероятностью 1 − e^(−s/интервал); для ±20% нужно n ≥ ${SAMPLES_FOR_20PCT}.`"
       />
     </div>
 

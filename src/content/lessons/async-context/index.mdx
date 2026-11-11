@@ -22,6 +22,8 @@ import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -50,6 +52,8 @@ import {
   PLAIN_SNAPSHOT,
   CAPTURE_CODE,
   CAPTURE_SEEN,
+  CAPTURE_DIAGRAM,
+  WITH_SCOPE_CODE,
   CAPTURE_ROWS,
   CAPTURE_NOTE,
   EMITTER_NOTE,
@@ -88,16 +92,16 @@ import {
 <Section variant="intro" eyebrow="Чей это запрос" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Колбэк не помнит, кто его поставил: когда он выполняется, кода, который его поставил, на стеке давно нет.
-    Асинхронный контекст — это значение, которое **запоминается в момент, когда колбэк
-    отдали**, и возвращается на время его вызова. Тогда `await`, таймер и `then` видят
-    тот же id запроса, что и код, который их запустил.
+    Глобальная переменная хранит одно текущее значение на всех. Асинхронный контекст позволяет
+    каждой цепочке работы видеть своё значение, даже когда запросы выполняются вперемежку.
+    В Node `AsyncLocalStorage` сохраняет его для продолжений `await`, обработчиков `then`
+    и таймеров. Произвольный синхронный вызов колбэка сам этого не делает.
 
   </Callout>
 
   Сервер обрабатывает много запросов сразу, и у каждого свой id — для логов, трассировки,
   прав доступа. Протаскивать его параметром через контроллер, сервис, репозиторий и логгер
-  можно, но так его забудут передать в первом же новом слое. Хочется прочитать «текущий
+  можно. Но каждый промежуточный слой тогда тоже должен принимать и передавать этот параметр. Хочется прочитать «текущий
   запрос» откуда угодно, как глобальную переменную. Только обычная глобальная переменная
   для этого не годится, и причина — в `await`.
 
@@ -110,7 +114,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Один id на весь процесс"
-  lead="Сервер на `node:http`, который пишет id запроса в каждую строку лога. Корзина отвечает за 60 мс, профиль — за 10. Клиент просит корзину, а через 20 мс — профиль."
+  lead="Сервер на `node:http`, который пишет id запроса в каждую строку лога. В примере корзина ждёт таймер на 60 мс, профиль — на 10 мс. Клиент запрашивает корзину, а через таймер на 20 мс — профиль. Это заданные задержки сценария, а не гарантированное время ответа сети."
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сервер: id в переменной модуля" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -123,7 +127,7 @@ import {
   </CardGrid>
 
   <Card tone="err" title="Что напечатал сервер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock lang="text" code={SERVER_GLOBAL_LOG} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" tone="ok" code={SERVER_GLOBAL_LOG} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   Последняя строка — про корзину, но с id профиля. Запрос `r-1` в логах закончился
@@ -149,11 +153,11 @@ import {
     </Card>
 
     <Card tone="ok" title="Тот же клиент — другой лог" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="text" code={SERVER_ALS_LOG} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" tone="ok" code={SERVER_ALS_LOG} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
-  Изменились две строки: `log` читает `als.getStore()` вместо переменной, а обработчик
+  Главные изменения: `log` читает `als.getStore()` вместо переменной, а обработчик
   выполняется внутри `als.run(id, …)`. Функции между ними — `db`, сам `log`, всё, что
   ещё появится, — об id ничего не знают и параметра не получают.
 </Section>
@@ -172,6 +176,7 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Почему enterWith меняет контекст соседнего кода">
   ### Почему enterWith протекает
 
   <CardGrid min={300} gap={16} align="start">
@@ -193,6 +198,9 @@ import {
   </CardGrid>
 
   <Md text={ENTER_WITH_NOTE} />
+
+  <CodeBlock code={WITH_SCOPE_CODE} />
+  </Disclosure>
 </Section>
 
 <Section
@@ -206,6 +214,8 @@ import {
   <Card title="Создан, подписан, разрешён" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CAPTURE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  <ConceptDiagram data={CAPTURE_DIAGRAM} />
 
   <Table
     head={['колбэк', 'увидел', 'снимок взят при', 'почему']}
@@ -237,6 +247,7 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Сравнение реализаций: считаем вызовы хука, а не время">
   ### Цена старой реализации
 
   <Card title="Посчитать вызовы хука" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
@@ -252,14 +263,16 @@ import {
   />
 
   <Md text={COST_NOTE} />
+  </Disclosure>
 </Section>
 
 <Section
   id="s5"
   eyebrow="Раздел 5"
   title="Своя переменная контекста"
-  lead="Механизм можно повторить на чистом JavaScript: хранить текущие значения в одной переменной модуля, при регистрации колбэка запоминать их, при вызове — ставить обратно. Остаётся перехватить все места, где колбэки отдают. Так работал zone.js, и так же он упирается в `await`."
+  lead="Часть механизма можно показать на чистом JavaScript: хранить текущие значения в одной переменной модуля, при регистрации колбэка запоминать их, при вызове — ставить обратно. Такая обёртка работает только для тех API, регистрацию которых она перехватывает. Так работал zone.js, и так же он упирается в `await`."
 >
+  <Disclosure title="Полный исходник модели и адаптеры трёх реализаций">
   <Card title="Учебная переменная контекста" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MINI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
@@ -295,6 +308,8 @@ import {
     </Card>
   </CardGrid>
 
+  </Disclosure>
+
   <ContextLab
     client:visible
     scenarios={SCENARIOS}
@@ -316,7 +331,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Браузер и AsyncContext"
-  lead="В браузере асинхронного контекста нет ни в одном движке. Предложение `AsyncContext` переносит модель `AsyncLocalStorage` в сам язык, но оно ещё черновик. Пока что фреймворки обходятся кто подменой, кто компилятором, кто никак."
+  lead="В браузерах описанного стенда нет стандартного глобального AsyncContext. Предложение `AsyncContext` переносит модель `AsyncLocalStorage` в сам язык, но оно ещё черновик. Фреймворки сохраняют нужный им контекст собственными средствами; это не универсальное хранилище для любого кода страницы."
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="AsyncContext — как в предложении" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -350,6 +365,7 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Как контекст сохраняют фреймворки и OpenTelemetry">
   ### Как обходятся фреймворки
 
   <Table
@@ -384,14 +400,17 @@ import {
   </Card>
 
   <Md text={OTEL_NOTE} />
+  </Disclosure>
+
 
   <DarkPanel eyebrow="Что из этого следует">
     <DarkText size={18} lh={1.55} tone="prose">
 
-      **Контекст запоминается тогда, когда колбэк отдают, и только тем, кто его принимает.**
-      Промисы и таймеры в Node делают это сами, `EventEmitter` и чужие очереди — нет, и там
-      колбэк оборачивают вручную. В браузере этого не делает никто: пока `AsyncContext`
-      не в движках, значение после `await` нужно передавать явно.
+      **Контекст переносит конкретный механизм выполнения.** В Node продолжения промисов
+      и таймеры сохраняют его сами. Обычный `EventEmitter` вызывает слушателей в контексте
+      `emit`; для сохранения контекста подписки нужна обёртка `bind` или `snapshot`.
+      В браузерном коде учитывайте границы поддержки используемого фреймворка или передавайте
+      значение явно.
 
     </DarkText>
   </DarkPanel>

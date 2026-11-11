@@ -42,7 +42,7 @@ function subscribe() {
   });
 
   hint.value = wasPending
-    ? `.then(${label}) на pending — запись в список. Потрачено тиков: 0`
+    ? `.then(${label}) на pending — запись в список. Новых микрозадач пока нет`
     : `.then(${label}) на settled — колбэк сразу в очередь, это будет +1 тик`;
   sync();
 }
@@ -59,7 +59,7 @@ function resolve() {
 function step() {
   const done = runtime.value.step();
   if (!done) {
-    hint.value = 'Очередь пуста — тратить нечего.';
+    hint.value = 'Очередь пуста — выполнять нечего.';
     return;
   }
   spent.value += 1;
@@ -82,12 +82,13 @@ sync();
 
 <template>
   <div class="frame">
+    <div class="pl-model-note">Учебная схема реакций одного промиса. Новые промисы цепочки и расход памяти здесь не показаны.</div>
     <div class="toolbar">
       <Button variant="secondary" @click="subscribe">.then(r{{ subscriptions + 1 }})</Button>
       <Button variant="secondary" :disabled="state === 'fulfilled'" @click="resolve">resolve()</Button>
       <Button variant="primary" :disabled="queue.length === 0" @click="step">шаг очереди →</Button>
       <Button variant="secondary" @click="reset">сброс</Button>
-      <span class="spent">потрачено тиков: {{ spent }}</span>
+      <span class="spent">выполнено микрозадач: {{ spent }}</span>
     </div>
 
     <div class="split">
@@ -134,6 +135,13 @@ sync();
 </template>
 
 <style scoped>
+.pl-model-note {
+  padding: 14px 18px;
+  font-size: var(--fs-4);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
 .frame {
   background: var(--surface);
   box-shadow: var(--shadow-2);

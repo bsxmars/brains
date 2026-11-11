@@ -3,27 +3,26 @@ title: "Отмена: AbortController и AbortSignal"
 heading: "Отмена: AbortController и AbortSignal — кто решает и кто слушает"
 headingWidth: 24
 order: 16
-lead: "Отмена в JS ничего не прерывает силой: это договорённость двух объектов. Контроллер решает, что работа больше не нужна. Сигнал сообщает об этом всем, кто работу делает, и каждый сам решает, как остановиться. Из этой договорённости следуют неочевидные вещи: что видит сервер, когда `fetch` отменён, чей `reason` побеждает в `AbortSignal.any`, почему `{ once: true }` не спасает от утечки и почему отмена после ответа ничего не делает."
+lead: "Новый поисковый запрос делает старый ненужным. Контроллер позволяет отменить операцию, сигнал передаёт это решение исполнителю, а проверка перед показом ответа защищает интерфейс от устаревших данных. Как устроены отмена, очистка слушателей и гонка с завершением."
 summary: "Разделение прав между контроллером и сигналом; событие `abort` — синхронное и однократное; учебная реализация с `any` и `timeout` против настоящей; что отменяет `fetch` на каждой стадии и что видит сервер по HTTP/1.1 и HTTP/2; один сигнал вместо шести способов отписаться; правило «проверь — подпишись — отпишись» и утечка слушателей числом; API Node и их `AbortError`; гонка отмены с завершением и общий запрос для нескольких потребителей."
 verifiedOn: "Node 24.11.0 и 26.8.2, Chromium 153.0.8010.12 (Playwright, headless), октябрь 2026: сценарии демо исполнены на учебных и настоящих классах в Node и Chromium; fetch — на свой node:http и node:http2; сборка зависимых сигналов — WeakRef и gc() в отдельном процессе. Примеры исполняет tests/unit/abort-controller.test.ts. Без таймерных замеров"
 nav:
   - { id: s1, label: Контроллер и сигнал }
-  - { id: s2, label: Устройство }
+  - { id: s2, label: Свой код }
   - { id: s3, label: fetch }
   - { id: s4, label: timeout и any }
-  - { id: s5, label: Свой код }
+  - { id: s5, label: Устройство }
   - { id: s6, label: Гонка }
   - { id: s7, label: Тонкие места }
   - { id: s8, label: Источники }
 ---
 
-import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -64,9 +63,8 @@ import {
   BODY_NOTE,
   COMBINE_CODE,
   COMBINE_FACTS,
-  PLAIN_RULE,
   DELAY_CODE,
-  DELAY_FACTS,
+  DELAY_DIAGRAM,
   LEAK_NODE_NOTE,
   NODE_API_ROWS,
   NODE_ERR_CODE,
@@ -85,20 +83,14 @@ import {
   RELATED,
 } from './data';
 
-<Section variant="intro" eyebrow="Договорённость, а не прерывание" gap={24}>
-  <Callout size={19} pad="24px 26px">
+<Section variant="intro" eyebrow="Старый запрос больше не нужен" gap={24}>
+  Пользователь набрал «кот», а затем «котлета». Первый запрос ещё работает, но его ответ
+  уже не должен менять результаты поиска. Нужно сделать две вещи: попросить операцию
+  остановиться и перед применением ответа проверить, что он по-прежнему нужен.
 
-    `abort()` ничего не останавливает сам. Он выставляет флаг и синхронно зовёт слушателей
-    сигнала. Остановится только то, что на этот сигнал подписалось и сделало это правильно:
-    проверило его в начале, подписалось на время работы и отписалось в конце.
-
-  </Callout>
-
-  Почти всё асинхронное на платформе принимает сигнал отмены: `fetch`, слушатели событий,
-  стримы, таймеры и файлы в Node, дочерние процессы. Снаружи это выглядит одинаково —
-  передал `{ signal }`, позвал `abort()`. Внутри каждый получатель решает сам, что значит
-  «прекратить», и делает это по-своему: `fetch` рвёт соединение, `spawn` убивает процесс,
-  а ваша функция, если вы о ней не позаботились, не сделает ничего.
+  `AbortController` даёт владельцу работы право отменять её, а `AbortSignal` передаёт это
+  решение исполнителям. Сигнал сам не прерывает JavaScript: fetch, таймер или ваша функция
+  должны поддерживать отмену. Уже завершённый промис своего результата не изменит.
 
   <Plain text={PLAIN_PAIR} />
 
@@ -115,7 +107,13 @@ import {
     <CodeBlock code={PAIR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
+  attachSearch принимает поле ввода, функцию показа данных и обработчик ошибки.
+  Возвращённая функция снимает подписку на ввод и отменяет ещё выполняющийся запрос.
+  Её вызывают при закрытии экрана или уничтожении компонента.
+
   <Md text={PAIR_NOTE} />
+
+  <Disclosure title="Свойства сигнала и статические методы">
 
   <Table
     head={['', 'что даёт']}
@@ -125,6 +123,8 @@ import {
     minWidth={520}
   />
 
+  </Disclosure>
+
   ### Событие `abort`: синхронно и один раз
 
   <CardGrid min={300} gap={16} align="start">
@@ -132,8 +132,8 @@ import {
       <CodeBlock code={SCENARIO_BY_ID.order.code} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
-    <Card title="log" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCENARIO_LOGS.order.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    <Card title="Записанный вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCENARIO_LOGS.order.join('\n')} lang="text" tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -153,12 +153,67 @@ import {
       <CodeBlock code={SCENARIO_BY_ID.reason.code} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
-    <Card title="log" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCENARIO_LOGS.reason.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    <Card title="Записанный вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCENARIO_LOGS.reason.join('\n')} lang="text" tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
   <Md text={REASON_NOTE} />
+
+
+</Section>
+
+<Section
+  id="s2"
+  eyebrow="Раздел 2"
+  title="Отмена в своём коде: проверь, подпишись, отпишись"
+  lead="Функция, которая принимает сигнал, обещает три вещи. Не начинать работу, если отмена уже была. Остановить работу, если отмена придёт во время неё. И не оставить после себя слушателя, когда работа закончится — любым способом."
+>
+  <Card title="delay с сигналом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={DELAY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <ConceptDiagram data={DELAY_DIAGRAM} />
+
+  Проверка и подписка выполняются без await между ними. Поэтому другая задача не может
+  вставить отмену в этот промежуток. Проверка находится внутри async: уже отменённый сигнал
+  даёт отклонённый промис, а не синхронный бросок наружу.
+
+  ### Утечка слушателей при `{ once: true }`
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card tone="err" title="once вместо отписки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCENARIO_BY_ID.leak.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={SCENARIO_LOGS.leak.join('\n')} lang="text" tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+
+    <Card tone="ok" title="отписка в finally" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SCENARIO_BY_ID.leakFixed.code} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={SCENARIO_LOGS.leakFixed.join('\n')} lang="text" tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    </Card>
+  </CardGrid>
+
+  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LEAK_NODE_NOTE} />
+
+  ### Что принимает сигнал в Node
+
+  <Table
+    head={['API', 'куда передать', 'что делает abort()']}
+    rows={NODE_API_ROWS.map((r) => [r.k, r.how, r.what])}
+    kinds={['prose', 'muted', 'prose']}
+    cols="minmax(200px,1fr) minmax(150px,.7fr) minmax(260px,1.4fr)"
+    minWidth={660}
+  />
+
+  <Card title="Одна причина — две разные ошибки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={NODE_ERR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="err">
+      <Md text={NODE_ERR_NOTE} />
+    </CardNote>
+  </Card>
+
+  <Md text={ELSEWHERE_NOTE} />
 
   ### Один сигнал вместо шести способов отписаться
 
@@ -179,66 +234,17 @@ import {
 </Section>
 
 <Section
-  id="s2"
-  eyebrow="Раздел 2"
-  title="Как устроен сигнал: учебная реализация"
-  lead="Сигнал — это `EventTarget` с причиной внутри. `abort()` записывает причину и рассылает событие. Чуть сложнее только `AbortSignal.any`: он заводит зависимый сигнал, который отменяется вместе со своими источниками."
->
-  <Card title="Учебные AbortController и AbortSignal" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={MINI_CODE} size={11} lh={1.65} pad="14px 16px" />
-  </Card>
-
-  <Plain text={PLAIN_DEPENDENT} />
-
-  <CardGrid min={280} gap={14} align="start">
-    {MINI_FACTS.map((fact) => (
-      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
-    ))}
-
-  </CardGrid>
-
-  <Md text={MINI_DIFF} />
-
-  ### Учебная отмена против настоящей
-
-  Два сценария считают слушателей на сигнале. Чтобы у учебных и настоящих классов число
-  считалось одинаково, его считает обёртка над `addEventListener` и `removeEventListener`
-  самого сигнала.
-
-  <Card title="track — счётчик слушателей" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={TRACK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
-
-  <AbortLab client:visible miniCode={MINI_CODE} trackCode={TRACK_CODE} scenarios={SCENARIOS} caption={DEMO_CAPTION} />
-
-  ### `any()` и сборщик мусора
-
-  Учебная версия держит зависимые сигналы в `Set` и не отпустит их, пока жив корень.
-  Настоящая держит их слабыми ссылками, но с оговорками. Разница видна на типичном коде
-  сервера: один долгоживущий сигнал «приложение останавливается» и по сигналу на каждый запрос.
-
-  <Card title="Сигнал на запрос поверх общего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={GC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
-
-  <Table
-    head={['1000 раз `any([long.signal, …])`, после сборки живо', 'Node 24.11', 'Node 26.8', 'Chromium 153']}
-    rows={GC_ROWS.map((r) => [r.k, r.node24, r.node26, r.chromium])}
-    tones={GC_ROWS.map((r) => r.tone)}
-    kinds={['prose', 'muted', 'muted', 'muted']}
-    cols="minmax(220px,1.4fr) minmax(110px,.6fr) minmax(110px,.6fr) minmax(120px,.6fr)"
-    minWidth={620}
-  />
-
-  <Md text={GC_NOTE} />
-</Section>
-
-<Section
   id="s3"
   eyebrow="Раздел 3"
   title="fetch с сигналом: что именно отменяется"
   lead="Отменённый `fetch` отклоняется — это видят все. Менее заметно, что происходит по ту сторону: дошёл ли запрос до сервера, узнал ли сервер об отмене и что он сделал дальше. Ответ зависит от того, на какой стадии случилась отмена."
 >
+  fetch выполняется после получения заголовков, когда тело ещё может приходить. Отмена
+  до этого момента отклоняет fetch; отмена позже влияет уже на чтение тела. Сервер получает
+  сетевой разрыв, а не ваш signal или reason, и сам решает, остановить ли свою работу.
+
+  <Disclosure title="Полный опыт: сервер и шесть стадий отмены на клиенте">
+
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сервер: бросает работу, когда клиент ушёл" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={SERVER_CODE} size={11} lh={1.65} pad="14px 16px" />
@@ -248,6 +254,7 @@ import {
       <CodeBlock code={CLIENT_CODE} size={11} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
+  </Disclosure>
 
   <Table
     head={['стадия', 'что видит клиент', 'что видит сервер']}
@@ -278,8 +285,12 @@ import {
     <CodeBlock code={COMBINE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
-  Как `any()` выбирает причину и в каком порядке рассылает события, видно по учебной
-  реализации в разделе [«Устройство»](#s2). Для кода, который их использует, хватает трёх правил.
+  Здесь load возвращает Response после заголовков. Чтение тела остаётся вызывающему коду:
+  оно тоже связано с сигналом и может отклониться позже, уже за пределами этого catch.
+  Чтобы обработать таймаут всего чтения в одном месте, тело читают внутри try.
+
+  Порядок рассылки событий разобран в разделе [«Как устроен сигнал»](#s5). При выборе
+  причины важно различать флаг «уже отменён» и источник, который первым отменил combined.
 
   <CardGrid min={280} gap={14} align="start">
     {COMBINE_FACTS.map((fact) => (
@@ -292,57 +303,73 @@ import {
 <Section
   id="s5"
   eyebrow="Раздел 5"
-  title="Отмена в своём коде: проверь, подпишись, отпишись"
-  lead="Функция, которая принимает сигнал, обещает три вещи. Не начинать работу, если отмена уже была. Остановить работу, если отмена придёт во время неё. И не оставить после себя слушателя, когда работа закончится — любым способом."
+  title="Как устроен сигнал: учебная реализация"
+  lead="Сигнал — это `EventTarget` с причиной внутри. `abort()` записывает причину и рассылает событие. Чуть сложнее только `AbortSignal.any`: он заводит зависимый сигнал, который отменяется вместе со своими источниками."
 >
-  <Plain text={PLAIN_RULE} />
-
-  <Card title="delay с сигналом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={DELAY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  <Plain text={PLAIN_DEPENDENT} />
 
   <CardGrid min={280} gap={14} align="start">
-    {DELAY_FACTS.map((fact) => (
-      <Card tone={fact.tone} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    {MINI_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
     ))}
 
   </CardGrid>
 
-  ### Утечка слушателей при `{ once: true }`
+  <Disclosure title="Полный исходник учебных AbortController и AbortSignal">
 
-  <CardGrid min={300} gap={16} align="start">
-    <Card tone="err" title="once вместо отписки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCENARIO_BY_ID.leak.code} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={SCENARIO_LOGS.leak.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-
-    <Card tone="ok" title="отписка в finally" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCENARIO_BY_ID.leakFixed.code} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={SCENARIO_LOGS.leakFixed.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-  </CardGrid>
-
-  <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LEAK_NODE_NOTE} />
-
-  ### Что принимает сигнал в Node
-
-  <Table
-    head={['API', 'куда передать', 'что делает abort()']}
-    rows={NODE_API_ROWS.map((r) => [r.k, r.how, r.what])}
-    kinds={['prose', 'muted', 'prose']}
-    cols="minmax(200px,1fr) minmax(150px,.7fr) minmax(260px,1.4fr)"
-    minWidth={660}
-  />
-
-  <Card title="Одна причина — две разные ошибки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={NODE_ERR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-
-    <CardNote tone="err">
-      <Md text={NODE_ERR_NOTE} />
-    </CardNote>
+  <Card title="Учебные AbortController и AbortSignal" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={MINI_CODE} size={11} lh={1.65} pad="14px 16px" />
   </Card>
 
-  <Md text={ELSEWHERE_NOTE} />
+  </Disclosure>
+
+  <Md text={MINI_DIFF} />
+
+  ### Учебная отмена против настоящей
+
+  <Disclosure title="Как считаются слушатели в двух сценариях">
+
+  Два сценария считают слушателей на сигнале. Чтобы у учебных и настоящих классов число
+  считалось одинаково, его считает обёртка над `addEventListener` и `removeEventListener`
+  самого сигнала.
+
+  <Card title="track — счётчик слушателей" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={TRACK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  Счётчик фиксирует явные добавления и удаления в показанных сценариях без события abort.
+  Он не является универсальным инспектором EventTarget: автоматическое удаление once он
+  не перехватывает.
+
+  </Disclosure>
+
+  <AbortLab client:visible miniCode={MINI_CODE} trackCode={TRACK_CODE} scenarios={SCENARIOS} caption={DEMO_CAPTION} />
+
+  <Disclosure title="any() и сборщик мусора: измерения удержания сигналов">
+
+  ### `any()` и сборщик мусора
+
+  Учебная версия держит зависимые сигналы в `Set` и не отпустит их, пока жив корень.
+  Настоящая держит их слабыми ссылками, но с оговорками. Разница видна на типичном коде
+  сервера: один долгоживущий сигнал «приложение останавливается» и по сигналу на каждый запрос.
+
+  <Card title="Сигнал на запрос поверх общего" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={GC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <Table
+    head={['1000 раз `any([long.signal, …])`, после сборки живо', 'Node 24.11', 'Node 26.8', 'Chromium 153']}
+    rows={GC_ROWS.map((r) => [r.k, r.node24, r.node26, r.chromium])}
+    tones={GC_ROWS.map((r) => r.tone)}
+    kinds={['prose', 'muted', 'muted', 'muted']}
+    cols="minmax(220px,1.4fr) minmax(110px,.6fr) minmax(110px,.6fr) minmax(120px,.6fr)"
+    minWidth={620}
+  />
+
+  <Md text={GC_NOTE} />
+
+  </Disclosure>
+
 </Section>
 
 <Section
@@ -356,8 +383,8 @@ import {
       <CodeBlock code={RACE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
-    <Card title="log" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RACE_LOG.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    <Card title="Записанный вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={RACE_LOG.join('\n')} lang="text" tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -381,21 +408,14 @@ import {
       <CodeBlock code={SHARED_DEMO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
-    <Card title="log" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SHARED_LOG.join('\n')} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+    <Card title="Записанный вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={SHARED_LOG.join('\n')} lang="text" tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
   <Md text={SHARED_NOTE} />
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
 
-      **Сигнал сообщает, а не приказывает.** Он говорит «результат больше не нужен» и больше
-      ничего не гарантирует: ни что работа остановится, ни что она ещё не закончилась.
-
-    </DarkText>
-  </DarkPanel>
 </Section>
 
 <Section id="s7" eyebrow="Раздел 7" title="Тонкие места">

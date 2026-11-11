@@ -7,6 +7,8 @@ import { Worker } from 'node:worker_threads';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { YOUNG_PROBE_OUT } from '@/content/lessons/memory-gc/data';
 import {
+  BUFFER_BYTES,
+  BUFFER_OWNER_CODE,
   BUDGETS,
   CASES,
   CRASH_CARDS,
@@ -146,7 +148,7 @@ describe('memoryUsage · пять полей и их вложенность', ()
     }
   });
 
-  it('rss — внешний контур: он больше, чем зарезервированная куча', () => {
+  it('в этом прогоне rss больше выделенной кучи', () => {
     expect(m.rss).toBeGreaterThan(m.heapTotal);
   });
 
@@ -311,10 +313,10 @@ describe('Buffer.alloc двигает external и arrayBuffers, но не heapUs
     expect(deltas.arrayBuffers / MB).toBeGreaterThan(90);
   });
 
-  it('а heapUsed не сдвигается — снимок такую утечку не покажет', () => {
+  it('данные Buffer увеличивают external намного сильнее, чем heapUsed', () => {
     /**
-     * Это и есть причина, по которой половина продовых утечек в Node не видна в heap snapshot.
-     * Закрепляется отношение: рост вне кучи на порядок больше любого шевеления внутри неё.
+     * Это различие учёта memoryUsage, а не доказательство невидимости Buffer в снимке.
+     * Рост вне кучи на порядок больше изменения занятой памяти самой кучи.
      * Дельта `heapUsed` в замерах бывает и отрицательной — между двумя вызовами успевает
      * пройти сборка, поэтому сравнивается модуль.
      */
@@ -1270,12 +1272,9 @@ describe('развилка · столбики не врут о подписан
     }
   });
 
-  it('снимок обещан только там, где растёт куча', () => {
-    // Вывод всего раздела: инструмент выбирают по тому, какой контур растёт.
-    for (const c of CASES) {
-      const heapGrows = c.rows.some((r) => r.hot && r.k === 'heapUsed');
-      expect(c.tool.works, c.label).toBe(heapGrows);
-    }
+  it('снимок помогает при росте кучи и буферов, но не обещает описать весь rss', () => {
+    // Buffer имеет JS-владельца и native backing store: реальная цепочка проверена ниже.
+    expect(CASES.map((c) => c.tool.works)).toEqual([true, true, false, false]);
   });
 });
 
@@ -1356,4 +1355,63 @@ describe('аллокатор · проба исполняется, как нап
       if (n) expect(Number(arenas)).toBe(Number(n[1]) - 1);
     }
   });
+});
+
+
+describe('снимок Buffer: JS-владелец и native backing store', () => {
+  it('тот же опубликованный пример сохраняет цепочку до данных и их размер', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lesson-buffer-snapshot-'));
+    try {
+      const out = execFileSync(process.execPath, ['--input-type=module', '-e', BUFFER_OWNER_CODE], {
+        cwd: dir, encoding: 'utf8', timeout: 30_000,
+      });
+      const { filename, bytes } = JSON.parse(out.trim());
+      expect(bytes).toBe(BUFFER_BYTES);
+      const snapshot = JSON.parse(readFileSync(join(dir, filename), 'utf8'));
+      const { nodes, edges, strings } = snapshot;
+      const { node_fields: nf, edge_fields: ef, edge_types: et } = snapshot.snapshot.meta;
+      const nameIndex = nf.indexOf('name');
+      const sizeIndex = nf.indexOf('self_size');
+      const countIndex = nf.indexOf('edge_count');
+      const typeIndex = ef.indexOf('type');
+      const edgeNameIndex = ef.indexOf('name_or_index');
+      const targetIndex = ef.indexOf('to_node');
+      const firstEdge = new Map<number, number>();
+      let cursor = 0;
+      for (let n = 0; n < nodes.length; n += nf.length) {
+        firstEdge.set(n, cursor);
+        cursor += nodes[n + countIndex] * ef.length;
+      }
+      const edgeName = (offset: number) => {
+        const type = et[typeIndex][edges[offset + typeIndex]];
+        return type === 'element' || type === 'hidden' ? null : strings[edges[offset + edgeNameIndex]];
+      };
+      const follow = (node: number, name: string) => {
+        const start = firstEdge.get(node)!;
+        const end = start + nodes[node + countIndex] * ef.length;
+        for (let edge = start; edge < end; edge += ef.length) {
+          if (edgeName(edge) === name) return edges[edge + targetIndex];
+        }
+        throw new Error(`Нет ребра ${name} у ${strings[nodes[node + nameIndex]]}`);
+      };
+      let owner = -1;
+      for (let edge = 0; edge < edges.length; edge += ef.length) {
+        if (edgeName(edge) === 'lessonBufferOwner') {
+          owner = edges[edge + targetIndex];
+          break;
+        }
+      }
+      expect(owner, 'ссылка глобального объекта на владельца').toBeGreaterThanOrEqual(0);
+      const buffer = follow(owner, 'payload');
+      expect(strings[nodes[buffer + nameIndex]]).toBe('Buffer');
+      const arrayBuffer = follow(buffer, 'buffer');
+      expect(strings[nodes[arrayBuffer + nameIndex]]).toBe('ArrayBuffer');
+      const backing = follow(arrayBuffer, 'backing_store');
+      expect(strings[nodes[backing + nameIndex]]).toBe('system / JSArrayBufferData');
+      expect(nodes[backing + sizeIndex]).toBe(BUFFER_BYTES);
+      expect(nodes[buffer + sizeIndex]).toBeLessThan(BUFFER_BYTES);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 40_000);
 });

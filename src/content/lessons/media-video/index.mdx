@@ -2,7 +2,7 @@
 title: "Видео в браузере"
 headingWidth: 24
 order: 23
-lead: "`<video>` — проигрыватель, которым управляют из JS. `play()` возвращает промис и бывает отклонён: со звуком без жеста пользователя ролик не пойдёт. Что браузер сумеет показать, решает кодек, а не расширение файла. Длинный ролик и смену качества плеер собирает сам — кусками через MediaSource, а `waiting` и `readyState` показывают, где кончился буфер."
+lead: "`<video>` — проигрыватель, которым управляют из JS. `play()` возвращает промис и бывает отклонён: автозапуск со звуком может быть запрещён политикой браузера. Что браузер сумеет показать, решает кодек, а не расширение файла. При потоковом воспроизведении плеер может подавать сегменты через MediaSource, а `waiting` и `readyState` показывают, где кончился буфер."
 summary: "Первый ролик из JS: события по порядку и промис `play()`; контейнер и кодек, `canPlayType`, `isTypeSupported` и `mediaCapabilities` в трёх движках; автоплей и `NotAllowedError`; MediaSource, куски HLS из фрагментированного mp4 и смена качества; буфер, `readyState` и почему перемотка ждёт; `requestVideoFrameCallback`."
 verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 из Playwright 1.63 на Apple M1, ноябрь 2026: каждый пример с выводом исполняет tests/e2e/media-video.spec.ts на роликах из tests/fixtures/media-video, снятых ffmpeg"
 nav:
@@ -20,6 +20,8 @@ import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -63,7 +65,7 @@ import {
   MSE_SETUP_CODE,
   MSE_FEED_CODE,
   MSE_OUT,
-  MSE_STEPS,
+  MSE_DIAGRAM,
   ADAPT_NOTE,
   MMS_NOTE,
   READY_ROWS,
@@ -89,9 +91,9 @@ import {
 <Section variant="intro" eyebrow="Проигрыватель под управлением JS" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Ролик на странице грузится, разбирается, разжимается и показывается сам, своим ходом.
-    JS не управляет этими шагами, а узнаёт о них из событий. Поэтому `play()` — просьба,
-    а не команда: браузер выполнит её, когда будут кадры, или откажет.
+    Браузер загружает медиа, декодирует и показывает кадры асинхронно. JavaScript задаёт
+    источник, запускает и останавливает воспроизведение, а о результате узнаёт из событий
+    и промисов. Выполнение `play()` означает начало воспроизведения, а не загрузку всего ролика.
 
   </Callout>
 
@@ -108,12 +110,14 @@ import {
 >
   <CodeBlock lang="html" code={FIRST_CODE} />
 
-  <CodeBlock code={FIRST_OUT} tone="ok" />
+  <Md text="Записанный журнал двухсекундного файла на стенде. Это один сценарий, а не обязательная последовательность событий любого ролика." />
+  <CodeBlock lang="text" code={FIRST_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={FIRST_NOTE} />
   </Card>
 
+  <Disclosure title="Свойства элемента и подсказка preload">
   <Table
     head={['что', 'что делает']}
     rows={ELEMENT_ROWS.map((r) => [r.k, r.v])}
@@ -124,11 +128,13 @@ import {
 
   <Md text={PRELOAD_NOTE} />
 
+  </Disclosure>
+
   ### Когда `play()` отказывает
 
   <CodeBlock lang="html" code={PLAY_ERRORS_CODE} />
 
-  <CodeBlock code={PLAY_ERRORS_OUT} tone="ok" />
+  <CodeBlock lang="text" code={PLAY_ERRORS_OUT} tone="ok" />
 
   <Table
     head={['отказ', 'когда бывает']}
@@ -154,6 +160,7 @@ import {
 
   <CodeBlock code={CODEC_CODE} />
 
+  <Disclosure title="Снимок поддержки кодеков и decodingInfo на трёх движках">
   <Table
     head={['строка', 'Chromium 153', 'Firefox 155', 'WebKit 26.6']}
     rows={CODEC_ROWS}
@@ -184,6 +191,8 @@ import {
     <Md text={CODEC_STRING_NOTE} />
   </Card>
 
+  </Disclosure>
+
   <Card title="Как выбрать файл" titleSize={17} pad={20} gap={13}>
     <NumberedList items={PICK_STEPS} size={15.5} />
   </Card>
@@ -192,12 +201,12 @@ import {
 <Section
   id="s3"
   eyebrow="Раздел 3"
-  title="Автоплей: без звука можно, со звуком — после жеста"
-  lead="Ролик пробует запуститься сам, со звуком. Если браузер откажет, код выключает звук и пробует снова, а кнопка включает звук обратно."
+  title="Автоплей: запуск зависит от политики браузера"
+  lead="Пример пробует запустить ролик со звуком, затем без звука. Каждая попытка может быть отклонена: код обрабатывает оба отказа и оставляет пользователю кнопку запуска."
 >
   <CodeBlock lang="html" code={AUTOPLAY_CODE} />
 
-  <CodeBlock code={AUTOPLAY_OUT} tone="ok" />
+  <CodeBlock lang="text" code={AUTOPLAY_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={AUTOPLAY_NOTE} />
@@ -217,7 +226,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="MediaSource: куски подаёт плеер"
-  lead="Вместо файла у ролика пустой источник, и код сам скачивает куски по секунде и кладёт их в буфер. Так работают плееры HLS и DASH — и так же они меняют качество на ходу."
+  lead="MediaSource подключает к элементу источник, в который JavaScript добавляет медиа-сегменты. В примере каждый сегмент содержит секунду ролика; его длительность определяется подготовленным файлом. На этом строятся JavaScript-плееры HLS и DASH."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={MSE_WHY} />
@@ -225,6 +234,7 @@ import {
 
   <Plain text={PLAIN_FRAGMENTS} />
 
+  <Disclosure title="Как плейлисты HLS описывают качества и сегменты">
   ### Плейлист HLS
 
   <CodeBlock lang="text" code={MASTER_M3U8} />
@@ -235,17 +245,17 @@ import {
     <Md text={HLS_NOTE} />
   </Card>
 
+  </Disclosure>
+
   ### Куски в буфер
 
   <CodeBlock lang="html" code={MSE_SETUP_CODE} />
 
   <CodeBlock lang="jsx" code={MSE_FEED_CODE} />
 
-  <CodeBlock code={MSE_OUT} tone="ok" />
+  <CodeBlock lang="text" code={MSE_OUT} tone="ok" />
 
-  <Card title="Пять шагов MediaSource" titleSize={17} pad={20} gap={13}>
-    <NumberedList items={MSE_STEPS} size={15.5} />
-  </Card>
+  <ConceptDiagram data={MSE_DIAGRAM} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={ADAPT_NOTE} />
@@ -260,8 +270,9 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Буфер, readyState и waiting: почему перемотка ждёт"
-  lead="Два числа описывают ролик в любой момент: `readyState` — сколько данных есть, `networkState` — что браузер делает с сетью. А `buffered` показывает, какие секунды уже лежат в памяти."
+  lead="readyState описывает готовность данных к воспроизведению, buffered — доступные временные диапазоны. networkState относится к загрузке самим медиа-элементом: fetch-запросы JavaScript-плеера через MediaSource он не описывает."
 >
+  <Disclosure title="Справочник readyState и networkState">
   <Table
     head={['readyState', 'что есть']}
     rows={READY_ROWS.map((r) => [r.k, r.v])}
@@ -280,13 +291,15 @@ import {
 
   <Md text={READY_NOTE} />
 
+  </Disclosure>
+
   ### Буфер кончился, в буфере дыра: `waiting` и перемотка
 
   <Md text="Та же подготовка, что в разделе [«MediaSource»](#s4), — `video`, `append` и `ranges`, — но куски приходят с опозданием, а посреди ролика — перемотка туда, где данных нет." />
 
   <CodeBlock lang="jsx" code={STALL_CODE} />
 
-  <CodeBlock code={STALL_OUT} tone="ok" />
+  <CodeBlock lang="text" code={STALL_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={STALL_NOTE} />
@@ -307,11 +320,11 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Кадр за кадром: requestVideoFrameCallback"
-  lead="Чтобы обработать каждый кадр — нарисовать его на холсте, наложить эффект, подписать время, — нужен колбэк на кадр ролика, а не на кадр экрана."
+  lead="requestVideoFrameCallback сообщает о новых кадрах, переданных композитору. Частота связана с видео и возможностями показа, а не просто с обновлением экрана. При занятом главном потоке уведомления о некоторых кадрах могут быть пропущены."
 >
   <CodeBlock lang="html" code={FRAME_CODE} />
 
-  <CodeBlock code={FRAME_OUT} tone="ok" />
+  <CodeBlock lang="text" code={FRAME_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={FRAME_NOTE} />

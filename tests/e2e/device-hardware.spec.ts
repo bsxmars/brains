@@ -41,8 +41,6 @@ const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
   ...args: string[]
 ) => (...a: unknown[]) => Promise<void>;
 
-const WITH_BUTTON = (code: string) => `const button = document.querySelector('#connect');\n${code}`;
-
 const html = (code: string) =>
   `<!doctype html><meta charset="utf-8"><button id="connect">Подключить</button><script type="module">${code}</script>`;
 
@@ -191,7 +189,7 @@ test.describe('Chromium', () => {
 
   test('PERMISSION_CODE: при загрузке разрешённых портов нет', async () => {
     const page = await browser.newPage();
-    const logged = await open(page, WITH_BUTTON(PERMISSION_CODE));
+    const logged = await open(page, PERMISSION_CODE);
     await expect.poll(() => logged).toContain(PERMISSION_OUT.split('\n')[0]);
     await page.close();
   });
@@ -199,24 +197,26 @@ test.describe('Chromium', () => {
   test('USB_CODE и HID_CODE: окно выбора закрыто — NotFoundError и пустой массив', async () => {
     const ctx = await browser.newContext();
     const usb = await ctx.newPage();
-    const usbLog = await open(usb, WITH_BUTTON(USB_CODE));
+    const usbLog = await open(usb, USB_CODE);
     await usb.click('#connect');
-    await expect.poll(() => usbLog).toContain('pageerror: NotFoundError');
+    await expect.poll(() => usbLog).toContain('ошибка: NotFoundError');
 
     const hid = await ctx.newPage();
-    const hidLog = await open(hid, WITH_BUTTON(HID_CODE));
+    const hidLog = await open(hid, HID_CODE);
     await hid.click('#connect');
     await expect.poll(() => hidLog).toEqual([HID_OUT]);
     await ctx.close();
   });
 
-  test('MIDI_CODE с разрешением: устройств нет, describe разбирает три байта', async () => {
+  test('MIDI_CODE без клика, с разрешением: пустые порты и разбор сообщений', async () => {
     const ctx = await browser.newContext();
     // В Playwright доступ к MIDI выдаётся только парой: одного `midi` Chromium 153 мало.
     await ctx.grantPermissions(['midi', 'midi-sysex'], { origin: ORIGIN });
     const page = await ctx.newPage();
-    const logged = await open(page, `${MIDI_CODE}\nwindow.describe = describe;`);
+    const logged = await open(page, `window.activationBeforeMidi = navigator.userActivation.isActive;\n${MIDI_CODE}\nwindow.describe = describe;`);
     await expect.poll(() => logged).toEqual([MIDI_OUT]);
+    expect(await page.evaluate(() => (window as unknown as { activationBeforeMidi: boolean }).activationBeforeMidi),
+      'MIDI получает доступ в модуле без активации пользователя').toBe(false);
     const described = await page.evaluate(
       (samples) => samples.map((s) => (window as unknown as { describe: (b: number[]) => string }).describe(s)),
       MIDI_SAMPLES.map((s) => s.bytes),
@@ -230,10 +230,13 @@ test.describe('Chromium', () => {
     const own = await chromium.launch();
     try {
       const page = await own.newPage();
-      const logged = await open(page, WITH_BUTTON(BT_CODE));
+      const logged = await open(page, BT_CODE);
       await new AsyncFunction('browser', 'page', BT_EMULATION_CODE)(own, page);
       await page.click('#connect');
       await expect.poll(() => logged, { timeout: 10_000 }).toEqual(BT_OUT.split('\n'));
+      await page.click('#connect');
+      await expect(page.locator('#connect')).toHaveText('Подключить');
+      expect(logged).toEqual(BT_OUT.split('\n'));
     } finally {
       await own.close();
     }
@@ -288,7 +291,7 @@ test.describe('Firefox', () => {
     const browser = await firefox.launch({ firefoxUserPrefs: TEST_PORT });
     try {
       const page = await browser.newPage();
-      const logged = await open(page, WITH_BUTTON(PERMISSION_CODE));
+      const logged = await open(page, PERMISSION_CODE);
       await expect.poll(() => logged).toHaveLength(1);
       await page.click('#connect');
       await expect.poll(() => logged, { timeout: 10_000 }).toEqual(PERMISSION_OUT.split('\n'));

@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
@@ -103,7 +104,7 @@ export const GLOSSARY: GlossaryTerm[] = [
 ];
 
 export const PLAIN_VIDEO =
-  '`<video>` похож на кинопроектор с механиком. Плёнку привозят частями, механик заправляет её и крутит. Кнопка «пуск» — это просьба механику, а не рычаг: если плёнки ещё нет, он ждёт; если зал не разрешал звук, он откажет. О том, что происходит в будке, механик сообщает записками — событиями. Из зала видно только их.';
+  'Как у обычного плеера, кнопка «Воспроизвести» не гарантирует, что картинка появится мгновенно: файл может ещё загружаться или не поддерживаться. play() сообщает результат промисом, а события позволяют узнать, на каком этапе находится воспроизведение.';
 
 export const PREREQ_NOTE = 'Тема опирается на три вещи из соседних тем.';
 
@@ -146,8 +147,12 @@ export const FIRST_CODE = `<video src="clip.mp4" muted></video>
     console.log('  длина', video.duration, 'с, кадр', \`\${video.videoWidth}×\${video.videoHeight}\`);
   });
   video.addEventListener('canplay', async () => {
-    await video.play();                 // промис выполнится, когда пойдут кадры
-    console.log('  play() выполнен');
+    try {
+      await video.play();
+      console.log('  play() выполнен');
+    } catch (error) {
+      console.log('  play() отклонён:', error.name);
+    }
   }, { once: true });
 </script>`;
 
@@ -334,7 +339,7 @@ export const PICK_STEPS = [
 // ─── Раздел 3. Автоплей ────────────────────────────────────────────────────────────────────
 
 export const AUTOPLAY_CODE = `<video src="clip.mp4" loop></video>
-<button>Включить звук</button>
+<button>Смотреть со звуком</button>
 <script>
   const video = document.querySelector('video');
   video.addEventListener('canplay', async () => {
@@ -343,14 +348,23 @@ export const AUTOPLAY_CODE = `<video src="clip.mp4" loop></video>
     } catch (e) {
       console.log('со звуком:', e.name);
       video.muted = true;
-      await video.play();
-      console.log('без звука: играет');
+      try {
+        await video.play();
+        console.log('без звука: играет');
+      } catch (error) {
+        console.log('без звука: запуск отклонён', error.name);
+      }
     }
   }, { once: true });
 
-  document.querySelector('button').addEventListener('click', () => {
-    video.muted = false;                // внутри обработчика клика — можно
-    console.log('звук включён, paused =', video.paused);
+  document.querySelector('button').addEventListener('click', async () => {
+    video.muted = false;
+    try {
+      if (video.paused) await video.play();
+      console.log('звук включён, paused =', video.paused);
+    } catch (error) {
+      console.log('запуск по кнопке отклонён', error.name);
+    }
   });
 </script>`;
 
@@ -360,15 +374,15 @@ export const AUTOPLAY_OUT = `со звуком: NotAllowedError
 звук включён, paused = false`;
 
 export const AUTOPLAY_NOTE =
-  'Пока пользователь ничего не нажал, ролик со звуком не запустится: `play()` отклоняется с `NotAllowedError`, а `paused` остаётся `true`. Без звука — пожалуйста. После клика звук включается, и ролик продолжает играть. Атрибут `autoplay` подчиняется тем же правилам: без `muted` ролик молча не стартует, ошибки не будет вовсе, а с `muted` — играет.';
+  'В чистом профиле стенда ролик со звуком без взаимодействия не запустился: `play()` отклоняется с `NotAllowedError`, а `paused` остаётся `true`. Без звука тот же ролик на стенде запустился. Это не универсальное разрешение: учитываются настройки и политика браузера. После клика звук включается, и ролик продолжает играть. Атрибут autoplay подчиняется той же политике; отказ не даёт промиса, который можно перехватить. Запуск через play позволяет обработать ошибку. Без звука запуск обычно разрешён, но успех не гарантирован.';
 
 export const PLAIN_AUTOPLAY =
-  'Браузер защищает пользователя от сайта, который заорал, едва открылся. Правило простое: шуметь можно, только когда человек сам что-то сделал на странице. Клик или нажатие клавиши — разрешение. Беззвучное видео никого не пугает, поэтому ему можно всегда.';
+  'Браузер защищает пользователя от сайта, который заорал, едва открылся. Автозапуск со звуком обычно требует взаимодействия. Но политика, настройки или прежнее взаимодействие с сайтом могут разрешить его иначе. Беззвучному видео обычно разрешают автозапуск. Но это решение браузера и настроек пользователя, поэтому код проверяет результат play, а не предполагает успех.';
 
 export const AUTOPLAY_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = [
   {
     t: 'Нет звуковой дорожки — ещё не `muted`',
-    d: 'Ролик, в котором звука нет вовсе, но без `muted`: Chromium отклоняет `play()` так же, как со звуком, а Firefox пускает. Надёжно — ставить `muted` явно.',
+    d: 'Ролик, в котором звука нет вовсе, но без `muted`: на стенде Chromium отклонил `play()` так же, как со звуком, а Firefox разрешил. Надёжно — ставить `muted` явно.',
     tone: 'warn',
   },
   {
@@ -376,7 +390,7 @@ export const AUTOPLAY_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] =
     d: 'Без этого атрибута Safari на iPhone разворачивает ролик на весь экран при запуске, а беззвучный автоплей там работает только вместе с ним. Сами мы на iPhone это не проверяли — так пишет команда WebKit (ссылка в источниках). Фоновое видео поэтому пишут так: `<video autoplay muted loop playsinline>`.',
   },
   {
-    t: 'Спросить заранее можно только в Firefox',
+    t: 'На стенде getAutoplayPolicy есть только в Firefox',
     d: '`navigator.getAutoplayPolicy("mediaelement")` до первого клика отвечает `"allowed-muted"`. В Chromium 153 и WebKit 26.6 такого метода нет — там остаётся пробовать `play()` и ловить отказ.',
   },
   {
@@ -432,9 +446,24 @@ export const MSE_SETUP_CODE = `<video></video>
   source.duration = 4;                        // длину плеер знает из плейлиста
 
   async function append(url) {
-    const bytes = await (await fetch(url)).arrayBuffer();
-    buffer.appendBuffer(bytes);               // отдать кусок браузеру
-    await new Promise((done) => buffer.addEventListener('updateend', done, { once: true }));
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const bytes = await response.arrayBuffer();
+    await new Promise((resolve, reject) => {
+      const clear = () => {
+        buffer.removeEventListener('updateend', done);
+        buffer.removeEventListener('error', failed);
+        buffer.removeEventListener('abort', aborted);
+      };
+      const done = () => { clear(); resolve(); };
+      const failed = () => { clear(); reject(new Error('ошибка медиа-сегмента')); };
+      const aborted = () => { clear(); reject(new DOMException('append отменён', 'AbortError')); };
+      buffer.addEventListener('updateend', done, { once: true });
+      buffer.addEventListener('error', failed, { once: true });
+      buffer.addEventListener('abort', aborted, { once: true });
+      try { buffer.appendBuffer(bytes); }
+      catch (error) { clear(); reject(error); }
+    });
   }
   const ranges = () => Array.from({ length: video.buffered.length }, (_, i) =>
     \`\${video.buffered.start(i).toFixed(1)}–\${video.buffered.end(i).toFixed(1)}\`).join(', ') || 'пусто';`;
@@ -472,6 +501,25 @@ export const MSE_STEPS = [
   'Дальше куски по порядку. `appendBuffer` возвращается сразу, а работа заканчивается событием `updateend`. Второй `appendBuffer`, пока не пришёл `updateend`, бросает `InvalidStateError` — во всех трёх движках.',
   '`endOfStream()` говорит «больше не будет». Без него браузер не знает, что ролик кончился: на конце буфера придёт `waiting`, а `ended` не придёт никогда.',
 ];
+
+export const MSE_DIAGRAM: ConceptDiagramData = {
+  id: 'media-video-init-and-segments',
+  title: 'Init описывает поток, а медиа-сегменты добавляют кадры',
+  description: 'В примере init.mp4 задаёт формат потока, но сам не добавляет воспроизводимого диапазона. Сегменты m4s содержат медиа-данные. Обе части поступают в SourceBuffer последовательно, с ожиданием updateend.',
+  width: 920, height: 560,
+  nodes: [
+    { id: 'init', x: 20, y: 32, width: 230, height: 160, label: '`init.mp4`', detail: 'Описание кодека и дорожек. Кадров для показа ещё нет.', tone: 'info' },
+    { id: 'segment', x: 20, y: 368, width: 230, height: 160, label: '`0.m4s`, `1.m4s`…', detail: 'Медиа-данные с временными метками.', tone: 'neutral' },
+    { id: 'buffer', x: 340, y: 200, width: 240, height: 176, label: '`SourceBuffer`', detail: '`appendBuffer` → `updateend`. Только затем следующий сегмент.', tone: 'warn' },
+    { id: 'video', x: 670, y: 200, width: 230, height: 176, label: 'Декодирование и показ', detail: '`video.buffered` отражает готовые временные диапазоны.', tone: 'ok' },
+  ],
+  edges: [
+    { from: 'init', to: 'buffer', via: [[295, 112], [295, 288]] },
+    { from: 'segment', to: 'buffer', via: [[295, 448], [295, 288]] },
+    { from: 'buffer', to: 'video' },
+  ],
+  note: 'Загрузку сегментов через fetch организует JavaScript. Она не описывается networkState медиа-элемента. updateend завершает операцию, но сам по себе не гарантирует её успех: отдельно обрабатываются error и abort.',
+};
 
 export const ADAPT_NOTE =
   'На второй секунде ролик сменил качество: размер кадра вырос с 160×90 до 320×180, и пришло событие `resize`. Для этого хватило подать init-сегмент другого качества перед его кусками — у них другой размер кадра, и браузеру надо об этом сказать. Кодек тот же, поэтому `SourceBuffer` прежний. Для смены кодека есть `buffer.changeType(тип)`. Решать, **какое** качество брать следующим, должен сам плеер. Библиотеки вроде hls.js смотрят, как быстро скачался прошлый кусок и сколько секунд осталось в буфере.';
@@ -572,7 +620,7 @@ export const FRAME_OUT = `кадр 1 время в ролике 0.0
 кадров 20 · отрисовок экрана 123`;
 
 export const FRAME_NOTE =
-  '`requestVideoFrameCallback` вызывает колбэк, когда на экран вышел **новый кадр ролика**. 2 секунды по 10 кадров — 20 вызовов, а `requestAnimationFrame` за то же время сработал около 120 раз, по разу на обновление экрана. В `meta` приходит, какой это кадр по счёту (`presentedFrames`) и с какой он секунды ролика (`mediaTime`). Firefox обычно сообщал первый кадр дважды, с одним и тем же `mediaTime`, и вызовов выходило на один-два больше, — но не всегда.';
+  '`requestVideoFrameCallback` сообщает, что новый кадр передан для композиции. В записанном прогоне Chromium у двухсекундного ролика на 10 кадров/с было 20 вызовов; это не гарантия вызова для каждого кадра при любой нагрузке, а `requestAnimationFrame` за то же время сработал около 120 раз, по разу на обновление экрана. В `meta` приходит, какой это кадр по счёту (`presentedFrames`) и с какой он секунды ролика (`mediaTime`). На стенде Firefox иногда сообщал первый кадр дважды, с одним и тем же `mediaTime`, и вызовов выходило на один-два больше, — но не всегда.';
 
 export const CANVAS_NOTE =
   'Внутри колбэка кадр рисуют на холст — `ctx.drawImage(video, 0, 0)` — и уже с холста читают пиксели, накладывают эффекты или отправляют дальше. Если ролик пришёл с чужого источника без атрибута `crossorigin`, холст становится «запачканным», и `getImageData` бросает `SecurityError` — так во всех трёх движках. С `crossorigin="anonymous"` и заголовком CORS у сервера кадр читается. Подробно — в [«Canvas», раздел «Чужие пиксели»](/render/canvas/#s6).';
@@ -581,7 +629,7 @@ export const MORE_NOTE =
   'Ещё две вещи рядом. `video.requestPictureInPicture()` выносит ролик в маленькое окно поверх других; `document.pictureInPictureEnabled` — `true` во всех трёх движках стенда. А камеру и микрофон показывают в том же `<video>`, только не через `src`, а через `video.srcObject = stream` — откуда берётся `stream`, разобрано в [«WebRTC», раздел «Каналы данных и медиа»](/platform/webrtc/#s6).';
 
 export const CLOSING =
-  '`<video>` — машина состояний, а JS видит её через события. `play()` — просьба: она выполняется, когда пошли кадры, и отклоняется по трём причинам — нет жеста, передумали, файл не открылся. Что сыграет, решает кодек, а не расширение файла, и спрашивать надо точной строкой. Длинный ролик плеер собирает сам: init-сегмент, куски, `updateend`, `endOfStream`. А `waiting` — не пауза: ролик стоит, потому что в буфере кончились кадры.';
+  '`<video>` имеет собственное состояние загрузки и воспроизведения; JS наблюдает его через свойства и события. `play()` — просьба: она выполняется, когда пошли кадры, и отклоняется по трём причинам — нет жеста, передумали, файл не открылся. Что сыграет, решает кодек, а не расширение файла, и спрашивать надо точной строкой. JavaScript-плеер на MSE подаёт сегменты сам: init-сегмент, куски, `updateend`, `endOfStream`. А `waiting` — не пауза: ролик стоит, потому что в буфере кончились кадры.';
 
 // ─── Тонкие места ──────────────────────────────────────────────────────────────────────────
 

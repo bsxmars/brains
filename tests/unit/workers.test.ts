@@ -8,6 +8,10 @@ import {
   PITFALLS,
   POOL_CODE,
   POOL_WORKER_CODE,
+  POOL_USE_CODE,
+  BUFFER_VARIANTS,
+  BUFFER_WORKER_CODE,
+  BUFFER_SETUP_CODE,
   TIME_ORIGIN_NOTE,
 } from '@/content/lessons/workers/data';
 
@@ -93,17 +97,7 @@ const work = async (data) => {
   return data.n * 2;
 };`;
 
-  it('в листинге воркера есть заменяемая строка work, а ERRORS_CODE шлёт тот же { fatal }', () => {
-    expect(POOL_WORKER_CODE).toMatch(/^const work = .*$/m);
-    expect(ERRORS_CODE).toContain('fatal:');
-    expect(POOL_CODE).toContain('data.fatal');
-  });
-
-  it('очередь, ошибка задачи, падение воркера, таймаут и запоздалое сообщение', () => {
-    const workerSource = SELF_SHIM + POOL_WORKER_CODE.replace(/^const work = .*$/m, TEST_WORK);
-    const code = `import { Worker as NodeWorker } from 'node:worker_threads';
-const SOURCE = ${JSON.stringify(workerSource)};
-let spawned = 0;
+  const WORKER_ADAPTER = `let spawned = 0;
 class Worker {
   constructor(url) {
     spawned++;
@@ -116,7 +110,19 @@ class Worker {
   }
   postMessage(data, transfer) { this.w.postMessage(data, transfer); }
   terminate() { this.w.terminate(); }
-}
+}`;
+
+  it('в листинге воркера есть заменяемая строка work, а ERRORS_CODE шлёт тот же { fatal }', () => {
+    expect(POOL_WORKER_CODE).toMatch(/^const work = .*$/m);
+    expect(ERRORS_CODE).toContain('fatal:');
+    expect(POOL_CODE).toContain('data.fatal');
+  });
+
+  it('очередь, ошибка задачи, падение воркера, таймаут и запоздалое сообщение', () => {
+    const workerSource = SELF_SHIM + POOL_WORKER_CODE.replace(/^const work = .*$/m, TEST_WORK);
+    const code = `import { Worker as NodeWorker } from 'node:worker_threads';
+const SOURCE = ${JSON.stringify(workerSource)};
+${WORKER_ADAPTER}
 
 ${POOL_CODE}
 
@@ -128,6 +134,7 @@ const six = await Promise.all([1, 2, 3, 4, 5, 6].map((n) => show(pool.run({ n })
 console.log(six.join(' | '));
 
 // 2. ошибка задачи — reject, воркер жив; 3. { fatal } — reject и замена; 4. таймаут — reject и замена
+pool.close();
 pool = new WorkerPool('w.js', 1);
 spawned = 0;
 console.log(await show(pool.run({ kind: 'fail' })), spawned);
@@ -136,6 +143,7 @@ console.log(await show(pool.run({ kind: 'hang' }, { timeout: 200 })), spawned);
 console.log(await show(pool.run({ n: 21 })));
 
 // 5. запоздалое сообщение не кладёт воркер в свободные второй раз
+pool.close();
 pool = new WorkerPool('w.js', 1);
 console.log(await show(pool.run({ kind: 'twice' })));
 await new Promise((r) => setTimeout(r, 80));
@@ -143,9 +151,36 @@ const peaks = await Promise.all([pool.run({ kind: 'who' }), pool.run({ kind: 'wh
 console.log('одновременно в одном воркере:', Math.max(...peaks));
 
 // 6. воркер не загрузился — событие error отклоняет задачу
+pool.close();
 pool = new WorkerPool('broken.js', 1);
 console.log((await show(pool.run({ n: 1 }))).startsWith('err '));
-process.exit(0);
+pool.close();
+
+// 7. Синхронная ошибка отправки не занимает слот до таймаута.
+pool = new WorkerPool('w.js', 1);
+const invalid = pool.run({ bad: () => 0 }, { timeout: 60_000 });
+const next = pool.run({ n: 3 });
+console.log(await invalid.then(() => 'неожиданный успех', (e) => e.name));
+let guard;
+console.log(await Promise.race([
+  show(next),
+  new Promise((resolve) => { guard = setTimeout(() => resolve('слот остался занят'), 2000); }),
+]));
+clearTimeout(guard);
+pool.close();
+
+// 8. close отклоняет выполняемое, ожидающее и новые вызовы; повторное close безопасно.
+pool = new WorkerPool('w.js', 1);
+const active = show(pool.run({ kind: 'hang' }));
+const waiting = show(pool.run({ n: 1 }));
+pool.close();
+pool.close();
+console.log((await Promise.all([active, waiting, show(pool.run({ n: 2 }))])).join(' | '));
+
+// 9. Маленький пример использования из темы — тот же исходник.
+await (async () => {
+${POOL_USE_CODE}
+})();
 `;
     const out = run('pool.mjs', code);
     expect(out).toEqual([
@@ -157,6 +192,32 @@ process.exit(0);
       'ok первый',
       'одновременно в одном воркере: 1',
       'true',
+      'DataCloneError',
+      'ok 6',
+      'err pool: закрыт | err pool: закрыт | err pool: закрыт',
+      'результат: 42',
     ]);
   });
+
+  it('одни числа копией, переносом и общей памятью: тот же обработчик даёт сумму 10', () => {
+    const source = SELF_SHIM + BUFFER_WORKER_CODE;
+    const code = `import { Worker as NodeWorker } from 'node:worker_threads';
+const SOURCE = ${JSON.stringify(source)};
+${WORKER_ADAPTER}
+for (const sample of ${JSON.stringify(BUFFER_VARIANTS)}) {
+  let complete;
+  const answer = new Promise((resolve) => { complete = resolve; });
+  const lines = [];
+  const consoleView = { log: (...args) => {
+    lines.push(args.join(' '));
+    if (args[0] === 'сумма:') complete();
+  } };
+  const worker = new Function('Worker', 'console', ${JSON.stringify(BUFFER_SETUP_CODE)} + '\\n' + sample.code + '\\nreturn worker;')(Worker, consoleView);
+  await answer;
+  console.log(lines.join(' | '));
+  worker.terminate();
+}`;
+    expect(run('buffer-variants.mjs', code)).toEqual(['16 | сумма: 10', '0 | сумма: 10', '16 | сумма: 10']);
+  });
+
 });

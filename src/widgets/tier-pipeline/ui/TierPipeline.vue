@@ -48,7 +48,7 @@ const step = computed(() => props.steps[index.value]);
 
     <div class="split">
       <div class="tiers">
-        <div class="t-label">разбор и четыре яруса</div>
+        <div class="t-label">учебная схема · разбор и четыре яруса</div>
 
         <div
           v-for="(tier, i) in tiers"
@@ -74,7 +74,7 @@ const step = computed(() => props.steps[index.value]);
         <Md class="message" :data-tone="step.tone ?? 'info'" :text="step.message" />
         <ConsoleView
           :lines="step.log"
-          label="--trace-opt / --trace-deopt"
+          label="записанная трасса Node · --trace-opt / --trace-deopt"
           :min-height="80"
           empty-label="движок молчит — компилировать нечего"
         />

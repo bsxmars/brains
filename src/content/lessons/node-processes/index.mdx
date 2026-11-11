@@ -2,9 +2,9 @@
 title: "Процессы и потоки в Node"
 headingWidth: 24
 order: 36
-lead: "Унести работу из главного потока Node можно тремя способами: воркер — ваш JS в другом потоке того же процесса, дочерний процесс — любая программа рядом, `cluster` — несколько копий сервера на одном порту. Они различаются тем, что делят с главным потоком и какие данные теряют, когда пересылают их друг другу."
-summary: "Первый воркер на `worker_threads`; что воркер делит с процессом, а что нет; ошибки и выход воркера; `spawn`, `exec`, `execFile` и `fork` — оболочка, вывод, канал; JSON в канале между процессами; как `cluster` раздаёт соединения и почему не раздаёт запросы."
-verifiedOn: "Node 26.8.2, ноябрь 2026: каждый пример с выводом исполняет tests/unit/node-processes.test.ts в отдельном процессе Node; время старта воркера и процесса — медиана семи запусков на ноутбуке"
+lead: "Долгий расчёт на JS занимает главный поток Node и задерживает обработку других событий. Воркер выполняет расчёт в другом потоке, дочерний процесс запускает отдельную программу, а cluster распределяет соединения между копиями сервера. Выбор зависит от задачи, границ памяти и способа обмена данными."
+summary: "Законченная задача в worker_threads: ответ, ошибка и выход. Свои JS-кучи, общие ресурсы процесса, перенос и разделение памяти. spawn и границы вывода; выбор execFile, exec и fork; JSON и advanced в IPC. Cluster: новое соединение против запросов по keep-alive, политики распределения и отдельное состояние копий."
+verifiedOn: "Node 26.8.2, ноябрь 2026: каждый пример с выводом исполняет tests/unit/node-processes.test.ts в отдельном процессе Node; старые числа старта — отдельные наблюдения на ноутбуке, не обещание производительности"
 nav:
   - { id: s1, label: Первый воркер }
   - { id: s2, label: worker_threads }
@@ -15,6 +15,8 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -59,6 +61,7 @@ import {
   FORK_OUT,
   FORK_NOTE,
   PLAIN_CLUSTER,
+  CLUSTER_CONNECTION_DIAGRAM,
   CLUSTER_RR_CODE,
   CLUSTER_RR_OUT,
   CLUSTER_RR_NOTE,
@@ -73,16 +76,15 @@ import {
 <Section variant="intro" eyebrow="Один процесс — не один поток" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Процессы не видят память друг друга. Воркеры живут в одном процессе, но у каждого своя
-    куча, и общих объектов у них нет. Поэтому в любом канале — между потоками или между
-    процессами — данные копируются, и часть их при этом может потеряться без ошибки.
+    У воркера своя JS-куча, у дочернего процесса — отдельное адресное пространство.
+    Это определяет способ обмена: обычный объект нужно сериализовать, буфер между
+    воркерами можно передать, а общие байты — разделить явно.
 
   </Callout>
 
-  Сервер на Node выполняет ваш JS в одном потоке. Пока один запрос считает, остальные ждут.
-  Чтобы задействовать другие ядра, у Node есть три механизма, и каждый отвечает на свой
-  вопрос: где выполнить долгий расчёт, как запустить чужую программу и как раздать
-  соединения одного порта по ядрам.
+  Пока главный поток выполняет долгий расчёт на JS, он не обрабатывает новые события.
+  Обычный `await` этот расчёт в другой поток не переносит. Чтобы выполнять JS параллельно,
+  запускают воркер или другой процесс; асинхронный ввод-вывод сам по себе такой замены не требует.
 
   <Plain text={PLAIN_PROCESS} />
 
@@ -92,14 +94,18 @@ import {
 <Section
   id="s1"
   eyebrow="Раздел 1"
-  title="Первый воркер и четыре способа разгрузить главный поток"
-  lead="Воркер в Node — это два файла: главный создаёт `Worker` и слушает события, воркер получает стартовые данные и отправляет результат. Главный поток в это время свободен."
+  title="Первая задача: отправить диапазон, получить сумму, проверить выход"
+  lead="Главный файл передаёт диапазон чисел, а sum.mjs считает сумму и отправляет ответ. Главный поток может продолжать работу. У результата два условия: ответ получен, а воркер завершился успешно."
 >
+  Файлы `main.mjs` и `sum.mjs` лежат рядом. Запуск: `node main.mjs`.
+
   <CodeBlock code={FIRST_MAIN_CODE} />
 
   <CodeBlock code={FIRST_WORKER_CODE} />
 
-  <CodeBlock code={FIRST_OUT} tone="ok" />
+  Записанный вывод этих файлов в Node 26.8.2:
+
+  <CodeBlock code={FIRST_OUT} lang="text" tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={FIRST_NOTE} />
@@ -108,6 +114,8 @@ import {
   ### Четыре способа убрать работу из главного потока
 
   <Plain text={PLAIN_FOUR} />
+
+  <Disclosure title="Сравнение механизмов: код, память, канал и создание">
 
   <Table
     head={FOUR_WAYS.head}
@@ -120,6 +128,7 @@ import {
   <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={FOUR_WAYS_NOTE} />
   </Card>
+  </Disclosure>
 </Section>
 
 <Section
@@ -137,23 +146,26 @@ import {
     minWidth={560}
   />
 
+  ### Ошибка и выход воркера
+
+  <CodeBlock code={ERRORS_CODE} />
+
+  <CodeBlock code={ERRORS_OUT.join('\n')} lang="text" tone="ok" />
+
+  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={ERRORS_NOTE} />
+  </Card>
+
+  <Disclosure title="Общее окружение процесса: SHARE_ENV">
   <CodeBlock code={SHARE_ENV_CODE} />
 
-  <CodeBlock code={SHARE_ENV_OUT.join('\n')} tone="ok" />
+  <CodeBlock code={SHARE_ENV_OUT.join('\n')} lang="text" tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={SHARE_ENV_NOTE} />
   </Card>
 
-  ### Ошибка и выход воркера
-
-  <CodeBlock code={ERRORS_CODE} />
-
-  <CodeBlock code={ERRORS_OUT.join('\n')} tone="ok" />
-
-  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={ERRORS_NOTE} />
-  </Card>
+  </Disclosure>
 
   <CardGrid min={260} gap={14} align="start">
     {WORKER_FACTS.map((fact) => (
@@ -164,13 +176,19 @@ import {
 
   ### Буфер, который отдавать нельзя: `markAsUntransferable`
 
-  <CodeBlock code={UNTRANSFERABLE_CODE} />
+  Обычный `ArrayBuffer` можно передать воркеру, отсоединив память у отправителя.
+  Маленькие Node-буферы могут ссылаться на общий пул: его отсоединять нельзя,
+  поэтому Node помечает такой буфер как непереносимый.
 
-  <CodeBlock code={UNTRANSFERABLE_OUT.join('\n')} tone="ok" />
+  <Disclosure title="Пример: пул Buffer и markAsUntransferable">
+    <CodeBlock code={UNTRANSFERABLE_CODE} />
+
+  <CodeBlock code={UNTRANSFERABLE_OUT.join('\n')} lang="text" tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={UNTRANSFERABLE_NOTE} />
   </Card>
+  </Disclosure>
 </Section>
 
 <Section
@@ -179,6 +197,18 @@ import {
   title="child_process: программа рядом"
   lead="Дочерний процесс — отдельная программа со своей памятью и своим `pid`. Node умеет запустить её четырьмя функциями, и они различаются тремя вещами: идёт ли команда через оболочку, как приходит вывод и есть ли канал для сообщений."
 >
+  ### Поток вывода и два события конца
+
+  <CodeBlock code={SPAWN_CODE} />
+
+  <CodeBlock code={SPAWN_OUT.join('\n')} lang="text" tone="ok" />
+
+  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+    <Md text={SPAWN_NOTE} />
+  </Card>
+
+  ### Когда spawn, execFile, exec или fork
+
   <Table
     head={CP_FUNCS.head}
     rows={CP_FUNCS.rows}
@@ -191,16 +221,6 @@ import {
     <Md text={CP_FUNCS_NOTE} />
   </Card>
 
-  ### Вывод кусками и два события конца
-
-  <CodeBlock code={SPAWN_CODE} />
-
-  <CodeBlock code={SPAWN_OUT.join('\n')} tone="ok" />
-
-  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={SPAWN_NOTE} />
-  </Card>
-
   <CardGrid min={260} gap={14} align="start">
     {CP_FACTS.map((fact) => (
       <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
@@ -210,11 +230,16 @@ import {
 
   ### `fork`: канал между процессами по умолчанию — JSON
 
-  <CodeBlock code={FORK_CODE} />
+  `echo` отправляет одно сообщение, ждёт ответ, закрывает IPC и проверяет завершение.
+  Путь к дочернему файлу привязан к `import.meta.url`, поэтому не зависит от текущего каталога.
+
+  <Disclosure title="Полный исходник родителя: ответ и завершение дочернего процесса">
+    <CodeBlock code={FORK_CODE} />
+  </Disclosure>
 
   <CodeBlock code={FORK_CHILD_CODE} />
 
-  <CodeBlock code={FORK_OUT.join('\n')} tone="ok" />
+  <CodeBlock code={FORK_OUT.join('\n')} lang="text" tone="ok" />
 
   <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={FORK_NOTE} />
@@ -225,13 +250,17 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="cluster: копии сервера на одном порту"
-  lead="`cluster` запускает несколько копий приложения через `fork`, а главный процесс принимает соединения и раздаёт их копиям по кругу. Так один порт обслуживают все ядра."
+  lead="cluster запускает копии Node-приложения с отдельными кучами. При политике SCHED_RR главный процесс принимает новые соединения и передаёт их копиям. Дальше каждая копия обслуживает своё соединение, включая все запросы по keep-alive."
 >
+  <ConceptDiagram data={CLUSTER_CONNECTION_DIAGRAM} />
+
   <Plain text={PLAIN_CLUSTER} />
 
-  <CodeBlock code={CLUSTER_RR_CODE} />
+  <Disclosure title="Полный стенд: новые соединения и один keep-alive, Node/macOS">
+    <CodeBlock code={CLUSTER_RR_CODE} />
+  </Disclosure>
 
-  <CodeBlock code={CLUSTER_RR_OUT.join('\n')} tone="ok" />
+  <CodeBlock code={CLUSTER_RR_OUT.join('\n')} lang="text" tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={CLUSTER_RR_NOTE} />

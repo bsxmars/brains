@@ -1,11 +1,12 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
  * Данные темы «Страница и система: экран, „Поделиться“, значок, оплата».
  *
  * Тема написана 2026-11-03: Wake Lock, Web Share, Badging API и Payment Request — четыре API,
- * которыми страница просит что-то у операционной системы, и три общих условия, при которых
- * система соглашается: безопасный контекст, жест пользователя, Permissions Policy для iframe.
+ * которыми страница просит что-то у операционной системы. Условия зависят от API:
+ * безопасный контекст, жест пользователя, Permissions Policy для iframe.
  * Web Push здесь не разбирается — у него своя тема (`/platform/web-push/`).
  *
  * ── Стенд ─────────────────────────────────────────────────────────────────────────────────
@@ -64,11 +65,11 @@ export const has = (v: boolean): string => (v ? 'есть' : 'нет');
 export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'безопасный контекст',
-    d: 'Страница, открытая по `https:`, или с `localhost` и `127.0.0.1`. Проверяется флажком `isSecureContext`. Вне безопасного контекста все четыре API этой темы пропадают из `navigator` целиком.',
+    d: 'Страница, открытая по `https:`, или с `localhost` и `127.0.0.1`. Проверяется флажком `isSecureContext`. Вне безопасного контекста эти API не доступны; PaymentRequest находится в window, остальные — в navigator. Обычный удалённый HTTP-источник и localhost — разные случаи.',
   },
   {
     k: 'жест пользователя',
-    d: 'Короткое окно после настоящего действия человека: клика, нажатия клавиши, касания. В спецификации HTML это называется transient activation — временная активация. Скрипт, запущенный таймером или при загрузке, жеста не имеет.',
+    d: 'Короткое окно после настоящего действия человека: клика, нажатия клавиши, касания. В спецификации HTML это называется transient activation — временная активация. Наличие активации проверяется в момент вызова. Сам таймер её не создаёт; короткий таймер после клика может выполниться до её истечения.',
   },
   {
     k: 'Permissions Policy',
@@ -89,7 +90,7 @@ export const GLOSSARY: GlossaryTerm[] = [
 ];
 
 export const PLAIN_SYSTEM =
-  'Страница — гость в чужом доме. Попросить хозяина «не выключай свет», «передай записку соседу», «повесь табличку на дверь» или «рассчитайся с курьером» можно. Но хозяин слушает только гостя, который вошёл через парадную дверь (HTTPS), и только если просьба прозвучала сразу после того, как человек сам что-то нажал. А просьбы от рекламы в углу (чужого iframe) он не слушает вовсе, пока хозяин страницы не разрешил это явно.';
+  'Как разные возможности приложения на телефоне: экран можно попросить не гасить, ссылку — передать через системное меню, а непрочитанные сообщения — отметить числом на иконке. Для браузера это разные API с разными условиями доступа. Наличие метода ещё не обещает, что система выполнит просьбу или покажет человеку заметный результат.';
 
 export const PREREQ_NOTE =
   'Тема опирается на три вещи из соседних тем.';
@@ -124,19 +125,23 @@ export const PREREQ: Prereq[] = [
 export const WAKE_CODE = `// <button id="awake">Не гасить экран</button>
 const button = document.querySelector('#awake');
 let lock = null;
+let busy = false;
 
 button.addEventListener('click', async () => {
-  if (lock && !lock.released) {            // второй клик — отпустить
-    await lock.release();
-    return;
-  }
+  if (!navigator.wakeLock) { console.log('нет Wake Lock'); return; }
+  if (busy) return;
+  busy = true;
   try {
+    if (lock && !lock.released) {
+      await lock.release();
+      return;
+    }
     lock = await navigator.wakeLock.request('screen');
     console.log('держим:', lock.type, lock.released);
     lock.addEventListener('release', () => console.log('отпустили, released =', lock.released));
   } catch (err) {
     console.log('отказ:', err.name);
-  }
+  } finally { busy = false; }
 });`;
 
 export const WAKE_OUT = `держим: screen false
@@ -166,7 +171,7 @@ export const WAKE_ROWS: { k: string; got: string; v: string }[] = [
     v: '`NotAllowedError` всегда, и по клику тоже. `navigator.permissions.query({ name: \'screen-wake-lock\' })` отвечает `prompt`: разрешение нужно спросить у человека, а показать вопрос в сборке без окна негде.',
   },
   {
-    k: 'страница на `http:`',
+    k: 'страница на `http:` (обычный удалённый источник, не localhost)',
     got: 'no api',
     v: '`navigator.wakeLock` нет вовсе, и вызов падает раньше промиса: `TypeError` о чтении `request` у `undefined`.',
   },
@@ -180,23 +185,36 @@ export const PLAIN_WAKE =
 
 /** Тест: голый CDP поверх `chromium.launchServer`, клик с жестом, соседняя вкладка, возврат. */
 export const VIS_CODE = `// <button id="awake">Не гасить экран</button>
-let wanted = false;          // просил ли человек не гасить экран
+let wanted = false;          // намерение человека сохраняется и без действующего замка
 let lock = null;
+let pending = false;
 
 async function keepAwake() {
   wanted = true;
-  lock = await navigator.wakeLock.request('screen');
-  lock.addEventListener('release', () => console.log('снят, вкладка', document.visibilityState));
-  console.log('взят');
+  if (!navigator.wakeLock) { console.log('нет Wake Lock'); return; }
+  if (pending || (lock && !lock.released) || document.visibilityState !== 'visible') return;
+  pending = true;
+  try {
+    const next = await navigator.wakeLock.request('screen');
+    if (!wanted || document.visibilityState !== 'visible') {
+      await next.release();
+      return;
+    }
+    lock = next;
+    next.addEventListener('release', () => {
+      if (lock === next) lock = null;
+      console.log('снят, вкладка', document.visibilityState);
+    }, { once: true });
+    console.log('взят');
+  } catch (error) {
+    console.log('отказ:', error.name);       // показать возможность повторить по кнопке
+  } finally { pending = false; }
 }
 
 document.querySelector('#awake').addEventListener('click', keepAwake);
-
-document.addEventListener('visibilitychange', async () => {
+document.addEventListener('visibilitychange', () => {
   console.log('вкладка', document.visibilityState);
-  if (wanted && lock?.released && document.visibilityState === 'visible') {
-    await keepAwake();       // вернулись — берём новый замок
-  }
+  if (wanted && document.visibilityState === 'visible') void keepAwake();
 });`;
 
 export const VIS_OUT = `взят
@@ -204,6 +222,27 @@ export const VIS_OUT = `взят
 вкладка hidden
 вкладка visible
 взят`;
+
+export const WAKE_LIFETIME_DIAGRAM: ConceptDiagramData = {
+  id: 'os-integration-wake-intent-and-lock',
+  title: 'Намерение не гасить экран сохраняется дольше одного замка',
+  description: 'Флаг wanted запоминает выбор человека. Объект WakeLockSentinel действует только пока браузер его не отпустил. При возврате видимой страницы код запрашивает новый объект, если он ещё нужен.',
+  width: 920, height: 490,
+  nodes: [
+    { id: 'wanted', x: 20, y: 20, width: 250, height: 170, label: 'Человек нажал кнопку', detail: '`wanted = true`\nЭто намерение, а не выданный замок.', tone: 'neutral' },
+    { id: 'request', x: 335, y: 20, width: 250, height: 170, label: '`request("screen")`', detail: 'Не запускать второй запрос, пока первый не завершён.', tone: 'info' },
+    { id: 'active', x: 650, y: 20, width: 250, height: 170, label: 'Замок выдан', detail: 'Сохранить новый sentinel и слушать его release.', tone: 'ok' },
+    { id: 'released', x: 650, y: 300, width: 250, height: 170, label: 'Браузер отпустил замок', detail: 'Например, вкладка скрыта. Старый объект повторно не включается.', tone: 'warn' },
+    { id: 'visible', x: 335, y: 300, width: 250, height: 170, label: 'Вкладка снова видна', detail: 'Если wanted всё ещё true, запросить новый замок.', tone: 'info' },
+  ],
+  edges: [
+    { from: 'wanted', to: 'request' }, { from: 'request', to: 'active' },
+    { from: 'active', to: 'released', fromSide: 'bottom', toSide: 'top' },
+    { from: 'released', to: 'visible', fromSide: 'left', toSide: 'right' },
+    { from: 'visible', to: 'request', fromSide: 'top', toSide: 'bottom' },
+  ],
+  note: 'Показан путь успешного запроса. Отказ тоже обычный исход: намерение сохраняется, но действующего замка нет. При позднем ответе уже скрытой странице полученный замок сразу отпускается.',
+};
 
 export const VIS_NOTE =
   'Человек нажал кнопку, потом ушёл на соседнюю вкладку и вернулся. Как только вкладку спрятали, браузер сам отпустил замок, и событие `release` пришло **раньше** `visibilitychange`. Так задумано: скрытой странице экран не нужен, а забытая фоновая вкладка иначе держала бы экран включённым часами. Сам браузер замок не вернёт, это делает страница: флажок `wanted` помнит, что человек просил, а обработчик `visibilitychange` берёт новый замок, когда вкладка снова видна. В Chromium повторный `request` проходит без нового клика.';
@@ -220,10 +259,22 @@ const data = {
   text: 'Тот самый, со свёклой в конце',
   url: location.href,
 };
-const copyLink = (url) => navigator.clipboard.writeText(url);
+async function copyLink(url) {
+  try {
+    await navigator.clipboard.writeText(url);
+    console.log('ссылка скопирована');
+  } catch {
+    const link = document.createElement('a');
+    link.href = url;
+    link.textContent = url;
+    document.body.append(link);              // остаётся ссылка для ручного копирования
+    console.log('скопируйте ссылку на странице');
+  }
+}
 
 document.querySelector('#share').addEventListener('click', async () => {
-  if (!navigator.canShare?.(data)) return copyLink(data.url);   // запасной путь
+  if (typeof navigator.share !== 'function' ||
+      (navigator.canShare && !navigator.canShare(data))) return copyLink(data.url);
   try {
     await navigator.share(data);
     console.log('выбрали, куда отправить');
@@ -274,9 +325,11 @@ export const BADGE_CODE = `async function showUnread(count) {
   console.log('значок:', count);
 }
 
-await showUnread(3);
-await showUnread(0);
-await navigator.setAppBadge(-1).catch((err) => console.log('отказ:', err.name));`;
+if ('setAppBadge' in navigator) {
+  await showUnread(3);
+  await showUnread(0);
+  await navigator.setAppBadge(-1).catch((err) => console.log('отказ:', err.name));
+}`;
 
 export const BADGE_OUT = `значок: 3
 значок: 0
@@ -300,21 +353,39 @@ export const BADGE_PUSH_NOTE =
 export const PAY_CODE = `// <button id="pay">Оплатить</button>
 const methods = [{ supportedMethods: 'https://pay.example/', data: { merchantId: 'shop-42' } }];
 const details = { total: { label: 'Итого', amount: { currency: 'RUB', value: '990.00' } } };
-const sendToServer = (data) => fetch('/pay', { method: 'POST', body: JSON.stringify(data) })
-  .then((r) => r.ok);
+async function sendToServer(data) {
+  const response = await fetch('/pay', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('HTTP ' + response.status);
+  const result = await response.json();
+  return result.paid === true;             // статус подтверждает сервер через провайдера
+}
 
-const canPay = await new PaymentRequest(methods, details).canMakePayment()
-  .catch(() => false);                                    // и это может отказать
+const canPay = typeof PaymentRequest === 'function'
+  ? await new PaymentRequest(methods, details).canMakePayment().catch(() => false)
+  : false;                                    // и это может отказать
 console.log('есть чем платить:', canPay);
 
 document.querySelector('#pay').addEventListener('click', async () => {
-  const request = new PaymentRequest(methods, details);   // новый на каждую попытку
+  if (typeof PaymentRequest !== 'function') { console.log('нет Payment Request'); return; }
+  const request = new PaymentRequest(methods, details);
+  let response;
   try {
-    const response = await request.show();               // окно оплаты браузера
-    const ok = await sendToServer(response.details);     // токен — на сервер
-    await response.complete(ok ? 'success' : 'fail');    // закрыть окно
-  } catch (err) {
-    console.log('оплата не началась:', err.name);
+    response = await request.show();
+  } catch (error) {
+    console.log('оплата не началась:', error.name);
+    return;
+  }
+
+  let paid = false;
+  try {
+    paid = await sendToServer(response.details);
+  } catch (error) {
+    console.log('подтверждение не получено:', error.name);
+  } finally {
+    await response.complete(paid ? 'success' : 'fail')
+      .catch((error) => console.log('complete:', error.name));
   }
 });`;
 
@@ -323,7 +394,7 @@ export const PAY_OUT = `есть чем платить: false
 
 export const PAY_FLOW = [
   '**`new PaymentRequest(methods, details)`** — что продаём и чем можно платить. Способ оплаты — адрес платёжного приложения, например `\'https://google.com/pay\'`. Сумма — строкой: `\'990.00\'`; `\'1,00\'`, `\'-1\'` и пустой список способов бросают `TypeError` прямо в конструкторе.',
-  '**`canMakePayment()`** — есть ли у человека хоть один из перечисленных способов. Ответ без подробностей: `true` или `false`, без списка карт.',
+  '**`canMakePayment()`** — может ли браузер обработать хотя бы один из перечисленных методов. Это не подтверждение доступной карты, баланса или успешной оплаты.',
   '**`show()`** — открыть окно оплаты. Только по жесту и только один раз на объект: второй `show()` у того же запроса даёт `InvalidStateError`, поэтому запрос создают заново на каждый клик.',
   '**`response.details`** — то, что вернуло платёжное приложение: обычно токен, а не номер карты. Его отправляют на сервер, а сервер — платёжному провайдеру.',
   '**`response.complete(\'success\')`** — закрыть окно и показать итог. Пока `complete` не вызван, окно ждёт ответа сервера.',
@@ -333,10 +404,10 @@ export const PAY_STAND_NOTE =
   'В нашей проверке платёжных приложений нет, поэтому окно не открылось: `canMakePayment()` ответил `false`, а `show()` отвергнут с `NotSupportedError`. В headless shell Chromium нет и самой службы оплаты: там отказывают и `canMakePayment()`, и `show()` — с `UnknownError`. Поэтому у `canMakePayment()` свой `catch`: без него отказ остановил бы весь модуль, и кнопка не получила бы обработчика. Шаги после `show()` выше описаны по спецификации: дойти до них без платёжного приложения нельзя.';
 
 export const PLAIN_PAY =
-  '`PaymentRequest` — касса, которая только принимает карту и печатает слип. Деньги со счёта списывает не касса, а банк. Браузер открывает окно и отдаёт сайту токен — одноразовую «расписку» платёжного приложения. Списать деньги, вернуть их и выбить чек может только платёжный провайдер, к которому сервер идёт с этой распиской.';
+  'PaymentRequest похож на форму выбора способа оплаты, а не на учётную систему магазина. Браузер организует обмен с платёжным приложением, а ответ обрабатывает сервер через провайдера. complete сообщает браузеру, что взаимодействие завершено. Само это сообщение не списывает и не возвращает деньги.';
 
 export const PAY_REALITY =
-  'Поэтому в магазинах обычно стоит не голый `PaymentRequest`, а кнопка или форма платёжного провайдера. Списание, проверку 3-D Secure, возвраты и чеки делает он, а его библиотека сама решает, чем открыть окно: Apple Pay, Google Pay или своей формой карты. Голый `PaymentRequest` нужен, когда вы и есть такой провайдер или когда провайдер просит передать ему токен из окна браузера.';
+  'Поэтому в магазинах обычно стоит не голый `PaymentRequest`, а кнопка или форма платёжного провайдера. Списание, проверку 3-D Secure, возвраты и чеки делает он, а его библиотека сама решает, чем открыть окно: Apple Pay, Google Pay или своей формой карты. PaymentRequest используют в согласованной с провайдером интеграции. Успешная проверка наличия API не заменяет запасной способ оплаты.';
 
 // ─── Раздел 5. Жест, безопасный контекст, iframe ──────────────────────────────────────────
 
@@ -356,10 +427,10 @@ document.querySelector('#probe').addEventListener('click', () => {
 export const ACTIVATION_OUT = 'окно жеста закрылось через 5 с; hasBeenActive = true';
 
 export const ACTIVATION_NOTE =
-  '`navigator.userActivation` показывает два флажка. `isActive` — открыто ли окно жеста прямо сейчас: после клика оно держится около пяти секунд, в Chromium, Firefox и WebKit одинаково. `hasBeenActive` — был ли хоть один жест с загрузки страницы; он не гаснет. По спецификации HTML жестом считаются нажатие клавиши, нажатие кнопки мыши и касание; прокрутка и движение мыши — нет.';
+  '`navigator.userActivation` показывает два флажка. `isActive` — открыто ли окно жеста прямо сейчас: на стенде после клика оно держалось около пяти секунд. Это результат указанных сборок, а не гарантированный срок для любого браузера. `hasBeenActive` — был ли хоть один жест с загрузки страницы; он не гаснет. По спецификации HTML жестом считаются нажатие клавиши, нажатие кнопки мыши и касание; прокрутка и движение мыши — нет.';
 
 export const PLAIN_ACTIVATION =
-  'Жест — пропуск на одну просьбу. Человек нажал кнопку, и у страницы есть пять секунд, чтобы попросить систему о чём-то заметном. Пропуск сгорает, когда выйдет время или когда страница потратит его на первую такую просьбу. Без пропуска системное окно не откроется: иначе любая реклама открывала бы меню «Поделиться» и окно оплаты сама.';
+  'Временная активация похожа на пропуск с коротким сроком: настоящий клик даёт его странице, а истечение срока лишает этого права. Некоторые API, например share, потребляют пропуск уже при вызове. Не все возможности темы требуют или потребляют его одинаково; поэтому проверяют правила конкретного API.';
 
 /** Тест: полный Chromium и WebKit, клик по `#share`, консоль сверяется с `CONSUME_OUT`. */
 export const CONSUME_CODE = `document.querySelector('#share').addEventListener('click', () => {
@@ -373,7 +444,7 @@ export const CONSUME_OUT = `до share: true
 после share: false`;
 
 export const CONSUME_NOTE =
-  '`share()` забирает жест сразу, в момент вызова. Второе меню из того же клика не откроется: нужен новый клик. Окно оплаты по спецификации тоже требует жеста, а значок и Wake Lock в Chromium обходятся без него.';
+  '`share()` забирает жест сразу, в момент вызова. Второе меню из того же клика не откроется: нужен новый клик. Оплата также использует активацию. Значок и Wake Lock в Chromium обходятся без неё — одинаковое требование ко всем четырём API неверно.';
 
 /** Без жеста, сразу при загрузке. Значения сверяет тест: `ok`, имя ошибки или `no api`. */
 export const GESTURE_ROWS: { k: string; chromium: string; firefox: string; webkit: string }[] = [
@@ -448,11 +519,8 @@ export const UA_NOTE =
 export const INSTALL_NOTE =
   'Часть возможностей зависит не от браузера, а от того, установлен ли сайт как приложение. Значок виден только у установленного. Поле `share_target` работает только у установленного. На iPhone даже push-уведомления доступны только сайту с экрана «Домой» — подробно в [«Web Push», раздел «Где push не дойдёт»](/platform/web-push/#s7). Установить сайт можно, если он отдаёт манифест: файл, где записаны имя, иконки и вид окна.';
 
-export const MANIFEST_CODE = `<!-- в <head> каждой страницы -->
-<link rel="manifest" href="/app.webmanifest">
-
-// app.webmanifest
-{
+export const MANIFEST_LINK_CODE = `<link rel="manifest" href="/app.webmanifest">`;
+export const MANIFEST_CODE = `{
   "name": "Рецепты",
   "start_url": "/",
   "display": "standalone",
@@ -463,7 +531,7 @@ export const INSTALL_SW_NOTE =
   'Работу без сети установленному приложению даёт не манифест, а Service Worker — [«Service Worker изнутри»](/render/service-worker/).';
 
 export const CLOSING =
-  '**Код вокруг вызова важнее самого вызова.** Сначала проверьте имя в `navigator`. Вызывайте из обработчика клика и не ставьте перед вызовом долгих `await`. Ловите отказ и различайте его по `err.name`. И держите запасной путь: скопировать ссылку вместо меню «Поделиться», снова показать кнопку «Не гасить экран», открыть форму карты вместо окна оплаты.';
+  'Проверяйте конкретную возможность в navigator или window. Действие, которому нужна временная активация, вызывайте сразу из обработчика пользовательского ввода. Ловите отказ и различайте его по `err.name`. И держите запасной путь: показать ссылку для копирования вместо недоступного меню «Поделиться», снова показать кнопку «Не гасить экран», открыть форму карты вместо окна оплаты.';
 
 // ─── Тонкие места ──────────────────────────────────────────────────────────────────────────
 

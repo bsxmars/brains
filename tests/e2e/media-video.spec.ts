@@ -211,6 +211,47 @@ const MSE_PAGE = `${MSE_SETUP_CODE}\n${MSE_FEED_CODE}`;
 const STALL_PAGE = `${MSE_SETUP_CODE}\n${STALL_CODE}`;
 
 for (const name of ALL) {
+  test(`append в ${name}: HTTP и событие error отклоняют операцию`, async () => {
+    const pageCode = `${MSE_SETUP_CODE}
+      try { await append('missing.m4s'); }
+      catch (error) { console.log(error.message); }
+      // Проверяем обработку error независимо от строгости конкретного MP4-парсера.
+      // Настоящие корректные сегменты проверяются соседними MSE-сценариями.
+      buffer.appendBuffer = () => queueMicrotask(() => buffer.dispatchEvent(new Event('error')));
+      try { await append('hls/low/init.mp4'); }
+      catch (error) { console.log(error.message); }
+    </script>`;
+    await inBrowser(name, async (browser) => {
+      const page = await browser.newPage();
+      const logged = await serve(page, pageCode);
+      await page.goto(`${ORIGIN}/`);
+      await expect.poll(() => logged.length).toBeGreaterThanOrEqual(2);
+      expect(logged).toEqual(['HTTP 404', 'ошибка медиа-сегмента']);
+    });
+  });
+}
+
+test('пример автоплея обрабатывает также отказ без звука и даёт повторить запуск кнопкой', async () => {
+  await inBrowser('chromium', async (browser) => {
+    const page = await browser.newPage();
+    await page.addInitScript(() => {
+      Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+        configurable: true,
+        value: () => Promise.reject(new DOMException('blocked', 'NotAllowedError')),
+      });
+    });
+    const logged = await serve(page, AUTOPLAY_CODE);
+    await page.goto(`${ORIGIN}/`);
+    await expect.poll(() => logged.length).toBe(2);
+    expect(logged).toEqual(['со звуком: NotAllowedError', 'без звука: запуск отклонён NotAllowedError']);
+    await page.click('button');
+    await expect.poll(() => logged.length).toBe(3);
+    expect(logged[2]).toBe('запуск по кнопке отклонён NotAllowedError');
+    expect(logged.some((line) => line.startsWith('pageerror:'))).toBe(false);
+  });
+});
+
+for (const name of ALL) {
   test(`MediaSource в ${name}: init, четыре куска, смена качества на 2.0 с`, async () => {
     const expected = MSE_OUT.split('\n');
     // resize приходит, когда кадр уже на экране, а currentTime к этому моменту бывает и 2.1

@@ -119,7 +119,7 @@ export const PREREQ: Prereq[] = [
   {
     t: 'Что `ArrayBuffer` может «опустеть»',
     d: 'После передачи владения у буфера `byteLength` становится 0. С отображённым буфером WebGPU происходит то же самое при `unmap()`.',
-    href: '/js/message-channel/#s3',
+    href: '/js/message-channel/#s2',
     hrefLabel: 'MessageChannel · Правила transfer-списка',
     tone: 'warn' as const,
   },

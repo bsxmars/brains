@@ -1,5 +1,6 @@
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AbortScenario } from '@/widgets/abort-lab/model/types';
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 
 /**
  * Данные темы «Отмена: AbortController и AbortSignal».
@@ -65,7 +66,7 @@ export const GLOSSARY: GlossaryTerm[] = [
 ];
 
 export const PLAIN_PAIR =
-  'Как стоп-кран в поезде. Дёрнуть его может тот, у кого есть доступ к ручке, — это контроллер. А лампочка «экстренная остановка» горит в каждом вагоне — это сигнал. По лампочке видно, что поезд останавливают, но сама она ничего не тормозит: тормозит машинист, когда её заметит.';
+  'Как кнопка «Закрыть» и уведомление для выполняющейся работы. Кнопка остаётся у владельца экрана — это контроллер. Запрос и таймер получают только уведомление — сигнал. Они могут остановить свою работу по нему, но не могут нажать кнопку за владельца. Для новой работы создают новый контроллер: отменённый сигнал обратно не включается.';
 
 export const PREREQ_NOTE = '';
 
@@ -74,7 +75,7 @@ export const PREREQ: Prereq[] = [
     t: 'Промис — результат, а не операция',
     d: 'У промиса нет ссылки на работу, которая его выполнит. Остановить можно только саму работу, а промис просто получит отказ.',
     href: '/js/promise-internals/#s1',
-    hrefLabel: '«Промис изнутри», раздел «Пять скрытых полей»',
+    hrefLabel: '«Промис изнутри», раздел «Промис, реакции и цепочка»',
     tone: 'info',
   },
   {
@@ -89,18 +90,36 @@ export const PREREQ: Prereq[] = [
 // ─── Раздел 1. Контроллер и сигнал ─────────────────────────────────────────────────────────
 
 /** Разделение прав. Тест проверяет, что у сигнала нет `abort`, а `search` отменяется владельцем. */
-export const PAIR_CODE = `// Функция получает только сигнал: слушать может, отменить — нет
-function search(query, signal) {
-  return fetch('/api/search?q=' + query, { signal });
+export const PAIR_CODE = `// Исполнитель получает сигнал, а право отменять остаётся у владельца поиска
+async function search(query, signal) {
+  const response = await fetch('/api/search?q=' + encodeURIComponent(query), { signal });
+  if (!response.ok) throw new Error('HTTP ' + response.status);
+  return response.json();
 }
 
-// Контроллер остаётся у того, кто решает
-let current = null;
-input.addEventListener('input', () => {
-  current?.abort();                  // прошлый запрос больше не нужен
-  current = new AbortController();
-  search(input.value, current.signal).then(show, ignoreAbort);
-});`;
+function attachSearch(input, show, report) {
+  let current = null;
+  async function onInput() {
+    current?.abort();
+    const ac = new AbortController();
+    current = ac;
+    try {
+      const result = await search(input.value, ac.signal);
+      ac.signal.throwIfAborted();   // готовый старый ответ тоже нельзя применять
+      show(result);
+    } catch (error) {
+      // После отмены задача больше не нужна: её результат и ошибку в UI не применяем
+      if (!ac.signal.aborted) report(error);
+    } finally {
+      if (current === ac) current = null;
+    }
+  }
+  input.addEventListener('input', onInput);
+  return () => {
+    input.removeEventListener('input', onInput);
+    current?.abort();
+  };
+}`;
 
 export const PAIR_NOTE =
   'У сигнала просто нет метода `abort`. Поэтому сигнал можно отдать кому угодно: в библиотеку, в пять вложенных функций, в чужой код. Никто из них не отменит работу соседа, все только узнают об отмене. Право решать остаётся там, где создан контроллер.';
@@ -201,6 +220,7 @@ class MiniAbortSignal extends EventTarget {
     slots.set(this, {
       reason: undefined,     // undefined — «не отменён»
       handler: null,         // onabort
+      handlerListener: null, // единственная обёртка обработчика
       dependent: false,      // сигнал собран через any()
       sources: new Set(),    // от кого зависит (только корневые сигналы)
       dependents: new Set(), // кто зависит от него
@@ -214,11 +234,17 @@ class MiniAbortSignal extends EventTarget {
   get onabort() { return slots.get(this).handler; }
   set onabort(fn) {
     const s = slots.get(this);
-    // Обработчик встаёт в общий список при первом присваивании
-    if (s.handler === null && typeof fn === 'function') {
-      this.addEventListener('abort', (e) => s.handler?.call(this, e));
+    if (typeof fn !== 'function') {
+      s.handler = null;
+      if (s.handlerListener) this.removeEventListener('abort', s.handlerListener);
+      s.handlerListener = null;
+      return;
     }
-    s.handler = typeof fn === 'function' ? fn : null;
+    s.handler = fn;
+    if (!s.handlerListener) {
+      s.handlerListener = (e) => s.handler?.call(this, e);
+      this.addEventListener('abort', s.handlerListener);
+    }
   }
 
   static abort(reason) {
@@ -235,6 +261,7 @@ class MiniAbortSignal extends EventTarget {
   }
 
   static any(signals) {
+    signals = Array.from(signals); // одноразовый iterable читаем только один раз
     const result = new MiniAbortSignal(KEY);
     const r = slots.get(result);
     // Уже отменённый — первый по порядку в списке — решает сразу
@@ -294,13 +321,13 @@ export const MINI_FACTS: { t: string; d: string }[] = [
     d: 'Сначала все зависимые молча получают ту же причину, и только потом начинается рассылка. Слушатель на корневом сигнале уже видит `aborted: true` у зависимого, хотя событие тому ещё не пришло.',
   },
   {
-    t: '`timeout()` — обычный таймер',
-    d: 'Это обычный `setTimeout`, который через `ms` позовёт тот же `signalAbort` с причиной `TimeoutError`.',
+    t: 'Как timeout устроен в модели',
+    d: 'Учебный метод ставит setTimeout и затем вызывает signalAbort с причиной TimeoutError. Настоящий метод планируется средой; в Node его таймер, в отличие от этого примера, не удерживает процесс.',
   },
 ];
 
 export const MINI_DIFF =
-  'Чем учебная версия отличается от настоящей. Причина — не `DOMException`, а свой класс с тем же `name`. Событие создаёт сам скрипт, поэтому у него `isTrusted: false`, а у настоящего — `true`. И главное: учебная держит зависимые сигналы сильными ссылками в `Set`, а настоящая — слабыми. Что из этого следует для памяти, разобрано в подразделе «`any()` и сборщик мусора».';
+  'Чем учебная версия отличается от настоящей. Причина — не `DOMException`, а свой класс с тем же `name`. Событие создаёт сам скрипт, поэтому у него `isTrusted: false`, а у настоящего — `true`. У onabort учебная версия снимает обёртку при присваивании null по правилам HTML; Node 26 может сохранять её место в списке. И главное: учебная держит зависимые сигналы сильными ссылками в `Set`, а настоящая — слабыми. Что из этого следует для памяти, разобрано в подразделе «`any()` и сборщик мусора».';
 
 /** Счётчик слушателей для двух сценариев демо. Считает добавленные минус снятые. */
 export const TRACK_CODE = `// Сколько слушателей abort сейчас на сигнале: добавлено минус снято
@@ -638,7 +665,7 @@ export const FETCH_ROWS: { k: string; client: string; server: string; tone?: 'ok
 export const FETCH_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = [
   {
     t: 'HTTP/1.1: соединение рвётся',
-    d: 'В HTTP/1.1 нельзя сказать серверу «этот запрос больше не нужен» и остаться на связи. Клиент просто закрывает соединение, и сервер видит `close`. Следующему запросу придётся открыть новое.',
+    d: 'В опыте с незавершённым ответом HTTP/1.1 отмена закрывает соединение, и сервер видит close. Это соединение больше нельзя использовать для следующего запроса. Отмена уже прочитанного ответа, как в шестом случае, не требует такого разрыва.',
   },
   {
     t: 'HTTP/2: закрывается только поток',
@@ -673,7 +700,7 @@ export const COMBINE_CODE = `async function load(url, { signal, ms = 5000 } = {}
     return await fetch(url, { signal: combined });
   } catch (e) {
     // Кто именно отменил — видно по сигналам, а не по тексту ошибки
-    if (timeout.aborted && !signal?.aborted) {
+    if (combined.aborted && e === combined.reason && combined.reason === timeout.reason) {
       throw new Error('сервер не ответил за ' + ms + ' мс', { cause: e });
     }
     throw e;   // отмена пользователем или сетевая ошибка — как есть
@@ -683,7 +710,7 @@ export const COMBINE_CODE = `async function load(url, { signal, ms = 5000 } = {}
 export const COMBINE_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = [
   {
     t: 'Кто отменил — спросите сигналы',
-    d: 'Имя ошибки годится не всегда: пользователь мог отменить с причиной `TimeoutError`, а Node-API заворачивают любую причину в свой `AbortError`. Надёжнее проверить `timeout.aborted` и `signal.aborted` — они говорят, кто сработал на самом деле.',
+    d: 'Имя ошибки годится не всегда: пользователь мог отменить с причиной `TimeoutError`, а Node-API заворачивают любую причину в свой `AbortError`. aborted сообщает, какие сигналы уже сработали, но при двух true не определяет победителя. В примере причина combined сравнивается с уникальным объектом причины timeout; совпадение с пойманной ошибкой не даёт перепутать отмену с независимой ошибкой сети.',
   },
   {
     t: 'Причина — от первого по времени',
@@ -716,6 +743,29 @@ export const DELAY_CODE = `async function delay(ms, { signal } = {}) {
     signal?.addEventListener('abort', onAbort, { once: true }); // 2. подписаться
   });
 }`;
+
+/** Переходы DELAY_CODE: проверка до старта, два исхода и очистка ресурсов. */
+export const DELAY_DIAGRAM: ConceptDiagramData = {
+  id: 'abort-delay-lifetime',
+  title: 'У delay два исхода, и в обоих нужна очистка',
+  description: 'Схема показанного delay с сигналом. Отменённый заранее сигнал не даёт запустить таймер. После старта либо таймер снимает слушателя, либо слушатель останавливает таймер.',
+  width: 900, height: 520,
+  nodes: [
+    { id: 'check', x: 20, y: 30, width: 220, height: 170, label: 'Сигнал отменён?', detail: 'throwIfAborted внутри async.', tone: 'warn' },
+    { id: 'pending', x: 340, y: 30, width: 220, height: 170, label: 'Ожидание', detail: 'Таймер и слушатель abort с once: true.', tone: 'info' },
+    { id: 'success', x: 660, y: 30, width: 220, height: 170, label: 'Успех', detail: 'Снять слушателя. Выполнить промис.', tone: 'ok' },
+    { id: 'cancel', x: 340, y: 320, width: 220, height: 170, label: 'Отмена во время работы', detail: 'Остановить таймер. once снимает слушателя.', tone: 'warn' },
+    { id: 'reject', x: 20, y: 320, width: 220, height: 170, label: 'Отказ промиса', detail: 'Причина: signal.reason.', tone: 'err' },
+  ],
+  edges: [
+    { from: 'check', to: 'pending', label: 'нет', labelX: 290, labelY: 95 },
+    { from: 'pending', to: 'success', label: 'таймер', labelX: 610, labelY: 95 },
+    { from: 'check', to: 'reject', fromSide: 'bottom', toSide: 'top', label: 'уже отменён', labelX: 130, labelY: 270 },
+    { from: 'pending', to: 'cancel', fromSide: 'bottom', toSide: 'top', label: 'событие abort', labelX: 460, labelY: 270 },
+    { from: 'cancel', to: 'reject', fromSide: 'left', toSide: 'right', label: 'reject', labelX: 290, labelY: 385 },
+  ],
+  note: 'Это схема управления ресурсами, а не замер времени. Отменяется таймер; промис лишь получает отказ. once удаляет слушателя при событии, поэтому при обычном завершении его всё равно снимают вручную.',
+};
 
 export const DELAY_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = [
   {
@@ -787,10 +837,10 @@ fromSleep.cause === why;              // true:  причина — в cause
 fromSleep instanceof DOMException;    // false: это свой класс Node`;
 
 export const NODE_ERR_NOTE =
-  'В одном процессе отмена приходит двумя разными ошибками. `fetch` и веб-стримы отклоняются самой причиной. API Node — своим `AbortError` с `code: \'ABORT_ERR\'`, а причину кладут в `cause`. Проверка `e === signal.reason` работает для первых и молча не срабатывает для вторых; `e.name === \'AbortError\'` — наоборот, промахивается по `fetch` со своей причиной. Работает везде одно: `signal.aborted`.';
+  'В одном процессе отмена приходит двумя разными ошибками. `fetch` и веб-стримы отклоняются самой причиной. API Node — своим `AbortError` с `code: \'ABORT_ERR\'`, а причину кладут в `cause`. Проверка `e === signal.reason` работает для первых и молча не срабатывает для вторых; `e.name === \'AbortError\'` — наоборот, промахивается по `fetch` со своей причиной. Флаг signal.aborted говорит о состоянии задачи, но сам по себе не доказывает причину пойманной ошибки: обычный сбой мог произойти раньше отмены. Для неактуальной UI-задачи можно намеренно отбросить любой результат, а диагностика причины требует контракта конкретного API.';
 
 export const ELSEWHERE_NOTE =
-  'Как передать сигнал внутрь асинхронного генератора, чтобы прервать его ожидание, — в [«Генераторах», раздел «Ранний выход»](/js/generators/#s5). Как нарезанная работа проверяет сигнал между кусками — в [«Планировании задач», подраздел «Нарезанную работу нужно уметь отменить»](/js/task-scheduling/#s2).';
+  'Как передать сигнал внутрь асинхронного генератора, чтобы прервать его ожидание, — в [«Генераторах», раздел «Ранний выход»](/js/generators/#s4). Как нарезанная работа проверяет сигнал между кусками — в [«Планировании задач», подраздел «Нарезанную работу нужно уметь отменить»](/js/task-scheduling/#s1).';
 
 // ─── Раздел 6. Гонка и промис ──────────────────────────────────────────────────────────────
 
@@ -830,44 +880,58 @@ export const NO_CANCEL_NOTE =
   'Почему у промиса нет метода `cancel`, разобрано в [«Промисе изнутри»](/js/promise-internals/#s1): промис — результат, а не операция. Есть и вторая причина, практическая. Один промис может ждать сколько угодно потребителей. Если бы любой из них мог его отменить, он отменил бы работу и для всех остальных. Поэтому отмена принадлежит операции, и делить её между потребителями приходится вручную.';
 
 /** Общий запрос с отменой «когда ушли все». Тест исполняет вместе с `SHARED_DEMO_CODE`. */
-export const SHARED_CODE = `// Один запрос на всех, кому он нужен. Каждый уходит своим сигналом,
-// а сам запрос отменяется, только когда ушли все.
+export const SHARED_CODE = `// Один запрос на всех. Каждый потребитель уходит своим сигналом.
 function shareable(load) {
   let current = null;
   return async function get(signal) {
     signal.throwIfAborted();
     if (!current) {
       const ac = new AbortController();
-      const fresh = { ac, users: 0, promise: load(ac.signal) };
-      fresh.promise.catch(() => {}).finally(() => {
+      const fresh = { ac, users: 0, done: false, promise: Promise.resolve(load(ac.signal)) };
+      const finish = () => {
+        fresh.done = true;
         if (current === fresh) current = null;
-      });
+      };
+      fresh.promise.then(finish, finish);
       current = fresh;
     }
     const entry = current;
     entry.users++;
     const { promise, resolve, reject } = Promise.withResolvers();
-    const leave = () => {
-      reject(signal.reason);
-      if (--entry.users === 0) entry.ac.abort();
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      signal.removeEventListener('abort', onAbort);
+      if (--entry.users === 0 && !entry.done) {
+        if (current === entry) current = null; // новый потребитель создаст новый запрос
+        entry.ac.abort();
+      }
     };
-    signal.addEventListener('abort', leave);
+    const onAbort = () => { reject(signal.reason); release(); };
     entry.promise.then(resolve, reject);
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
     try {
       return await promise;
     } finally {
-      signal.removeEventListener('abort', leave);
+      release();
     }
   };
 }`;
 
 export const SHARED_DEMO_CODE = `const load = (signal) => new Promise((resolve, reject) => {
-  const t = setTimeout(() => resolve('отчёт'), 20);
-  signal.addEventListener('abort', () => {
+  signal.throwIfAborted();
+  const onAbort = () => {
     clearTimeout(t);
     log('запрос отменён');
     reject(signal.reason);
-  });
+  };
+  const t = setTimeout(() => {
+    signal.removeEventListener('abort', onAbort);
+    resolve('отчёт');
+  }, 20);
+  signal.addEventListener('abort', onAbort, { once: true });
 });
 const get = shareable(load);
 
@@ -888,7 +952,7 @@ log('C и D: ' + await pc + ', ' + await pd);`;
 export const SHARED_LOG = ['A ушёл: AbortError', 'B получил: отчёт', 'запрос отменён', 'C и D: AbortError, AbortError'];
 
 export const SHARED_NOTE =
-  '`AbortSignal.any` собирает «или»: отменить, если ушёл **хоть один**. Для общего запроса нужно «и»: отменить, когда ушли **все**. Такого готового метода нет, и он пишется счётчиком. Каждый потребитель получает свой промис и уходит своим сигналом, а общий контроллер срабатывает на последнем уходе.';
+  '`AbortSignal.any` собирает «или»: отменить, если ушёл **хоть один**. Для общего запроса нужно «и»: отменить, когда ушли **все**. Такого готового метода нет, и он пишется счётчиком. Каждый потребитель получает свой промис и уходит своим сигналом, а общий контроллер срабатывает на последнем уходе. Запись убирается из current до abort(), поэтому новый потребитель сразу начинает новую работу, не присоединяясь к уже отменённой. release снимает подписку и уменьшает счётчик ровно один раз при любом исходе.';
 
 // ─── Тонкие места ──────────────────────────────────────────────────────────────────────────
 
@@ -914,7 +978,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '04',
     t: '`fetch` и API Node отклоняются по-разному',
-    d: '`fetch` отдаёт вашу причину как есть, API Node — свой `AbortError` с причиной в `cause`. Определяйте отмену по `signal.aborted`, а не по виду ошибки.',
+    d: '`fetch` отдаёт вашу причину как есть, API Node — свой `AbortError` с причиной в `cause`. Проверяйте состояние сигнала и контракт API. Один aborted не доказывает, что именно он вызвал пойманную ошибку.',
     tone: 'warn',
   },
   {
@@ -985,4 +1049,4 @@ export const SOURCES: Source[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Колбэки, раздел «Тонкие места»](/js/callbacks/#s8) — `EventEmitter.on`, который молча отбрасывает `{ signal }`, и тест, который это ловит. [Промис изнутри, раздел «Комбинаторы»](/js/promise-internals/#s4) — почему `Promise.race` не отменяет проигравших. [Генераторы, раздел «Ранний выход»](/js/generators/#s5) — сигнал внутрь асинхронного генератора. [Стримы, раздел «Отмена, tee и блокировка»](/platform/streams/#s5) — `abort` против `cancel` при чтении тела. [Стримы Node, раздел «Ошибки и destroy»](/platform/node-streams/#s6) — `addAbortSignal` и отмена как `destroy`. [Планирование задач, подраздел «Нарезанную работу нужно уметь отменить»](/js/task-scheduling/#s2) — `TaskSignal` и отмена нарезанной работы.';
+  'Смежное на сайте: [Колбэки, раздел «Тонкие места»](/js/callbacks/#s8) — `EventEmitter.on`, который молча отбрасывает `{ signal }`, и тест, который это ловит. [Промис изнутри, раздел «Комбинаторы»](/js/promise-internals/#s4) — почему `Promise.race` не отменяет проигравших. [Генераторы, раздел «Ранний выход»](/js/generators/#s4) — сигнал внутрь асинхронного генератора. [Стримы, раздел «Отмена, tee и блокировка»](/platform/streams/#s5) — `abort` против `cancel` при чтении тела. [Стримы Node, раздел «Ошибки и destroy»](/platform/node-streams/#s6) — `addAbortSignal` и отмена как `destroy`. [Планирование задач, подраздел «Нарезанную работу нужно уметь отменить»](/js/task-scheduling/#s1) — `TaskSignal` и отмена нарезанной работы.';

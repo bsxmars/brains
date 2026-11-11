@@ -1,16 +1,5 @@
 <script setup lang="ts">
-/**
- * Схема памяти процесса Node: контуры `rss ⊃ heap ⊃ heapUsed` и `rss ⊃ external ⊃ arrayBuffers`,
- * плюс разбор выбранного поля.
- *
- * В оригинале схема была картинкой, а таблица полей — отдельным блоком в трёх экранах ниже.
- * Читателю приходилось держать в голове, какое поле какой прямоугольник меряет, — а это ровно
- * то знание, ради которого раздел написан. Здесь выбор поля подсвечивает его контур на схеме:
- * видно и что поле меряет, и во что оно вложено.
- *
- * Рамки у прямоугольников — сознательно: это диаграмма уровня чернил, где линия означает
- * границу области памяти, а не украшение карточки.
- */
+/** Категории учёта памяти. Внешняя рамка — процесс, а не включение всех выделений в rss. */
 import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { SegmentedControl } from '@/shared/ui';
@@ -31,7 +20,7 @@ const options = computed(() => props.fields.map((f) => ({ value: f.key, label: f
 const on = (key: MemoryField['key']) => (picked.value === key ? 'yes' : 'no');
 
 const ZONE: Record<MemoryField['zone'], string> = {
-  outer: 'внешний контур · всё, что резидентно',
+  outer: 'резидентные страницы всего процесса',
   heap: 'внутри V8 heap',
   'off-heap': 'вне V8 heap',
 };
@@ -51,21 +40,21 @@ const ZONE: Record<MemoryField['zone'], string> = {
         <div class="map">
           <div class="box box--rss" :data-on="on('rss')">
             <div class="box__head">
-              <span class="box__name">rss · resident set size</span>
-              <span class="box__hint">это число видит OOM-killer и cgroup-лимит контейнера</span>
+              <span class="box__name">Память процесса · разные способы учёта</span>
+              <span class="box__hint">rss — резидентные страницы; остальные поля — учёт выделений</span>
             </div>
 
             <div class="cols">
               <div class="zone" data-zone="heap">
                 <div class="zone__name">V8 heap</div>
                 <div class="box box--nested" :data-on="on('heapTotal')">
-                  <span class="box__name">heapTotal — зарезервировано</span>
+                  <span class="box__name">heapTotal — выделено куче</span>
                   <div class="box box--inner" :data-on="on('heapUsed')">
-                    <span class="box__name">heapUsed — живые объекты</span>
+                    <span class="box__name">heapUsed — сейчас занято</span>
                     <span class="box__sub">new · old · large object · code · trusted</span>
                   </div>
                 </div>
-                <div class="zone__cap">потолок: heap_size_limit ← его задаёт --max-old-space-size</div>
+                <div class="zone__cap">старое поколение: --max-old-space-size; вся куча: heap_size_limit</div>
               </div>
 
               <div class="zone" data-zone="off">
@@ -100,7 +89,7 @@ const ZONE: Record<MemoryField['zone'], string> = {
 
         <dl class="facts">
           <div class="fact">
-            <dt>ограничивает ли --max-old-space-size</dt>
+            <dt>как связан с --max-old-space-size</dt>
             <dd>{{ current.capped }}</dd>
           </div>
           <div class="fact">

@@ -1,9 +1,9 @@
-/** Документ во вкладке и вердикт: попадёт ли он в тот же процесс, что главный фрейм. */
+/** Prepared URL/PSL example; process placement is deliberately not predicted. */
 export interface SiteCase {
   /** Подпись на переключателе. */
   label: string;
   full: string;
-  /** Схема + eTLD+1 — то, чем на самом деле меряется изоляция. */
+  /** Prepared schemeful site for this domain URL, according to PSL. */
   site: string;
   /** Тот же site, что у главного фрейма. */
   same: boolean;

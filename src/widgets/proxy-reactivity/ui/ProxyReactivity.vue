@@ -86,7 +86,7 @@ const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, 
 
       <div class="pr-split">
         <div class="pr-pane">
-          <span class="pr-label">мини-версия: журнал</span>
+          <span class="pr-label">учебная реализация: выполнение</span>
           <ol class="pr-journal">
             <li v-for="(line, i) in lines" :key="i" class="pr-line" :data-kind="line.kind">
               <span class="pr-mark">{{ line.kind === 'out' ? 'log' : '···' }}</span>{{ line.text }}

@@ -1,0 +1,93 @@
+---
+import { inlineMd, plainMd } from '@/shared/lib/format';
+import type { ConceptDiagramData, DiagramNode, DiagramSide } from './concept-diagram';
+
+interface Props {
+  data: ConceptDiagramData;
+}
+
+const { data } = Astro.props;
+const marker = `cd-arrow-${data.id}`;
+const nodes = new Map(data.nodes.map((node) => [node.id, node]));
+if (nodes.size !== data.nodes.length) throw new Error(`${data.id}: duplicate node id`);
+for (const node of data.nodes) {
+  if (![node.x, node.y, node.width, node.height].every(Number.isFinite)
+    || node.x < 0 || node.y < 0 || node.width <= 0 || node.height <= 0
+    || node.x + node.width > data.width || node.y + node.height > data.height) {
+    throw new Error(`${data.id}: node ${node.id} is outside the diagram`);
+  }
+}
+const anchor = (node: DiagramNode, side: DiagramSide): [number, number] => {
+  switch (side) {
+    case 'top': return [node.x + node.width / 2, node.y];
+    case 'bottom': return [node.x + node.width / 2, node.y + node.height];
+    case 'left': return [node.x, node.y + node.height / 2];
+    case 'right': return [node.x + node.width, node.y + node.height / 2];
+  }
+};
+const edges = data.edges.map((edge) => {
+  const from = nodes.get(edge.from);
+  const to = nodes.get(edge.to);
+  if (!from || !to) throw new Error(`${data.id}: unknown node in ${edge.from} → ${edge.to}`);
+  const start = anchor(from, edge.fromSide ?? 'right');
+  const end = anchor(to, edge.toSide ?? 'left');
+  const points = [start, ...(edge.via ?? []), end];
+  return {
+    ...edge,
+    path: points.map(([x, y], i) => `${i ? 'L' : 'M'} ${x} ${y}`).join(' '),
+    textX: edge.labelX ?? (start[0] + end[0]) / 2,
+    textY: edge.labelY ?? (start[1] + end[1]) / 2 - 12,
+  };
+});
+---
+
+<figure class="cd" data-concept-diagram={data.id}>
+  <figcaption class="cd-title" set:html={inlineMd(data.title)} />
+  <p class="cd-description" set:html={inlineMd(data.description)} />
+  <div class="cd-scroll">
+    <svg class="cd-svg" viewBox={`0 0 ${data.width} ${data.height}`} style={`min-width:${data.width}px`} role="img" aria-labelledby={`${data.id}-title ${data.id}-desc`}>
+      <title id={`${data.id}-title`}>{plainMd(data.title)}</title>
+      <desc id={`${data.id}-desc`}>{plainMd(data.description)} {data.nodes.map((node) => plainMd(`${node.label}: ${node.detail ?? ''}`)).join('. ')} {data.edges.map((edge) => plainMd(`${nodes.get(edge.from)!.label} → ${nodes.get(edge.to)!.label}${edge.label ? `: ${edge.label}` : ''}`)).join('. ')}</desc>
+      <defs>
+        <marker id={marker} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path class="cd-arrowhead" d="M 1 1 L 9 5 L 1 9 Z" />
+        </marker>
+      </defs>
+      {edges.map((edge) => (
+        <g>
+          <path class="cd-edge" data-dashed={edge.dashed ? 'yes' : undefined} d={edge.path} marker-end={`url(#${marker})`} />
+          {edge.label && <text class="cd-edge-label" x={edge.textX} y={edge.textY} text-anchor="middle">{plainMd(edge.label)}</text>}
+        </g>
+      ))}
+      {data.nodes.map((node) => (
+        <foreignObject x={node.x} y={node.y} width={node.width} height={node.height}>
+          <div class="cd-node" data-tone={node.tone ?? 'neutral'}>
+            <div class="cd-node-label" set:html={inlineMd(node.label)} />
+            {node.detail && <div class="cd-node-detail" set:html={inlineMd(node.detail)} />}
+          </div>
+        </foreignObject>
+      ))}
+    </svg>
+  </div>
+  {data.note && <p class="cd-note" set:html={inlineMd(data.note)} />}
+</figure>
+
+<style>
+  .cd { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); background: var(--surface); box-shadow: var(--shadow-card); }
+  .cd-title { color: var(--ink); font-size: var(--fs-7); font-weight: 600; line-height: 1.45; }
+  .cd-description, .cd-note { margin: 10px 0 0; color: var(--text-muted); font-size: var(--fs-5); line-height: 1.6; }
+  .cd-scroll { overflow-x: auto; min-width: 0; margin-top: 16px; }
+  .cd-svg { display: block; width: 100%; height: auto; fill: none; }
+  .cd-edge { stroke: var(--dim); stroke-width: 1.5; fill: none; }
+  .cd-edge[data-dashed='yes'] { stroke-dasharray: 6 5; }
+  .cd-arrowhead { fill: var(--dim); }
+  .cd-edge-label { fill: var(--text-muted); font-family: var(--mono); font-size: var(--fs-4); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+  .cd-node { box-sizing: border-box; width: 100%; height: 100%; padding: 14px; display: flex; flex-direction: column; justify-content: center; gap: 8px; border: 1px solid var(--border-strong); border-radius: var(--r2); color: var(--prose); background: var(--surface-2); }
+  .cd-node-label { font-size: var(--fs-6); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+  .cd-node-detail { font-size: var(--fs-5); line-height: 1.5; overflow-wrap: anywhere; }
+  .cd-node[data-tone='info'] { color: var(--tone-info-text); background: var(--tone-info-bg); border-color: var(--tone-info-line); }
+  .cd-node[data-tone='ok'] { color: var(--tone-ok-text); background: var(--tone-ok-bg); border-color: var(--tone-ok-line); }
+  .cd-node[data-tone='warn'] { color: var(--tone-warn-text); background: var(--tone-warn-bg); border-color: var(--tone-warn-line); }
+  .cd-node[data-tone='err'] { color: var(--tone-err-text); background: var(--tone-err-bg); border-color: var(--tone-err-line); }
+  .cd-node[data-tone='ink'] { color: var(--on-ink); background: var(--ink); border-color: var(--ink); --inline-code-bg: transparent; }
+</style>

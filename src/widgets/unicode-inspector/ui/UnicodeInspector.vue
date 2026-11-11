@@ -14,7 +14,7 @@
  * зовёт юнит-тест: демо и тест обязаны спрашивать движок одним и тем же кодом.
  *
  * ⚠️ Строка «хранение в V8» — **вывод из кодов символов**, а не ответ движка: внутреннее
- * представление строки из JS не наблюдаемо. Так об этом и написано в подвале.
+ * представление строки из JS не наблюдаемо. Подпись у числа явно называет его оценкой размера плоского буфера.
  */
 import { computed, ref, watch } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
@@ -34,24 +34,32 @@ const props = defineProps<{ samples: UnicodeSample[] }>();
 
 const picked = ref('0');
 const sample = computed(() => props.samples[Number(picked.value)]);
-const options = computed(() => props.samples.map((s, i) => ({ value: String(i), label: s.label })));
+const options = computed(() => [
+  ...props.samples.map((s, i) => ({ value: String(i), label: s.label })),
+  { value: 'own', label: 'своя строка' },
+]);
+const value = ref(props.samples[0].value);
+const note = computed(() => picked.value === 'own'
+  ? 'Текст из поля ввода: показатели пересчитываются при изменении строки.'
+  : sample.value.note);
 
-const cut = ref(props.samples[0].value.length);
-watch(sample, (s) => {
-  cut.value = s.value.length;
+const cut = ref(value.value.length);
+watch(picked, (key) => {
+  if (key !== 'own') value.value = sample.value.value;
 });
+watch(value, (text) => { cut.value = text.length; });
 
-const units = computed(() => codeUnits(sample.value.value));
-const points = computed(() => codePoints(sample.value.value));
-const parts = computed(() => graphemes(sample.value.value));
+const units = computed(() => codeUnits(value.value));
+const points = computed(() => codePoints(value.value));
+const parts = computed(() => graphemes(value.value));
 
 /** `null` — только там, где в среде нет `TextEncoder`: придуманных чисел здесь не будет. */
-const utf8 = computed(() => utf8Bytes(sample.value.value));
+const utf8 = computed(() => utf8Bytes(value.value));
 
-const twoByte = computed(() => isTwoByte(sample.value.value));
-const storage = computed(() => storageBytes(sample.value.value));
+const twoByte = computed(() => isTwoByte(value.value));
+const storage = computed(() => storageBytes(value.value));
 
-const slice = computed(() => sliceUnits(sample.value.value, cut.value));
+const slice = computed(() => sliceUnits(value.value, cut.value));
 
 const sliceTone = computed(() => (slice.value.broken ? 'err' : slice.value.splitsGrapheme ? 'warn' : 'ok'));
 
@@ -71,14 +79,19 @@ const verdict = computed(() => {
       <div class="ui-bar">
         <span class="ui-bar__label">строка:</span>
         <SegmentedControl v-model="picked" class="l-pills" label="Строка для разбора" :options="options" />
+        <label class="ui-own">
+          <span class="ui-bar__label">свой текст</span>
+          <input v-model="value" class="ui-own__input" type="text" maxlength="512"
+            aria-label="Строка для подсчёта единиц и байтов" @input="picked = 'own'" />
+        </label>
       </div>
     </template>
 
     <div class="ui-split">
       <div class="ui-pane">
         <div class="ui-sample">
-          <span class="ui-sample__glyph">{{ sample.value }}</span>
-          <span class="ui-sample__note">{{ sample.note }}</span>
+          <span class="ui-sample__glyph">{{ value }}</span>
+          <span class="ui-sample__note">{{ note }}</span>
         </div>
 
         <div class="ui-levels">
@@ -103,9 +116,9 @@ const verdict = computed(() => {
             <span class="ui-level__n">{{ utf8 ?? '—' }}</span>
           </div>
           <div class="ui-level" :data-tone="twoByte ? 'err' : 'ok'">
-            <span class="ui-level__name">хранение в V8</span>
+            <span class="ui-level__name">оценка размера плоского буфера V8</span>
             <span class="ui-level__how">
-              {{ twoByte ? 'двухбайтная · 2 байта на единицу' : 'однобайтная · 1 байт на единицу' }}
+              {{ twoByte ? 'расчёт: 2 байта на единицу' : 'расчёт: 1 байт на единицу' }}
             </span>
             <span class="ui-level__n">{{ storage }}</span>
           </div>
@@ -140,7 +153,7 @@ const verdict = computed(() => {
             class="ui-slicer__range"
             type="range"
             min="0"
-            :max="sample.value.length"
+            :max="value.length"
             step="1"
           />
         </div>
@@ -159,15 +172,35 @@ const verdict = computed(() => {
 
     <template #footer>
       <div class="ui-footer">
-        Числа считает ваш движок прямо сейчас, а не берёт из таблицы: <code>.length</code>, спред,
-        <code>Intl.Segmenter</code> и <code>TextEncoder</code>. Строка «хранение в V8» — вывод
-        из кодов символов, а не ответ движка, и заголовок объекта в неё не входит.
+        Длину, точки, графемы и UTF-8 считает браузер. Оценка буфера V8 — расчёт для плоской строки,
+        а не измерение памяти. Заголовки объектов, дерево склейки и удерживаемый родитель в неё не входят.
+        Двухбайтный срез из чужого буфера может оставаться двухбайтным даже при однобайтных знаках.
       </div>
     </template>
   </DemoFrame>
 </template>
 
 <style scoped>
+.ui-own {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+.ui-own__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r1);
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+}
+.ui-sample__glyph { overflow-wrap: anywhere; }
+
 .ui-bar {
   display: flex;
   align-items: center;

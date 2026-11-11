@@ -24,10 +24,7 @@ import {
   ENUM_HEAD,
   ENUM_ROWS,
   FACTORY_CODE,
-  GEN_CODE,
   ITER_HELPERS_CODE,
-  GEN_LABELS,
-  GEN_LINES,
   GET_CHAIN,
   GET_KEYS,
   GET_VALUES,
@@ -59,6 +56,7 @@ import {
   PROTO_CODE,
   HOOK_ROWS,
   DOG_INSPECT,
+  DOG_CORE_PROBES,
   CLASS_IS_ROWS,
   PROTO_OPENER,
   PROTO_VS_PROBES,
@@ -166,6 +164,7 @@ describe('консоли в начале разделов — ответы дв�
   };
 
   it.each([
+    ['Собственные свойства и прототип', DOG_CORE_PROBES],
     ['Прототипы', PROTO_OPENER],
     ['Прототипы: [[Prototype]] и prototype', PROTO_VS_PROBES],
     ['Дескрипторы', DESC_OPENER],
@@ -1705,81 +1704,7 @@ describe('порядок инициализации класса — тот же
 // Раздел 6 · генераторы
 // ---------------------------------------------------------------------------
 
-describe('генератор как корутина — четыре состояния и три способа его двинуть', () => {
-  type Dialog = Generator<string, string, unknown>;
-
-  /** Генератор берётся из листинга урока, а не пишется заново рядом. */
-  function makeDialog(): { g: Dialog; out: string[] } {
-    const out: string[] = [];
-    const factory = new Function(
-      'console',
-      `'use strict';\n${GEN_CODE.join('\n')}\nreturn dialog;`,
-    ) as (c: { log: (...a: unknown[]) => void }) => () => Dialog;
-    const dialog = factory({ log: (...args) => out.push(args.map(show).join(' ')) });
-    return { g: dialog(), out };
-  }
-
-  /** Тексты берём из самого листинга: разъехаться с ним они не должны. */
-  const quoted = (line: string) => line.match(/'([^']*)'/)![1];
-  const FIRST_QUESTION = quoted(GEN_CODE[2]);
-  const CLEANUP = quoted(GEN_CODE[6]);
-
-  it('состояний ровно четыре, и строки указывают на настоящие места кода', () => {
-    expect(GEN_LINES).toHaveLength(GEN_LABELS.length);
-    expect(GEN_LINES[0], 'suspended-start: тело не выполнялось').toBe(-1);
-    expect(GEN_CODE[GEN_LINES[1]]).toContain('yield');
-    expect(GEN_CODE[GEN_LINES[2]]).toContain('yield');
-    expect(GEN_CODE[GEN_LINES[3]]).toContain(CLEANUP);
-  });
-
-  it('до первого next() тело не выполняется', () => {
-    const { out } = makeDialog();
-    expect(out).toEqual([]);
-  });
-
-  it('next(значение) — это результат приостановленного yield, а не аргумент вызова', () => {
-    const { g, out } = makeDialog();
-
-    expect(g.next()).toEqual({ value: FIRST_QUESTION, done: false });
-    expect(g.next('Аня')).toEqual({ value: 'Привет, Аня…', done: false });
-    expect(out, 'finally ещё не трогали').toEqual([]);
-
-    expect(g.next(29)).toEqual({ value: 'Аня, 29', done: true });
-    expect(out, 'нормальное завершение тоже проходит через finally').toEqual([CLEANUP]);
-
-    expect(g.next(), 'исчерпанный генератор закрыт навсегда').toEqual({
-      value: undefined,
-      done: true,
-    });
-  });
-
-  it('throw() бросает изнутри точки паузы: finally срабатывает, ошибка выходит наружу', () => {
-    const { g, out } = makeDialog();
-    g.next();
-
-    const boom = new Error('обрыв');
-    expect(() => g.throw(boom)).toThrow(boom);
-    expect(out).toEqual([CLEANUP]);
-    expect(g.next()).toEqual({ value: undefined, done: true });
-  });
-
-  it('return() закрывает генератор мягко — finally тоже выполняется', () => {
-    const { g, out } = makeDialog();
-    g.next();
-
-    expect(g.return('стоп')).toEqual({ value: 'стоп', done: true });
-    expect(out).toEqual([CLEANUP]);
-  });
-
-  it('`for…of` с break закрывает итератор сам — через тот же return()', () => {
-    const { g, out } = makeDialog();
-    for (const question of g) {
-      expect(question).toBe(FIRST_QUESTION);
-      break;
-    }
-    expect(out, 'ради этого return() и существует: освободить ресурс').toEqual([CLEANUP]);
-  });
-
+describe('итераторы: повторный обход и завершение', () => {
   it('генератор одноразовый, а фабрика — нет', () => {
     function* gen() {
       yield 0;

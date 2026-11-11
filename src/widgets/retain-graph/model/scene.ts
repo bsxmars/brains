@@ -166,8 +166,8 @@ export function makeScene(options: Partial<SceneOptions> = {}): Scene {
 
   const listeners = tag([noop(0), noop(1), noop(2), onResize], {
     id: 'listeners',
-    label: '(array) listeners',
-    ref: '(array)',
+    label: 'Array listeners',
+    ref: 'Array',
     kind: 'array',
     shallow: WEIGHTS.array,
   });

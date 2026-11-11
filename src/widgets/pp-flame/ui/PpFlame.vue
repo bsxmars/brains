@@ -133,6 +133,7 @@ const summary = computed(() => {
   <DemoFrame>
     <template #toolbar>
       <div class="pp-bar">
+        <span class="t-label">Записанные профили Node · свёртка в вашем браузере</span>
         <Button @click="build()">{{ api ? 'свернуть заново' : 'свернуть профиль' }}</Button>
         <SegmentedControl v-model="modePick" class="l-pills" label="Профиль" :options="modeOptions" />
         <SegmentedControl v-model="metricPick" class="l-pills" label="Значение" :options="metricOptions" />
@@ -142,7 +143,7 @@ const summary = computed(() => {
     <div class="pp-body">
       <p v-if="!api" class="pp-idle">
         Профиль ещё не свёрнут. Нажмите «свернуть профиль» — код сворачивания из раздела выше
-        выполнится в вашем браузере на сэмплах из нашей проверки.
+        выполнится в вашем браузере на ранее записанных сэмплах стенда. Новый профиль страницы не снимается.
       </p>
 
       <template v-else-if="root">

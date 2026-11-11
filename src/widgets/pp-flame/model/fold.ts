@@ -11,7 +11,9 @@ import type { FlameSample, FoldApi, StandProfile } from './types';
  * Ни DOM, ни Vue — чистые функции, чтобы их мог импортировать юнит-тест.
  */
 export function loadFold(code: string): FoldApi {
-  return new Function(code)() as FoldApi;
+  const body = code.replace(/export\s+\{([^}]+)\};?\s*$/, 'return {$1};');
+  if (body === code) throw new Error('Модуль сворачивания должен завершаться именованным export');
+  return new Function(body)() as FoldApi;
 }
 
 /** Литерал стенда → список сэмплов, который принимает `fold`. */

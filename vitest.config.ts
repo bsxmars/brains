@@ -11,13 +11,15 @@ import { defineConfig } from 'vitest/config';
  * Новый тест, который запускает браузер, процесс или меряет время, — сюда.
  */
 const HEAVY = [
-  'canvas', 'cdn-cache', 'continuous-profiling', 'cost-invariants', 'csp', 'db-migrations',
+  'abort-controller', 'async-context', 'atomics', 'callbacks', 'canvas', 'cdn-cache', 'collections',
+  'continuous-profiling', 'cost-invariants', 'csp', 'db-migrations',
   'deflate', 'errors', 'fuzzy-search', 'git-internals', 'http2-http3', 'iframe', 'images', 'indexes',
-  'memory-gc', 'message-channel', 'node-event-loop', 'node-memory', 'numbers', 'observers',
-  'package-publishing', 'rate-limiting', 'realtime', 'regex', 'responsive', 'router',
+  'memory-gc', 'memory-profiling', 'message-channel', 'node-event-loop', 'node-memory',
+  'node-order', 'node-processes', 'numbers', 'observers',
+  'package-publishing', 'promise-behaviour', 'rate-limiting', 'realtime', 'regex', 'responsive', 'router',
   'schedulers', 'scrolling', 'spatial-index', 'ssr-hydration', 'supply-chain', 'suspense-errors',
-  'svelte-runes', 'text-input', 'tls-certificates', 'transactions', 'undo-redo', 'unicode-intl',
-  'uploads', 'v8-engine', 'v8-strings',
+  'svelte-runes', 'text-input', 'time-dates', 'tls-certificates', 'transactions', 'undo-redo',
+  'unicode-intl', 'uploads', 'v8-engine', 'v8-engine-traces', 'v8-engine-wasm', 'v8-strings', 'wasm-threads',
 ].map((name) => `tests/unit/${name}.test.ts`);
 
 /**

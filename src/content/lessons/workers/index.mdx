@@ -6,7 +6,7 @@ summary: "Агент и его изоляция, три канала через 
 verifiedOn: Chromium 153.0.8010.12 · Node 26.8.2 (вычитка 2026-10-29)
 nav:
   - { id: s1, label: Агент }
-  - { id: s2, label: Клонирование }
+  - { id: s2, label: Три способа обмена }
   - { id: s3, label: Владение }
   - { id: s4, label: Цена }
   - { id: s5, label: Пул воркеров }
@@ -15,11 +15,13 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CheckList from '@/shared/ui/CheckList.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -59,6 +61,7 @@ import {
   GLOSSARY,
   HAVE,
   HAVENT,
+  WORKER_DECISION, BUFFER_VARIANTS, BUFFER_WORKER_CODE, BUFFER_SETUP_CODE,
   HELLO_MAIN_CODE,
   HELLO_NOTE,
   HELLO_OUT,
@@ -67,7 +70,7 @@ import {
   LOCAL_TRANSFER,
   NO_DOM_NOTE,
   PITFALLS,
-  POOL_CODE,
+  POOL_CODE, POOL_USE_CODE, POOL_FLOW_DIAGRAM,
   POOL_CODE_NOTE,
   POOL_WORKER_CODE,
   NODE_TOPIC_NOTE,
@@ -112,17 +115,18 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Агент и его изоляция"
-  lead="Слово «поток» здесь сбивает с толку: в C++ и Java потоки делят память, видят одни и те же объекты и договариваются блокировками. В спецификации JS единица выполнения называется **агентом**, и по умолчанию у агента нет с соседями ни одного общего объекта."
+  lead="Воркер выполняет JavaScript независимо от страницы. У него своя память и свой цикл событий. Общих обычных объектов с окном нет: входные данные и результат нужно передать через сообщения."
 >
   <Plain text={PLAIN_AGENT} />
 
-  <CardGrid min={290} gap={16} align="start">
-    {AGENT_CARDS.map((item) => (
-      <Card title={item.t} titleSize={16.5} pad={20} gap={11} size={15.5} lh={1.6} text={item.d} />
+  ### Когда перенос расчёта помогает
 
-    ))}
+  <NumberedList items={WORKER_DECISION} />
 
-  </CardGrid>
+  Сравнивать нужно полный путь: подготовка входных данных → отправка → расчёт →
+  ответ → применение результата. Если выигрыш вычисления меньше расходов на обмен,
+  быстрее закончить работу в текущем потоке. Даже полезный воркер не сделает быстрее
+  изменение DOM, которое страница выполняет после получения ответа.
 
   ### Самый простой воркер
 
@@ -135,6 +139,17 @@ import {
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={HELLO_NOTE} />
   </Card>
+
+  <CardGrid min={290} gap={16} align="start">
+    {AGENT_CARDS.map((item) => (
+      <Card title={item.t} titleSize={16.5} pad={20} gap={11} size={15.5} lh={1.6} text={item.d} />
+
+    ))}
+
+  </CardGrid>
+
+  Расчёт суммы до десяти в примере показывает обмен, а не ускорение: для такой короткой
+  работы создавать воркер невыгодно. В настоящем приложении измеряют весь путь до результата.
 
   ### Что есть в воркере и чего нет
 
@@ -186,6 +201,13 @@ import {
     <Md text={START_NOTE} />
   </Card>
 
+  При завершении через `worker.terminate()` код воркера останавливается, а сообщения
+  в пути могут потеряться. Завершение не заменяет ответ на задачу: вызывающая сторона
+  должна отклонить ожидающие промисы сама. В пуле ниже это делает `close()`.
+
+  `worker.postMessage(data, transferList)` и `window.postMessage(data, targetOrigin)`
+  принимают разные вторые аргументы. Строка origin на месте transfer-списка воркера — ошибка.
+
   <CodeBlock code={ERRORS_CODE} />
 
   <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
@@ -204,9 +226,32 @@ import {
 <Section
   id="s2"
   eyebrow="Раздел 2"
-  title="Что можно передать"
-  lead="Объект нельзя передать по ссылке: у другого агента своя память, и чужих объектов он не видит. Поэтому объект **копируют**: отправитель записывает его поле за полем, а получатель собирает заново. Делает это алгоритм structured clone (структурное клонирование). Часть данных при этом теряется **молча**, без ошибки, и код дальше работает с неполной копией."
+  title="Копия, перенос и общие байты"
+  lead="Получатель может получить независимую копию данных, стать новым владельцем буфера или работать с теми же общими байтами. Выбор зависит от того, кому данные нужны после отправки и будут ли стороны менять их одновременно."
 >
+  В каждом варианте — новый буфер с одинаковыми числами `1, 2, 3, 4`.
+  Воркер считает их сумму и возвращает число `10`. Сам расчёт не меняется;
+  различается доступ страницы к исходным байтам после отправки.
+
+  <CodeBlock code={BUFFER_SETUP_CODE} />
+  <CodeBlock code={BUFFER_WORKER_CODE} />
+
+  Для варианта с общей памятью страница должна быть изолирована:
+  `self.crossOriginIsolated === true`. Заголовки COOP и COEP и ограничения ресурсов
+  разобраны в [«Безопасности фронтенда», раздел «Изоляция страницы»](/platform/security/#s7).
+
+  {BUFFER_VARIANTS.map((variant) => (
+    <Card title={variant.title} pad={20} gap={12}>
+      <CodeBlock code={variant.code} />
+      <Md text={variant.note} />
+    </Card>
+  ))}
+
+  <Plain text={PLAIN_CHANNELS} />
+  <Md text={SHARED_TOPIC_NOTE} />
+
+  ### Что происходит при копировании объекта
+
   <Plain text={PLAIN_CLONE} />
 
   <Card title="Копирование идёт в два приёма, и платят за него оба потока" titleSize={17} pad={20} gap={13}>
@@ -257,6 +302,10 @@ import {
     <NumberedList items={TRANSFER_STEPS} size={15.5} />
   </Card>
 
+  Перенос отсоединяет весь буфер, поэтому теряют доступ все TypedArray, которые его
+  разделяли. Если буфер вернулся ответным сообщением, используйте полученный новый объект,
+  а не старую переменную. Детальные ошибки transfer-списка показаны ниже по ссылке на MessageChannel.
+
   ### Замер: копия и перенос на вашей машине
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
@@ -281,7 +330,7 @@ import {
     <p class="t-body">
       Полные правила списка переноса — что будет, если положить туда объект, которого нет
       в сообщении, можно ли передать порт через сам этот порт, что с повторным переносом —
-      разобраны в теме <a href="/js/message-channel/#s3">MessageChannel, раздел «Правила transfer-списка»</a>. Главный герой там —
+      разобраны в теме <a href="/js/message-channel/#s2">MessageChannel, раздел «Правила transfer-списка»</a>. Главный герой там —
       порт: право писать в канал, которое можно отдать насовсем.
     </p>
   </Card>
@@ -311,13 +360,6 @@ import {
     ))}
 
   </CardGrid>
-  ### Третий способ: общая память
-
-  <Plain text={PLAIN_CHANNELS} />
-
-  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={SHARED_TOPIC_NOTE} />
-  </Card>
 </Section>
 
 <Section
@@ -410,6 +452,18 @@ import {
     minWidth={POOL_ROWS.minWidth}
   />
 
+  ### Как задача проходит через пул
+
+  <ConceptDiagram data={POOL_FLOW_DIAGRAM} />
+
+  <CodeBlock code={POOL_USE_CODE} />
+
+  `close()` нужен, когда владелец пула больше не собирается получать результаты.
+  Он не ждёт завершения работы: промисы текущих задач и очереди отклоняются.
+  Если задачи нужно закончить, сначала дождитесь их промисов, затем закрывайте пул.
+
+<Disclosure title="Замер запуска воркера на тихой и занятой машине">
+
   ### Сколько стоит запуск воркера
 
   <Table
@@ -429,6 +483,8 @@ import {
     и соседних вкладок.
 
   </Card>
+
+</Disclosure>
 
   <Card title="Правила пула, которые не зависят от числа ядер" titleSize={17} pad={20} gap={13}>
     <NumberedList items={POOL_RULES} size={15.5} />
@@ -495,9 +551,9 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Тонкие места"
-  lead="Половина из них проходит молча: исключения нет, а данные тихо перестают быть теми, что вы отправляли."
+  lead="Проверка доступности общей памяти отличается от проверки имени конструктора. Это особенно важно при обмене между разными видами воркеров."
 >
-  <Pitfalls items={PITFALLS} />
+  <Pitfalls items={PITFALLS.filter((item) => ['03', '06'].includes(item.n))} />
 </Section>
 
 

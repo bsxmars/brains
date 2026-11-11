@@ -99,14 +99,18 @@ function place(f: Frame) {
     </template>
 
     <div class="rl-body">
+      <Md class="rl-caption" :text="caption" />
+
       <Md class="rl-note" :text="current.note" />
 
-      <div class="rl-split">
+      <div class="rl-case">
         <div class="rl-pane">
           <span class="rl-label">case.js</span>
           <pre class="rl-code"><template v-for="(text, i) in current.code.split('\n')" :key="i"><span class="rl-ln">{{ String(i + 1).padStart(2, ' ') }}</span><CodeLine :html="hl?.[i]" :text="text" />{{ '\n' }}</template></pre>
         </div>
 
+        <details class="rl-details">
+          <summary>Кадры верхней ошибки в формате V8</summary>
         <div class="rl-pane">
           <span class="rl-label">кадры верхней ошибки</span>
           <p v-if="!result" class="rl-muted">исполняется…</p>
@@ -119,26 +123,44 @@ function place(f: Frame) {
           </ol>
           <p v-if="result && otherFrames > 0" class="rl-muted">И ещё кадров вне case.js: {{ otherFrames }} — обёртка, которая исполняет случай, и код страницы.</p>
         </div>
+        </details>
       </div>
 
       <div class="rl-split">
         <div class="rl-pane" :data-tone="json?.failed ? 'err' : 'warn'">
-          <span class="rl-label">JSON.stringify(e)<template v-if="json && !json.failed"> · {{ json.bytes }} байт</template></span>
+          <span class="rl-label">JSON.stringify(e)</span>
           <pre class="rl-code rl-code--wrap">{{ json ? (json.failed ? `бросил ${json.text}` : json.text) : '…' }}</pre>
         </div>
 
         <div class="rl-pane" data-tone="ok">
-          <span class="rl-label">serializeError(e)<template v-if="report"> · {{ report.bytes }} байт</template></span>
+          <span class="rl-label">serializeError(e)</span>
           <pre class="rl-code rl-code--wrap rl-code--tall">{{ report ? report.text : '…' }}</pre>
         </div>
       </div>
 
-      <Md class="rl-caption" :text="caption" />
+      <details v-if="json && report" class="rl-details">
+        <summary>Размер отправляемого JSON в UTF-8</summary>
+        <Md class="rl-note" :text="`Прямой JSON: ${json.failed ? 'сериализация не удалась' : json.bytes + ' байт'}. Явный отчёт: ${report.bytes} байт.`" />
+      </details>
     </div>
   </DemoFrame>
 </template>
 
 <style scoped>
+.rl-case {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.rl-details > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--fs-4);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
 .rl-tools {
   display: flex;
   flex-wrap: wrap;

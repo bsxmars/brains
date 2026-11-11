@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
@@ -42,7 +43,10 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  *     в `optionalServices` — молча выброшен; сервис, не названный в запросе, — `SecurityError`
  *     у `getPrimaryService`, а `getPrimaryServices()` перечисляет только названные.
  *
- * Что проверить нельзя, и почему: чтение и запись USB и HID — нужно настоящее устройство;
+ * Дополнительно device-hardware.test.ts исполняет те же helpers на подставных устройствах:
+ * cleanup после ошибок, разделение UTF-8 и строк, MIDI hotplug и снятие подписок.
+ * Это проверка логики приложения, не USB/HID-стека.
+ * Что нативно не проверено: чтение и запись USB и HID — нужно настоящее устройство;
  * для USB, HID и Serial в Chromium подделки нет — в протоколе DevTools нет таких доменов
  * (сверено по `browser_protocol.json` ChromeDevTools), а флагов запуска с фальшивыми портами
  * мы не нашли. Поэтому `USB_CODE` и `HID_CODE` исполняются только до окна выбора.
@@ -53,8 +57,7 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 // ─── Вводный раздел ────────────────────────────────────────────────────────────────────────
 
-export const PLAIN_DEVICE =
-  'Сайт и устройство на столе разделены операционной системой. Обычно с устройством говорит программа, которую вы поставили, а браузер видит только то, что ОС уже перевела на язык страницы: нажатие клавиши, движение мыши, звук. Эти API прокладывают от страницы прямой провод к одному устройству. Провод выдаёт человек: сам выбирает устройство в окне браузера, и только его.';
+export const PLAIN_DEVICE = "Эти API передают странице данные в формате самого устройства. Например, Serial даёт байты из порта платы, а не готовые события «нажата кнопка». Страница должна знать протокол платы: какую команду послать, где заканчивается ответ и что значат его байты. Разрешение браузера открывает канал, но не объясняет этот протокол.";
 
 export const GLOSSARY: GlossaryTerm[] = [
   {
@@ -63,7 +66,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: 'безопасный контекст',
-    d: 'Страница по `https://` или с `localhost`. На обычном `http://` этих API нет вовсе: `navigator.serial` — `undefined`, а не «есть, но запрещён».',
+    d: 'Среда, которую браузер считает безопасной: обычно HTTPS, а также локальная разработка на loopback-адресах. Проверяется `window.isSecureContext`. На обычном HTTP вне этой среды объектов этих API нет.',
   },
   {
     k: 'жест пользователя',
@@ -124,55 +127,77 @@ export const PREREQ: Prereq[] = [
  */
 export const SERIAL_CODE = `const button = document.querySelector('#connect');
 
-button.addEventListener('click', async () => {
-  // 1. Окно выбора. Без клика здесь будет SecurityError
-  const port = await navigator.serial.requestPort({
-    filters: [{ usbVendorId: 0x2341 }],     // показывать только платы Arduino
-  });
-
-  // 2. Открыть порт на скорости, которую ждёт устройство
-  await port.open({ baudRate: 9600 });
-
-  // 3. Записать: байты уходят в port.writable
-  const writer = port.writable.getWriter();
-  await writer.write(new TextEncoder().encode('ping\\n'));
-  writer.releaseLock();
-
-  // 4. Прочитать: байты из port.readable → текст → строки
-  const decoder = new TextDecoderStream();
-  const piped = port.readable.pipeTo(decoder.writable);
-  const reader = decoder.readable.getReader();
-
+async function readLine(stream, signal) {
+  const reader = stream.getReader();
+  const cancel = () => { void reader.cancel(signal.reason).catch(() => {}); };
   let tail = '';
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    const lines = (tail + value).split('\\n');
-    tail = lines.pop();                      // кусок без \\n ждёт продолжения
-    for (const line of lines) console.log('строка:', line);
-    if (lines.length > 0) break;             // ответ получен
+  try {
+    signal.throwIfAborted();
+    signal.addEventListener('abort', cancel, { once: true });
+    while (true) {
+      const { value, done } = await reader.read();
+      signal.throwIfAborted();
+      if (done) throw new Error('Поток завершился до конца строки');
+      tail += value;
+      const end = tail.indexOf('\\n');
+      if (end !== -1) return tail.slice(0, end);
+    }
+  } finally {
+    signal.removeEventListener('abort', cancel);
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
+}
 
-  // 5. Закрыть: сначала отпустить поток, потом порт
-  await reader.cancel();
-  await piped.catch(() => {});
-  await port.close();
+async function pingPort(port) {
+  await port.open({ baudRate: 9600 });
+  let piped;
+  try {
+    const writer = port.writable.getWriter();
+    try {
+      await writer.write(new TextEncoder().encode('ping\\n'));
+    } finally {
+      writer.releaseLock();
+    }
+
+    const decoder = new TextDecoderStream();
+    piped = port.readable.pipeTo(decoder.writable);
+    void piped.catch(() => {}); // pipeTo может отклониться раньше readLine
+    const line = await readLine(decoder.readable, AbortSignal.timeout(3000));
+    console.log('строка:', line);
+  } finally {
+    // readLine уже отменил чтение. pipeTo освобождает блокировку port.readable
+    await piped?.catch(() => {});
+    await port.close();
+  }
   console.log('порт закрыт');
+}
+
+button.addEventListener('click', async () => {
+  button.disabled = true;
+  try {
+    const port = await navigator.serial.requestPort({
+      filters: [{ usbVendorId: 0x2341 }], // только этот производитель, не проверка прошивки
+    });
+    await pingPort(port);
+  } catch (error) {
+    console.log('ошибка:', error.name);
+  } finally {
+    button.disabled = false;
+  }
 });`;
 
 export const SERIAL_OUT = 'строка: ping\nпорт закрыт';
 
-export const SERIAL_NOTE =
-  'Вывод снят на тестовом порту Firefox: он возвращает всё, что в него записали, поэтому на `ping` пришёл `ping`. Настоящая плата ответит тем, что зашито в её программу. Сам код от этого не меняется: открыть, записать, читать, закрыть.';
+export const SERIAL_NOTE = "Записанный вывод получен на тестовом порту Firefox: он возвращает отправленные байты, поэтому на `ping` пришёл `ping`. Настоящая плата должна иметь прошивку с тем же протоколом. `readLine` ждёт первую строку не дольше трёх секунд; это срок чтения ответа, а не гарантия длительности `open()` или записи. После успеха и после ошибки `finally` освобождает порт.";
 
-export const PLAIN_BAUD =
-  '`baudRate` — скорость, на которой обе стороны договорились говорить: 9600 бит в секунду, 115200 и так далее. Сам порт скорость не определяет: это как два человека, которые заранее условились, как быстро диктовать цифры. Если плата шлёт на 115200, а вы открыли на 9600, порт откроется без ошибки, но байты придут мусором.';
+export const PLAIN_BAUD = "`baudRate` задаёт скорость обмена, например 9600 бит в секунду. Её берут из документации устройства. Для настоящего UART несовпадение скоростей может испортить данные; у виртуального USB-порта настройка может обрабатываться прошивкой иначе. Браузер не угадывает нужное значение.";
 
 export const STREAM_FACTS = [
   '`port.readable` — обычный `ReadableStream`, кусками в нём идут `Uint8Array`. `port.writable` — `WritableStream`, туда пишут `Uint8Array`. До `open()` оба равны `null`;',
   '**куски не совпадают со строками.** Порт отдаёт байты по мере прихода: одна строка может приехать тремя кусками, а три строки — одним. Поэтому хвост без `\\n` откладывают до следующего куска;',
   '`TextDecoderStream` склеивает и байты: буква «ж» в UTF-8 — два байта, и если кусок разрезал её пополам, декодер дождётся второй половины;',
-  '**пока поток заперт читателем или писателем, порт не закрыть.** По спецификации `close()` сам отменяет оба потока, а отменить запертый поток нельзя. Поэтому в конце примера такой порядок: `reader.cancel()`, дождаться `pipeTo`, и только потом `port.close()`.',
+  '**разрешение и соединение — разные вещи.** `port.close()` освобождает открытый порт, но не отзывает разрешение сайта. `port.forget()` решает другую задачу: убрать ранее выданный доступ.',
 ];
 
 export const STREAM_LINK =
@@ -181,12 +206,12 @@ export const STREAM_LINK =
 // ─── Раздел 2. Разрешения ──────────────────────────────────────────────────────────────────
 
 export const PERMISSION_STEPS = [
-  '**Безопасный контекст.** На `http://` объектов `navigator.serial`, `usb`, `bluetooth`, `hid` и метода `requestMIDIAccess` нет ни в одном движке;',
-  '**жест.** `requestPort()` и все `requestDevice()` работают только внутри обработчика клика или клавиши. Без жеста — `SecurityError`, окно даже не открывается;',
-  '**окно выбора.** Список устройств видит человек, а не сайт. Сайт получает одно выбранное устройство. Закрыли окно без выбора — `NotFoundError`, а у HID — пустой массив;',
-  '**уже разрешённые.** `getPorts()` и `getDevices()` возвращают то, что человек выбрал раньше на этом же источнике. Жеста они не требуют — так страница переподключается после перезагрузки;',
-  '**отзыв.** `port.forget()` и `device.forget()` снимают разрешение. После них устройство пропадает из `getPorts()`, и до него снова нужно окно выбора;',
-  '**фреймы.** Чужой `<iframe>` по умолчанию не получает ничего — даже `getPorts()`. Открывает доступ атрибут `allow="serial; usb; hid; bluetooth; midi"` или заголовок `Permissions-Policy` на странице.',
+  '**Безопасный контекст.** Все пять API требуют безопасной среды; её проверяют через `isSecureContext`. Поддержка самого API проверяется отдельно;',
+  '**жест для окна выбора.** Serial, USB, Bluetooth и HID требуют кратковременной активации пользователя для `requestPort()` / `requestDevice()`. Не откладывайте запрос за долгий `await`;',
+  '**выбор устройства.** Serial, USB и Bluetooth возвращают одно выбранное устройство; HID возвращает массив выбранных устройств, включая пустой массив при отмене. Список кандидатов страница не получает;',
+  '**MIDI — другой контракт.** `requestMIDIAccess()` запрашивает доступ к MIDI, без обязательного жеста и без окна выбора одного устройства. При успехе `MIDIAccess.inputs` / `outputs` содержат доступные MIDI-порты. Браузер всё равно может запросить разрешение или отказать;',
+  '**повторный доступ и отзыв.** У Serial есть `getPorts()` и `port.forget()`, у USB и HID — `getDevices()` и `device.forget()`. Наличие других методов проверяют для конкретного API. Закрыть соединение — не значит отозвать разрешение;',
+  '**фреймы.** Доступ ограничивает `Permissions-Policy`: разрешение пользователя не отменяет запрет родителя. Делегирование фрейму тоже не заменяет разрешение пользователя.',
 ];
 
 export const PLAIN_GESTURE =
@@ -196,7 +221,9 @@ export const PLAIN_GESTURE =
  * При загрузке выполняется модулем: верхний `await` работает только там.
  * Спек проверяет `при загрузке: 0` в Chromium и всю тройку — в Firefox на тестовом порту.
  */
-export const PERMISSION_CODE = `// При загрузке: жеста нет, окна нет — только то, что уже разрешено
+export const PERMISSION_CODE = `const button = document.querySelector('#connect');
+
+// При загрузке: жеста нет, окна нет — только то, что уже разрешено
 console.log('при загрузке:', (await navigator.serial.getPorts()).length);
 
 button.addEventListener('click', async () => {
@@ -237,7 +264,7 @@ export const SUPPORT: { api: string; probe: 'serial' | 'usb' | 'bluetooth' | 'hi
 ];
 
 export const SUPPORT_NOTE =
-  'Chromium — это Chrome, Edge, Opera, Яндекс Браузер. Safari и все браузеры на WebKit не дают ни одного из пяти API. Проверяйте наличие API, а не имя браузера: `\'serial\' in navigator`.';
+  'Таблица — снимок указанных движков, а не обещание всех браузеров на их основе. Проверяйте наличие API в текущей среде, например `\'serial\' in navigator`, затем обрабатывайте отказ запроса. Позиции разработчиков ниже зафиксированы по источникам на ноябрь 2026 года.';
 
 export const FIREFOX_NOTE =
   'В Firefox Serial и MIDI есть, но не открываются простым окном. При первом запросе Firefox предлагает установить **дополнение-разрешение** для этого сайта: его генерирует сам браузер, и ставить его человек должен сознательно. Если устройств MIDI нет, Firefox отказывает молча и не сразу: в нашей проверке промис висел 13,5 секунды и только потом отклонился `SecurityError`, а в консоли Firefox написал «Silently denying site request for MIDI access because no devices were detected».';
@@ -256,54 +283,114 @@ export const POSITIONS = [
 // ─── Раздел 4. Четыре других API ───────────────────────────────────────────────────────────
 
 /**
- * Пример из спецификации WebUSB (плата Arduino с прошивкой WebUSB). Без устройства не
- * исполняется дальше первой строки: спек проверяет только `NotFoundError` от окна выбора.
+ * Обмен с конкретной прошивкой WebUSB. E2E проверяет отказ выбора, unit — cleanup
+ * на подставном устройстве; успешный нативный обмен с платой здесь не утверждается.
  */
-export const USB_CODE = `button.addEventListener('click', async () => {
-  const device = await navigator.usb.requestDevice({
-    filters: [{ vendorId: 0x2341 }],
-  });
+export const USB_CODE = `const button = document.querySelector('#connect');
+
+async function readUsb(device) {
   await device.open();
-  await device.selectConfiguration(1);
-  await device.claimInterface(2);   // занять интерфейс: его не должен держать драйвер ОС
+  let claimed = false;
+  try {
+    // Номера из прошивки этой платы, не универсальные значения для USB
+    await device.selectConfiguration(1);
+    await device.claimInterface(2);
+    claimed = true;
+    const setup = await device.controlTransferOut({
+      requestType: 'class', recipient: 'interface',
+      request: 0x22, value: 0x01, index: 2,
+    });
+    if (setup.status !== 'ok') throw new Error('Управляющая передача не выполнена');
+    const result = await device.transferIn(5, 64);
+    if (result.status !== 'ok' || !result.data) throw new Error('Ответ USB не получен');
+    console.log(new TextDecoder().decode(result.data));
+  } finally {
+    try {
+      if (claimed) await device.releaseInterface(2);
+    } finally {
+      await device.close();
+    }
+  }
+}
 
-  // управляющая передача — короткая команда «настрой себя»
-  await device.controlTransferOut({
-    requestType: 'class', recipient: 'interface',
-    request: 0x22, value: 0x01, index: 2,
-  });
-
-  // массовая передача — до 64 байт данных из конечной точки 5
-  const result = await device.transferIn(5, 64);
-  console.log(new TextDecoder().decode(result.data));
+button.addEventListener('click', async () => {
+  button.disabled = true;
+  try {
+    const device = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x2341 }] });
+    await readUsb(device);
+  } catch (error) {
+    console.log('ошибка:', error.name);
+  } finally {
+    button.disabled = false;
+  }
 });`;
 
 export const PLAIN_TRANSFERS =
   'USB-устройство — это почтовое отделение с несколькими окошками. **Интерфейс** — отдел: у веб-камеры отдельно видео и звук. **Конечная точка** — окошко в отделе, у каждого номер и направление «сюда» или «отсюда». **Управляющая передача** — короткая записка начальнику отдела («включи светодиод», «назови модель»). **Массовая передача** — посылки через окошко: данные большими порциями, без гарантии времени, но целиком.';
 
-export const USB_NOTE =
-  'Главная помеха WebUSB — драйвер. Если ОС узнала устройство — флешку, клавиатуру, веб-камеру, — интерфейс уже занят её драйвером, и `claimInterface` отклоняется `NetworkError`. Поэтому WebUSB годится для устройств, у которых своего драйвера в системе нет: платы разработчика, прошивальщики, лабораторные приборы. А интерфейсы аудио, HID, накопителей, хабов, смарт-карт, видео и беспроводных контроллеров спецификация закрывает сама: для них `claimInterface` — `SecurityError`.';
+export const USB_NOTE = "Этот обмен рассчитан на конкретную Arduino с прошивкой WebUSB: конфигурацию, интерфейс, конечную точку и управляющую команду берут из её описания. Нативная браузерная проба без платы проверяет только отмену выбора; успешный обмен здесь не измерен. Тесты на подставном объекте проверяют логику: даже при ошибке передачи код освобождает интерфейс и закрывает устройство. Системный драйвер может занимать интерфейс, а защищённые классы спецификация запрещает независимо от драйвера.";
 
 /**
  * Исполняется спеком целиком на фальшивом устройстве Chromium (`BluetoothEmulation`):
  * имя `Pulse-1`, батарейный сервис, уровень 87.
  */
-export const BT_CODE = `button.addEventListener('click', async () => {
-  const device = await navigator.bluetooth.requestDevice({
-    filters: [{ services: ['battery_service'] }],   // только устройства с батарейным сервисом
-  });
-  const server = await device.gatt.connect();
-  const service = await server.getPrimaryService('battery_service');
-  const level = await service.getCharacteristic('battery_level');
+export const BT_CODE = `const button = document.querySelector('#connect');
 
-  const value = await level.readValue();             // DataView
-  console.log(device.name, 'заряд:', value.getUint8(0) + '%');
+async function watchBattery(device) {
+  let level;
+  let subscribed = false;
+  const changed = (e) => console.log('новый заряд:', e.target.value.getUint8(0) + '%');
+  const stop = async () => {
+    level?.removeEventListener('characteristicvaluechanged', changed);
+    try {
+      if (subscribed && device.gatt.connected) {
+        subscribed = false;
+        await level.stopNotifications();
+      }
+    } finally {
+      device.gatt.disconnect();
+    }
+  };
+  try {
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService('battery_service');
+    level = await service.getCharacteristic('battery_level');
+    const value = await level.readValue();
+    console.log(device.name, 'заряд:', value.getUint8(0) + '%');
+    if (level.properties.notify || level.properties.indicate) {
+      level.addEventListener('characteristicvaluechanged', changed);
+      await level.startNotifications();
+      subscribed = true;
+      console.log('подписка оформлена');
+    }
+    return stop;
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+}
 
-  level.addEventListener('characteristicvaluechanged', (e) => {
-    console.log('новый заряд:', e.target.value.getUint8(0) + '%');
-  });
-  await level.startNotifications();                  // дальше устройство пишет само
-  console.log('подписка оформлена');
+let stopBattery;
+button.addEventListener('click', async () => {
+  button.disabled = true;
+  try {
+    if (stopBattery) {
+      const stop = stopBattery;
+      stopBattery = null;
+      button.textContent = 'Подключить';
+      await stop();
+      return;
+    }
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: ['battery_service'] }],
+    });
+    stopBattery = await watchBattery(device);
+    button.textContent = 'Отключить';
+  } catch (error) {
+    console.log('ошибка:', error.name);
+  } finally {
+    button.disabled = false;
+  }
 });`;
 
 export const BT_OUT = 'Pulse-1 заряд: 87%\nподписка оформлена';
@@ -311,21 +398,45 @@ export const BT_OUT = 'Pulse-1 заряд: 87%\nподписка оформле�
 export const PLAIN_GATT =
   'Bluetooth LE-устройство устроено как шкаф с папками. **Сервис** — папка на одну тему: «батарея», «пульс». **Характеристика** — лист в папке с одним значением: «уровень заряда — 87». Каждую папку и лист называет UUID; для стандартных есть короткие имена вроде `battery_service`. Значение можно прочитать, записать или подписаться на него — тогда устройство само присылает новое, когда оно меняется. Этот набор правил и называется GATT.';
 
-export const BT_NOTE =
-  'Вывод снят на фальшивом устройстве, которое Chromium создаёт через протокол DevTools (раздел [«Как проверить без железа»](#s6)). Сайт видит только те сервисы, которые назвал в `filters` или `optionalServices`: остальные для него не существуют, `getPrimaryService` на них — `SecurityError`. Это и есть защита: страница с пульсометром не прочитает с того же браслета ничего лишнего.';
+export const BT_NOTE = "Записанный вывод получен на устройстве, созданном через DevTools в Chromium: батарея читается, подписка устанавливается. Приход нового значения эта нативная эмуляция не проверяет. Если характеристика не поддерживает уведомления, остаётся только чтение. Повторный клик снимает обработчик, останавливает уведомления и разрывает GATT-соединение; при ошибке настройки соединение тоже закрывается. Сайт получает только сервисы, названные в `filters` или `optionalServices`; это ограничение доступа, а не проверка безопасности самого сервиса.";
 
 /** Без устройства спек доходит до `устройство не выбрано`: окно в headless shell закрыто. */
-export const HID_CODE = `button.addEventListener('click', async () => {
-  const [device] = await navigator.hid.requestDevice({
-    filters: [{ vendorId: 0x057e }],               // Nintendo: Joy-Con, Pro Controller
-  });
-  if (!device) return console.log('устройство не выбрано');
+export const HID_CODE = `const button = document.querySelector('#connect');
 
+async function watchHid(device) {
   await device.open();
-  device.addEventListener('inputreport', (e) => {
-    // reportId — какой это отчёт, data — его байты
-    console.log(e.reportId, new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength));
-  });
+  const report = (e) => console.log(e.reportId,
+    new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength));
+  device.addEventListener('inputreport', report);
+  return async () => {
+    device.removeEventListener('inputreport', report);
+    await device.close();
+  };
+}
+
+let stopHid;
+button.addEventListener('click', async () => {
+  button.disabled = true;
+  try {
+    if (stopHid) {
+      const stop = stopHid;
+      stopHid = null;
+      button.textContent = 'Подключить';
+      await stop();
+      return;
+    }
+    const [device] = await navigator.hid.requestDevice({
+      filters: [{ vendorId: 0x057e }], // Nintendo
+    });
+    if (!device) return console.log('устройство не выбрано');
+    // В этом примере используем только первый элемент результата
+    stopHid = await watchHid(device);
+    button.textContent = 'Отключить';
+  } catch (error) {
+    console.log('ошибка:', error.name);
+  } finally {
+    button.disabled = false;
+  }
 });`;
 
 export const HID_OUT = 'устройство не выбрано';
@@ -334,10 +445,7 @@ export const HID_NOTE =
   'HID — протокол клавиатур, мышей, геймпадов, а ещё педалей, пультов, считывателей карт. Устройство говорит **отчётами**: пачками байтов с номером. Что значит каждый байт, оно само описывает в дескрипторе — `device.collections` отдаёт этот дескриптор разобранным. Входной отчёт приходит событием `inputreport`, выходной уходит `sendReport()`, настройки читаются и пишутся отчётами-«свойствами» (`receiveFeatureReport`, `sendFeatureReport`).';
 
 /** Спек исполняет код модулем в Chromium с выданным разрешением, затем зовёт `describe` на `MIDI_SAMPLES`. */
-export const MIDI_CODE = `const midi = await navigator.requestMIDIAccess();     // без sysex
-console.log('входов:', midi.inputs.size, 'выходов:', midi.outputs.size);
-
-function describe([status, data1, data2]) {
+export const MIDI_CODE = `function describe([status, data1, data2]) {
   const command = status >> 4;            // старшие 4 бита: что случилось
   const channel = (status & 0x0f) + 1;    // младшие 4 бита: канал 1–16
   if (command === 0x9 && data2 > 0) return \`канал \${channel}: нажата нота \${data1}, сила \${data2}\`;
@@ -346,10 +454,40 @@ function describe([status, data1, data2]) {
   return \`другое: \${status.toString(16)}\`;
 }
 
-for (const input of midi.inputs.values()) {
-  input.onmidimessage = (e) => console.log(describe(e.data));
+function watchMidi(midi) {
+  const inputs = new Set();
+  const message = (e) => console.log(describe(e.data));
+  const attach = (port) => {
+    if (port.type !== 'input' || port.state !== 'connected' || inputs.has(port)) return;
+    inputs.add(port);
+    port.addEventListener('midimessage', message); // неявно открывает MIDI-вход
+  };
+  const changed = (e) => {
+    console.log(e.port.name, e.port.state);
+    attach(e.port); // в том числе клавиатура, подключённая после загрузки
+  };
+  for (const input of midi.inputs.values()) attach(input);
+  midi.addEventListener('statechange', changed);
+  return async () => {
+    midi.removeEventListener('statechange', changed);
+    await Promise.allSettled([...inputs].map((input) => {
+      input.removeEventListener('midimessage', message);
+      return input.close();
+    }));
+    inputs.clear();
+  };
 }
-midi.onstatechange = (e) => console.log(e.port.name, e.port.state);`;
+
+let stopMidi = async () => {};
+try {
+  const midi = await navigator.requestMIDIAccess(); // без sysex, без chooser устройства
+  console.log('входов:', midi.inputs.size, 'выходов:', midi.outputs.size);
+  stopMidi = watchMidi(midi);
+  // В приложении вызывайте stopMidi при закрытии музыкального инструмента
+  window.addEventListener('pagehide', () => { void stopMidi(); }, { once: true });
+} catch (error) {
+  console.log('ошибка:', error.name);
+}`;
 
 export const MIDI_OUT = 'входов: 0 выходов: 0';
 
@@ -360,8 +498,7 @@ export const MIDI_SAMPLES: { bytes: number[]; out: string }[] = [
   { bytes: [0xb1, 7, 90], out: 'канал 2: регулятор 7 = 90' },
 ];
 
-export const MIDI_NOTE =
-  'MIDI — самый простой из пяти протоколов. Обычное сообщение — до трёх байт: статус (что и на каком канале) и одно-два значения от 0 до 127. `0x90 60 100` — «на первом канале нажата нота 60 (до первой октавы) с силой 100». Нота с силой 0 тоже означает «отпущена»: так шлют многие клавиатуры. Выход работает зеркально: `output.send([0x90, 60, 100])`.';
+export const MIDI_NOTE = "Здесь `describe` разбирает только три вида канальных сообщений: ноту, отпускание ноты и регулятор. Они занимают три байта: статус и два значения. Другие MIDI-сообщения бывают короче, а sysex — длиннее. `0x90 60 100` означает ноту 60 на первом канале с силой 100; сила 0 у `0x9n` тоже означает отпускание. `watchMidi` подхватывает новые входы по `statechange`, а возвращённый `stopMidi` снимает подписки и закрывает использованные входы. Отправка ноты — `output.send([0x90, 60, 100])`.";
 
 export const SYSEX_NOTE =
   '**Sysex** — сообщение `F0 … F7` любой длины в формате производителя. Им синтезаторы принимают пресеты, а часто и новую прошивку. Поэтому у разрешения два уровня: `requestMIDIAccess()` и `requestMIDIAccess({ sysex: true })`. В Chromium с версии 124 спрашивается любой доступ к MIDI, а не только sysex; sysex просят, только если без него никак.';
@@ -371,13 +508,12 @@ export const API_ROWS = [
   ['USB', 'передачи к интерфейсам устройства', '`requestDevice` → `open` → `claimInterface` → `transferIn` / `Out`', 'устройства без системного драйвера, прошивальщики'],
   ['Bluetooth LE', 'значения характеристик GATT', '`requestDevice` → `gatt.connect` → сервис → характеристика', 'браслеты, датчики, умные лампы'],
   ['HID', 'отчёты по описанию устройства', '`requestDevice` → `open` → `inputreport` / `sendReport`', 'геймпады вне Gamepad API, педали, пульты'],
-  ['MIDI', 'сообщения по 1–3 байта', '`requestMIDIAccess` → `inputs` / `outputs` → `onmidimessage`', 'клавиатуры, контроллеры, синтезаторы'],
+  ['MIDI', 'короткие сообщения; sysex переменной длины', '`requestMIDIAccess` → `inputs` / `outputs` → `onmidimessage`', 'клавиатуры, контроллеры, синтезаторы'],
 ];
 
 // ─── Раздел 5. Почему это опасно ───────────────────────────────────────────────────────────
 
-export const DANGER_WHY =
-  'Устройство обычно верит каждому, кто к нему подключён. Плата выполнит любую команду из порта, принтер — любой G-код, многие устройства примут новую прошивку без подписи. Раньше это было безопасно: подключиться могла только программа, которую человек сам поставил. Теперь подключиться может страница, открытая минуту назад. Окно выбора не даст сайту подключиться втихую. Но если сайт попросит, человек нажмёт «Подключить», и окно его не остановит.';
+export const DANGER_WHY = "Разрешение отвечает на вопрос «этому сайту можно открыть канал?», но не на вопрос «безопасны ли его команды?». Устройство может принимать команды движения, изменения настроек или перепрошивки. Их допустимость определяется протоколом и прошивкой; браузер не понимает смысл каждого пакета. Поэтому фильтр по производителю не заменяет проверку совместимости, а окно выбора не делает произвольный сайт доверенным.";
 
 export const YUBIKEY_NOTE =
   'Так уже было. В феврале 2018 года Маркус Фервир и Микеле Орру показали фишинг через WebUSB. Ключ YubiKey NEO защищает вход тем, что сверяет адрес сайта: поддельный сайт получит отказ. Но через WebUSB поддельная страница просила «подключить» ключ, человек выбирал его в окне, и страница слала ключу запрос напрямую через интерфейс смарт-карты — уже без сверки адреса. Chrome 67 закрыл этот путь: класс интерфейса смарт-карты вошёл в список защищённых.';
@@ -392,11 +528,9 @@ export const BLOCK_ROWS = [
 export const BLOCK_NOTE =
   'Геймпадов в blocklist HID нет: через WebHID достают то, чего не знает Gamepad API, — подсветку, вибрацию, модели, которых нет в его списке. Bluetooth сверяется с blocklist на каждом шаге: сервис HID в `filters` сразу даёт `SecurityError`, а из `optionalServices` браузер молча его убирает.';
 
-export const FRAME_NOTE =
-  'Для встроенных фреймов работает `Permissions-Policy`. По умолчанию все пять API разрешены только своему источнику: чужой `<iframe>` получает `SecurityError` уже на `getPorts()`. Открыть доступ виджету можно атрибутом `allow="serial"` или заголовком у родительской страницы, а закрыть себе самим — заголовком `Permissions-Policy: serial=(), usb=(), hid=(), bluetooth=(), midi=()`. Сайту, которому железо не нужно, такой заголовок стоит поставить: тогда даже скрипт, внедрённый через XSS, не получит доступа к устройствам.';
+export const FRAME_NOTE = "`Permissions-Policy` ограничивает API независимо от пользовательского разрешения. По умолчанию доступ разрешён своему источнику; для чужого iframe нужно делегирование, например `allow=\"serial\"`. Атрибут не отменяет запрет, заданный заголовком родителя. Заголовок `Permissions-Policy: serial=(), usb=(), hid=(), bluetooth=(), midi=()` запрещает эти API странице и её фреймам. Это сужает возможности внедрённого скрипта, но не защищает от самого XSS.";
 
-export const CLOSING =
-  '**У пяти API общие правила доступа.** Страница просит только по клику, устройство выбирает человек, сайт получает одно устройство и только его, а разрешение можно отозвать. Различается протокол: Serial передаёт поток байтов, USB — передачи, Bluetooth — значения характеристик, HID — отчёты, MIDI — короткие сообщения.';
+export const CLOSING = "**Открыть канал — только начало.** Формат команд задаёт устройство, разрешение ограничивает браузер, а открытые соединения и подписки освобождает приложение. Для каждого API нужны собственные обработка отказа и завершение работы.";
 
 // ─── Раздел 6. Как проверить без железа ────────────────────────────────────────────────────
 
@@ -406,7 +540,8 @@ export const TEST_ROWS = [
   ['полный цикл Serial', 'Firefox', 'настройки `dom.webserial.testing.enabled: true` и `dom.webserial.gated: false` — тестовый порт, который возвращает записанное'],
   ['полный цикл Bluetooth', 'Chromium', 'протокол DevTools: `BluetoothEmulation` создаёт устройство, `DeviceAccess` выбирает его в окне'],
   ['MIDI без устройств', 'Chromium', 'выданное разрешение — пустые `inputs` и `outputs`'],
-  ['USB и HID', '—', 'подделки нет: только настоящее устройство'],
+  ['логика USB и HID после выбора', 'модульные тесты', 'подставные объекты: ошибки передачи, снятие подписок, releaseInterface и close; без проверки USB/HID-стека'],
+  ['нативный обмен USB и HID', 'на стенде не проверен', 'нужно совместимое устройство и его протокол'],
 ];
 
 export const TEST_NOTE =
@@ -453,7 +588,7 @@ pageCdp.once('DeviceAccess.deviceRequestPrompted', ({ id, devices }) =>
   pageCdp.send('DeviceAccess.selectPrompt', { id, deviceId: devices[0].id }));`;
 
 export const BT_EMULATION_NOTE =
-  'Устройство здесь — набор ответов: на каждое действие страницы браузер присылает событие, и тест отвечает «успешно» или кодом ошибки. Так проверяются подключение, перечисление сервисов, чтение и подписка. Прислать странице **новое значение** от устройства этот протокол в Chromium 153 не умеет: подписку на уведомления проверить можно, сам приход уведомления — нет. Если у характеристики нет дескриптора `0x2902`, `startNotifications()` отвечает `NotSupportedError`.';
+  'Устройство здесь — набор ответов: на каждое действие страницы браузер присылает событие, и тест отвечает «успешно» или кодом ошибки. Так проверяются подключение, перечисление сервисов, чтение и подписка. Прислать странице **новое значение** от устройства этот протокол в Chromium 153 не умеет: подписку на уведомления проверить можно, сам приход уведомления — нет. В этом стенде для успешной подписки добавлен дескриптор `0x2902`: без него эмуляция ответила `NotSupportedError`.';
 
 // ─── Тонкие места ──────────────────────────────────────────────────────────────────────────
 
@@ -480,7 +615,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '04',
     t: '`port.close()` при запертом потоке',
-    d: 'По спецификации закрытие отклоняется, пока поток держит читатель или писатель. Firefox 155 в нашей проверке закрыл порт и так, но рассчитывать на это нельзя: сначала `reader.cancel()` и `writer.close()`, потом `port.close()`.',
+    d: 'Закрытие порта требует освободить блокировки его потоков. В примере запись уже дожидается write и освобождает writer; чтение отменяет reader, освобождает его и дожидается pipeTo. Одного writer.close() недостаточно, если writer всё ещё держит блокировку.',
   },
   {
     n: '05',
@@ -516,3 +651,29 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Стримы](/platform/streams/) — потоки, на которых построен Web Serial. [Двоичные данные](/js/binary-data/) — `Uint8Array`, `DataView`, текст из байтов. [Безопасность фронтенда](/platform/security/) — источник и заголовки, которыми закрывают API для фреймов. [WebRTC](/platform/webrtc/) — камера и микрофон, другой путь к устройствам через разрешения. [Страница и система](/js/os-integration/) — экран, «Поделиться», значок и оплата: те же правила жеста и разрешений.';
+
+
+/** Учебная схема блокировок из SERIAL_CODE; не результат замера устройства. */
+export const SERIAL_CLEANUP_DIAGRAM: ConceptDiagramData = {
+  id: 'serial-cleanup',
+  title: 'Два потока должны отпустить порт',
+  description: 'Условия закрытия порта в pingPort: освободить выходной поток и завершить запущенное чтение. pipeTo держит собственную блокировку входного потока порта.',
+  width: 900,
+  height: 660,
+  nodes: [
+    { id: 'write', x: 35, y: 30, width: 340, height: 110, label: 'writer.write завершён', detail: 'Успех или ошибка записи', tone: 'info' },
+    { id: 'writerfree', x: 35, y: 240, width: 340, height: 110, label: 'writer.releaseLock()', detail: 'Освобождён port.writable', tone: 'ok' },
+    { id: 'read', x: 525, y: 30, width: 340, height: 110, label: 'readLine завершает чтение', detail: 'Ответ, ошибка или срок ожидания', tone: 'info' },
+    { id: 'readerfree', x: 525, y: 240, width: 340, height: 110, label: 'cancel → releaseLock', detail: 'Освобождён поток декодера', tone: 'ok' },
+    { id: 'pipefree', x: 525, y: 430, width: 340, height: 110, label: 'Дождаться pipeTo', detail: 'Освобождён port.readable', tone: 'ok' },
+    { id: 'close', x: 35, y: 520, width: 340, height: 110, label: 'port.close()', detail: 'Открытый порт освобождён', tone: 'ink' },
+  ],
+  edges: [
+    { from: 'write', to: 'writerfree', fromSide: 'bottom', toSide: 'top', label: 'finally', labelX: 205, labelY: 190 },
+    { from: 'read', to: 'readerfree', fromSide: 'bottom', toSide: 'top', label: 'finally', labelX: 695, labelY: 190 },
+    { from: 'readerfree', to: 'pipefree', fromSide: 'bottom', toSide: 'top' },
+    { from: 'writerfree', to: 'close', fromSide: 'bottom', toSide: 'top', label: 'выходной поток свободен', labelX: 205, labelY: 445 },
+    { from: 'pipefree', to: 'close', fromSide: 'bottom', toSide: 'right', via: [[695, 575]], label: 'входной поток свободен', labelX: 625, labelY: 620 },
+  ],
+  note: 'Чтение начинается после успешной записи; при ошибке записи pipeTo ещё не запущен. close ждёт освобождения использованных потоков и закрывает соединение, а forget отзывает разрешение.',
+};

@@ -3,8 +3,8 @@ title: "Копирование и сериализация: JSON и structuredCl
 heading: "Копирование и сериализация: JSON и structuredClone"
 headingWidth: 24
 order: 11
-lead: "`{ ...obj }` копирует один уровень, `JSON.parse(JSON.stringify(obj))` молча теряет даты и `undefined`, `structuredClone` падает на первой же функции. У каждого способа свой алгоритм, и все три записаны в спецификациях по шагам. Зная шаги, можно заранее сказать, что приедет в копию, а что нет, — и почему replacer видит дату строкой."
-summary: "Поверхностная копия: спред и `Object.assign`, геттеры и дескрипторы; `JSON.stringify` по шагам спецификации — `toJSON`, replacer, отступ, циклы, учебная реализация; `JSON.parse` и reviver снизу вверх, `context.source`; `structuredClone` по алгоритму HTML — таблица `memory`, слоты, ошибки, буферы, `DataCloneError` посреди обхода, перенос; сравнение с `cloneDeep` из lodash."
+lead: "Новый внешний объект ещё не означает независимые вложенные данные. Спред сохраняет вложенные ссылки, JSON преобразует значения в текст, а structuredClone создаёт новые поддерживаемые объекты и сохраняет связи между ними. Выбор зависит от того, какие значения и отношения нужно сохранить."
+summary: "Поверхностная копия и обновление одного пути; JSON.stringify и JSON.parse, toJSON, replacer и reviver; structuredClone, общие ссылки, циклы, поддерживаемые типы, передача буфера и восстановление класса из данных; ограничения cloneDeep и учебные модели с проверкой браузером."
 verifiedOn: "Node 24.11.0 (V8 13.6), Chromium 153.0.8010.12 (Playwright 1.63), lodash-es 4.18.1, октябрь 2026: примеры и таблицы исполняет tests/unit/serialization.test.ts; учебные stringify и clone сверены с JSON.stringify и structuredClone на наборе значений и 400 случайных деревьях"
 nav:
   - { id: s1, label: Один уровень }
@@ -17,12 +17,12 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -39,6 +39,7 @@ import {
   SHALLOW_CODE,
   SHALLOW_NOTE,
   PLAIN_SHALLOW,
+  UPDATE_CODE, UPDATE_NOTE,
   GETTER_CODE,
   GETTER_NOTE,
   SHALLOW_ROWS,
@@ -87,6 +88,7 @@ import {
   CLONE_GROUPS,
   MEMORY_MAP_CODE,
   MEMORY_MAP_NOTE,
+  MEMORY_DIAGRAM,
   MONEY_CODE,
   MONEY_NOTE,
   COMPARE_HEAD,
@@ -101,19 +103,10 @@ import {
 } from './data';
 
 <Section variant="intro" eyebrow="Три копии" gap={24}>
-  <Callout size={19} pad="24px 26px">
-
-    Копия объекта — это всегда **обход**: алгоритм идёт по свойствам и решает, что взять,
-    что превратить и на чём остановиться. Спред проходит один уровень, JSON — всё дерево,
-    но только то, что умеет записать текстом, `structuredClone` — всё дерево вместе с типами,
-    но без прототипов и функций. Потери каждого способа следуют из его шагов.
-
-  </Callout>
-
-  Копировать приходится постоянно: состояние перед изменением, ответ сервера перед правкой,
-  сообщение для воркера, запись в кеш. И почти каждый раз выбор делается по привычке.
-  Ошибки от этого тихие: дата превращается в строку, вложенный массив остаётся общим,
-  экземпляр класса теряет методы — без единого исключения.
+  В копии заказа меняют количество товара — и неожиданно меняется исходный заказ.
+  Новый объект был создан, но вложенный массив остался общим. Другой способ может
+  отделить массив, зато превратить дату в строку или не сохранить экземпляр класса.
+  Нужно различать независимость данных, сохранение типов и сохранение связей.
 
   <Plain text={PLAIN_COPY} />
 
@@ -124,9 +117,9 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Поверхностная копия"
-  lead="Пример на всю тему — заказ с датой, массивом товаров, множеством меток и пустым промокодом. Самая короткая копия — спред `{ ...order }`: новый объект с теми же значениями свойств. Но значение свойства-объекта — это ссылка, и копируется именно она."
+  lead="createOrder() создаёт заказ с датой, массивом товаров, множеством меток и пустым промокодом. Каждый вызов даёт новые вложенные объекты. Спред `{ ...order }` создаёт ещё один внешний объект, но сохраняет вложенные ссылки конкретного заказа."
 >
-  <Card title="Заказ" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Card title="Создать исходный заказ" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
@@ -139,6 +132,11 @@ import {
   </Card>
 
   <Plain text={PLAIN_SHALLOW} />
+
+  ### Обновить один товар, сохранив исходный заказ
+
+  <CodeBlock code={UPDATE_CODE} />
+  <Md text={UPDATE_NOTE} />
 
   ### Что спред делает со свойствами
 
@@ -186,16 +184,6 @@ import {
     <Md text={STRINGIFY_STEPS_NOTE} />
   </Callout>
 
-  ### Учебный JSON.stringify
-
-  <Card title="stringify — по спецификации" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={STRINGIFY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-
-    <CardNote tone="prose">
-      <Md text={STRINGIFY_CODE_NOTE} />
-    </CardNote>
-  </Card>
-
   ### Что во что превращается
 
   <Table
@@ -227,7 +215,7 @@ import {
     </CardNote>
   </Card>
 
-  ### Отступ
+<Disclosure title="Форматирование JSON: отступ и его ограничения">
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Код" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -235,11 +223,13 @@ import {
     </Card>
 
     <Card title="Вывод" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SPACE_OUT} tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={SPACE_OUT} lang="json" tone="ok" size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
   <Md text={SPACE_NOTE} />
+
+</Disclosure>
 
   ### Общая ссылка и цикл
 
@@ -254,13 +244,20 @@ import {
   </CardGrid>
 
   <Md text={CYCLE_NOTE} />
+
+<Disclosure title="Учебный stringify: полный алгоритм на JavaScript">
+
+  <CodeBlock code={STRINGIFY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <Md text={STRINGIFY_CODE_NOTE} />
+
+</Disclosure>
 </Section>
 
 <Section
   id="s3"
   eyebrow="Раздел 3"
   title="JSON.parse и reviver"
-  lead="Обратный путь — разбор текста. Типов, которых нет в JSON, разбор не восстановит: дата приедет строкой, множество — пустым объектом. Восстанавливать их можно функцией reviver: она вызывается для каждого разобранного значения и может его заменить."
+  lead="JSON.parse разбирает текст, но не знает историю его создания. Он не отличит строку с датой от обычной строки и не узнает, что пустой объект раньше был Set. Reviver может заменить разобранное значение, если формат сохранил достаточно данных и код знает, как их интерпретировать."
 >
   <Card title="Reviver восстанавливает дату" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={REVIVER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -317,20 +314,10 @@ import {
   <Card titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MEMORY_MAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-    <CardNote tone="prose">
-      <Md text={MEMORY_MAP_NOTE} />
-    </CardNote>
   </Card>
 
-  ### Учебный structuredClone
-
-  <Card title="clone — по спецификации HTML" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CLONE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-
-    <CardNote tone="prose">
-      <Md text={CLONE_CODE_NOTE} />
-    </CardNote>
-  </Card>
+  <ConceptDiagram data={MEMORY_DIAGRAM} />
+  <Md text={MEMORY_MAP_NOTE} />
 
   ### Буферы и RegExp
 
@@ -393,6 +380,13 @@ import {
   </CardGrid>
 
   <Md text={CLONE_USERS} />
+
+<Disclosure title="Учебный clone: копирование поддерживаемых типов и таблица memory">
+
+  <CodeBlock code={CLONE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <Md text={CLONE_CODE_NOTE} />
+
+</Disclosure>
 </Section>
 
 <Section
@@ -400,7 +394,7 @@ import {
   eyebrow="Раздел 5 · демо"
   eyebrowTone="demo"
   title="Три способа рядом"
-  lead="Глубоких копий в обиходе три: JSON туда и обратно, `structuredClone` и `cloneDeep` из lodash. Каждый по-своему решает, что делать с тем, чего он копировать не умеет: превратить, отказать или оставить ссылку на оригинал."
+  lead="JSON туда и обратно, structuredClone и cloneDeep из lodash дают разные результаты на одном значении. Важно проверить не только успешное завершение, но и типы, общие ссылки, свойства и поведение полученного объекта."
 >
   <Table
     head={COMPARE_HEAD}
@@ -416,24 +410,18 @@ import {
     <CodeBlock code={LODASH_CLASS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
-  ### Три копии одного значения
+  ### Практика: спред и учебные алгоритмы против браузера
 
   <CloneLab client:visible stringifyCode={STRINGIFY_CODE} cloneCode={CLONE_CODE} samples={DEMO_SAMPLES} caption={DEMO_CAPTION} />
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
-
-      **Копируйте данные, а не объекты.** Если в значении только объекты, массивы, строки,
-      числа и даты, `structuredClone` скопирует его целиком и без сюрпризов. Если там классы,
-      функции и прокси — копия не получится ни одним способом, её нужно собрать явно.
-      JSON — формат для сети и диска, а не способ копирования.
-
-    </DarkText>
-  </DarkPanel>
+  Если нужно сохранить поведение класса, задайте формат его данных и функцию восстановления,
+  как `Money.toDTO()` и `Money.from()` в разделе [«Structured clone по шагам»](#s4).
+  Для обновления состояния достаточно скопировать изменяемый путь. Для передачи в сеть
+  выбирают формат данных; наличие подходящей функции копирования этот выбор не заменяет.
 </Section>
 
 <Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
-  <Pitfalls items={PITFALLS} />
+  <Pitfalls items={PITFALLS.filter((p) => ['02', '05', '06'].includes(p.n))} />
 </Section>
 
 <Section id="s7" eyebrow="Раздел 7" title="Источники">

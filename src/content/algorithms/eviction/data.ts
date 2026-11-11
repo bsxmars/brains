@@ -144,7 +144,7 @@ export const WHERE_ROWS: { k: string; what: string; limit: string; tone?: 'ok' |
   {
     k: '`Map` «на всякий случай»',
     what: 'что угодно',
-    limit: 'никакого — это утечка, растущая с разнообразием ключей: [«Память и GC»](/js/memory-gc/#s2)',
+    limit: 'никакого — это утечка, растущая с разнообразием ключей: [«Память и GC»](/js/memory-gc/#s1)',
     tone: 'err',
   },
 ];

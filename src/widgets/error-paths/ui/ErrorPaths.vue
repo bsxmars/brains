@@ -37,7 +37,7 @@ watch(picked, () => {
   <DemoFrame>
     <template #toolbar>
       <div class="bar">
-        <span class="bar__label">случай:</span>
+        <span class="bar__label">учебный разбор · случай:</span>
         <SegmentedControl v-model="picked" class="l-pills" label="Случай потери ошибки" :options="options" />
         <span class="bar__title">{{ current.t }}</span>
       </div>

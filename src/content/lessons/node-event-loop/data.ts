@@ -1,12 +1,14 @@
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { LoopScenario, PoolStand } from '@/widgets/libuv-lab/model/types';
+import type { NodePhase, NodeStep } from '@/widgets/node-loop/model/types';
 
 /**
  * Данные темы «Цикл событий Node: фазы libuv».
  *
- * Тема написана здесь, 2026-10-01. Общий принцип цикла и фазы Node одним списком уже разобраны
- * в «Event Loop» (раздел «Node»: CommonJS против ESM, гонка `setTimeout`/`setImmediate`, Node 11,
- * пять хешей на четыре потока, слив `nextTick`). Здесь — на шаг глубже: что делает `uv_run`
+ * Тема написана здесь, 2026-10-01. Общие задачи и микрозадачные checkpoint разобраны
+ * в «Event Loop». Здесь собраны специфичные для Node фазы, CommonJS против ESM,
+ * гонка `setTimeout`/`setImmediate`, nextTick и общий пул: что делает `uv_run`
  * по строкам исходника, где именно Node вклинивает свои очереди, сколько спит poll, что идёт
  * в пул и когда процесс выходит.
  *
@@ -120,10 +122,10 @@ export const PREREQ: Prereq[] = [
     tone: 'info',
   },
   {
-    t: 'Фазы Node одним списком',
-    d: 'timers → pending → idle/prepare → poll → check → close, и то, что CommonJS и ESM печатают `nextTick` и промис в разном порядке. Здесь все примеры — CommonJS.',
-    href: '/js/event-loop/#s5',
-    hrefLabel: '«Event Loop», раздел «Node»',
+    t: 'Одна задача и микрозадачные checkpoint',
+    d: 'Выполняющийся JavaScript возвращает управление хосту, а тот в определённых точках разбирает микрозадачи. В браузере это может происходить между слушателями одного события.',
+    href: '/js/event-loop/#s3',
+    hrefLabel: '«Event Loop», раздел «Checkpoint»',
     tone: 'info',
   },
 ];
@@ -712,7 +714,7 @@ export const POOL_STAND: PoolStand[] = [
 ];
 
 export const POOL_DEMO_NOTE =
-  'Шесть задач на пул выбранного размера: пять одинаковых хешей и одно `fs.stat`, поставленное последним. Чтение ждёт не диск, а поток: при четырёх потоках оно начнётся, только когда освободятся два. Порядок самих хешей в Node от запуска к запуску разный — они кончаются почти одновременно, — а место `fs.stat` одно и то же: его решает число потоков, а не скорость хешей.';
+  'Шесть задач: пять одинаковых хешей и fs.stat, поставленный последним. При четырёх потоках после первого освободившегося слота начнётся пятый хеш, после следующего — fs.stat. Свободный слот определяет начало работы, а порядок завершения зависит и от длительностей. Конкретные позиции в таблице — записанный результат стенда; в модели заданы виртуальные длительности.';
 
 export const POOL_SIZE_FACTS: { t: string; d: string; tone?: 'warn' | 'ok' }[] = [
   {
@@ -892,4 +894,213 @@ export const SOURCES: Source[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Event Loop, раздел «Node»](/js/event-loop/#s5) — CommonJS против ESM и служебные очереди между таймерами. [Планирование задач, раздел «Чем возвращать управление циклу»](/js/task-scheduling/#s1) — как отдать поток в браузере и `scheduler` из `node:timers/promises`. [Промис изнутри, раздел «Модель»](/js/promise-internals/#s1) — откуда берутся микрозадачи. [node:stream изнутри](/platform/node-streams/) — события стрима приходят через `nextTick`, а `for await` живёт на промисах. [MessageChannel, раздел «Тайминг»](/js/message-channel/#s2) — счётчик оборотов на `setImmediate` как прибор. [Память в Node](/js/node-memory/) — что ещё живёт в процессе рядом с циклом. [Процессы и потоки в Node](/js/node-processes/) — воркеры, дочерние процессы и `cluster`: у каждого воркера свой цикл, а пул libuv общий. [Асинхронный контекст](/js/async-context/) — AsyncLocalStorage, момент снимка контекста и почему в браузере его пока нет.';
+  'Смежное на сайте: [Event Loop, раздел «Checkpoint»](/js/event-loop/#s3) — задачи, вызовы слушателей и микрозадачные checkpoint в браузере. [Планирование задач, раздел «Чем возвращать управление циклу»](/js/task-scheduling/#s2) — как отдать поток в браузере и `scheduler` из `node:timers/promises`. [Промис изнутри, раздел «Модель»](/js/promise-internals/#s1) — откуда берутся микрозадачи. [node:stream изнутри](/platform/node-streams/) — события стрима приходят через `nextTick`, а `for await` живёт на промисах. [MessageChannel, раздел «Планировщик»](/js/message-channel/#s4) — счётчик оборотов на `setImmediate` как прибор. [Память в Node](/js/node-memory/) — что ещё живёт в процессе рядом с циклом. [Процессы и потоки в Node](/js/node-processes/) — воркеры, дочерние процессы и `cluster`: у каждого воркера свой цикл, а пул libuv общий. [Асинхронный контекст](/js/async-context/) — AsyncLocalStorage, момент снимка контекста и почему в браузере его пока нет.';
+
+
+/** Сравнение CommonJS/ESM перенесено из Event Loop: этот же исходник проверяют event-loop-steps и node-order. */
+export const NODE_PHASES: NodePhase[] = [
+  { name: 'timers', what: 'setTimeout / setInterval' },
+  { name: 'pending callbacks', what: 'отложенные системные колбэки' },
+  { name: 'idle, prepare', what: 'внутренняя работа Node' },
+  { name: 'poll', what: 'ввод-вывод; здесь процесс ждёт' },
+  { name: 'check', what: 'setImmediate' },
+  { name: 'close callbacks', what: "socket.on('close')" },
+];
+
+export const NODE_CODE = `setTimeout(() => console.log('t'));
+setImmediate(() => console.log('i'));
+fs.readFile(__filename, () => {
+  setTimeout(() => console.log('io-t'));
+  setImmediate(() => console.log('io-i'));
+});
+process.nextTick(() => console.log('n'));
+Promise.resolve().then(() => console.log('p'));`;
+
+/**
+ * Сценарий для CommonJS. Ровно он и был в оригинале — но там это нигде не было сказано,
+ * хотя в ESM порядок другой: см. `NODE_ESM`.
+ */
+export const NODE_CJS: NodeStep[] = [
+  {
+    message: 'Файл выполняется сверху вниз и только регистрирует: таймер, setImmediate, чтение файла, nextTick, реакцию промиса. Ни один колбэк пока не вызван.',
+    phase: -1,
+    out: [],
+  },
+  {
+    message: 'Модуль отработал → СНАЧАЛА выполняется очередь nextTick. Это отдельная очередь Node, она идёт раньше промисов. В браузере такой очереди нет.',
+    phase: -1,
+    out: [{ text: 'n' }],
+  },
+  {
+    message: 'Потом микрозадачи промисов. Из тела CommonJS-модуля nextTick идёт раньше — но не всегда: в режиме ESM порядок обратный.',
+    phase: -1,
+    out: [{ text: 'n' }, { text: 'p' }],
+  },
+  {
+    message: 'Цикл входит в первый оборот, фаза timers. setTimeout(…, 0) в Node означает 1 мс — успела ли она пройти, пока запускался процесс? Здесь гонка: один и тот же файл на одной машине даёт разные ответы от запуска к запуску.',
+    tone: 'warn',
+    phase: 0,
+    out: [{ text: 'n' }, { text: 'p' }, { text: 't?', tone: 'warn' }],
+  },
+  {
+    message: 'Допустим, успел: печатается t. Не успел бы — первым пошёл бы i, а t уехал в следующий оборот.',
+    phase: 0,
+    out: [{ text: 'n' }, { text: 'p' }, { text: 't' }],
+  },
+  {
+    message: 'Фаза poll: здесь процесс проводит почти всё время. Делать нечего — libuv засыпает в системном вызове epoll_wait, пока ОС не сообщит о вводе-выводе. Поэтому простаивающий Node не тратит процессор. Дольше, чем до ближайшего таймера, цикл здесь не спит.',
+    phase: 3,
+    out: [{ text: 'n' }, { text: 'p' }, { text: 't' }],
+  },
+  {
+    message: 'Фаза check: setImmediate → печатается i.',
+    phase: 4,
+    out: [{ text: 'n' }, { text: 'p' }, { text: 't' }, { text: 'i' }],
+  },
+  {
+    message: 'Файл дочитан. Его колбэк выполняется в фазе poll и регистрирует новые setTimeout и setImmediate.',
+    phase: 3,
+    out: [{ text: 'n' }, { text: 'p' }, { text: 't' }, { text: 'i' }],
+  },
+  {
+    message: 'Фаза check идёт СРАЗУ после poll в том же обороте → io-i. Здесь гонки нет никогда.',
+    tone: 'ok',
+    phase: 4,
+    out: [{ text: 'n' }, { text: 'p' }, { text: 't' }, { text: 'i' }, { text: 'io-i' }],
+  },
+  {
+    message: 'Фаза timers будет только в начале СЛЕДУЮЩЕГО оборота → io-t. Вывод для практики: чтобы предсказуемо «сделать после текущего оборота», нужен setImmediate, а не setTimeout(0).',
+    tone: 'ok',
+    phase: 0,
+    out: [{ text: 'n' }, { text: 'p' }, { text: 't' }, { text: 'i' }, { text: 'io-i' }, { text: 'io-t' }],
+  },
+];
+
+/**
+ * Тот же файл как ESM. Отличие — в начале: модуль исполняется внутри job-а, а не на старте,
+ * поэтому очередь nextTick сливается после реакций промисов, а не до них.
+ * Проверено запуском на Node 24.11 — см. `tests/unit/node-order.test.ts`.
+ */
+export const NODE_ESM: NodeStep[] = [
+  {
+    message: 'Тот же файл с расширением .mjs. Он так же выполняется сверху вниз и регистрирует всё то же самое.',
+    phase: -1,
+    out: [],
+  },
+  {
+    message: 'Тело ES-модуля само выполняется внутри задания промиса (job). Поэтому первой выполняется очередь промисов: печатается p, а не n.',
+    tone: 'warn',
+    phase: -1,
+    out: [{ text: 'p' }],
+  },
+  {
+    message: 'И только потом очередь nextTick: n. В CommonJS порядок был обратный — это самая частая причина, по которой «тот же пример у меня печатает другое».',
+    tone: 'warn',
+    phase: -1,
+    out: [{ text: 'p' }, { text: 'n' }],
+  },
+  {
+    message: 'Дальше всё как в CommonJS: первый оборот, фаза timers, и та же гонка «успело ли пройти время таймера».',
+    phase: 0,
+    out: [{ text: 'p' }, { text: 'n' }, { text: 't?', tone: 'warn' }],
+  },
+  {
+    message: 'Фаза check: setImmediate → i.',
+    phase: 4,
+    out: [{ text: 'p' }, { text: 'n' }, { text: 't' }, { text: 'i' }],
+  },
+  {
+    message: 'Колбэк чтения файла в фазе poll, сразу за ним check → io-i, после check готовый таймер → io-t. Эта часть от типа модуля не зависит.',
+    tone: 'ok',
+    phase: 4,
+    out: [{ text: 'p' }, { text: 'n' }, { text: 't' }, { text: 'i' }, { text: 'io-i' }, { text: 'io-t' }],
+  },
+];
+
+export const NODE_FACTS = [
+  {
+    t: 'setTimeout(0) против setImmediate в теле файла',
+    d: 'Порядок заранее не известен. setTimeout(f, 0) превращается в 1 мс, а от старта процесса до первой фазы timers проходит какое-то время — то больше 1 мс, то меньше.',
+    tone: 'warn' as const,
+  },
+  {
+    t: 'Внутри колбэка ввода-вывода порядок жёсткий',
+    d: 'setImmediate всегда первый: фаза check идёт сразу после poll в том же обороте, а готовые timers обрабатываются после check и close. Гонки между этой парой внутри I/O-колбэка нет.',
+    tone: 'ok' as const,
+  },
+  {
+    t: 'Две служебные очереди, не одна',
+    d: 'На обычной контрольной точке Node сначала разбирает nextTick, затем всю очередь микрозадач. nextTick, поставленный микрозадачей, ждёт её завершения; порядок верхнего уровня ESM отличается.',
+  },
+  {
+    t: 'Часть работы Node уходит в пул из четырёх потоков',
+    d: 'fs.*, dns.lookup, crypto.pbkdf2, zlib выполняются в пуле потоков libuv — по умолчанию их 4 (UV_THREADPOOL_SIZE). Сеть туда НЕ попадает. Поэтому пять параллельных pbkdf2 отработают как «четыре сразу, пятый после», хотя цикл свободен.',
+    tone: 'warn' as const,
+  },
+  {
+    t: 'Куда выносить тяжёлые вычисления',
+    d: 'В worker_threads: у каждого воркера свой цикл событий и своя память. Для повторяющихся задач обычно используют пул. На записанном стенде Node 26.8.2 у дочернего Node вышли десятки миллисекунд на старт и выход пустого скрипта — около 34 мс; это условия конкретного замера из темы [«Процессы и потоки в Node»](/js/node-processes/). Стоимость запуска и передачи данных измеряют на своей нагрузке.',
+  },
+];
+
+
+export const NEXTTICK_CODE = `process.nextTick(() => {
+  console.log('n1');
+  process.nextTick(() => console.log('n3'));   // добавлен, пока очередь выполнялась
+});
+process.nextTick(() => console.log('n2'));
+
+Promise.resolve().then(() => console.log('p1'));
+
+setImmediate(() => console.log('imm'));
+// n1, n2, n3, p1, imm`;
+
+export const NEXTTICK_NOTE =
+  'Обратите внимание на `n3`: его добавили, **пока** очередь уже выполнялась, и он всё равно идёт раньше `p1`. Node выполняет очередь `nextTick` до конца, со всем добавленным, и только потом переходит к промисам. Поэтому рекурсивный `process.nextTick` может уморить цикл голодом: до промисов, таймеров и ввода-вывода очередь так и не дойдёт. В браузере так же ведёт себя бесконечная цепочка микрозадач.';
+
+export const FIRST_IO_CODE = `// Сохраните как example.cjs: CommonJS.
+const fs = require('node:fs');
+fs.stat(__filename, () => {
+  console.log('io');
+  process.nextTick(() => console.log('tick'));
+  queueMicrotask(() => {
+    console.log('micro1');
+    process.nextTick(() => console.log('late-tick'));
+  });
+  queueMicrotask(() => console.log('micro2'));
+  setImmediate(() => console.log('immediate'));
+  setTimeout(() => console.log('timeout'), 0);
+});`;
+
+export const FIRST_IO_OUT = ['io', 'tick', 'micro1', 'micro2', 'late-tick', 'immediate', 'timeout'];
+
+export const DRAIN_DIAGRAM: ConceptDiagramData = {
+  id: 'node-event-loop-nexttick-checkpoint',
+  title: 'nextTick из микрозадачи не прерывает оставшиеся микрозадачи',
+  description: 'После возврата из вызванного Node колбэка выполняются nextTick, затем микрозадачи. Если микрозадачи добавили новые nextTick, Node снова разбирает очереди перед возвратом к фазам libuv.',
+  width: 920, height: 490,
+  nodes: [
+    { id: 'callback', x: 20, y: 20, width: 250, height: 170, label: 'Колбэк вернул управление Node', detail: 'Например, закончился обработчик fs.stat.', tone: 'neutral' },
+    { id: 'ticks', x: 335, y: 20, width: 250, height: 170, label: 'Вся очередь nextTick', detail: 'Включая добавленные во время её разбора.', tone: 'info' },
+    { id: 'micro', x: 650, y: 20, width: 250, height: 170, label: 'Все микрозадачи', detail: 'Реакции промисов, await и queueMicrotask — до опустошения очереди.', tone: 'info' },
+    { id: 'phases', x: 20, y: 300, width: 250, height: 170, label: 'Вернуться к фазам libuv', detail: 'Следующий готовый колбэк может получить управление.', tone: 'ok' },
+    { id: 'again', x: 335, y: 300, width: 250, height: 170, label: 'Добавились nextTick?', detail: 'Проверка после завершения всей очереди микрозадач.', tone: 'warn' },
+  ],
+  edges: [
+    { from: 'callback', to: 'ticks' }, { from: 'ticks', to: 'micro' },
+    { from: 'micro', to: 'again', fromSide: 'bottom', toSide: 'right', via: [[775, 250], [610, 250], [610, 385]] },
+    { from: 'again', to: 'ticks', fromSide: 'top', toSide: 'bottom', label: 'да', labelX: 485, labelY: 245 },
+    { from: 'again', to: 'phases', fromSide: 'left', toSide: 'right', label: 'нет', labelX: 302, labelY: 371 },
+  ],
+  note: 'На схеме показана граница возврата из колбэка в Node. Она не возникает между обычными синхронными вызовами слушателей EventEmitter. Начало ES-модуля имеет отдельную оговорку, разобранную ниже.',
+};
+
+
+/** Один и тот же исходник запускается файлами .cjs/.mjs в node-order.test.ts. */
+export const MODULE_ORDER_CODE = `process.nextTick(() => console.log('nextTick'));
+Promise.resolve().then(() => console.log('promise'));`;
+
+export const MODULE_ORDER_ROWS = [
+  { kind: 'cjs' as const, label: 'CommonJS (.cjs)', output: ['nextTick', 'promise'] },
+  { kind: 'mjs' as const, label: 'ES-модуль (.mjs)', output: ['promise', 'nextTick'] },
+];

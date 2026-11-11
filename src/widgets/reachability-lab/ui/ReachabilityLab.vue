@@ -45,7 +45,7 @@ const props = withDefaults(
     attempts: DEFAULTS.attempts,
     budgetMs: DEFAULTS.budgetMs,
     junkBlocks: DEFAULTS.junkBlocks,
-    foot: 'Со страницы сборку **вызвать нельзя**: `gc()` в браузере появляется, только если сам браузер запущен с `--js-flags=--expose-gc`, а у читателя так не бывает. Демо давит на аллокатор, отдаёт поток циклу событий и спрашивает `deref()` — и только. Поэтому «собрался» здесь доказывает недостижимость, а «не собрался за N попыток» **не доказывает ничего**: ни живости, ни утечки. `FinalizationRegistry` может не сработать никогда — это его штатное поведение, а не сбой демо.',
+    foot: 'Сборка объекта может произойти позже, чем закончится эксперимент. Повторный запуск тоже не гарантирует результата.',
   },
 );
 
@@ -78,16 +78,16 @@ const run = async () => {
 
 /** Подпись под вердиктом: короткая, без разметки — её читают первой. */
 const AGREEMENT_LABEL: Record<string, string> = {
-  proved: 'доказано',
-  'as-expected': 'согласуется, но не доказано',
-  inconclusive: 'вывод не получен',
+  proved: 'сборка замечена',
+  'as-expected': 'объект остаётся доступен',
+  inconclusive: 'сборку не удалось заметить',
   contradicts: 'опровергает утверждение случая',
   unavailable: 'среда не поддерживает',
 };
 
 const EXPECT_LABEL: Record<string, string> = {
-  collected: 'объект должен исчезнуть',
-  held: 'объект должен остаться',
+  collected: 'по ссылкам: объект можно собрать',
+  held: 'по ссылкам: объект сохраняется',
 };
 
 /** Наблюдения в две колонки: слева что спрашивали, справа что ответил движок. */
@@ -96,7 +96,7 @@ const facts = computed(() => {
   if (!measured?.ok) return [];
 
   const rows = [
-    { k: 'deref() до давления', v: measured.before ? 'объект' : 'undefined' },
+    { k: 'deref() до эксперимента', v: measured.before ? 'объект' : 'undefined' },
     { k: 'deref() после', v: measured.collected ? 'undefined' : 'объект' },
     { k: 'попыток', v: `${measured.attempts} из ${props.attempts}` },
     { k: 'заняло', v: `${Math.round(measured.ms)} мс` },
@@ -106,9 +106,9 @@ const facts = computed(() => {
         ? 'в этой среде нет'
         : measured.finalized
           ? 'сработал'
-          : 'не сработал — он и не обязан',
+          : 'вызов не получен',
     },
-    { k: 'рычаг gc()', v: measured.lever ? 'есть (Node --expose-gc)' : 'нет — обычный браузер' },
+    { k: 'принудительная сборка', v: measured.lever ? 'есть (Node --expose-gc)' : 'нет — обычный браузер' },
   ];
 
   if (measured.extraCollected !== null) {
@@ -129,9 +129,9 @@ const facts = computed(() => {
         <SegmentedControl v-model="picked" class="l-pills" label="Кто держит объект" :options="options" />
         <div class="rl-bar__side">
           <Button variant="primary" :disabled="running" @click="run">
-            {{ running ? 'давлю…' : result ? 'проверить ещё раз' : 'проверить' }}
+            {{ running ? 'проверяю…' : result ? 'проверить ещё раз' : 'проверить' }}
           </Button>
-          <span v-if="running" class="rl-phase">выделяю мусор и отдаю поток циклу</span>
+          <span v-if="running" class="rl-phase">создаю временные объекты и жду сборки</span>
           <span v-else-if="!result" class="rl-phase">ответ появится после запуска — его даёт ваш браузер</span>
         </div>
       </div>
@@ -150,13 +150,6 @@ const facts = computed(() => {
         </div>
 
         <CodeView class="rl-code" :code="spec.code" />
-
-        <ConsoleView
-          label="протокол попыток"
-          :lines="result?.log ?? []"
-          :min-height="118"
-          empty-label="прогон ещё не запускался"
-        />
       </div>
 
       <div class="rl-pane rl-pane--right">
@@ -167,12 +160,21 @@ const facts = computed(() => {
 
         <Md v-if="result" class="rl-note" :text="result.note" />
 
+        <details v-if="result" class="rl-details">
+          <summary>Технические подробности эксперимента</summary>
         <dl v-if="facts.length" class="rl-facts">
           <template v-for="fact in facts" :key="fact.k">
             <dt class="rl-facts__key">{{ fact.k }}</dt>
             <dd class="rl-facts__value">{{ fact.v }}</dd>
           </template>
         </dl>
+        <ConsoleView
+          label="протокол попыток"
+          :lines="result?.log ?? []"
+          :min-height="118"
+          empty-label="прогон ещё не запускался"
+        />
+        </details>
 
         <Md class="rl-why" :text="spec.why" />
       </div>
@@ -185,6 +187,17 @@ const facts = computed(() => {
 </template>
 
 <style scoped>
+.rl-details {
+  min-width: 0;
+}
+.rl-details > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--fs-4);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
 .rl-bar {
   display: flex;
   align-items: center;

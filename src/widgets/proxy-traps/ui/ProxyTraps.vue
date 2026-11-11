@@ -51,7 +51,7 @@ const tone = computed(() => op.value.tone ?? (run.value.threw ? 'err' : 'ok'));
       <SegmentedControl v-model="picked" class="l-pills" label="Операция над прокси" :options="options" />
     </template>
 
-    <div class="head">const p = new Proxy(target, handler) · target = {{ op.target ?? target }}</div>
+    <div class="head">Реальное выполнение · const p = new Proxy(target, handler) · target = {{ op.target ?? target }}</div>
 
     <div class="split">
       <div class="pane">
@@ -63,7 +63,7 @@ const tone = computed(() => op.value.tone ?? (run.value.threw ? 'err' : 'ok'));
         </div>
 
         <div v-if="!run.calls.length" class="none">
-          Операция идёт мимо внутренних методов — перехватить нечем.
+          Журнал пуст: ни одна ловушка не была вызвана.
         </div>
 
         <div v-for="(trap, i) in run.calls" :key="i" class="trap">

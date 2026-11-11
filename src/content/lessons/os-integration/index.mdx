@@ -2,8 +2,8 @@
 title: "Страница и система: экран, „Поделиться“, значок, оплата"
 headingWidth: 24
 order: 29
-lead: "Четыре вещи, которые сайт берёт у операционной системы: экран, который не гаснет, системное меню «Поделиться», число на иконке приложения и окно оплаты. Каждая — одна строка кода и промис. А отказывает промис по причинам, которых в этой строке не видно: страница не на HTTPS, человек ничего не нажимал, вызов идёт из чужого iframe, сайт не установлен как приложение или движок этого просто не умеет."
-summary: "`navigator.wakeLock` и почему замок снимается со скрытой вкладкой; `navigator.share`, `canShare` и запасной путь; значок `setAppBadge` и почему во вкладке его не видно; `PaymentRequest` от `canMakePayment` до `complete` и почему на деле ставят кнопку провайдера; жест пользователя и его пять секунд, `allow` у iframe и заголовок `Permissions-Policy`; проверка по имени в `navigator`, а не по юзер-агенту."
+lead: "Wake Lock помогает не гасить экран, Web Share открывает системное меню отправки, Badging API меняет отметку приложения, а Payment Request запускает платёжный интерфейс. У этих возможностей разные условия доступа. Проверяйте наличие API и результат вызова, а при отказе сохраняйте рабочий способ продолжить."
+summary: "`navigator.wakeLock` и почему замок снимается со скрытой вкладкой; `navigator.share`, `canShare` и запасной путь; значок `setAppBadge` и почему во вкладке его не видно; `PaymentRequest` от `canMakePayment` до `complete` и почему на деле ставят кнопку провайдера; временная активация пользователя, `allow` у iframe и заголовок `Permissions-Policy`; проверка по имени в `navigator`, а не по юзер-агенту."
 verifiedOn: "Chromium 153 (полный и headless shell), Firefox 155 и WebKit 26.6 из Playwright 1.63 на macOS, ноябрь 2026: каждый пример с выводом и каждую таблицу исполняет tests/e2e/os-integration.spec.ts; окно жеста — пять запусков в трёх движках"
 nav:
   - { id: s1, label: Wake Lock }
@@ -19,6 +19,8 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -40,7 +42,7 @@ import {
   PLAIN_WAKE,
   VIS_CODE,
   VIS_OUT,
-  VIS_NOTE,
+  WAKE_LIFETIME_DIAGRAM,
   VIS_WEBKIT_NOTE,
   SHARE_CODE,
   SHARE_OUT,
@@ -77,7 +79,7 @@ import {
   SUPPORT_NOTE,
   UA_NOTE,
   INSTALL_NOTE,
-  MANIFEST_CODE,
+  MANIFEST_CODE, MANIFEST_LINK_CODE,
   INSTALL_SW_NOTE,
   CLOSING,
   PITFALLS,
@@ -91,9 +93,9 @@ import {
   <Callout size={19} pad="24px 26px">
 
     Не гасить экран, открыть меню «Поделиться», поставить число на иконку, открыть окно
-    оплаты — всё это делает операционная система по просьбе страницы. Браузер передаёт
-    просьбу, только когда похоже, что просит сам человек: страница открыта по HTTPS, человек
-    только что нажал кнопку, а вызов идёт не из чужого встроенного блока вроде рекламы.
+    оплаты — всё это делает операционная система по просьбе страницы. Браузер проверяет
+    безопасный контекст, разрешения и политику встраивания. Активация пользователя нужна
+    не каждому API: значок и удержание экрана имеют другие условия, чем открытие системного меню.
 
   </Callout>
 
@@ -110,7 +112,7 @@ import {
 >
   <CodeBlock lang="jsx" code={WAKE_CODE} />
 
-  <CodeBlock code={WAKE_OUT} tone="ok" />
+  <CodeBlock lang="text" code={WAKE_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={WAKE_NOTE} />
@@ -134,11 +136,10 @@ import {
 
   <CodeBlock lang="jsx" code={VIS_CODE} />
 
-  <CodeBlock code={VIS_OUT} tone="ok" />
+  <Md text="Записанный порядок событий Chromium при скрытии и возврате вкладки; точный порядок уведомлений не подменяет проверку текущего состояния." />
+  <CodeBlock lang="text" code={VIS_OUT} tone="ok" />
 
-  <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
-    <Md text={VIS_NOTE} />
-  </Card>
+  <ConceptDiagram data={WAKE_LIFETIME_DIAGRAM} />
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={VIS_WEBKIT_NOTE} />
@@ -153,7 +154,7 @@ import {
 >
   <CodeBlock lang="jsx" code={SHARE_CODE} />
 
-  <CodeBlock code={SHARE_OUT} tone="ok" />
+  <CodeBlock lang="text" code={SHARE_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={SHARE_NOTE} />
@@ -163,6 +164,7 @@ import {
     <Md text={SHARE_FALLBACK_NOTE} />
   </Card>
 
+  <Disclosure title="Проверка данных Web Share и записанные ответы движков">
   ### Что `share` и `canShare` отвечают заранее
 
   <Table
@@ -175,6 +177,8 @@ import {
 
   <Md text={SHARE_TABLE_NOTE} />
 
+  </Disclosure>
+
   <Md text={SHARE_TARGET_NOTE} />
 </Section>
 
@@ -186,7 +190,7 @@ import {
 >
   <CodeBlock code={BADGE_CODE} />
 
-  <CodeBlock code={BADGE_OUT} tone="ok" />
+  <CodeBlock lang="text" code={BADGE_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={BADGE_NOTE} />
@@ -203,11 +207,11 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Окно оплаты: Payment Request"
-  lead="`PaymentRequest` открывает окно оплаты самого браузера: сохранённая карта, адрес доставки, Google Pay. Сайт описывает, что продаёт и какие способы принимает, а данные карты собирает браузер или платёжное приложение — сайт их не видит."
+  lead="`PaymentRequest` описывает покупку и поддерживаемые способы оплаты, а браузер организует взаимодействие с выбранным методом. Возвращённые данные определяет этот метод. Сам вызов API деньги не переводит: итог подтверждает сервер через провайдера."
 >
   <CodeBlock lang="jsx" code={PAY_CODE} />
 
-  <CodeBlock code={PAY_OUT} tone="ok" />
+  <CodeBlock lang="text" code={PAY_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={PAY_STAND_NOTE} />
@@ -228,11 +232,12 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Жест, безопасный контекст и iframe"
-  lead="У всех четырёх API три общих условия. Без HTTPS их имён нет вовсе. Системное окно открывается только сразу после действия человека. А чужой iframe получает возможность, только если страница разрешила её явно."
+  lead="Безопасный контекст, активация и Permissions Policy решают разные задачи. HTTPS или доверенный локальный источник нужны для доступа к API; требование активации и правила iframe зависят от конкретной возможности."
 >
+  <Disclosure title="Как активация истекает и потребляется: исходники и результаты стенда">
   <CodeBlock lang="jsx" code={ACTIVATION_CODE} />
 
-  <CodeBlock code={ACTIVATION_OUT} tone="ok" />
+  <CodeBlock lang="text" code={ACTIVATION_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={ACTIVATION_NOTE} />
@@ -244,7 +249,7 @@ import {
 
   <CodeBlock code={CONSUME_CODE} />
 
-  <CodeBlock code={CONSUME_OUT} tone="ok" />
+  <CodeBlock lang="text" code={CONSUME_OUT} tone="ok" />
 
   <Md text={CONSUME_NOTE} />
 
@@ -255,6 +260,8 @@ import {
     cols="minmax(200px,1.3fr) minmax(130px,1fr) minmax(110px,1fr) minmax(130px,1fr)"
     minWidth={600}
   />
+
+  </Disclosure>
 
   ### Iframe с другого сайта
 
@@ -289,6 +296,7 @@ import {
 >
   <CodeBlock code={DETECT_CODE} />
 
+  <Disclosure title="Снимок наличия API в четырёх сборках браузеров">
   <Table
     head={['имя', 'Chromium 153', 'headless shell 153', 'Firefox 155', 'WebKit 26.6']}
     rows={SUPPORT_ROWS.map((r) => [r.k, has(r.full), has(r.shell), has(r.firefox), has(r.webkit)])}
@@ -296,6 +304,8 @@ import {
     cols="minmax(200px,1.4fr) repeat(4, minmax(100px,1fr))"
     minWidth={620}
   />
+
+  </Disclosure>
 
   <Md text={SUPPORT_NOTE} />
 
@@ -307,7 +317,8 @@ import {
 
   <Md text={INSTALL_NOTE} />
 
-  <CodeBlock lang="html" code={MANIFEST_CODE} />
+  <CodeBlock lang="html" code={MANIFEST_LINK_CODE} />
+  <CodeBlock lang="json" code={MANIFEST_CODE} />
 
   <Md text={INSTALL_SW_NOTE} />
 

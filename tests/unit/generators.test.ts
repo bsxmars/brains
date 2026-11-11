@@ -64,6 +64,24 @@ describe('раздел «Пауза генератора»', () => {
 });
 
 describe('раздел «async/await из генератора»: spawn против настоящего async/await', () => {
+  it('законченный вызов spawn: общий исходник даёт результат и обрабатывает отказ', async () => {
+    const out: string[] = [];
+    await runSnippet(t.SPAWN_EXAMPLE_CODE, [], { console: { log: (line: string) => out.push(line) } });
+    expect(out).toEqual(t.SPAWN_USE_OUT);
+  });
+
+  it('нативная async-функция и JS-генератор имеют разные интерфейсы', async () => {
+    const native = async () => 7;
+    const generator = function* () { yield 7; };
+    expect(Object.prototype.toString.call(native)).toBe('[object AsyncFunction]');
+    expect(Object.prototype.toString.call(generator)).toBe('[object GeneratorFunction]');
+    expect(native()).toBeInstanceOf(Promise);
+    expect(generator().next()).toEqual({ value: 7, done: false });
+    // Совпадение учебных сценариев spawn не превращает native async в JS-генератор.
+    expect(t.SPAWN_WHY).toContain('учебная модель');
+    expect(t.SPAWN_WHY).toContain('стандарт не требует');
+  });
+
   it.each(t.SCENARIOS)('$label: async, spawn и литерал совпадают', async (sc) => {
     const native = await runNative(t.FIXTURE, sc.asyncCode);
     const viaSpawn = await runNative(t.FIXTURE, sc.genCode);
@@ -204,6 +222,84 @@ describe('числа и ссылки текста', () => {
     const n = t.SPAWN_CODE.split('\n').filter((l) => l.trim()).length;
     expect(n).toBeGreaterThanOrEqual(20);
     expect(n).toBeLessThan(30);
+  });
+
+});
+
+
+describe('генератор как корутина — четыре состояния и три способа его двинуть', () => {
+  type Dialog = Generator<string, string, unknown>;
+
+  /** Генератор берётся из листинга урока, а не пишется заново рядом. */
+  function makeDialog(): { g: Dialog; out: string[] } {
+    const out: string[] = [];
+    const factory = new Function(
+      'console',
+      `'use strict';\n${t.GEN_CODE.join('\n')}\nreturn dialog;`,
+    ) as (c: { log: (...a: unknown[]) => void }) => () => Dialog;
+    const dialog = factory({ log: (...args) => out.push(args.map(String).join(' ')) });
+    return { g: dialog(), out };
+  }
+
+  /** Тексты берём из самого листинга: разъехаться с ним они не должны. */
+  const quoted = (line: string) => line.match(/'([^']*)'/)![1];
+  const FIRST_QUESTION = quoted(t.GEN_CODE[2]);
+  const CLEANUP = quoted(t.GEN_CODE[6]);
+
+  it('состояний ровно четыре, и строки указывают на настоящие места кода', () => {
+    expect(t.GEN_LINES).toHaveLength(t.GEN_LABELS.length);
+    expect(t.GEN_LINES[0], 'suspended-start: тело не выполнялось').toBe(-1);
+    expect(t.GEN_CODE[t.GEN_LINES[1]]).toContain('yield');
+    expect(t.GEN_CODE[t.GEN_LINES[2]]).toContain('yield');
+    expect(t.GEN_CODE[t.GEN_LINES[3]]).toContain(CLEANUP);
+  });
+
+  it('до первого next() тело не выполняется', () => {
+    const { out } = makeDialog();
+    expect(out).toEqual([]);
+  });
+
+  it('next(значение) — это результат приостановленного yield, а не аргумент вызова', () => {
+    const { g, out } = makeDialog();
+
+    expect(g.next()).toEqual({ value: FIRST_QUESTION, done: false });
+    expect(g.next('Аня')).toEqual({ value: 'Привет, Аня…', done: false });
+    expect(out, 'finally ещё не трогали').toEqual([]);
+
+    expect(g.next(29)).toEqual({ value: 'Аня, 29', done: true });
+    expect(out, 'нормальное завершение тоже проходит через finally').toEqual([CLEANUP]);
+
+    expect(g.next(), 'исчерпанный генератор закрыт навсегда').toEqual({
+      value: undefined,
+      done: true,
+    });
+  });
+
+  it('throw() бросает изнутри точки паузы: finally срабатывает, ошибка выходит наружу', () => {
+    const { g, out } = makeDialog();
+    g.next();
+
+    const boom = new Error('обрыв');
+    expect(() => g.throw(boom)).toThrow(boom);
+    expect(out).toEqual([CLEANUP]);
+    expect(g.next()).toEqual({ value: undefined, done: true });
+  });
+
+  it('return() закрывает генератор мягко — finally тоже выполняется', () => {
+    const { g, out } = makeDialog();
+    g.next();
+
+    expect(g.return('стоп')).toEqual({ value: 'стоп', done: true });
+    expect(out).toEqual([CLEANUP]);
+  });
+
+  it('`for…of` с break закрывает итератор сам — через тот же return()', () => {
+    const { g, out } = makeDialog();
+    for (const question of g) {
+      expect(question).toBe(FIRST_QUESTION);
+      break;
+    }
+    expect(out, 'ради этого return() и существует: освободить ресурс').toEqual([CLEANUP]);
   });
 
 });

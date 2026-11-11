@@ -6,6 +6,8 @@ import * as v8 from 'node:v8';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   CAPTURE_CODE,
+  CAPTURE_V8_CODE,
+  LIVE_WINDOW_CODE,
   CPU_VS_HEAP_ROWS,
   FLOOR_CODE,
   FLAME_DEMO_NOTE,
@@ -115,6 +117,25 @@ describe('стенд и запись: профиль называет прави
     expect(root.total, 'корень свёртки = сумма `size` сэмплов с узлом').toBe(bytes);
     // Округление масштаба у мелких объектов — доли процента.
     expect(Math.abs(root.total / selfSum(profile) - 1)).toBeLessThan(0.01);
+  }, 60_000);
+
+  it('законченный Node 26 capture-v8.mjs записывает тот же формат и профиль нагрузки', () => {
+    const profile = capture(CAPTURE_V8_CODE);
+    expect(Array.isArray(profile.samples)).toBe(true);
+    expect(topSelf(api.fold(api.fromV8(profile), 'bytes'))).toBe('renderCatalog');
+  }, 60_000);
+
+  it('выборка не включает прошлые выделения; несобранное не тождественно достижимому', () => {
+    const parse = (force: boolean) => JSON.parse(runModule('live-window.mjs', LIVE_WINDOW_CODE,
+      force ? ['force'] : [], ['--expose-gc'])) as { keptLength: number; beforeBytes: number; discardedBytes: number };
+    const withoutGC = parse(false);
+    const withGC = parse(true);
+    for (const result of [withoutGC, withGC]) {
+      expect(result.keptLength).toBe(131072); // реальный объект до окна всё ещё существует
+      expect(result.beforeBytes).toBe(0); // но его выделение не записано
+    }
+    expect(withoutGC.discardedBytes, 'недостижимый объект до GC остаётся в live-выборке').toBeGreaterThan(900_000);
+    expect(withGC.discardedBytes, 'forceGC удаляет этот сэмпл при чтении').toBe(0);
   }, 60_000);
 
   it('только живое → login; renderCatalog почти не остаётся', () => {
@@ -265,6 +286,16 @@ describe('FOLD_CODE: дерево и ширины', () => {
   });
 });
 
+describe('модуль сворачивания пригоден и для обычного импорта', () => {
+  it('тот же FOLD_CODE исполняется как ESM, без незаконного top-level return', () => {
+    writeFileSync(join(work, 'fold.mjs'), FOLD_CODE);
+    const out = runModule('fold-use.mjs', `import { fold, matchShare } from './fold.mjs';
+const root = fold([{ stack: ['serve', 'login'], bytes: 123, count: 1 }], 'bytes');
+console.log(root.total, matchShare(root, 'login'));`);
+    expect(out).toBe('123 1');
+  });
+});
+
 describe('интервал выборки: формулы калькулятора против движка', () => {
   it('формулы калькулятора', () => {
     const r = intervalReport({ rateMBs: 32, intervalB: 32 * 1024, share: 0.25, windowS: 10, objectB: 32 * 1024 });
@@ -275,6 +306,13 @@ describe('интервал выборки: формулы калькулятор
     expect(r.vsReference).toBe(NODE_DEFAULT_INTERVAL / (32 * 1024));
     expect(r.minShare).toBeCloseTo(SAMPLES_FOR_20PCT / 10240, 9);
     expect(SAMPLES_FOR_20PCT).toBe(97);
+  });
+
+  it('короткое окно честно не обещает достижимую точность даже для доли 100%', () => {
+    const result = intervalReport({ rateMBs: 1, intervalB: NODE_DEFAULT_INTERVAL, share: 1, windowS: 1, objectB: 64 });
+    expect(result.fnSamples).toBe(2);
+    expect(result.minShare).toBeGreaterThan(1);
+    expect(result.err95).toBeGreaterThan(0.2);
   });
 
   /**
@@ -443,6 +481,9 @@ console.log(JSON.stringify(rows));`;
     const rows = JSON.parse(runModule('drive.mjs', driver, [], ['--expose-gc'])) as {
       elu: number;
       delayP99Ms: number;
+      delayRawP99Ms: number;
+      delayResolutionMs: number;
+      delaySamples: number;
       major: number;
       rss: number;
       heapUsed: number;
@@ -452,6 +493,8 @@ console.log(JSON.stringify(rows));`;
     for (const row of rows) {
       expect(row.rss).toBeGreaterThan(row.heapUsed);
       expect(row.external).toBeGreaterThan(0);
+      expect(row.delaySamples).toBeGreaterThan(0);
+      expect(row.delayP99Ms).toBe(Math.max(0, row.delayRawP99Ms - row.delayResolutionMs));
     }
     const elus = rows.map((r) => r.elu);
     expect(Math.max(...elus), 'занятый цикл').toBeGreaterThan(0.5);

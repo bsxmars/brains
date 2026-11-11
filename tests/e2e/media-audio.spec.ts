@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { chromium, expect, firefox, test, webkit, type Browser, type BrowserType, type Page } from '@playwright/test';
 import {
+  PARAM_RATE_CODE, PARAM_RATE_OUT, PARAM_RATE_FIREFOX_OUT, REQUEST_RATE_CODE,
   AUTOPLAY_CODE,
   AUTOPLAY_OUT,
   BUSY_CODE,
@@ -182,7 +183,7 @@ for (const [name, type] of [ENGINES[0], ENGINES[2]]) {
 }
 
 for (const [name, type] of ENGINES) {
-  test(`спуск без якоря идёт от нуля секунд, экспонента к нулю — RangeError — ${name}`, async () => {
+  test(`спуск, заданный при currentTime=0, и запрет экспоненты к нулю — ${name}`, async () => {
     await withEngine(type, async (page) => {
       await page.setContent('<p>стенд</p>');
       const got = await page.evaluate(async () => {
@@ -249,12 +250,12 @@ test('renderSizeHint в Chromium меняет блок и для ворклет�
     const ctx = new OfflineAudioContext({ numberOfChannels: 1, length: 1024, sampleRate: 48000, renderSizeHint: 256 } as OfflineAudioContextOptions);
     await ctx.audioWorklet.addModule('quieter.js');
     const node = new AudioWorkletNode(ctx, 'quieter');
-    const first = new Promise<string>((done) => (node.port.onmessage = (e) => done(e.data)));
+    const first = new Promise<{ blockSize: number; sampleRate: number }>((done) => (node.port.onmessage = (e) => done(e.data)));
     new ConstantSourceNode(ctx).connect(node).connect(ctx.destination);
     await ctx.startRendering();
     return { quantum: (ctx as OfflineAudioContext & { renderQuantumSize?: number }).renderQuantumSize, first: await first };
   });
-  expect(got).toEqual({ quantum: 256, first: 'блок: 256, частота: 48000' });
+  expect(got).toEqual({ quantum: 256, first: { blockSize: 256, sampleRate: 48000 } });
 });
 
 // ─── AudioWorklet ──────────────────────────────────────────────────────────────────────────
@@ -365,6 +366,26 @@ for (const [name, type] of ENGINES) {
       expect(got).toEqual(
         name === 'firefox' ? { again: 'ok', suspend: 'undefined' } : { again: 'InvalidStateError', suspend: 'function' },
       );
+    });
+  });
+}
+
+
+for (const [name, type] of ENGINES) {
+  test(`AudioParam: a-rate меняется внутри блока, k-rate держит значение — ${name}`, async () => {
+    await withEngine(type, (page) => lines(page, PARAM_RATE_CODE, name === 'firefox' ? PARAM_RATE_FIREFOX_OUT : PARAM_RATE_OUT));
+  });
+
+  test(`sampleRate можно запросить при создании AudioContext — ${name}`, async () => {
+    await withEngine(type, (page) => lines(page, REQUEST_RATE_CODE, 'запрошено: 44100, получено: 44100'));
+  });
+
+  test(`ворклет без подключённого входа выдаёт нули, а не processorerror — ${name}`, async () => {
+    await withEngine(type, async (page) => {
+      const connection = 'source.connect(quieter).connect(ctx.destination);';
+      expect(WORKLET_MAIN_CODE).toContain(connection);
+      const silent = WORKLET_MAIN_CODE.replace(connection, 'quieter.connect(ctx.destination);');
+      await lines(page, silent, WORKLET_OUT.replace('0.40 0.40', '0.00 0.00'));
     });
   });
 }

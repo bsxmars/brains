@@ -1,39 +1,41 @@
 ---
 title: Генераторы и асинхронные итераторы
-heading: "Генераторы и асинхронные итераторы: пауза, которую можно продолжить"
+heading: "Генераторы и асинхронные итераторы"
 headingWidth: 24
 order: 10
-lead: "Генератор останавливается на `yield` и ждёт, пока его не продолжат. Если продолжать его каждый раз, когда выполнится промис, получится `async/await`: весь механизм умещается в пару десятков строк. Асинхронный генератор умеет и то и другое, и ещё одно, чего нет ни у обычного генератора, ни у `async`-функции: вызовы `next()`, пришедшие раньше ответа, встают в очередь и получают ответы по порядку."
-summary: "Пауза генератора и во что он превращается без движка; `async/await` как генератор плюс `spawn` и где этот цикл живёт сегодня; асинхронные итераторы и `for await`; очередь `next()` у асинхронного генератора; `break`, `return()` и закрытие ресурса, которое не прерывает ожидание."
+lead: "Генератор сохраняет место остановки и локальные переменные: `next()` продолжает его до следующего `yield`. Асинхронный генератор может ещё и ждать данные — например, очередную страницу API. Цикл `for await` получает их по одному, а ранний выход завершает обход через `return()`."
+summary: "Передача значений через yield и next, страницы API через async-итератор, очередь запросов, закрытие и отмена ожидания; учебная модель await через spawn и преобразование кода компилятором."
 verifiedOn: "Node 24.11.0 (V8 13.6), TypeScript 6.0.3, октябрь 2026: порядок событий учебной spawn, __awaiter и настоящего async/await совпадает на всех сценариях темы; примеры асинхронных генераторов исполняются tests/unit/generators.test.ts. Без таймерных замеров"
 nav:
   - { id: s1, label: Пауза генератора }
-  - { id: s2, label: async/await из генератора }
-  - { id: s3, label: Асинхронные итераторы }
-  - { id: s4, label: Очередь next() }
-  - { id: s5, label: Ранний выход }
+  - { id: s2, label: Асинхронные итераторы }
+  - { id: s3, label: Очередь next() }
+  - { id: s4, label: Ранний выход }
+  - { id: s5, label: Модель await }
   - { id: s6, label: Тонкие места }
   - { id: s7, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import GeneratorMachine from '@/widgets/generator-machine/ui/GeneratorMachine.vue';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
+  COROUTINE_NOTE, GEN_CODE, GEN_LINES, GEN_LABELS, GEN_FACTS, GEN_DEMO_NOTE,
   PLAIN_PAUSE,
   SPAWN_WHY,
-  HELPERS_CODE,
+  LOG_CODE, HELPERS_CODE,
   STEPS_CODE,
   STEPS_NOTE,
   PLAIN_STATE,
@@ -42,7 +44,7 @@ import {
   EDGE_CODE,
   EDGE_FACTS,
   PLAIN_SPAWN,
-  SPAWN_CODE,
+  SPAWN_CODE, SPAWN_USE_CODE, SPAWN_USE_OUT,
   PLAIN_ASYNC_ITER,
   PROTOCOL_ROWS,
   PAGER_CODE,
@@ -62,6 +64,7 @@ import {
   ABORT_CODE,
   ABORT_LOG,
   ABORT_NOTE,
+  ASYNC_QUEUE_DIAGRAM,
   PITFALLS,
   SOURCES,
   RELATED,
@@ -70,19 +73,17 @@ import {
 <Section variant="intro" eyebrow="Пауза, которую можно продолжить" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    `async/await` — не отдельный механизм движка, а генератор, которого продолжает кто-то
-    другой. Генератор останавливается на `yield` и отдаёт промис. Тот, кто его продолжает,
-    ждёт этот промис и передаёт результат обратно внутрь. Пара десятков строк такого кода ведёт
-    себя как `await` вплоть до порядка микрозадач.
+    Генератор управляет своим выполнением вместе с вызывающим кодом: отдаёт значение
+    через `yield`, сохраняет состояние и продолжает, когда вызывают `next`.
+    Поэтому следующий элемент можно получить именно тогда, когда он нужен.
 
   </Callout>
 
-  Обычная функция работает от начала до конца без перерыва. Генератор может прерваться
-  посередине, отдать управление и потом продолжить — с теми же значениями переменных.
-  Из этого свойства собраны `async/await`, асинхронные итераторы и цикл `for await`.
-  И из него же растут их неочевидные места: почему стек ошибки после сборки под старый
-  браузер короче, почему самодельный асинхронный итератор ломается под `Promise.all`,
-  почему `return()` не может остановить генератор, который ждёт ответа сервера.
+  Это полезно для источников, которые не хочется вычислять целиком. Обычный генератор
+  может выдавать значения по запросу, а асинхронный — ещё и ждать следующую порцию данных.
+  Например, запрашивать страницу API только после того, как обработана предыдущая.
+  Для ресурса, который открыт во время обхода, нужен и путь завершения: `finally`,
+  ранний выход и отмена самого ожидания.
 
   <Plain text={PLAIN_PAUSE} />
 
@@ -93,11 +94,32 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Пауза генератора: что она хранит"
-  lead="Как генератор останавливается и что делают `next`, `return` и `throw`, разобрано в [«Объектной модели»](/js/object-model/#s8). Для этой темы нужно одно: `yield` не знает заранее, что вернёт. Это решает тот, кто продолжает генератор: что он передаст в `next(значение)`, то и станет результатом `yield`."
+  lead="Вызов функции с function* создаёт объект-генератор и ещё не выполняет её тело. Метод next() запускает или продолжает тело до следующего yield. Ответ — объект с полями value и done: выданное значение и признак завершения."
 >
+  Вызов `dialog()` создаёт собеседника, но первый вопрос ещё не задан. Первый `next()`
+  выполняет тело до `yield 'Как тебя зовут?'` и возвращает этот вопрос в `value`.
+  Следующий `next('Аня')` подставляет «Аня» на место остановленного `yield`;
+  функция записывает имя и доходит до следующей паузы.
+
+  <Md text={COROUTINE_NOTE} />
+  <Md text={GEN_DEMO_NOTE} />
+  <GeneratorMachine client:visible code={GEN_CODE} lineByPhase={GEN_LINES} labels={GEN_LABELS} />
+
+  `return('стоп')` просит генератор завершиться через `finally`, а `throw(error)`
+  создаёт исключение в точке паузы. Если генератор ещё не начал тело, ни один из этих
+  вызовов не входит в его `try` или `finally`. Это можно проверить в схеме до первого `next()`.
+
+  <CardGrid min={280} gap={14}>
+    {GEN_FACTS.slice(0, 2).map((fact) => (
+      <Card title={fact.t} pad={18} gap={9} text={fact.d} />
+    ))}
+  </CardGrid>
+
+  ### Промис как значение yield
+
   <CardGrid min={300} gap={16} align="start">
     <Card title="«Запросы» для всей темы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={HELPERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={[LOG_CODE, HELPERS_CODE].join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Генератор, которым управляют руками" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -106,30 +128,6 @@ import {
   </CardGrid>
 
   <Md text={STEPS_NOTE} />
-
-  ### Во что генератор превращается без поддержки движка
-
-  Чтобы продолжить функцию с середины, нужно помнить две вещи: где она остановилась
-  и чему равны её переменные. Хорошо видно это по коду, который пишет TypeScript для
-  старых браузеров, где генераторов нет. Так выглядит тот же `loadSteps`, собранный
-  с `target: ES5`.
-
-  <Plain text={PLAIN_STATE} />
-
-  <Card title="loadSteps после TypeScript с target: ES5" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TS_ES5_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
-
-  <CardGrid min={260} gap={14} align="start">
-    {TS_ES5_FACTS.map((fact) => (
-      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
-    ))}
-
-  </CardGrid>
-
-  Движок с поддержкой генераторов делает то же самое без переписывания кода: объект-генератор
-  хранит место остановки и значения переменных функции, а `next()` восстанавливает их
-  и продолжает выполнение.
 
   ### `return()` и `throw()` снаружи
 
@@ -148,21 +146,6 @@ import {
 <Section
   id="s2"
   eyebrow="Раздел 2"
-  title="async/await из генератора и промисов"
-  lead="Пусть генератор отдаёт через `yield` промис и останавливается. Дождёмся этого промиса и передадим его результат обратно через `next` — генератор продолжит работу с готовым значением. Повторяем так до конца, и генератор работает как async-функция: `yield` в нём делает то же, что `await`. Функцию, которая крутит такой цикл, обычно называют `spawn` или `co`."
->
-  <Plain text={PLAIN_SPAWN} />
-
-  <Md text={SPAWN_WHY} />
-
-  <Card title="Функция spawn целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SPAWN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
-</Section>
-
-<Section
-  id="s3"
-  eyebrow="Раздел 3"
   title="Асинхронные итераторы и for await"
   lead="Асинхронный итератор устроен как обычный, только `next()` возвращает не результат, а промис результата. Так можно обходить то, что приходит по частям и не сразу: страницы API, куски файла, сообщения из сокета."
 >
@@ -196,8 +179,8 @@ import {
 </Section>
 
 <Section
-  id="s4"
-  eyebrow="Раздел 4"
+  id="s3"
+  eyebrow="Раздел 3"
   title="Очередь next() у асинхронного генератора"
   lead="Обычный генератор работает, только пока его зовут, и никогда — дважды одновременно. Асинхронный может получить новый `next()`, когда ещё не ответил на предыдущий: в это время он ждёт на `await`. На этот случай у него есть очередь."
 >
@@ -227,8 +210,8 @@ import {
 </Section>
 
 <Section
-  id="s5"
-  eyebrow="Раздел 5"
+  id="s4"
+  eyebrow="Раздел 4"
   title="Ранний выход: break и закрытие ресурса"
   lead="Генератор, который открыл файл или соединение, закрывает его в `finally`. Цикл, вышедший раньше конца, зовёт у генератора `return()` — и у асинхронного генератора этот вызов тоже возвращает промис, который цикл ждёт."
 >
@@ -272,16 +255,64 @@ import {
 
   <Md text={ABORT_NOTE} />
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
+  <ConceptDiagram data={ASYNC_QUEUE_DIAGRAM} />
+</Section>
 
-      **Генератор слышит только то, что приходит в точку паузы.** `next`, `throw` и `return`
-      доходят до него на `yield` — и только там. Пока он ждёт на `await`, снаружи до него
-      не достучаться: вызовы встают в очередь. Поэтому всё, что должно уметь прерываться,
-      получает сигнал отмены внутрь и передаёт его тому, чего ждёт.
+<Section
+  id="s5"
+  eyebrow="Раздел 5"
+  title="Модель await через генератор"
+  lead="Если генератор выдаёт промис, вызывающий код может дождаться его и передать результат в next. При отказе он вызывает throw. Так устроена учебная функция spawn: она помогает понять ожидание, а компиляторы используют похожее преобразование для старых сред."
+>
+  <Plain text={PLAIN_SPAWN} />
 
-    </DarkText>
-  </DarkPanel>
+  <Md text={SPAWN_WHY} />
+
+  <Card title="Функция spawn целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={SPAWN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+  ### Завершённый вызов: результат и отказ
+
+  `loadSteps` и помощники запросов определены в разделе [«Пауза генератора»](#s1).
+  Вместо ручных `next('Боб')` и `next([...])` теперь результат каждой операции
+  передаёт `spawn`. Если операция отклонится, отказ попадёт в `throw` генератора,
+  а затем в промис, который вернула `spawn`:
+
+  <CodeBlock code={SPAWN_USE_CODE} />
+  <CodeBlock code={SPAWN_USE_OUT.join('\n')} tone="ok" />
+
+  Вызов доходит до `getUser` синхронно. На первом выданном промисе генератор
+  приостанавливается; реакция промиса позже продолжает его с именем «Аня».
+  `spawn` отвечает за ожидание, а код генератора — за последовательность действий.
+
+<Disclosure title="Как TypeScript сохраняет состояние генератора для ES5">
+
+  ### Во что генератор превращается без поддержки движка
+
+  Чтобы продолжить функцию с середины, нужно помнить две вещи: где она остановилась
+  и чему равны её переменные. Хорошо видно это по коду, который пишет TypeScript для
+  старых браузеров, где генераторов нет. Так выглядит тот же `loadSteps`, собранный
+  с `target: ES5`.
+
+  <Plain text={PLAIN_STATE} />
+
+  <Card title="loadSteps после TypeScript с target: ES5" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={TS_ES5_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  <CardGrid min={260} gap={14} align="start">
+    {TS_ES5_FACTS.map((fact) => (
+      <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  У нативного генератора тоже сохраняются место остановки и значения переменных.
+  Приведённый `switch` — способ выразить это состояние обычным JavaScript для старой среды,
+  а не обязательная внутренняя реализация движка.
+
+</Disclosure>
+
 </Section>
 
 <Section id="s6" eyebrow="Раздел 6" title="Тонкие места">

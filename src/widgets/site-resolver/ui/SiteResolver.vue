@@ -1,15 +1,10 @@
 <script setup lang="ts">
-/**
- * Где окажется документ: в процессе главного фрейма или в своём.
- *
- * Единица изоляции — схема плюс eTLD+1, и почти все ошибки здесь от того, что рассуждают
- * через origin. Поэтому демо показывает три вещи разом: полный URL, вычисленный site
- * и карту процессов вкладки, где видно, какой рендерер «загорается».
- */
+/** URL reference: actual origins, prepared PSL sites, no process prediction. */
 import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { SegmentedControl } from '@/shared/ui';
 import type { SiteCase } from '../model/types';
+import { compareBoundaries } from '../model/compare';
 
 const props = defineProps<{ cases: SiteCase[]; hostSite?: string; hostLabel?: string }>();
 
@@ -17,24 +12,11 @@ const picked = ref('0');
 const current = computed(() => props.cases[Number(picked.value)]);
 const options = computed(() => props.cases.map((c, i) => ({ value: String(i), label: c.label })));
 
-/** Карта процессов: какой рендерер обслуживает выбранный документ. */
-const processes = computed(() => {
-  const same = current.value.same;
-  return [
-    {
-      name: 'renderer #1',
-      site: props.hostSite ?? 'https://shop.com',
-      docs: same ? 'главный фрейм + выбранный документ' : 'главный фрейм',
-      hot: same,
-    },
-    {
-      name: same ? 'renderer #2 (не нужен)' : 'renderer #2 · OOPIF',
-      site: same ? '—' : current.value.site,
-      docs: same ? 'пусто' : 'выбранный документ',
-      hot: !same,
-    },
-  ];
-});
+const boundaries = computed(() => compareBoundaries(current.value, props.hostSite, props.hostLabel));
+const comparisons = computed(() => [
+  { name: 'site', value: current.value.site, same: boundaries.value.sameSite },
+  { name: 'origin', value: boundaries.value.origin, same: boundaries.value.sameOrigin },
+]);
 </script>
 
 <template>
@@ -43,6 +25,7 @@ const processes = computed(() => {
       <SegmentedControl v-model="picked" class="l-pills" label="Документ во вкладке" :options="options" />
     </template>
 
+    <div class="t-label reference-label">Справочник URL · не список процессов браузера</div>
     <div class="split">
       <div class="pane">
         <div class="field">
@@ -62,12 +45,12 @@ const processes = computed(() => {
         <div class="t-label">вкладка «главный фрейм {{ hostLabel ?? 'https://app.shop.com' }}»</div>
 
         <div class="processes">
-          <div v-for="proc in processes" :key="proc.name" class="process" :class="{ hot: proc.hot }">
+          <div v-for="boundary in comparisons" :key="boundary.name" class="process" :class="{ hot: boundary.same }">
             <div class="process__head">
-              <span class="process__name">{{ proc.name }}</span>
-              <span class="process__site">{{ proc.site }}</span>
+              <span class="process__name">{{ boundary.name }}</span>
+              <span class="process__site">{{ boundary.same ? 'совпадает' : 'отличается' }}</span>
             </div>
-            <div class="process__docs">{{ proc.docs }}</div>
+            <div class="process__docs">{{ boundary.value }}</div>
           </div>
         </div>
 
@@ -78,6 +61,7 @@ const processes = computed(() => {
 </template>
 
 <style scoped>
+.reference-label { padding: 16px 20px 0; }
 .split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
@@ -110,7 +94,7 @@ const processes = computed(() => {
   color: var(--ink);
   word-break: break-all;
 }
-/* Цвет site — это и есть ответ: зелёный «тот же процесс», янтарный «отдельный». */
+/* Same-site and cross-site are URL relationships, not measured process placement. */
 .site {
   padding: 12px 14px;
   border-radius: var(--r2);
@@ -148,7 +132,7 @@ const processes = computed(() => {
   border: 1px solid var(--border);
   border-radius: var(--r3);
   background: var(--surface);
-  opacity: 0.5;
+  opacity: 1;
   transition: all 0.2s;
 }
 .process.hot {
@@ -159,6 +143,7 @@ const processes = computed(() => {
 .process__head {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 10px;
 }
@@ -178,6 +163,7 @@ const processes = computed(() => {
   line-height: 1.6;
   color: var(--text-muted);
   white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .verdict {

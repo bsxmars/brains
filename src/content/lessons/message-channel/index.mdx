@@ -1,24 +1,26 @@
 ---
 title: MessageChannel
 order: 18
-lead: "`MessageChannel` создаёт два связанных порта: что отправили в один, приходит в другой. Любой порт можно отдать в воркер, iframe или другую вкладку, и дальше разговаривает тот, к кому он попал. Поэтому порт — это **право на разговор, которое можно передать**. Чаще всего удивляют три вещи: пока порт не запущен, сообщения копятся и не доставляются; в браузере каждое сообщение приходит отдельной задачей; а сообщение в закрытый или отданный порт пропадает без ошибки."
-summary: "Порт как переносимое полномочие — буферизация до start(), правила transfer-списка, планировщик без паузы в 4 мс и утечка на незакрытом канале."
+lead: "`MessageChannel` создаёт два связанных порта: сообщение из одного приходит в другой. Один порт можно передать воркеру или iframe и получить отдельный канал обмена. Владелец порта отправляет и принимает сообщения, а по завершении работы закрывает связь через `close()`."
+summary: "Канал внутри страницы и передача порта воркеру, запуск и закрытие порта, правила transfer-списка, обмен с iframe и SharedWorker, канал как планировщик."
 verifiedOn: Node 24.11 и 26.8
 nav:
   - { id: basics, label: Основа }
   - { id: model, label: Модель }
   - { id: s1, label: Цикл порта }
-  - { id: s2, label: Тайминг }
-  - { id: s3, label: Transfer }
-  - { id: s4, label: Применение }
+  - { id: s2, label: Transfer }
+  - { id: s3, label: Применение }
+  - { id: s4, label: Планировщик }
   - { id: s5, label: Тонкости }
   - { id: s6, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -66,6 +68,8 @@ import {
   BASICS_CHANNEL_OUT,
   BASICS_PAGE_CODE,
   BASICS_WORKER_CODE,
+  BASICS_WORKER_OUT,
+  PORT_OWNERSHIP_DIAGRAM,
   RELATED,
 } from './data';
 import Table from '@/shared/ui/Table.astro';
@@ -74,10 +78,9 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 
 <Section variant="intro" eyebrow="Пара связанных портов">
 
-  Главный поток отдаёт расчёт воркеру и ждёт ответа именно на этот запрос, а не на соседний.
-  Виджет в iframe должен говорить только с вашей страницей, а не с любым, кто дотянулся
-  до окна. Планировщику нужно отпустить поток на кадр и сразу вернуться к работе. Все три
-  задачи решает одна маленькая вещь — пара связанных портов.
+  Канал нужен, когда две части приложения должны обмениваться сообщениями по отдельной
+  линии. Например, страница отдаёт один порт воркеру: после этого оба конца связаны
+  напрямую, а сообщения канала не смешиваются с остальными сообщениями воркера.
 
   <Glossary items={GLOSSARY} />
 </Section>
@@ -103,8 +106,8 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
     <CodeBlock lang="text" code={BASICS_CHANNEL_OUT} size={11.5} />
   </Card>
 
-  Внутри одной страницы канал не нужен: функцию проще вызвать напрямую. Он нужен, когда один
-  из портов уезжает в воркер или iframe. Порт отдают через `postMessage` того, кто уже на связи,
+  Для обычного вызова внутри страницы достаточно функции. Канал полезен для асинхронного
+  обмена — особенно когда один порт передают в воркер или iframe. Порт отдают через `postMessage` того, кто уже на связи,
   и перечисляют его во втором аргументе — списке переноса. После этого у страницы и воркера
   своя отдельная линия, и её сообщения не смешиваются с остальными.
 
@@ -116,6 +119,10 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
       <CodeBlock code={BASICS_WORKER_CODE} size={11.5} />
     </Card>
   </CardGrid>
+
+  <CodeBlock code={BASICS_WORKER_OUT} lang="text" tone="ok" />
+
+  <ConceptDiagram data={PORT_OWNERSHIP_DIAGRAM} />
 
   Подписаться можно и через `addEventListener`, но тогда в браузере порт нужно запустить
   вызовом `start()`. Присваивание `onmessage` запускает порт само, `addEventListener` — нет:
@@ -148,8 +155,8 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 
       В браузере сообщение приходит обычной задачей из собственного источника задач (task
       source) — не микрозадачей и не таймером. Отсюда главный практический сценарий —
-      планировщик. В Node это не так: там канал доставляет внутри того же оборота цикла (замер —
-      в разделе [«Чем отдать поток»](#s2)). Что такое источник задач и как цикл выбирает между ними —
+      планировщик. В Node сообщения могут обрабатываться в пределах одного оборота цикла;
+      сравнение с браузером — в разделе [«Канал как планировщик»](#s4). Что такое источник задач и как цикл выбирает между ними —
       в теме [«Event Loop»](/js/event-loop/#s2).
 
     </Card>
@@ -170,7 +177,7 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
   eyebrow="Раздел 1 · демо"
   eyebrowTone="demo"
   title="Жизненный цикл порта"
-  lead="Три свойства порта видны только в работе: до `start()` сообщения копятся, запуск порта нельзя отменить, а после `close()` или передачи порта вместо ошибки — тишина."
+  lead="Порт может принимать сообщения до установки обработчика: они ждут в его очереди. Чтобы начать доставку в браузере, порт запускают. Когда обмен закончен, связь закрывают явно."
 >
   <Plain text={PLAIN_QUEUE} />
 
@@ -260,7 +267,11 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
     не становится. Почему корень держит под собой всё поддерево
     и как такую утечку находят в снимке кучи — в теме [«Память и GC»](/js/memory-gc/).
 
-    <Card tone="err" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+
+  </Card>
+<Disclosure title="Почему незакрытый канал мешает тесту завершиться">
+
+<Card tone="err" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
 
       **Отсюда жалоба Jest «did not exit» в связке с jsdom.** Планировщик React сначала
       пробует `setImmediate` и только без него создаёт `MessageChannel` — и никогда его
@@ -269,92 +280,14 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
       `--detectOpenHandles`.
 
     </Card>
-  </Card>
+
+</Disclosure>
+
 </Section>
 
 <Section
   id="s2"
-  eyebrow="Раздел 2"
-  title="Чем отдать поток: `setTimeout` против сообщения порта"
-  lead="Планировщику нужно «дай браузеру нарисовать кадр и сразу вернись к работе». А `setTimeout`, вызванный из `setTimeout` глубже пяти уровней, по стандарту HTML превращается в паузу 4 мс, даже если просили ноль."
->
-
-  Допустим, список из десяти тысяч строк строится одной задачей за 200 мс — и все 200 мс
-  клик по кнопке ждёт. Лечение — резать работу на порции по несколько миллисекунд и между порциями отдавать
-  поток. Весь вопрос в том, чем отдавать.
-
-  <Plain text={PLAIN_YIELD} />
-
-  <Card title="Планировщик на сообщениях порта" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
-    <CodeBlock code={SCHEDULER_CODE} size={12} />
-
-    Это сокращённая версия `scheduler/src/forks/Scheduler.js` из React: 5 мс работы, потом
-    пауза, чтобы браузер нарисовал кадр. Каждое сообщение — отдельная задача, поэтому между двумя порциями
-    браузер успевает обработать клик и нарисовать кадр. Зачем React это делает и что он режет
-    на куски — в теме [«Ре-рендеринг в React»](/frameworks/react-rerender/#s4).
-
-    **Флаг `scheduled` склеивает повторные вызовы.** Пока сообщение уже в пути, новый
-    `schedule()` ничего не отправляет: работа лежит в `queue`, и её заберёт та же задача.
-    Без флага десять вызовов подряд дали бы десять сообщений. Девять из них пришли бы
-    к пустой или почти пустой очереди и потратили оборот цикла впустую. Флаг сбрасывается
-    в начале обработчика: если за время порции кто-то добавил работу, следующий
-    `schedule()` снова отправит сообщение.
-
-  </Card>
-
-  <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
-
-    **Канал — не единственный способ отдать поток, и уже не лучший.** Микрозадача поток
-    не отпускает вовсе, `setTimeout` отпускает, но платит паузой в 4 мс. `scheduler.postTask`
-    даёт то, чего у канала нет, — приоритет и отмену, а `scheduler.yield()` ставит продолжение
-    в начало очереди, а не в конец. Канал остаётся
-    запасным путём там, где планировщика нет. Сравнение всех способов, их потолки и запасной
-    путь через `globalThis` — в теме «Планирование задач», раздел
-    [«Чем возвращать управление циклу»](/js/task-scheduling/#s1).
-
-  </Card>
-
-  ### Отдаёт ли канал поток в Node: проверка счётчиком оборотов
-
-  Отдать поток — значит прервать свою работу, дать циклу событий заняться другими делами
-  и продолжить потом. Как проверить, что способ действительно отдаёт поток? По цене не
-  понять: самый дешёвый способ может не отдавать его вовсе. Поэтому рядом запускают
-  счётчик, который растёт, только когда цикл переходит к следующему обороту. Потом тысячу
-  раз отдают поток проверяемым способом и смотрят, насколько счётчик вырос.
-
-  <CodeBlock code={PUMP_CODE} size={12} lh={1.7} pad="14px 16px" />
-
-  <Md text={PUMP_NOTE} />
-
-  <CardGrid min={280} gap={14} align="start">
-    {PUMP_ROWS.map((row) => (
-      <Card tone={row.tone} color="tone" label={row.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
-        <Md text={row.what} />
-        <Md text={`**Чем платит:** ${row.cost}`} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
-  Те же четыре способа одной таблицей:
-
-  <Table
-    head={YIELD_RUNS.head}
-    rows={YIELD_RUNS.rows}
-    kinds={['mono', 'mono', 'mono', 'prose']}
-    cols="minmax(190px,.9fr) minmax(140px,.6fr) minmax(150px,.7fr) minmax(230px,1.3fr)"
-    minWidth={740}
-  />
-
-  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
-    <Md text={YIELD_NOTE} />
-  </Card>
-</Section>
-
-<Section
-  id="s3"
-  eyebrow="Раздел 3 · демо"
+  eyebrow="Раздел 2 · демо"
   eyebrowTone="demo"
   title="Правила transfer-списка"
   lead="Transfer-список — второй аргумент `postMessage`: в нём перечисляют объекты, которые надо не скопировать, а отдать. Transfer — не копия и не ссылка, а **смена владельца**: у отправителя `byteLength` обнуляется в тот же момент. Ошибки в списке ведут себя по-разному: одни падают громко, а одна молча портит ваш буфер."
@@ -367,33 +300,26 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 
   <TransferRules client:visible initial="ok" />
 
-  <CardGrid min={280} gap={14}>
-    <Card pad={16} radius={4} size={15.5}>
+  `postMessage` копирует данные по алгоритму structured clone. Если буфер нужен только
+  получателю, его можно передать через transfer-список и не делать вторую копию.
+  Что сохраняется и теряется при копировании, включая прототипы, геттеры и циклы,
+  разобрано в теме [«Копирование и сериализация»](/js/serialization/#s4).
 
-      **`SharedArrayBuffer` не передаётся, а клонируется** — и обе стороны получают доступ
-      к одной и той же памяти. Но отправить его можно только со страницы с изоляцией источника
-      (cross-origin isolated: заголовки `COOP` + `COEP`), иначе `DataCloneError`. Как ждать
-      и будить друг друга через `Atomics` — [«Общая память и Atomics», раздел «Ждать
-      и будить»](/js/atomics/#s5).
+  `SharedArrayBuffer` устроен иначе: при отправке обе стороны получают доступ к общей
+  памяти. Условия изоляции страницы описаны в теме
+  [«Безопасность фронтенда»](/platform/security/#s7), согласование чтений и записей —
+  в теме [«Общая память и Atomics»](/js/atomics/).
 
-    </Card>
-    <Card pad={16} radius={4} size={15.5}>
+  ### Почему размер сообщения важен
 
-      **Клон — тот же алгоритм, что у `structuredClone`.** Проходят `Date`, `RegExp`, `Map`,
-      `Set`, TypedArray, `Error`, `BigInt`, циклы. Функции, DOM-узлы и `Proxy` бросают
-      `DataCloneError` — прокси, сколько бы обычных полей ни было у цели. А символьные ключи,
-      прототип, `#`-поля и геттеры класса пропадают молча; собственный геттер объекта
-      срабатывает, и уезжает его значение. Отсюда «обычный объект уходит, а состояние падает»:
-      `reactive()` во Vue — это прокси, и перед отправкой ему нужен `toRaw()`. Без канала тот же
-      клон делает `structuredClone(value)`, а с `{ transfer: [buf] }` — и перенос. Что именно
-      теряется на клонировании — [«Копирование и сериализация», раздел «Structured clone
-      по шагам»](/js/serialization/#s4); почему прототип,
-      приватные поля и геттеры ведут себя именно так — в теме [«Объектная модель»](/js/object-model/).
+  Копирование выполняют обе стороны: отправитель записывает данные, получатель
+  восстанавливает их. Влияет не только число байтов, но и число отдельных объектов.
+  Большой граф объектов может задержать поток сильнее, чем сплошной буфер.
+  Поэтому крупные двоичные данные передают владением, а частые мелкие сообщения объединяют.
 
-    </Card>
-  </CardGrid>
+<Disclosure title="Замер стоимости сообщений и размер одной отправки">
 
-  ### Во что обходится одно сообщение
+### Во что обходится одно сообщение
 
   <Table
     head={COST_ROWS.head}
@@ -421,25 +347,7 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
     </CardNote>
   </Card>
 
-  <Card title="Почему циклические ссылки не ломают клонирование" titleSize={17} pad={20} radius={5} gap={13}>
-
-    Клонирование справляется и с объектами, которые ссылаются сами на себя. Алгоритм обходит
-    граф объектов и ведёт **карту уже склонированных объектов**. Встретив ссылку, он сначала смотрит в карту,
-    и если объект там уже есть — подставляет готовый клон вместо того, чтобы делать второй.
-
-    Отсюда два следствия. `a.self = a` не уводит обход в бесконечность: на втором заходе `a`
-    уже в карте. И идентичность внутри одного сообщения сохраняется — если один и тот же объект
-    лежит в двух полях, на той стороне это снова будет **один** объект, а не две копии.
-    `JSON.parse(JSON.stringify(x))` не умеет ни первого, ни второго: на цикле он падает,
-    а общий объект раздваивает.
-
-    <CardNote tone="prose">
-
-      Карта живёт ровно одно сообщение. Два `postMessage` подряд с одним и тем же объектом
-      дадут на приёме два независимых объекта — между сообщениями идентичность не переносится.
-
-    </CardNote>
-  </Card>
+</Disclosure>
 
   <Card title="Переносится — это не то же самое, что клонируется" titleSize={17} pad={20} radius={5} gap={13}>
 
@@ -457,7 +365,7 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
   </Card>
 </Section>
 
-<Section id="s4" eyebrow="Раздел 4" title="Применение" lead={APPLY_LEAD}>
+<Section id="s3" eyebrow="Раздел 3" title="Применение" lead={APPLY_LEAD}>
   <Card title="Приватный канал с iframe: владение портом вместо проверки origin" titleSize={18} pad={22} radius={5} gap={16}>
     <CardGrid min={270} gap={16}>
       <Card tone="err" label="window.postMessage" labelTone="tone" labelSize={11} pad={16} radius={5} gap={9}>
@@ -499,8 +407,59 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
     </Card>
   </Card>
 
-  <CardGrid min={300} gap={16} align="start">
-    <Card title="Удалённый вызов: одноразовый порт на вызов" titleSize={16.5} pad={18} radius={5} gap={11}>
+    <Card title="Один воркер — много независимых каналов" titleSize={16.5} pad={18} radius={5} gap={11}>
+      ```js
+      const worker = new Worker('/worker.js');
+
+      function openChannel(name) {
+        const { port1, port2 } = new MessageChannel();
+        worker.postMessage({ open: name, port: port2 }, [port2]);
+        return port1;      // своя фича — свой порт и свой протокол
+      }
+      const search = openChannel('search');
+      const parse  = openChannel('parse');
+
+      // worker.js: каждой фиче — свой обработчик на своём порту
+      self.onmessage = ({ data }) => {
+        if (data.open) handlers[data.open](data.port);
+      };
+      ```
+
+      Вместо одного `switch` по `data.type` на всё приложение. Плюс изоляция: чтобы закрыть
+      одну фичу, хватит `close()` её порта, остальные не пострадают.
+
+    </Card>
+
+  ### `SharedWorker`: порт — единственный вход
+
+  Выделенный воркер принадлежит одной вкладке, `SharedWorker` — всем вкладкам одного
+  источника сразу. Своего `postMessage` у него нет: вкладка получает порт `worker.port`,
+  а воркер на каждое подключение получает событие `connect` с другим концом в `e.ports[0]`.
+  Всё, что тема говорит о портах, здесь работает без поправок. Чем такой агент отличается
+  от выделенного воркера — [«Воркеры и параллелизм», раздел «Агент и его изоляция»](/js/workers/#s1).
+
+  <CardGrid min={290} gap={16} align="start">
+    <Card label="воркер" labelSize={12} pad={18} radius={5} gap={11}>
+      <CodeBlock code={SHARED_WORKER_CODE} size={11.5} />
+    </Card>
+    <Card label="каждая вкладка" labelSize={12} pad={18} radius={5} gap={11}>
+      <CodeBlock code={SHARED_PAGE_CODE} size={11.5} />
+    </Card>
+  </CardGrid>
+
+  <CardGrid min={280} gap={14}>
+    {SHARED_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={16} radius={4} gap={8} size={15}>
+        <Md text={fact.d} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+<Disclosure title="Запрос и ответ: одноразовый порт и таймаут">
+
+<Card title="Удалённый вызов: одноразовый порт на вызов" titleSize={16.5} pad={18} radius={5} gap={11}>
 
       Удалённый вызов (RPC) — вызвать функцию на той стороне и дождаться ответа. Отдельный
       порт на каждый вызов проще, чем сопоставлять ответы с запросами по id, и не нужно чистить
@@ -533,29 +492,6 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 
     </Card>
 
-    <Card title="Один воркер — много независимых каналов" titleSize={16.5} pad={18} radius={5} gap={11}>
-      ```js
-      const worker = new Worker('/worker.js');
-
-      function openChannel(name) {
-        const { port1, port2 } = new MessageChannel();
-        worker.postMessage({ open: name, port: port2 }, [port2]);
-        return port1;      // своя фича — свой порт и свой протокол
-      }
-      const search = openChannel('search');
-      const parse  = openChannel('parse');
-
-      // worker.js: каждой фиче — свой обработчик на своём порту
-      self.onmessage = ({ data }) => {
-        if (data.open) handlers[data.open](data.port);
-      };
-      ```
-
-      Вместо одного `switch` по `data.type` на всё приложение. Плюс изоляция: чтобы закрыть
-      одну фичу, хватит `close()` её порта, остальные не пострадают.
-
-    </Card>
-
     <Card tone="warn" title="ServiceWorker: запрос-ответ вместо «крикнул в пустоту»" titleSize={16.5} pad={18} radius={5} gap={11}>
       ```js
       function ask(msg) {
@@ -575,7 +511,11 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 
     </Card>
 
-    <Card tone="info" title="Node: синхронный вызов в воркер" titleSize={16.5} pad={18} radius={5} gap={11}>
+</Disclosure>
+
+<Disclosure title="Синхронный запрос в Node через Atomics">
+
+<Card tone="info" title="Node: синхронный вызов в воркер" titleSize={16.5} pad={18} radius={5} gap={11}>
 
       Node умеет **синхронно** снять сообщение с порта, не дожидаясь цикла событий; в браузере
       такой функции нет вовсе. На этом построены библиотеки синхронного удалённого вызова
@@ -615,7 +555,6 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
       а `receiveMessageOnPort` там просто нет.
 
     </Card>
-  </CardGrid>
 
   ### Синхронный вызов в воркер по шагам
 
@@ -638,34 +577,11 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 
   <Plain text={PLAIN_SYNC_CALL} />
 
-  ### `SharedWorker`: порт — единственный вход
+</Disclosure>
 
-  Выделенный воркер принадлежит одной вкладке, `SharedWorker` — всем вкладкам одного
-  источника сразу. Своего `postMessage` у него нет: вкладка получает порт `worker.port`,
-  а воркер на каждое подключение получает событие `connect` с другим концом в `e.ports[0]`.
-  Всё, что тема говорит о портах, здесь работает без поправок. Чем такой агент отличается
-  от выделенного воркера — [«Воркеры и параллелизм», раздел «Агент и его изоляция»](/js/workers/#s1).
+<Disclosure title="Когда вместо пары портов нужен BroadcastChannel">
 
-  <CardGrid min={290} gap={16} align="start">
-    <Card label="воркер" labelSize={12} pad={18} radius={5} gap={11}>
-      <CodeBlock code={SHARED_WORKER_CODE} size={11.5} />
-    </Card>
-    <Card label="каждая вкладка" labelSize={12} pad={18} radius={5} gap={11}>
-      <CodeBlock code={SHARED_PAGE_CODE} size={11.5} />
-    </Card>
-  </CardGrid>
-
-  <CardGrid min={280} gap={14}>
-    {SHARED_FACTS.map((fact) => (
-      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={16} radius={4} gap={8} size={15}>
-        <Md text={fact.d} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
-  ### `BroadcastChannel`: тот же обмен, но без портов
+### `BroadcastChannel`: тот же обмен, но без портов
 
   Ближайший сосед `MessageChannel` устроен иначе. Пары концов здесь нет. В каждой вкладке,
   окне или воркере одного источника создают `new BroadcastChannel(имя)` с одним и тем же
@@ -707,12 +623,95 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 
     </Card>
   </CardGrid>
+
+</Disclosure>
+
+</Section>
+
+<Section
+  id="s4"
+  eyebrow="Раздел 4"
+  title="Канал как планировщик"
+  lead="В браузере каждое сообщение порта обрабатывается отдельной задачей. Между порциями работы у браузера появляется возможность обработать ввод и подготовить кадр. Вложенные таймеры могут добавлять задержку, а к сообщениям порта это правило не применяется."
+>
+
+  Допустим, список из десяти тысяч строк строится одной задачей за 200 мс — и все 200 мс
+  клик по кнопке ждёт. Лечение — резать работу на порции по несколько миллисекунд и между порциями отдавать
+  поток. Весь вопрос в том, чем отдавать.
+
+  <Plain text={PLAIN_YIELD} />
+
+  <Card title="Планировщик на сообщениях порта" titleSize={17} pad={20} radius={5} gap={13} size={16} lh={1.6}>
+    <CodeBlock code={SCHEDULER_CODE} size={12} />
+
+    Это сокращённая версия `scheduler/src/forks/Scheduler.js` из React: 5 мс работы, потом
+    возврат управления циклу событий. Каждое сообщение — отдельная задача, поэтому между порциями
+    браузер может обработать ввод и подготовить кадр; кадр после каждой порции не гарантирован. Зачем React это делает и что он режет
+    на куски — в теме [«Ре-рендеринг в React»](/frameworks/react-rerender/#s4).
+
+    **Флаг `scheduled` склеивает повторные вызовы.** Пока сообщение уже в пути, новый
+    `schedule()` ничего не отправляет: работа лежит в `queue`, и её заберёт та же задача.
+    Без флага десять вызовов подряд дали бы десять сообщений. Девять из них пришли бы
+    к пустой или почти пустой очереди и потратили оборот цикла впустую. Флаг сбрасывается
+    в начале обработчика: если за время порции кто-то добавил работу, следующий
+    `schedule()` снова отправит сообщение.
+
+  </Card>
+
+  Сравнение канала, таймеров, `scheduler.postTask` и `scheduler.yield`, а также выбор
+  запасного способа — в теме [«Планирование задач», раздел «Чем возвращать управление циклу»](/js/task-scheduling/#s2).
+
+
+
+<Disclosure title="Почему канал в Node не заменяет setImmediate">
+
+### Отдаёт ли канал поток в Node: проверка счётчиком оборотов
+
+  Отдать поток — значит прервать свою работу, дать циклу событий заняться другими делами
+  и продолжить потом. Как проверить, что способ действительно отдаёт поток? По цене не
+  понять: самый дешёвый способ может не отдавать его вовсе. Поэтому рядом запускают
+  счётчик, который растёт, только когда цикл переходит к следующему обороту. Потом тысячу
+  раз отдают поток проверяемым способом и смотрят, насколько счётчик вырос.
+
+  <CodeBlock code={PUMP_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <Md text={PUMP_NOTE} />
+
+  <CardGrid min={280} gap={14} align="start">
+    {PUMP_ROWS.map((row) => (
+      <Card tone={row.tone} color="tone" label={row.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
+        <Md text={row.what} />
+        <Md text={`**Чем платит:** ${row.cost}`} />
+      </Card>
+
+    ))}
+
+  </CardGrid>
+
+  Те же четыре способа одной таблицей:
+
+  <Table
+    head={YIELD_RUNS.head}
+    rows={YIELD_RUNS.rows}
+    kinds={['mono', 'mono', 'mono', 'prose']}
+    cols="minmax(190px,.9fr) minmax(140px,.6fr) minmax(150px,.7fr) minmax(230px,1.3fr)"
+    minWidth={740}
+  />
+
+  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
+    <Md text={YIELD_NOTE} />
+  </Card>
+
+</Disclosure>
+
 </Section>
 
 <Section id="s5" eyebrow="Раздел 5" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
 
-  ### Node против браузера
+<Disclosure title="Чем MessagePort в Node отличается от браузерного">
+
+### Node против браузера
 
   <ToolCompare
     head={NODE_HEAD}
@@ -730,6 +729,9 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 
     </Card>
   </CardGrid>
+
+</Disclosure>
+
 </Section>
 
 <Section

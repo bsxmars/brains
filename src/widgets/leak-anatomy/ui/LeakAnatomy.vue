@@ -7,6 +7,7 @@
  * Последний узел выделен тоже: это то, что физически не освобождается.
  */
 import { computed, ref } from 'vue';
+import Md from '@/shared/ui/Md.vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { SegmentedControl } from '@/shared/ui';
 import type { LeakCase } from '../model/types';
@@ -48,11 +49,11 @@ const nodes = computed(() =>
       </div>
 
       <div class="cols">
-        <div class="why">{{ current.why }}</div>
+        <Md class="why" :text="current.why" />
 
         <div class="fix">
           <div class="t-label t-label--ok">как чинится</div>
-          <div class="fix__text">{{ current.fix }}</div>
+          <Md class="fix__text" :text="current.fix" />
           <CodeView class="code code--ok" :code="current.fixCode" />
         </div>
       </div>

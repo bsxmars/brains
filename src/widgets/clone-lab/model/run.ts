@@ -52,7 +52,7 @@ export function runMethods(make: () => unknown, impl: CloneImpl): MethodResult[]
     ['spread', (v) => ({ ...(v as object) })],
     ['json', (v) => {
       const text = impl.stringify(v);
-      return text === undefined ? undefined : JSON.parse(text);
+      return JSON.parse(text as string); // JSON.parse(undefined) бросает, как и настоящий round-trip
     }],
     ['clone', (v) => impl.clone(v)],
   ];

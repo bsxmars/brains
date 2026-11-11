@@ -31,6 +31,7 @@ import {
   SPACES_ROWS,
   USING_BROWSER_CODE,
   USING_CODE,
+  USING_ITERATOR_STANDALONE,
   USING_COMPONENT_CODE,
   USING_DESUGAR_CODE,
   USING_NODE_CODE,
@@ -572,6 +573,22 @@ describe('1 · потолок кучи · heap_size_limit минус --max-old-s
 // ---------------------------------------------------------------------------
 
 describe('4 · ключ WeakMap · что движок принимает, а что отвергает', () => {
+  it('delete удаляет запись при доступном ключе, не дожидаясь GC', () => {
+    const key = {};
+    const value = { payload: 'данные' };
+    const map = new WeakMap([[key, value]]);
+    expect(map.get(key)).toBe(value);
+    expect(map.delete(key)).toBe(true);
+    expect(map.has(key)).toBe(false);
+    expect(map.get(key)).toBeUndefined();
+    expect(map.delete(key)).toBe(false);
+
+    // Таблица раньше запрещала ручное удаление, смешивая его с освобождением памяти.
+    const row = WEAK_VS_MAP.find((r) => r[0] === 'Удалить запись вручную');
+    expect(row, 'В сравнении WeakMap и Map нужно различать delete и сборку мусора').toBeDefined();
+    expect(row![1], 'WeakMap позволяет удалить запись по известному ключу').toContain('delete(key)');
+  });
+
   /**
    * ⚠️ **Имя ошибки нормативно, текст — нет** (AGENTS.md). Поэтому наружу идёт `e.name`,
    * а дословное сообщение V8 не проверяется ни здесь, ни в данных.
@@ -1101,7 +1118,7 @@ describe('5 · using · листинги раздела и утверждени�
   });
 
   it('firstLine(): на выходе из блока finally генератора выполнен', () => {
-    const r = исполнить<{ log: string[]; firstLine(): string }>(USING_CODE, ['log', 'firstLine']);
+    const r = исполнить<{ log: string[]; firstLine(): string }>(USING_ITERATOR_STANDALONE, ['log', 'firstLine']);
     r.log.length = 0;
     const g = r.firstLine();
     expect([g, ...r.log]).toEqual(['строка 1', 'файл закрыт']);
@@ -1215,6 +1232,28 @@ describe('5 · using · DisposableStack, браузерные обёртки и 
     await expect(r.withProgress(Promise.reject(new Error('сеть')), () => keys++, () => {})).rejects.toThrow('сеть');
     document.dispatchEvent(new Event('keydown'));
     expect(keys, 'после отказа слушателя тоже нет').toBe(1);
+  });
+
+  it('withProgress отменяет таймер, затем снимает слушатель, прежде чем завершиться', async () => {
+    const order: string[] = [];
+    const r = исполнить<{ withProgress(task: Promise<unknown>, onKey: () => void, onTick: () => void): Promise<unknown> }>(
+      USING_BROWSER_CODE,
+      ['withProgress'],
+      {
+        document: {
+          addEventListener() { order.push('listen'); },
+          removeEventListener() { order.push('remove'); },
+        },
+        setInterval() { order.push('timer'); return 1; },
+        clearInterval() { order.push('clear'); },
+      },
+    );
+    await r.withProgress(Promise.resolve('ok'), () => {}, () => {});
+    order.push('resolved');
+    expect(order).toEqual(['listen', 'timer', 'clear', 'remove', 'resolved']);
+    order.length = 0;
+    await r.withProgress(Promise.reject(new Error('network')), () => {}, () => {}).catch(() => order.push('rejected'));
+    expect(order).toEqual(['listen', 'timer', 'clear', 'remove', 'rejected']);
   });
 
   it('`USING_COMPONENT_CODE`: одна уборка снимает слушатель, таймер и наблюдатель', () => {

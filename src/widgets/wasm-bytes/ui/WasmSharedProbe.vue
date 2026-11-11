@@ -48,7 +48,7 @@ function lines(r: SharedProbe): Line[] {
     },
     {
       key: 'clone',
-      label: 'structuredClone(memory) — шаг postMessage',
+      label: 'structuredClone(memory) — сериализация',
       value: r.clone || '—',
       tone: r.clone === 'клонирована' ? 'ok' : r.clone ? 'err' : 'dim',
     },

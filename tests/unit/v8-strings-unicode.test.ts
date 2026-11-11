@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { COLLATE_CODE, NORMALIZE_CODE } from '@/content/lessons/v8-strings/data';
+import { COLLATION_EXAMPLES_CODE, NORMALIZATION_FORMS_CODE } from '@/content/lessons/unicode-intl/data';
 
 /**
- * «Строки в V8», раздел «„Символ“ — это четыре разных числа»: формы нормализации
+ * «Unicode и Intl»: перенесённые из «Строк в V8» формы нормализации
  * и сравнение для человека.
  *
  * Оба примера печатаются в теме и исполняются здесь **той же строкой**, а не копией.
@@ -33,7 +33,7 @@ function runAnnotated(code: string) {
 }
 
 describe('пример про формы нормализации исполняется, как напечатан', () => {
-  const results = runAnnotated(NORMALIZE_CODE);
+  const results = runAnnotated(NORMALIZATION_FORMS_CODE);
 
   it('в примере есть что проверять', () => {
     expect(results.length).toBeGreaterThanOrEqual(8);
@@ -45,7 +45,7 @@ describe('пример про формы нормализации исполня
 });
 
 describe('пример про Intl.Collator исполняется, как напечатан', () => {
-  const results = runAnnotated(COLLATE_CODE);
+  const results = runAnnotated(COLLATION_EXAMPLES_CODE);
 
   it('в примере есть что проверять', () => {
     expect(results.length).toBeGreaterThanOrEqual(6);

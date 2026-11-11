@@ -42,7 +42,7 @@ const inWindow = (i: number) => {
   <DemoFrame>
     <template #toolbar>
       <div class="bar">
-        <span class="bar__label">что выполнили:</span>
+        <span class="bar__label">операция на схеме:</span>
         <SegmentedControl v-model="picked" class="l-pills" label="Представление строки" :options="options" />
       </div>
     </template>
@@ -52,7 +52,7 @@ const inWindow = (i: number) => {
         <CodeView class="code" :code="rep.code" />
 
         <div class="field">
-          <div class="t-label">%DebugPrint → type</div>
+          <div class="t-label">тип на стенде Node · %DebugPrint</div>
           <div class="type" :data-tone="rep.tone">{{ rep.type }}</div>
         </div>
 
@@ -61,7 +61,7 @@ const inWindow = (i: number) => {
       </div>
 
       <div class="pane pane--right">
-        <div class="t-label">объект строки в памяти</div>
+        <div class="t-label">схема объекта строки</div>
 
         <div class="scroll">
           <div class="diagram">

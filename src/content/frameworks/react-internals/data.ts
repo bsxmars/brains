@@ -653,7 +653,7 @@ export const PREREQ: Prereq[] = [
   {
     t: 'Как планировщик отпускает поток',
     d: 'Прерываемый цикл здесь спрашивает `shouldYield()` и продолжает следующей задачей. Чем именно React ставит эту задачу и почему не `setTimeout` — в теме про каналы сообщений.',
-    href: '/js/message-channel/#s2',
+    href: '/js/message-channel/#s4',
     hrefLabel: 'MessageChannel · Тайминг',
     tone: 'warn' as const,
   },

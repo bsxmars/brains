@@ -2,7 +2,7 @@
 title: "WebAssembly: память, потоки и граница с JS"
 headingWidth: 24
 order: 22
-lead: "Модуль WebAssembly работает с числами, ссылками и одним массивом байтов — линейной памятью. Строки, объекты и потоки на стороне JS собираются из этого: строка — адрес и длина в памяти или ссылка, поток — воркер со своим экземпляром модуля на общей памяти. Отсюда и ошибки: вид на память пустеет после роста, `i32` молча обрезает число, а общая память без изоляции в Chromium создаётся, но в воркер не уходит."
+lead: "WebAssembly можно вызывать из JavaScript, но на границе действуют другие типы и правила памяти. Число может обрезаться до i32, строку часто передают как адрес и длину, а рост памяти меняет доступные виды на буфер. Параллельный расчёт строят из воркеров, отдельных экземпляров модуля и общей памяти с атомарными операциями."
 summary: "Модуль и экземпляр по байтам, импорты и экспорты, линейная память, её рост и отсоединение буфера, таблицы; что происходит с числами и строками на границе с JS; общая память, атомарные инструкции и потоки на воркерах — живыми в Node и с точной ошибкой в неизолированном браузере; SIMD и что делают wasm-bindgen и Emscripten."
 verifiedOn: "Node 26.8.2 (V8 14.6): все модули собраны вручную байтами и исполнены тестом, потоки — два worker_threads на одной общей памяти. Chromium 153.0.8010.12 через Playwright 1.63 — страница без изоляции и с COOP/COEP на http://localhost. Без таймерных замеров. wasm-bindgen и Emscripten — по документации, без запуска"
 nav:
@@ -15,10 +15,11 @@ nav:
   - { id: s7, label: Источники }
 ---
 
-import Callout from '@/shared/ui/Callout.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -32,6 +33,7 @@ import WasmSharedProbe from '@/widgets/wasm-bytes/ui/WasmSharedProbe.vue';
 import {
   ATOMICS_NOTE,
   BOUNDARY_BYTES,
+  BOUNDARY_BYTES_CODE, BOUNDARY_SETUP_CODE,
   BOUNDARY_CHECK_NOTE,
   BOUNDARY_LEAD_NOTE,
   BOUNDARY_ROWS,
@@ -45,8 +47,10 @@ import {
   IMPORT_FACTS,
   INSTANTIATE_CODE,
   JS_STRING_CODE,
+  JS_STRING_BYTES_CODE,
   JS_STRING_NOTE,
   MODULE_BYTES,
+  MODULE_BYTES_CODE,
   MODULE_WAT,
   MODULE_WHY,
   NODE_WAIT_NOTE,
@@ -54,7 +58,6 @@ import {
   PITFALLS,
   PLAIN_DETACH,
   PLAIN_POINTER,
-  PLAIN_THREADS,
   PLAIN_WASM,
   PROBE_NOTE,
   RELATED,
@@ -64,6 +67,7 @@ import {
   SHARED_BROWSER,
   SHARED_BROWSER_NOTE,
   SHARED_MODULE_NOTE,
+  SHARED_BYTES_CODE, SHARED_TOPOLOGY_DIAGRAM,
   SHARED_RULES,
   SHARED_WAT,
   SIMD_BOUNDARY,
@@ -88,18 +92,10 @@ import {
 } from './data';
 
 <Section variant="intro" eyebrow="Числа и байты" gap={24}>
-  <Callout size={19} pad="24px 26px">
-
-    У WebAssembly нет строк, объектов и потоков — есть числа, ссылки
-    и **линейная память**: один массив байтов, адресуемый числом. Строку или объект JS передаёт
-    в модуль одним из двух способов: раскладывает по этим байтам сам или отдаёт
-    ссылкой, внутрь которой модуль не заглядывает.
-  </Callout>
-
-  Зачем это фронтенду: на WebAssembly приезжает чужой код — декодер изображений, SQLite,
-  движок физики, написанные на C, C++ или Rust, — и работает в браузере без переписывания
-  на JS. Вызывать его всё равно приходится из JS, и почти все ошибки такого кода живут
-  на границе: в памяти, числах и строках.
+  Декодер изображений, SQLite или движок физики на C, C++ или Rust можно собрать в Wasm
+  и вызвать из JS. Но строка JS не становится массивом байтов, а отдельный экземпляр
+  модуля сам по себе не создаёт параллельный поток. Код, память и исполнителей нужно
+  связать явно.
 
   <Plain text={PLAIN_WASM} />
 
@@ -111,17 +107,35 @@ import {
   eyebrow="Раздел 1 · демо"
   eyebrowTone="demo"
   title="Модуль и экземпляр"
-  lead="Двоичный модуль начинается с четырёх опознавательных байтов `\0asm` и номера версии, дальше идут секции. Из одного скомпилированного модуля создают сколько угодно экземпляров, и каждый получает свои импорты."
+  lead="Модуль содержит скомпилированный код. Экземпляр связывает его с конкретными импортами и предоставляет экспорты. Одному модулю могут соответствовать несколько экземпляров с разными данными."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6} text={MODULE_WHY} />
 
+<Disclosure title="Байтовый исходник: переменная bytes для примеров">
+
+  <CodeBlock code={MODULE_BYTES_CODE} />
+
+</Disclosure>
+
+  <Card title="Создать экземпляр и вызвать экспорт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock code={INSTANTIATE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  </Card>
+
+  `add(2, 3)` вернул число `5`. Функция `report` предоставлена со стороны JS:
+  экспорт `upper` сможет вызвать её, когда закончит обработку строки в памяти.
+  Другой экземпляр того же модуля может получить другой обработчик `report`.
+
+<Disclosure title="Текст модуля WAT и устройство его секций">
+
   <Card title="Учебный модуль в текстовом виде" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={MODULE_WAT} size={10.5} lh={1.6} pad="14px 16px" />
+    <CodeBlock code={MODULE_WAT} lang="wasm" size={10.5} lh={1.6} pad="14px 16px" />
   </Card>
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6} text={WAT_NOTE} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SECTION_ORDER_NOTE} />
+
+</Disclosure>
 
   ### Разбор по байтам
 
@@ -131,10 +145,6 @@ import {
 
   ### Импорты, экспорты и таблица
 
-  <Card title="Создать экземпляр и позвать экспорт" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={INSTANTIATE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
-  </Card>
-
   <CardGrid min={280} gap={14} align="start">
     {IMPORT_FACTS.map((fact) => (
       <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
@@ -143,18 +153,20 @@ import {
 
   </CardGrid>
 
-  ### Как V8 исполняет модуль
+<Disclosure title="Как V8 компилирует функции Wasm и может менять оптимизацию">
 
   <Md text={TIERS_NOTE} />
 
   <Md text={TIERS_GUESS} />
+
+</Disclosure>
 </Section>
 
 <Section
   id="s2"
   eyebrow="Раздел 2"
   title="Линейная память"
-  lead="Память модуля — `WebAssembly.Memory`, а её байты видны из JS через `memory.buffer`. Растёт она страницами и только вверх — и при росте отдаёт JS новый буфер вместо старого."
+  lead="В учебном модуле память представлена WebAssembly.Memory. Из JS её байты доступны через memory.buffer и виды вроде Uint8Array. Для обычного буфера фиксированной длины рост памяти отсоединяет старую обёртку; растягиваемые и общие буферы ведут себя иначе."
 >
   <Card title="Страницы и границы" titleSize={17} pad={20} gap={13}>
     <NumberedList items={PAGE_FACTS} size={15.5} />
@@ -176,11 +188,11 @@ import {
 
   <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={RESIZABLE_NOTE} />
 
-  ### Три способа держать вид на растущей памяти
-
-  <CodeBlock code={GROW_SCENE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  ### Схема вызова декодера: где устаревает вид
 
   <Md text={GROW_SCENE_NOTE} />
+
+  <CodeBlock code={GROW_SCENE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
   <CardGrid min={290} gap={14} align="start">
     {GROW_STEPS.map((b) => (
@@ -209,6 +221,13 @@ import {
   lead="Через вызов проходят только значения типов Wasm — числа и ссылки. Числа движок приводит к типу параметра. Строку или объект JS модуль получает либо байтами, которые JS сам разложил в память, либо ссылкой, внутрь которой модуль заглянуть не может."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6} text={BOUNDARY_LEAD_NOTE} />
+
+<Disclosure title="Модуль-зеркало: байты и привязки для вызовов из таблицы">
+
+  <CodeBlock code={BOUNDARY_BYTES_CODE} />
+  <CodeBlock code={BOUNDARY_SETUP_CODE} />
+
+</Disclosure>
 
   <Table
     head={['вызов', 'что вернулось', 'почему']}
@@ -244,6 +263,12 @@ import {
 
   ### Строка без копии: JS String Builtins
 
+<Disclosure title="Байты отдельного модуля len: переменная stringBytes">
+
+  <CodeBlock code={JS_STRING_BYTES_CODE} />
+
+</Disclosure>
+
   <Card title="Модуль получает строку ссылкой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={JS_STRING_CODE} size={10.5} lh={1.65} pad="14px 16px" />
   </Card>
@@ -256,10 +281,8 @@ import {
   eyebrow="Раздел 4 · демо"
   eyebrowTone="demo"
   title="Общая память и потоки"
-  lead="Потоков в самом WebAssembly нет. Есть общая память, атомарные инструкции над ней и воркеры, в каждом из которых живёт свой экземпляр одного модуля."
+  lead="В браузере JS создаёт воркеры, а в каждом из них — экземпляр модуля. Общую память передают этим экземплярам как импорт. Сам вызов экспорта не создаёт воркер и не распараллеливает вычисление."
 >
-  <Plain text={PLAIN_THREADS} />
-
   <Card title="Что меняет `shared: true`" titleSize={17} pad={20} gap={13}>
     <NumberedList items={SHARED_RULES} size={15.5} />
   </Card>
@@ -268,10 +291,19 @@ import {
 
   ### Два потока на одной памяти — в Node
 
-  <Card title="Модуль для потоков в текстовом виде" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <Md text={SHARED_MODULE_NOTE} />
-    <CodeBlock code={SHARED_WAT} size={10.5} lh={1.6} pad="14px 16px" />
-  </Card>
+  <Md text={SHARED_MODULE_NOTE} />
+
+<Disclosure title="shared-bytes.mjs: исполняемые байты модуля для потоков">
+
+  <CodeBlock code={SHARED_BYTES_CODE} />
+
+</Disclosure>
+
+<Disclosure title="Тот же модуль для потоков в формате WAT">
+
+  <CodeBlock code={SHARED_WAT} lang="wasm" size={10.5} lh={1.6} pad="14px 16px" />
+
+</Disclosure>
 
   <CardGrid min={320} gap={16} align="start">
     <Card title="worker.mjs — экземпляр в каждом потоке" titleSize={16} pad={18} radius={5} gap={11} size={15.5}>
@@ -283,7 +315,9 @@ import {
     </Card>
   </CardGrid>
 
-  <Card title="Как теряется прибавление — по шагам" titleSize={17} pad={20} gap={13}>
+  <ConceptDiagram data={SHARED_TOPOLOGY_DIAGRAM} />
+
+  <Card title="Схема потери обновления при racy" titleSize={17} pad={20} gap={13}>
     <NumberedList items={RACY_STEPS} size={15.5} />
   </Card>
 
@@ -332,7 +366,7 @@ import {
 </Section>
 
 <Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
-  <Pitfalls items={PITFALLS} />
+  <Pitfalls items={PITFALLS.filter((p) => ['04', '08', '10'].includes(p.n))} />
 </Section>
 
 <Section id="s7" eyebrow="Раздел 7" title="Источники">

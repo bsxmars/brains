@@ -39,7 +39,7 @@ const finished = computed(() => index.value >= total.value - 1);
   <DemoFrame>
     <template #toolbar>
       <div class="modes">
-        <span class="modes__label">getUser(id, cb) — кеш:</span>
+        <span class="modes__label">учебная схема · кеш:</span>
         <SegmentedControl v-model="picked" class="l-pills" label="Состояние кеша" :options="options" />
       </div>
     </template>

@@ -2,7 +2,7 @@
 title: "Буфер обмена и перетаскивание"
 headingWidth: 24
 order: 27
-lead: "Кнопка «Скопировать» — одна строка `navigator.clipboard.writeText`, и работает она только по клику. Чтение буфера — только с разрешения, а HTML из него браузер отдаёт почищенным. Перетаскивание устроено так же, как копирование: данные лежат в `DataTransfer`, и браузер решает, кому и когда их показать. В `dragover` видно только тип груза, сам груз — в `drop`."
+lead: "Как скопировать команду по кнопке, обработать вставку и перенести карточку или файл. Браузер ограничивает доступ к данным: у Async Clipboard это разрешения и действие человека, у событий — ещё и время, когда обработчик может прочитать или записать содержимое."
 summary: "`writeText` и `readText`: жест, фокус, разрешение и `NotAllowedError`; события `copy`, `cut`, `paste` и подмена копируемого; картинка из буфера файлом; `ClipboardItem`, разрешённые типы в трёх движках, чистка HTML и свои форматы `web `; `draggable`, `dragover` и `drop`, `effectAllowed` и `dropEffect`; что видно в каком событии; файлы и папки из системы, `webkitGetAsEntry`; перетаскивание и клавиатура."
 verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 из Playwright 1.63, macOS arm64, ноябрь 2026: каждый пример исполняет tests/e2e/clipboard-dnd.spec.ts, файлы из системы бросаются настоящим drop через DevTools"
 nav:
@@ -18,10 +18,9 @@ nav:
 
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
-import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -88,19 +87,19 @@ import {
   FOLDER_NOTE,
   GUARD_CODE,
   GUARD_NOTE,
-  CLOSING,
+  FILE_CAPTURE_DIAGRAM,
   PITFALLS,
   SOURCES,
   RELATED,
 } from './data';
 
-<Section variant="intro" eyebrow="Общий стол" gap={24}>
+<Section variant="intro" eyebrow="Данные между программами" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Буфер обмена один на всю систему, и в нём бывает что угодно — от пароля до номера карты.
-    Поэтому почти все правила браузера здесь проверяют одно: стоит ли за страницей человек.
-    Записать в буфер можно по его клику, прочитать — с его разрешения. А то, что он тащит
-    мышью, видит только элемент, на который это бросили.
+    Кнопка «Скопировать» вызывает Async Clipboard API: `navigator.clipboard` возвращает промис.
+    Команды «Копировать» и «Вставить» вызывают события с `clipboardData`, а перетаскивание —
+    события с `dataTransfer`. Последние два объекта имеют интерфейс `DataTransfer`, но доступ
+    к буферу через `navigator.clipboard` устроен отдельно.
 
   </Callout>
 
@@ -121,37 +120,39 @@ import {
 
   <CodeBlock code={READ_CODE} />
 
-  <CodeBlock code={`// клик по «Скопировать», затем по «Что в буфере?»\n${COPY_OUT}\n${READ_OUT_DENIED}\n// после «Разрешить»\n${READ_OUT_GRANTED}`} tone="ok" />
+  <CodeBlock lang="text" code={`// клик по «Скопировать», затем по «Что в буфере?»\n${COPY_OUT}\n${READ_OUT_DENIED}\n// после «Разрешить»\n${READ_OUT_GRANTED}`} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={COPY_NOTE} />
   </Card>
 
-  ### Когда браузер отказывает
-
-  Что отвечают `writeText` и `readText` в Chromium в зависимости от того, когда их вызвали:
-
-  <Table
-    head={['когда вызвали', 'writeText', 'readText']}
-    rows={COPY_ROWS.map((r) => [r.when, r.write, r.read])}
-    kinds={['prose', 'prose', 'prose']}
-    cols="minmax(220px,1.3fr) minmax(180px,1fr) minmax(200px,1.1fr)"
-    minWidth={640}
-  />
-
-  <Card pad={20} gap={11} size={15.5} lh={1.6}>
-    <Md text={WHY_NOTE} />
-  </Card>
-
   <Plain text={PLAIN_ACTIVATION} />
 
-  <Table
-    head={['движок', 'запись', 'чтение']}
-    rows={ENGINE_ROWS.map((r) => [r.engine, r.write, r.read])}
-    kinds={['prose', 'prose', 'prose']}
-    cols="minmax(150px,0.8fr) minmax(200px,1fr) minmax(260px,1.5fr)"
-    minWidth={640}
-  />
+  <Md text={WHY_NOTE} />
+
+  <Disclosure title="Политики доступа: снимок трёх движков">
+
+    Это результаты стенда Chromium 153, Firefox 155 и WebKit 26.6. Для Chromium выдавалось
+    разрешение `clipboard-write`; чтение проверялось отдельно. Через 3 секунды после клика
+    запись ещё проходила, через 6 — отказывала. Эти интервалы не являются сроками из стандарта.
+    Безоконный тест не воспроизводит меню подтверждения вставки Firefox и Safari.
+
+    <Table
+      head={['когда вызвали в Chromium', 'writeText', 'readText']}
+      rows={COPY_ROWS.map((r) => [r.when, r.write, r.read])}
+      kinds={['prose', 'prose', 'prose']}
+      cols="minmax(220px,1.3fr) minmax(180px,1fr) minmax(200px,1.1fr)"
+      minWidth={640}
+    />
+
+    <Table
+      head={['движок', 'запись', 'чтение']}
+      rows={ENGINE_ROWS.map((r) => [r.engine, r.write, r.read])}
+      kinds={['prose', 'prose', 'prose']}
+      cols="minmax(150px,0.8fr) minmax(200px,1fr) minmax(260px,1.5fr)"
+      minWidth={640}
+    />
+  </Disclosure>
 
   ### Текст приходит с сервера позже, чем живёт клик
 
@@ -174,21 +175,21 @@ import {
 
   <CodeBlock code={COPY_EVENT_CODE} />
 
-  <CodeBlock code={`// в буфере после Ctrl+C\n${COPY_EVENT_OUT}`} tone="ok" />
+  <CodeBlock lang="text" code={`// в буфере после Ctrl+C\n${COPY_EVENT_OUT}`} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={COPY_EVENT_NOTE} />
   </Card>
 
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
+  <Disclosure title="Старый путь: execCommand('copy')">
     <Md text={EXEC_NOTE} />
-  </Card>
+  </Disclosure>
 
   ### Вставить картинку
 
   <CodeBlock code={PASTE_IMAGE_CODE} />
 
-  <CodeBlock code={PASTE_IMAGE_OUT} tone="ok" />
+  <CodeBlock lang="text" code={PASTE_IMAGE_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={PASTE_IMAGE_NOTE} />
@@ -203,12 +204,13 @@ import {
 >
   <CodeBlock lang="jsx" code={ITEM_CODE} />
 
-  <CodeBlock code={ITEM_OUT.join('\n')} tone="ok" />
+  <CodeBlock lang="text" code={ITEM_OUT.join('\n')} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={ITEM_NOTE} />
   </Card>
 
+  <Disclosure title="Какие типы поддерживают три движка">
   <Table
     head={['тип', 'Chromium 153', 'Firefox 155', 'WebKit 26.6']}
     rows={SUPPORTS_ROWS.map((r) => [r.type, r.chromium, r.firefox, r.webkit])}
@@ -219,11 +221,13 @@ import {
 
   <Md text={SUPPORTS_NOTE} />
 
-  ### Браузер чистит HTML, но вам всё равно чистить
+  </Disclosure>
+
+  ### HTML из буфера: очистка браузера и безопасная вставка
 
   <CodeBlock lang="jsx" code={SANITIZE_CODE} />
 
-  <CodeBlock code={SANITIZE_OUT.join('\n')} tone="ok" />
+  <CodeBlock lang="text" code={SANITIZE_OUT.join('\n')} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={SANITIZE_NOTE} />
@@ -233,11 +237,11 @@ import {
     <Md text={SANITIZE_WARN} />
   </Card>
 
-  ### Свой формат: приставка web
+  <Disclosure title="Свой формат: приставка web">
 
   <CodeBlock code={WEB_FORMAT_CODE} />
 
-  <CodeBlock code={WEB_FORMAT_OUT.join('\n')} tone="ok" />
+  <CodeBlock lang="text" code={WEB_FORMAT_OUT.join('\n')} tone="ok" />
 
   <Plain text={PLAIN_WEB_FORMAT} />
 
@@ -248,19 +252,20 @@ import {
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={EVENT_TYPES_NOTE} />
   </Card>
+  </Disclosure>
 </Section>
 
 <Section
   id="s4"
   eyebrow="Раздел 4"
   title="Перетаскивание: draggable, dragover и drop"
-  lead="Перетаскивание — та же передача данных, что и буфер обмена, только мышью. Источник кладёт данные в `dataTransfer` в `dragstart`, приёмник забирает их в `drop`. Между ними `dragover` решает, можно ли сюда бросить."
+  lead="Карточка счёта должна перейти в список оплаченных. Источник кладёт данные в `dataTransfer` в `dragstart`, приёмник забирает их в `drop`. Между ними `dragover` решает, можно ли сюда бросить."
 >
   <CodeBlock lang="html" code={DRAG_MARKUP} />
 
   <CodeBlock code={DRAG_CODE} />
 
-  <CodeBlock code={DRAG_OUT.join('\n')} tone="ok" />
+  <CodeBlock lang="text" code={DRAG_OUT.join('\n')} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={DRAG_NOTE} />
@@ -287,7 +292,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Режимы DataTransfer: что видно и когда"
-  lead="Один и тот же `DataTransfer` в разных событиях даёт разный доступ. Писать в него можно в `dragstart`, читать — в `drop`, а пока данные везут над страницей, виден только их тип."
+  lead="Браузер меняет режим хранилища по ходу перетаскивания: запись в `dragstart`, защищённый доступ по пути, чтение в `drop`. Поэтому наличие `DataTransfer` ещё не означает, что из него можно получить содержимое."
 >
   <Table
     head={['событие', 'что можно']}
@@ -297,21 +302,16 @@ import {
     minWidth={560}
   />
 
-  <Card pad={20} gap={11} size={15.5} lh={1.6}>
-    <Md text={MODES_NOTE} />
-  </Card>
+  <Md text={MODES_NOTE} />
 
   <Plain text={PLAIN_PROTECTED} />
 
-  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={AFTER_NOTE} />
-  </Card>
+  <Md text={AFTER_NOTE} />
 
-  <CardGrid min={300} gap={16} align="start">
-    <Card tone="dim" color="tone" pad={18} radius={5} size={15.5} lh={1.6} text={FIREFOX_NOTE} />
-
-    <Card tone="dim" color="tone" pad={18} radius={5} size={15.5} lh={1.6} text={SYNTHETIC_NOTE} />
-  </CardGrid>
+  <Disclosure title="Почему Firefox и синтетические события могут дать другой результат">
+    <Md text={FIREFOX_NOTE} />
+    <Md text={SYNTHETIC_NOTE} />
+  </Disclosure>
 </Section>
 
 <Section
@@ -324,7 +324,9 @@ import {
 
   <CodeBlock code={FILE_DROP_CODE} />
 
-  <CodeBlock code={FILE_DROP_OUT.join('\n')} tone="ok" />
+  <CodeBlock lang="text" code={FILE_DROP_OUT.join('\n')} tone="ok" />
+
+  <ConceptDiagram data={FILE_CAPTURE_DIAGRAM} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={FILES_NOTE} />
@@ -342,11 +344,7 @@ import {
     <Md text={GUARD_NOTE} />
   </Card>
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
-      <Md text={CLOSING} />
-    </DarkText>
-  </DarkPanel>
+
 </Section>
 
 <Section id="s7" eyebrow="Раздел 7" title="Тонкие места">

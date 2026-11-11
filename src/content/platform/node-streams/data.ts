@@ -90,15 +90,15 @@ export const PREREQ: Prereq[] = [
   {
     t: '`process.nextTick` и микрозадачи',
     d: 'События стрима приходят через очередь `nextTick`, а `for await` живёт на промисах. Кто из них раньше, решает цикл событий Node.',
-    href: '/js/event-loop/#s5',
-    hrefLabel: 'Event Loop, раздел «Node: тот же принцип, другая машина»',
+    href: '/js/node-event-loop/#s3',
+    hrefLabel: 'Цикл событий Node, раздел «Между колбэками»',
     tone: 'info' as const,
   },
   {
     t: 'Протокол итератора и `return()`',
     d: '`break` из `for await` зовёт у итератора `return()`, а итератор стрима на это разрушает стрим.',
     href: '/js/object-model/#s8',
-    hrefLabel: 'Объектная модель, раздел «Итераторы и генераторы»',
+    hrefLabel: 'Объектная модель, раздел «Протокол итератора»',
     tone: 'warn' as const,
   },
 ];

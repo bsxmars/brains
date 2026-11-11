@@ -7,6 +7,7 @@ import {
   CHANNEL_CODE,
   CHUNKER_ABORT_CODE,
   CHUNKER_CODE,
+  SEARCH_CODE,
   INP_PARTS,
   PER_ITEM,
   PITFALLS,
@@ -653,9 +654,8 @@ describe('отмена · abort снимает не начатое, а нача�
 /**
  * Листинг «Тот же чанкер, но отменяемый» — исполняется сам, а не пересказывается.
  *
- * Тело берётся из `CHUNKER_ABORT_CODE` вместе с `yieldToMain` из `YIELD_HELPER_CODE`. Глобальные
- * имена, которых в Node нет или которые трогать нельзя (`addEventListener`, `rows`, `render`),
- * подставлены параметрами: верхний вызов листинга отрабатывает на пустом массиве.
+ * Тело берётся из `CHUNKER_ABORT_CODE` вместе с `yieldToMain` из `YIELD_HELPER_CODE`.
+ * Обработчик нового ввода ниже исполняется отдельно из SEARCH_CODE.
  */
 describe('отмена · листинг отменяемого чанкера и причины отмены', () => {
   type Chunked = (
@@ -665,13 +665,7 @@ describe('отмена · листинг отменяемого чанкера �
   ) => Promise<void>;
 
   function chunkedFromListing(): Chunked {
-    const factory = new Function(
-      'addEventListener',
-      'rows',
-      'render',
-      `'use strict';\n${YIELD_HELPER_CODE}\n${CHUNKER_ABORT_CODE}\nreturn chunked;`,
-    ) as (add: () => void, rows: number[], render: () => void) => Chunked;
-    return factory(() => {}, [], () => {});
+    return fromListing<Chunked>(YIELD_HELPER_CODE + '\n' + CHUNKER_ABORT_CODE, 'chunked');
   }
 
   it('abort, пришедший во время куска, срабатывает, как только поток отдан после него', async () => {
@@ -692,7 +686,85 @@ describe('отмена · листинг отменяемого чанкера �
     }
 
     expect(name, 'отмена приходит исключением из throwIfAborted').toBe('AbortError');
-    expect(seen, 'первый кусок (60 мс > 50) доработал целиком, второй не начат').toEqual([0, 1]);
+    expect(seen, 'один элемент (30 мс) превысил бюджет 8 мс, но доработал; следующий не начат').toEqual([0]);
+  });
+
+  it('заранее отменённый сигнал не позволяет обработать даже первый элемент', async () => {
+    const chunked = chunkedFromListing();
+    const controller = new AbortController();
+    controller.abort();
+    const seen: number[] = [];
+    await expect(chunked([1, 2], (item) => void seen.push(item), { signal: controller.signal }))
+      .rejects.toMatchObject({ name: 'AbortError' });
+    expect(seen).toEqual([]);
+  });
+
+  function searchHarness(itemMs: number) {
+    let clock = 0;
+    let listener: (() => Promise<void>) | null = null;
+    const pending: (() => void)[] = [];
+    const applied: string[][] = [];
+    const input = {
+      value: '',
+      addEventListener(_type: string, fn: () => Promise<void>) { listener = fn; },
+      removeEventListener(_type: string, fn: () => Promise<void>) {
+        if (listener === fn) listener = null;
+      },
+    };
+    const rows = ['кот', 'котлета', 'котёнок'].map((text) => ({
+      text,
+      includes(query: string) { clock += itemMs; return text.includes(query); },
+    }));
+    const factory = new Function('globalThis', 'performance', 'input', 'rows', 'render',
+      `${YIELD_HELPER_CODE}\n${CHUNKER_ABORT_CODE}\n${SEARCH_CODE}\nreturn stopSearch;`);
+    const stop = factory(
+      { scheduler: { yield: () => new Promise<void>((resolve) => pending.push(resolve)) } },
+      { now: () => clock }, input, rows,
+      (matches: typeof rows) => applied.push(matches.map((row) => row.text)),
+    ) as () => void;
+    return {
+      applied,
+      stop,
+      listening: () => listener !== null,
+      run(query: string) { input.value = query; return listener!(); },
+      async resumeAll() {
+        while (pending.length) {
+          pending.shift()!();
+          await Promise.resolve();
+          await Promise.resolve();
+        }
+      },
+    };
+  }
+
+  it('новый ввод отменяет старый поиск между кусками: применяются только результаты котлеты', async () => {
+    const search = searchHarness(10); // каждый элемент исчерпывает бюджет 8 мс
+    const old = search.run('кот');
+    const latest = search.run('котлета');
+    await search.resumeAll();
+    await Promise.all([old, latest]);
+    expect(search.applied).toEqual([['котлета']]);
+    search.stop();
+    expect(search.listening()).toBe(false);
+  });
+
+  it('уже вычисленный старый результат не применяется после нового ввода', async () => {
+    const search = searchHarness(0); // цикл закончен без пауз; продолжение await ещё ожидает
+    const old = search.run('кот');
+    const latest = search.run('котлета');
+    await Promise.all([old, latest]);
+    expect(search.applied).toEqual([['котлета']]);
+    search.stop();
+  });
+
+  it('удаление компонента снимает обработчик и не даёт ожидающему поиску применить результат', async () => {
+    const search = searchHarness(10);
+    const pending = search.run('кот');
+    search.stop();
+    await search.resumeAll();
+    await pending;
+    expect(search.applied).toEqual([]);
+    expect(search.listening()).toBe(false);
   });
 
   it('`AbortSignal.timeout` отменяет с `TimeoutError` — фильтр по `AbortError` её пропускает', async () => {

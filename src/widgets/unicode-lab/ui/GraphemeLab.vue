@@ -117,7 +117,7 @@ const verdict = computed(() =>
     ? 'Строка пуста.'
     : same.value
       ? `Учебная функция и \`Intl.Segmenter\` вашего браузера разрезали строку одинаково: графем — **${native.value.length}**.`
-      : `**Расхождение:** учебная функция насчитала ${ours.value.length}, \`Intl.Segmenter\` — ${native.value.length}. В строке есть знак из правил, которых нет в подмножестве: хангыль, SpacingMark, Prepend или индийская связка.`,
+      : `**Расхождение:** учебная функция насчитала ${ours.value.length}, \`Intl.Segmenter\` — ${native.value.length}. Учебная функция не покрывает хангыль, SpacingMark, Prepend и индийские связки. Для полного текста используйте результат Intl.Segmenter.`,
 );
 
 const nativeShown = computed(() => native.value.map((g, i) => ({ key: i, text: g.replace(/\r\n|\r|\n/g, '↵') })));
@@ -130,6 +130,8 @@ const nativeShown = computed(() => native.value.map((g, i) => ({ key: i, text: g
     </template>
 
     <div class="gl-body">
+      <Md class="gl-caption" :text="caption" />
+
       <div class="gl-inputs">
         <label class="gl-label" for="gl-input">строка</label>
         <input id="gl-input" class="gl-input" :value="text" :maxlength="MAX_INPUT" spellcheck="false" autocomplete="off" @input="onInput" />
@@ -181,8 +183,6 @@ const nativeShown = computed(() => native.value.map((g, i) => ({ key: i, text: g
         </div>
         <Md class="gl-verdict" :data-same="same ? 'yes' : 'no'" :text="verdict" />
       </div>
-
-      <Md class="gl-caption" :text="caption" />
     </div>
   </DemoFrame>
 </template>

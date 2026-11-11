@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * График heap во времени: пила Scavenge и Major GC, нижняя огибающая, маркеры событий.
+ * График heap во времени: пила Scavenge и Major GC, минимумы после полной сборки, маркеры событий.
  *
  * Главное здесь — не линия, а **огибающая**: диагноз ставится по минимумам после сборок,
  * а не по пикам. Поэтому огибающая считается из тех же точек, что и линия, и её значения
@@ -12,6 +12,7 @@
  * соседними уроками.
  */
 import { computed, ref } from 'vue';
+import Md from '@/shared/ui/Md.vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { SegmentedControl } from '@/shared/ui';
 import type { HeapPreset } from '../model/types';
@@ -33,9 +34,12 @@ const scale = computed(() => {
   const values = preset.value.points;
   const max = Math.max(...values);
   const min = Math.min(...values);
+  const all = props.presets.flatMap((p) => p.points);
+  const chartMax = Math.max(...all);
+  const chartMin = Math.min(...all);
   // Немного воздуха сверху и снизу, иначе линия липнет к рамке.
-  const top = max + (max - min) * 0.08;
-  const bottom = Math.max(0, min - (max - min) * 0.18);
+  const top = chartMax + (chartMax - chartMin) * 0.08;
+  const bottom = Math.max(0, chartMin - (chartMax - chartMin) * 0.18);
   return {
     max,
     min,
@@ -48,7 +52,7 @@ const line = computed(() =>
   preset.value.points.map((v, i) => `${scale.value.x(i).toFixed(1)},${scale.value.y(v).toFixed(1)}`).join(' '),
 );
 
-/** Точки Major GC — это и есть нижняя огибающая: сколько осталось, когда собрали всё. */
+/** Точки Major GC — это и есть минимумы после полной сборки: сколько осталось, когда собрали всё. */
 const envelope = computed(() =>
   preset.value.gc
     .filter((g) => g.kind === 'major')
@@ -85,7 +89,7 @@ const drift = computed(() => {
   <DemoFrame>
     <template #toolbar>
       <div class="bar">
-        <span class="bar__label">один и тот же сценарий, две разных программы:</span>
+        <span class="bar__label">учебные графики одного сценария:</span>
         <SegmentedControl v-model="picked" class="l-pills" label="Что за график" :options="options" />
       </div>
     </template>
@@ -126,11 +130,11 @@ const drift = computed(() => {
       <div class="legend">
         <span class="legend__item" data-kind="minor"><i data-kind="minor"></i>Scavenge</span>
         <span class="legend__item" data-kind="major" :data-tone="preset.tone"><i data-kind="major" :data-tone="preset.tone"></i>Major GC</span>
-        <span class="legend__item" data-kind="envelope"><i data-kind="envelope"></i>нижняя огибающая</span>
+        <span class="legend__item" data-kind="envelope"><i data-kind="envelope"></i>минимумы после полной сборки</span>
       </div>
 
       <div class="field">
-        <div class="t-label">нижняя огибающая · {{ unitLabel }} после каждой полной сборки</div>
+        <div class="t-label">минимумы после полной сборки · {{ unitLabel }} после каждой полной сборки</div>
         <div class="envelope-row">
           <template v-for="(p, i) in envelope" :key="p.at">
             <span v-if="i > 0" class="envelope-row__arrow">→</span>
@@ -142,7 +146,7 @@ const drift = computed(() => {
         </div>
       </div>
 
-      <div class="verdict" :data-tone="preset.tone">{{ preset.verdict }}</div>
+      <Md class="verdict" :data-tone="preset.tone" :text="preset.verdict" />
     </div>
 
     <template #footer>

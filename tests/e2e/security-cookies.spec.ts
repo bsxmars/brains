@@ -16,7 +16,7 @@ import {
  * больше никто не повторит.
  *
  * Юнит-тестом это не закрыть в принципе: в Node нет ни `document.cookie`, ни `cookieStore`,
- * ни сетевого процесса, который прячет `HttpOnly`-куку от рендерера, ни `navigator.locks`
+ * ни веб-API браузера, которые скрывают `HttpOnly`-куку от JS, ни `navigator.locks`
  * с его очередью на источник. Спрашивать обязан настоящий браузер — отсюда e2e.
  *
  * Устройство проверки то же, что в `browser-architecture.spec.ts`: **тема — заявление,
@@ -181,7 +181,7 @@ test('document.cookie не отдаёт httpOnly-куку: её нет как п
   );
   expect(
     names,
-    `имя «${SECRET.name}» видно из JS: HttpOnly перестал прятать куку от рендерера`,
+    `имя «${SECRET.name}» видно из JS: HttpOnly перестал прятать куку от JS API страницы`,
   ).not.toContain(SECRET.name);
   expect(seen, 'значение httpOnly-куки утекло в document.cookie').not.toContain(SECRET.value);
 
@@ -229,7 +229,7 @@ test('cookieStore.getAll() не видит httpOnly-куку', async ({ page }) 
   expect(seen.names, 'видимая кука пропала и из cookieStore').toContain(told.visible);
   expect(
     seen.names,
-    `«${told.hidden}» видна через cookieStore: HttpOnly перестал прятать куку от рендерера`,
+    `«${told.hidden}» видна через cookieStore: HttpOnly перестал прятать куку от JS API страницы`,
   ).not.toContain(told.hidden);
   expect(
     typeof seen.expires,

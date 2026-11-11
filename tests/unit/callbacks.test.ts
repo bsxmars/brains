@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { UNSUB_CODE } from '@/content/lessons/abort-controller/data';
 import {
   BIND_TRAP,
+  CALLBACK_START_CODE, MAP_PARSE_CODE, CALLBACK_PROMISE_CODE,
+  ZALGO_CODE,
   DISPATCH_DOM,
   DISPATCH_EMITTER,
   LOST_ROWS,
@@ -634,51 +636,26 @@ describe('снятие слушателя во время обхода — дв�
 describe('Zalgo — один и тот же код даёт разный порядок', () => {
   type Callback = (err: Error | null, user?: string) => void;
 
-  /**
-   * `getUser` из листинга темы: попадание в кеш отвечает синхронно, промах — через
-   * очередь. В починенном варианте синхронная ветка уходит в `queueMicrotask`
-   * (ровно то, что напечатано в `ZALGO_FIX`).
-   */
-  const makeGetUser =
-    (fixed: boolean) =>
-    (id: number, cb: Callback): void => {
-      const cache = new Map([[1, 'Ann']]);
-      if (cache.has(id)) {
-        const user = cache.get(id)!;
-        if (fixed) {
-          queueMicrotask(() => cb(null, user));
-          return;
-        }
-        cb(null, user);
-        return;
-      }
-      setTimeout(() => cb(null, 'from db'), 0);
-    };
-
-  /** Тело `load` из `ZALGO_CODE`: подписка стоит ДО присваивания `spinner`. */
-  const load = (
-    getUser: (id: number, cb: Callback) => void,
-    id: number,
-    out: string[],
-    done: () => void,
-  ): void => {
-    let spinner: { hide(): void } | null = null;
-
-    getUser(id, (_err, user) => {
-      if (spinner) out.push('hide');
-      out.push(`render ${user}`);
-      done();
-    });
-
-    spinner = { hide: () => void out.push('hide') };
-    out.push('spinner shown');
-  };
-
-  /** Ждём не таймер, а сам колбэк: гонки здесь быть не должно. */
+  /** Исполняется именно getUser + load из темы; зависимости — стенд кеша/запроса/UI. */
   const run = (fixed: boolean, id: number): Promise<string[]> => {
     const out: string[] = [];
+    let source = ZALGO_CODE.join('\n');
+    if (fixed) {
+      const branch = '  if (cache.has(id)) return cb(null, cache.get(id));';
+      expect(source, 'починка должна заменить показанную синхронную ветку').toContain(branch);
+      source = source.replace(branch, ZALGO_FIX);
+    }
     return new Promise<string[]>((resolve) => {
-      load(makeGetUser(fixed), id, out, () => resolve(out));
+      const load = new Function('cache', 'fetchUser', 'showSpinner', 'render', `${source}\nreturn load;`)(
+        new Map([[1, 'Ann']]),
+        (_id: number, cb: Callback) => setTimeout(() => cb(null, 'from db'), 0),
+        () => {
+          out.push('spinner shown');
+          return { hide: () => out.push('hide') };
+        },
+        (user: string) => { out.push(`render ${user}`); resolve(out); },
+      ) as (id: number) => void;
+      load(id);
     });
   };
 
@@ -783,7 +760,7 @@ describe('арность: `map` зовёт колбэк тремя аргуме�
 // ---------------------------------------------------------------------------
 
 describe(`${pitfall('05').n} · ${pitfall('05').t}`, () => {
-  /** Та самая функция без `return` — из листинга тонкого места. */
+  /** Условный API с двойным ответом: у обычной функции нет встроенной однократности. */
   const readBroken = (cb: (err: Error | null, data?: string) => void): void => {
     const err = new Error('диск отвалился');
     if (err) cb(err);
@@ -795,7 +772,7 @@ describe(`${pitfall('05').n} · ${pitfall('05').t}`, () => {
     readBroken((err) => void seen.push(err ? 'err' : 'ok'));
 
     expect(seen, 'потребитель уже обработал ошибку — и тут же получил успех').toEqual(['err', 'ok']);
-    // Ровно этот листинг напечатан в тонком месте, и лечение — первой строкой конвенции.
+    // Защита от продолжения после ответа об ошибке — return; отдельный печатный случай ниже.
     expect(pitfall('05').code).toContain('забыли return');
     expect(NODE_ERROR_FIRST).toContain('if (err) return handle(err);');
   });
@@ -823,10 +800,8 @@ describe(`${pitfall('05').n} · ${pitfall('05').t}`, () => {
    */
   it('`once` не спасает, когда аргумент второго вызова вычисляется до него', () => {
     const readWorse = (cb: (err: Error | null, data?: string) => void): void => {
-      const err = new Error('диск отвалился');
-      const data: string | undefined = undefined;
-      if (err) cb(err);
-      cb(null, (data as unknown as string).toString());
+      const fs = { readFile: (_path: string, done: (error: Error, data: undefined) => void) => done(new Error('диск отвалился'), undefined) };
+      new Function('fs', 'p', 'cb', pitfall('05').code!)(fs, 'file', cb);
     };
 
     let calls = 0;
@@ -861,7 +836,7 @@ describe('у стрелки нет своего `this` — и это не обо
     expect(arrow.apply(stranger)).toBe(owner);
   });
 
-  it('`bind` тоже: привязывать нечего', () => {
+  it('`bind` тоже не меняет this стрелки', () => {
     const arrow = makeArrow(owner);
     expect(arrow.bind(stranger)()).toBe(owner);
   });
@@ -986,5 +961,49 @@ describe('вычитка 2026-10-30: правда в тексте', () => {
     const { readFileSync } = await import('node:fs');
     const mdx = readFileSync('src/content/lessons/callbacks/index.mdx', 'utf8');
     expect(mdx).toContain('пока на него есть ссылка, молча держит в памяти все реакции');
+  });
+});
+
+
+describe('новые исполняемые примеры: передача функции и право вызова', () => {
+  it('обычная передача функции может вызвать её сразу', () => {
+    const lines: string[] = [];
+    new Function('console', CALLBACK_START_CODE)({ log: (line: string) => lines.push(line) });
+    expect(lines).toEqual(['до → получили 7 → после']);
+  });
+
+  it('показанный map(parseInt) и обёртка выполняются одним исходником', () => {
+    const arrays: number[][] = [];
+    new Function('console', MAP_PARSE_CODE)({ log: (value: number[]) => arrays.push(value) });
+    expect(arrays).toEqual([[1, NaN, NaN], [1, 2, 3]]);
+  });
+
+  it('сохранённый listener снимается; повторный bind его не снимает', () => {
+    const values: number[] = [];
+    new Function('console', BIND_TRAP)({ log: (value: number) => values.push(value) });
+    expect(values).toEqual([1, 1]);
+  });
+
+  it('callback вызывается дважды, но показанный Promise сохраняет первый ответ', async () => {
+    const values: string[] = [];
+    const result = new Function('console', `${CALLBACK_PROMISE_CODE}\nreturn result;`)({ log: (value: string) => values.push(value) }) as Promise<string>;
+    expect(values, 'реакция не выполняется синхронно').toEqual([]);
+    await expect(result).resolves.toBe('первый ответ');
+    expect(values).toEqual(['первый ответ']);
+  });
+
+  it('повторный bind стрелки сохраняет this, но добавляет привязанные аргументы', () => {
+    const owner = {};
+    function make(this: object) { return (a: string, b: string, c: string) => [this, a, b, c]; }
+    const arrow = make.call(owner);
+    const bound = arrow.bind({ other: true }, 'a').bind({ another: true }, 'b');
+    expect(bound('c')).toEqual([owner, 'a', 'b', 'c']);
+  });
+
+  it('печатный error-first случай отвечает один раз и бросает до второго вызова', () => {
+    const seen: string[] = [];
+    const fs = { readFile: (_path: string, done: (error: Error, data: undefined) => void) => done(new Error('диск'), undefined) };
+    expect(() => new Function('fs', 'p', 'cb', pitfall('05').code!)(fs, 'file', (error: Error | null) => seen.push(error ? 'err' : 'ok'))).toThrow(TypeError);
+    expect(seen).toEqual(['err']);
   });
 });

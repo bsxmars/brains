@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { InpPart } from '@/widgets/inp-anatomy/model/types';
 import type { TimelineClick, TimelineMode } from '@/widgets/long-task-timeline/model/types';
 import type { LifecycleEdge, LifecycleNode } from '@/widgets/page-lifecycle/model/types';
@@ -95,7 +96,7 @@ export const TIMELINE_MODES: TimelineMode[] = [
     label: 'нарезано по 8 мс',
     chunk: 8,
     tone: 'ok',
-    note: 'Так режут, когда параллельно идёт анимация: 50 мс работы вместе с отрисовкой в один кадр при 60 Гц не помещаются. Ожидание почти исчезло, но кусков стало в шесть раз больше — значит, и отдавать поток приходится в шесть раз чаще. А каждый такой раз стоит времени — сколько именно, считает демо в разделе [«Сколько стоит отдать поток»](#s2).',
+    note: 'Так режут, когда параллельно идёт анимация: 50 мс работы вместе с отрисовкой в один кадр при 60 Гц не помещаются. Ожидание почти исчезло, но кусков стало в шесть раз больше — значит, и отдавать поток приходится в шесть раз чаще. А каждый такой раз стоит времени — сколько именно, считает демо в разделе [«Чем возвращать управление циклу»](#s2).',
   },
 ];
 
@@ -115,23 +116,23 @@ export const TIMELINE_CLICKS: TimelineClick[] = [
  * undefined», и тогда `??` уходит в промис с таймером. Форма без `globalThis` этого не умеет:
  * обращение к необъявленному идентификатору бросает ReferenceError до всякой цепочки.
  */
-export const CHUNKER_CODE = `async function chunked(items, fn) {
+export const YIELD_HELPER_CODE = `function yieldToMain() {
+  return globalThis.scheduler?.yield?.()
+    ?? new Promise(r => setTimeout(r, 0));
+}`;
+
+/** Один исходник и для полного первого листинга, и для отменяемого продолжения. */
+export const CHUNKER_CODE = YIELD_HELPER_CODE + `
+
+async function chunked(items, fn, { budget = 8 } = {}) {
   let last = performance.now();
   for (const it of items) {
     fn(it);
-    if (performance.now() - last > 45) {   // с запасом до порога long task в 50 мс
-      await (globalThis.scheduler?.yield?.()
-        ?? new Promise(r => setTimeout(r, 0)));
+    if (performance.now() - last >= budget) {
+      await yieldToMain();
       last = performance.now();
     }
   }
-}`;
-
-/** Тот же фолбэк отдельной функцией — так его удобнее держать в одном месте проекта. */
-export const YIELD_HELPER_CODE = `// одна точка на весь проект: поменяется поддержка — правится здесь
-function yieldToMain() {
-  return globalThis.scheduler?.yield?.()
-    ?? new Promise(r => setTimeout(r, 0));
 }`;
 
 export const POST_TASK_CODE = `// поставить задачу с приоритетом; возвращает ПРОМИС результата
@@ -548,28 +549,89 @@ export const PITFALLS: Pitfall[] = [
  * Тот же канонический чанкер, но отменяемый.
  *
  * Отдельным экспортом, а не правкой `CHUNKER_CODE`: первый пример учит нарезке и обязан
- * остаться коротким, а отмена — второй разговор. Важно в нём ровно одно место —
- * `signal.throwIfAborted()` **после** того, как поток отдан и вернулся: внутри синхронного куска сигнал проверять
- * некому, поэтому граница куска и есть единственная точка, где отмена вообще возможна.
+ * остаться коротким, а отмена — второй разговор. Проверка до цикла не запускает уже
+ * отменённую работу, а проверка после await замечает отмену, пришедшую между кусками.
+ * SEARCH_CODE отдельно проверяет сигнал перед применением вычисленного результата.
  */
-export const CHUNKER_ABORT_CODE = `async function chunked(items, fn, { signal } = {}) {
+export const CHUNKER_ABORT_CODE = `async function chunked(items, fn, { signal, budget = 8 } = {}) {
+  signal?.throwIfAborted();         // не начинать уже отменённую работу
   let last = performance.now();
   for (const it of items) {
     fn(it);
-    if (performance.now() - last > 45) {
+    if (performance.now() - last >= budget) {
       await yieldToMain();
-      signal?.throwIfAborted();   // граница куска — единственная точка отмены
+      signal?.throwIfAborted();     // отмена могла прийти, пока поток был отдан
       last = performance.now();
     }
   }
+}`;
+
+/** Порядок переходов из CHUNKER_ABORT_CODE: после короткого элемента ветка
+ * продолжения обходит throwIfAborted; после await сначала проверка, затем сброс last. */
+export const CHUNKER_DIAGRAM: ConceptDiagramData = {
+  id: 'chunk-budget-and-cancel',
+  title: 'Где цикл продолжает работу, делает паузу и замечает отмену',
+  description: 'Статическая схема chunked с сигналом. Время проверяется после fn(it), поэтому бюджет не прерывает обработку одного элемента. После паузы сначала проверяется отмена и лишь затем начинается новый кусок.',
+  width: 920,
+  height: 800,
+  nodes: [
+    { id: 'signal', x: 24, y: 40, width: 220, height: 160, label: 'Проверить сигнал', detail: 'На входе и после паузы.', tone: 'warn' },
+    { id: 'clock', x: 350, y: 40, width: 220, height: 160, label: 'Начать кусок', detail: 'Обновить время начала: last.', tone: 'info' },
+    { id: 'next', x: 676, y: 40, width: 220, height: 160, label: 'Следующий элемент', detail: 'Проверить итератор items.', tone: 'info' },
+    { id: 'work', x: 676, y: 320, width: 220, height: 160, label: 'Обработать fn(it)', detail: 'Один вызов выполняется целиком.', tone: 'info' },
+    { id: 'budget', x: 350, y: 320, width: 220, height: 160, label: 'Бюджет исчерпан?', detail: 'Прошло ≥ budget мс с начала куска.', tone: 'warn' },
+    { id: 'yield', x: 24, y: 320, width: 220, height: 160, label: 'Отдать поток', detail: 'Пауза на await yieldToMain().', tone: 'neutral' },
+    { id: 'done', x: 676, y: 620, width: 220, height: 160, label: 'Готово', detail: 'Все элементы обработаны. Промис выполнен.', tone: 'ok' },
+    { id: 'reject', x: 24, y: 620, width: 220, height: 160, label: 'Отказ', detail: 'Причина отмены или ошибка fn/yield.', tone: 'err' },
+  ],
+  edges: [
+    { from: 'signal', to: 'clock', label: 'нет отмены', labelX: 297, labelY: 104 },
+    { from: 'clock', to: 'next' },
+    { from: 'next', to: 'work', fromSide: 'bottom', toSide: 'top', label: 'есть', labelX: 820, labelY: 266 },
+    { from: 'work', to: 'budget', fromSide: 'left', toSide: 'right' },
+    { from: 'budget', to: 'yield', fromSide: 'left', toSide: 'right', label: 'да', labelX: 297, labelY: 384 },
+    { from: 'budget', to: 'next', fromSide: 'top', toSide: 'left', via: [[460, 260], [620, 260], [620, 120]], label: 'нет', labelX: 560, labelY: 244 },
+    { from: 'yield', to: 'signal', fromSide: 'top', toSide: 'bottom', label: 'после await', labelX: 197, labelY: 266 },
+    { from: 'signal', to: 'reject', fromSide: 'left', toSide: 'left', via: [[12, 120], [12, 700]], label: 'отменён', labelX: 75, labelY: 580 },
+    { from: 'next', to: 'done', fromSide: 'right', toSide: 'right', via: [[908, 120], [908, 700]], label: 'элементов нет', labelX: 785, labelY: 580 },
+    { from: 'work', to: 'reject', fromSide: 'bottom', toSide: 'top', via: [[786, 540], [134, 540]], label: 'fn бросила', labelX: 458, labelY: 520 },
+    { from: 'yield', to: 'reject', fromSide: 'bottom', toSide: 'top', label: 'ожидание отклонено', labelX: 240, labelY: 580 },
+  ],
+  note: 'Сигнал проверяется только в двух показанных местах, а не перед каждым элементом. Пока синхронный кусок работает, новый обработчик ввода не может его прервать. yieldToMain использует scheduler.yield(), а при его отсутствии — промис с таймером; возможность обработать ввод или кадр не означает обязательную отрисовку.',
+};
+
+/** Новый ввод отменяет прежний поиск. Сторож исполняет этот же обработчик с двумя запросами. */
+export const SEARCH_CODE = `function attachSearch(input, rows, render, reportError = console.error) {
+  let current;
+
+  async function onInput() {
+    current?.abort();               // предыдущий запрос больше не нужен
+    const controller = new AbortController();
+    current = controller;
+    const query = input.value;      // значение именно этого запроса
+    const matches = [];
+
+    try {
+      await chunked(rows, row => {
+        if (row.includes(query)) matches.push(row);
+      }, { signal: controller.signal });
+
+      controller.signal.throwIfAborted(); // отмена возможна и перед применением результата
+      if (current === controller) render(matches);
+    } catch (error) {
+      if (!controller.signal.aborted) reportError(error);
+    }
+  }
+
+  input.addEventListener('input', onInput);
+  return () => {
+    current?.abort();               // компонент больше не нужен
+    input.removeEventListener('input', onInput);
+  };
 }
 
-const ac = new AbortController();
-addEventListener('pagehide', () => ac.abort());   // ушли со страницы — бросили работу
-
-chunked(rows, render, { signal: ac.signal }).catch((e) => {
-  if (e.name !== 'AbortError') throw e;           // отмена — не ошибка
-});`;
+const stopSearch = attachSearch(input, rows, render);
+// При удалении компонента: stopSearch();`;
 
 export const ABORT_FACTS: { t: string; d: string }[] = [
   {
@@ -578,7 +640,7 @@ export const ABORT_FACTS: { t: string; d: string }[] = [
   },
   {
     t: '`AbortSignal.timeout(ms)`',
-    d: 'Готовый сигнал, который срабатывает сам через заданное время. Не нужны ни свой таймер, ни флаг: «работать не дольше двух секунд» превращается в один аргумент. Его к тому же можно передать дальше — в `fetch`, в `addEventListener`, в `postTask`. Причина отмены у него своя — `TimeoutError`, а не `AbortError`: фильтр `e.name !== \'AbortError\'` из примера выше пропустит её дальше как ошибку. Если таймаут для вас штатный исход, проверяйте оба имени.',
+    d: 'Сигнал срабатывает через заданное время. Его можно передать в нарезанный цикл, fetch или postTask. Причина — TimeoutError, а не AbortError: проверка только имени AbortError таймаут не распознает. В обработчике поиска выше штатная отмена проверяется по состоянию именно его сигнала.',
   },
   {
     t: '`AbortSignal.any([a, b, …])`',
@@ -822,9 +884,9 @@ export const PREREQ: Prereq[] = [
   },
 ];
 
-/** Подпись к схеме «сколько раз в секунду можно отдать поток» и замеру под ней. */
+/** Подпись к настоящему замеру способов продолжить работу. */
 export const YIELD_DEMO_NOTE =
-  'Точное число на схеме одно: вложенный `setTimeout` ждёт не меньше 4 мс (правило HTML Standard), значит, через таймер поток выходит отдать не больше ~250 раз в секунду. Остальные полосы показывают только порядок величин. Настоящие значения снимает замер в вашем браузере.';
+  'Вложенный `setTimeout` ждёт не меньше 4 мс по правилу HTML Standard. Цену остальных способов показывает замер в вашем браузере — она зависит от текущей нагрузки. Микрозадача здесь служит сравнением: частые продолжения ещё не означают, что браузер получил возможность обработать ввод или нарисовать кадр.';
 
 /** Подпись к шкале времени во вводном разделе. */
 export const TIMELINE_DEMO_NOTE =
@@ -832,7 +894,7 @@ export const TIMELINE_DEMO_NOTE =
 
 /** Подпись к калькулятору цены отдачи потока. Счёт — по `YIELD_SIZES`, `PER_ITEM`, `BUDGET_MS` и клампу 4 мс. */
 export const COST_DEMO_NOTE =
-  'Накладные — это цена одного раза, умноженная на то, сколько раз вы отдали поток. Отдавать его через `setTimeout(0)` на каждом из десяти тысяч элементов — десять тысяч ожиданий по 4 мс: сорок секунд на две секунды работы. По бюджету 50 мс та же работа отдаёт поток сорок раз вместо десяти тысяч, накладных — 160 мс. Время съедает не дорогой способ сам по себе и не частота пауз, а их произведение.';
+  'В этой модели накладные — это цена одного раза, умноженная на то, сколько раз вы отдали поток. Отдавать его через `setTimeout(0)` на каждом из десяти тысяч элементов — десять тысяч ожиданий по 4 мс: сорок секунд на две секунды работы. По бюджету 50 мс та же работа отдаёт поток сорок раз вместо десяти тысяч, накладных — 160 мс. Время съедает не дорогой способ сам по себе и не частота пауз, а их произведение.';
 
 /* ──────────────────── Врезки «на пальцах» ──────────────────── */
 

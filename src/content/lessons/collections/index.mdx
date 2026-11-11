@@ -1,8 +1,8 @@
 ---
 title: "Коллекции: Map, Set и словари"
 order: 4
-lead: "Обычный объект годится в словарь, пока ключи — простые строки из кода. Как только ключи приходят из данных, объект начинает их портить: превращает числа и объекты в строки, находит то, чего никто не клал, и меняет порядок. `Map` и `Set` — хеш-таблицы без этих бед. Как они устроены внутри, что видит `for…of`, когда таблицу меняют на ходу, и что выбрать под задачу."
-summary: "Три беды объекта-словаря и `Object.create(null)`; `Map`: любые ключи, SameValueZero, `getOrInsert`, мост в объект и в JSON; `Set` и методы `union`, `intersection`, `difference`; упорядоченная хеш-таблица V8 изнутри; обход с изменениями — от удалённого ключа до бесконечного цикла; `WeakMap` и `WeakSet`; что выбрать и `Object.groupBy` / `Map.groupBy`."
+lead: "Объект, Map и Set по-разному отвечают на вопросы «тот же ли это ключ» и «что обходить следующим». Map сохраняет ключи без превращения в строки, Set хранит уникальные значения. Правила равенства, порядок вставки и поведение итератора помогают выбрать коллекцию и понять её устройство в движке."
+summary: "Ключи объекта и Map, проверка наличия и SameValueZero; уникальность в Set и дедупликация по id; поиск и порядок обхода в V8, изменения во время итерации; слабые коллекции, группировка и преобразование в объект или JSON."
 verifiedOn: "Node 26.8.2 (V8 14.6); поддержка методов Set, getOrInsert, Map.groupBy и символов-ключей WeakMap — Chromium 153, Firefox 155, WebKit 26.6 (Playwright), октябрь 2026. Весь код темы исполняет tests/unit/collections.test.ts"
 nav:
   - { id: s1, label: Объект-словарь }
@@ -16,10 +16,11 @@ nav:
   - { id: s9, label: Источники }
 ---
 
-import Callout from '@/shared/ui/Callout.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -32,10 +33,10 @@ import MapIteration from '@/widgets/map-iteration/ui/MapIteration.vue';
 import {
   PLAIN_COLLECTIONS, GLOSSARY, OBJ_DICT_CODE, OBJ_DICT_NOTE, PLAIN_NULL_PROTO, NULL_PROTO_CODE, NULL_PROTO_COSTS,
   KEY_NOTES, KEYS_DEMO_NOTE,
-  MAP_CODE, MAP_NOTE, SAMEVALUE_CODE, SAMEVALUE_NOTE, MAP_VS_OBJ_HEAD, MAP_VS_OBJ,
+  MAP_CODE, MAP_NOTE, MAP_MISSING_CODE, MAP_MISSING_NOTE, SAMEVALUE_CODE, SAMEVALUE_NOTE, MAP_VS_OBJ_HEAD, MAP_VS_OBJ,
   UPSERT_CODE, UPSERT_NOTE, MAP_CONVERT_CODE, MAP_CONVERT_NOTE,
-  SET_CODE, SET_NOTE, SET_OPS_CODE, SET_OPS, SET_LIKE_CODE, SET_LIKE_NOTE,
-  INSIDE_LEAD, DEBUG_PRINT_CODE, INSIDE_PARTS, INSIDE_NOTE,
+  SET_CODE, SET_NOTE, DEDUP_CODE, DEDUP_NOTE, SET_OPS_CODE, SET_OPS, SET_LIKE_CODE, SET_LIKE_NOTE,
+  INSIDE_LEAD, TABLE_PATHS_DIAGRAM, DEBUG_PRINT_CODE, INSIDE_PARTS, INSIDE_NOTE,
   ORDER_CODE, ORDER_NOTE, ITER_SCENARIOS, ITER_DEMO_NOTE,
   WEAK_CODE, WEAK_FACTS, WEAKSET_CODE, WEAKSET_NOTE,
   DICT_ROWS, GROUPBY_CODE, PLAIN_GROUPBY, GROUPBY_FACTS,
@@ -43,13 +44,10 @@ import {
 } from './data';
 
 <Section variant="intro" eyebrow="Ключ и значение" gap={24}>
-  <Callout size={19} pad="24px 26px">
-
-    Объект — это **запись**: набор полей, который заранее знает код. `Map` — это **словарь**:
-    набор ключей, которые приходят из данных. Пока ключи пишет программист, разницы почти нет. Когда ключи
-    приходят из запроса, файла или ввода пользователя, объект начинает отвечать не то.
-
-  </Callout>
+  Если записать значение как `visits[1]`, обычный объект найдёт его и по строке `'1'`.
+  Для `Map` число `1` и строка `'1'` — разные ключи. В `Map` два объекта с одинаковыми полями
+  тоже останутся разными ключами, пока это разные объекты. От выбора коллекции зависит,
+  какие записи программа будет считать одинаковыми.
 
   <Plain text={PLAIN_COLLECTIONS} />
 
@@ -60,7 +58,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Объект как словарь"
-  lead="Объект не задумывался под ключи из данных, и это видно в трёх местах: ключ становится строкой, в пустом объекте уже что-то лежит, а порядок ключей — не порядок добавления."
+  lead="Свойства объекта подчиняются трём правилам: ключи — строки или символы, чтение может продолжаться в прототипе, а индексные ключи при перечислении идут раньше остальных строк. Для словаря эти правила нужно учитывать."
 >
   <CodeBlock code={OBJ_DICT_CODE} size={12.5} />
 
@@ -95,21 +93,20 @@ import {
 
   <Md text={MAP_NOTE} />
 
+  Изменение `anna.id` не меняет ключ: это всё ещё тот же объект. Новый объект из API
+  с тем же id не станет прежним ключом — совпадения полей недостаточно.
+
+  ### Наличие записи и её значение — разные вопросы
+
+  <CodeBlock code={MAP_MISSING_CODE} />
+
+  <Md text={MAP_MISSING_NOTE} />
+
   ### Какой ключ «тот же самый»
 
   <CodeBlock code={SAMEVALUE_CODE} size={12.5} />
 
   <Md text={SAMEVALUE_NOTE} />
-
-  ### Объект и `Map` по операциям
-
-  <Table
-    head={MAP_VS_OBJ_HEAD}
-    rows={MAP_VS_OBJ}
-    kinds={['mono', 'prose', 'prose']}
-    cols="minmax(110px,.6fr) minmax(220px,1.3fr) minmax(200px,1.1fr)"
-    minWidth={600}
-  />
 
   ### Достать или положить: `getOrInsert`
 
@@ -122,21 +119,42 @@ import {
   <CodeBlock code={MAP_CONVERT_CODE} size={12.5} />
 
   <Md text={MAP_CONVERT_NOTE} />
+
+<Disclosure title="Объект и Map: операции и ограничения">
+
+  <Table
+    head={MAP_VS_OBJ_HEAD}
+    rows={MAP_VS_OBJ}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(110px,.6fr) minmax(220px,1.3fr) minmax(200px,1.1fr)"
+    minWidth={600}
+  />
+
+</Disclosure>
 </Section>
 
 <Section
   id="s3"
   eyebrow="Раздел 3"
   title="Set: множество значений"
-  lead="`Set` — та же таблица, что у `Map`, только без значений: ключи и есть содержимое. С 2024 года у него наконец есть операции над множествами."
+  lead="Set хранит каждое различимое значение один раз. Значения сравниваются так же, как ключи Map, а обход сохраняет порядок вставки. Поиск делается через has; отдельного значения под ключом здесь нет."
 >
   <CodeBlock code={SET_CODE} size={12.5} />
 
   <Md text={SET_NOTE} />
 
+  ### Уникальность по ссылке и по id
+
+  <CodeBlock code={DEDUP_CODE} />
+  <Md text={DEDUP_NOTE} />
+
   ### Объединение, пересечение, разность
 
   <CodeBlock code={SET_OPS_CODE} size={12.5} />
+
+  Методы, создающие новое множество — `union`, `intersection`, `difference` и
+  `symmetricDifference`, — возвращают новый `Set`. Исходные множества не меняются.
+  Проверки вроде `isSubsetOf` возвращают `boolean`.
 
   <CardGrid min={220} gap={10}>
     {SET_OPS.map((op) => (
@@ -159,10 +177,12 @@ import {
   title="Изнутри: таблица, которая помнит порядок"
   lead={INSIDE_LEAD}
 >
-  <CodeBlock code={DEBUG_PRINT_CODE} size={12.5} />
+  <ConceptDiagram data={TABLE_PATHS_DIAGRAM} />
+
+  ### Что происходит с записями
 
   <CardGrid min={260} gap={14} align="start">
-    {INSIDE_PARTS.map((part) => (
+    {INSIDE_PARTS.slice(1).map((part) => (
       <Card title={part.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={part.d} />
 
     ))}
@@ -170,17 +190,29 @@ import {
   </CardGrid>
 
   <Md text={INSIDE_NOTE} />
+
+<Disclosure title="Внутренние имена таблиц в выводе V8">
+
+  <CodeBlock code={DEBUG_PRINT_CODE} size={12.5} />
+
+  `%DebugPrint` — отладочная возможность V8 под отдельным флагом, а не JavaScript API.
+  Размеры и адреса таблиц могут меняться между версиями; программе не следует от них зависеть.
+
+</Disclosure>
 </Section>
 
 <Section
   id="s5"
   eyebrow="Раздел 5"
   title="Обход: итератор идёт по живой таблице"
-  lead="`for…of` по `Map` не снимает копию ключей. Итератор помнит позицию в массиве записей и на каждом шаге идёт к следующей живой. Отсюда все правила: удалённое не придёт, добавленное придёт, а вставленное заново придёт ещё раз."
+  lead="Итератор Map читает текущие записи, а не снимок на момент создания. Пока он не завершён, удаление ещё не выданной записи убирает её из обхода, а новая вставка может добавить работу. Перезапись значения и удаление с повторной вставкой действуют по-разному."
 >
   <CodeBlock code={ORDER_CODE} size={12.5} />
 
   <Md text={ORDER_NOTE} />
+
+  Последние строки показывают другую границу: после `done: true` итератор завершён.
+  Чтобы увидеть последующие вставки, нужен новый итератор.
 
   ### Что меняется на ходу
 
@@ -191,7 +223,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="WeakMap и WeakSet: записи, которые не держат ключ"
-  lead="Слабая коллекция привязывает данные к объекту и не мешает сборщику его забрать. Плата — нельзя узнать, что в ней лежит, не зная ключа."
+  lead="Обычная Map удерживает свои ключи и значения, пока записи не удалены. WeakMap позволяет привязать данные к объекту, не удерживая его одной этой записью. Получить значение можно, только предъявив ключ; перечисления и size нет."
 >
   <CodeBlock code={WEAK_CODE} size={12.5} />
 
@@ -240,7 +272,7 @@ import {
 </Section>
 
 <Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
-  <Pitfalls items={PITFALLS} />
+  <Pitfalls items={PITFALLS.filter((p) => ['03', '04'].includes(p.n))} />
 </Section>
 
 <Section id="s9" eyebrow="Раздел 9" title="Источники">

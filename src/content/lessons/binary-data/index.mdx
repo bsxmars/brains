@@ -23,6 +23,8 @@ import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -40,6 +42,8 @@ import {
   PNG_BYTES,
   VIEWS_CODE,
   VIEWS_NOTE,
+  WINDOW_CODE,
+  WINDOW_DIAGRAM,
   TYPES_NOTE,
   TYPE_ROWS,
   ALIGN_CODE,
@@ -111,7 +115,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Буфер и вид"
-  lead="Пример на всю тему — PNG размером 105 байт, который выдал кодировщик Chromium для холста 3×2. Его первые 16 байт — сигнатура формата и начало первого блока. На них видно главное: буфер один, видов на него сколько угодно, и все они смотрят на одни и те же байты."
+  lead="Сквозной пример — PNG размером 105 байт, который выдал кодировщик Chromium для холста 3×2. Его первые 16 байт — сигнатура формата и начало первого блока. На них видно главное: буфер один, видов на него сколько угодно, и все они смотрят на одни и те же байты."
 >
   <Card title="Два вида на один буфер" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VIEWS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -121,6 +125,15 @@ import {
     </CardNote>
   </Card>
 
+  ### Вид хранит границы, а `.buffer` их не сохраняет
+
+  У `name` из примера только четыре байта: имя блока `IHDR`. Но `name.buffer` — исходный
+  буфер целиком. При создании другого вида передавайте смещение и длину окна вместе с буфером.
+
+  <CodeBlock code={WINDOW_CODE} />
+  <ConceptDiagram data={WINDOW_DIAGRAM} />
+
+  <Disclosure title="Справочник типизированных массивов: размер и диапазон элементов">
   ### Какие бывают виды
 
   <Md text={TYPES_NOTE} />
@@ -132,13 +145,15 @@ import {
     cols="minmax(220px,1.2fr) minmax(50px,.3fr) minmax(170px,.9fr) minmax(240px,1.4fr)"
     minWidth={720}
   />
+  </Disclosure>
+
 </Section>
 
 <Section
   id="s2"
   eyebrow="Раздел 2"
   title="Выравнивание и переполнение"
-  lead="У вида есть два правила, которых нет у обычного массива. Он должен начинаться с адреса, кратного размеру элемента. А число, которое не помещается в элемент, не вызывает ошибку: в элемент молча записывается другое число."
+  lead="Смещение типизированного массива должно делиться на размер элемента; DataView такого ограничения не имеет. Числовая запись в TypedArray преобразуется к типу элемента: дробь может округлиться, а целое вне диапазона — измениться без исключения."
 >
   <Plain text={PLAIN_ALIGN} />
 
@@ -173,7 +188,7 @@ import {
   eyebrow="Раздел 3 · демо"
   eyebrowTone="demo"
   title="Порядок байт"
-  lead="Число больше 255 занимает несколько байт, и записать их можно двумя способами: старший байт первым или младший первым. Байты одни и те же, а прочитанные «не в том порядке» дают совсем другое число. Именно поэтому `words[2]` в разделе [«Буфер и вид»](#s1) равно не 13."
+  lead="Беззнаковое целое больше 255 не помещается в один байт, и записать их можно двумя способами: старший байт первым или младший первым. Байты одни и те же, а прочитанные «не в том порядке» дают совсем другое число. Именно поэтому `words[2]` в разделе [«Буфер и вид»](#s1) равно не 13."
 >
   <Plain text={PLAIN_ENDIAN} />
 
@@ -235,13 +250,16 @@ import {
     minWidth={620}
   />
 
-  <Card title="Работает везде" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Совместимый путь через btoa и atob">
+  <Card title="Кодирование байтов без новых методов Uint8Array" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={B64_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={B64_NOTE} />
     </CardNote>
   </Card>
+  </Disclosure>
+
 </Section>
 
 <Section
@@ -286,7 +304,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Растущий буфер и transfer"
-  lead="Размер обычного `ArrayBuffer` задаётся при создании и не меняется никогда. Если данных стало больше, нужен новый буфер и копия. Два новых механизма убирают эту копию: буфер, который растёт на месте, и `transfer()`, который отдаёт байты новому буферу, не копируя их."
+  lead="Обычный ArrayBuffer имеет фиксированную длину. Растущий буфер позволяет менять её в пределах maxByteLength, сохраняя тот же объект. transfer возвращает новый буфер и отсоединяет старый. Эти API позволяют движку оптимизировать работу с памятью, но не гарантируют отсутствие физического копирования."
 >
   <Plain text={PLAIN_RESIZE} />
 
@@ -294,6 +312,7 @@ import {
     <CodeBlock code={RESIZE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
+  <Disclosure title="Пример: собрать поток с ограничением размера">
   <Card title="Собрать поток в один буфер" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={COLLECT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -301,6 +320,8 @@ import {
       <Md text={COLLECT_NOTE} />
     </CardNote>
   </Card>
+
+  </Disclosure>
 
   ### transfer: отдать байты
 
@@ -340,6 +361,7 @@ import {
 
   <Plain text={PLAIN_CRC} />
 
+  <Disclosure title="Полный исходник разбора блоков и CRC-32">
   <Card title="Разбор PNG и CRC-32" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PNG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -347,6 +369,8 @@ import {
       <Md text={PNG_NOTE} />
     </CardNote>
   </Card>
+
+  </Disclosure>
 
   <CardGrid min={260} gap={14} align="start">
     {CHUNK_FACTS.map((fact) => (
@@ -365,7 +389,7 @@ import {
       **Бинарный формат читают по его описанию, а не по привычкам машины.** Смещение, размер
       поля, порядок байт и контрольная сумма берутся из спецификации формата, а `DataView` с явным
       порядком читает ровно так, как там написано. Типизированный массив остаётся для своих данных,
-      а копии не нужны вовсе: `subarray` и `slice` у `Blob` дают окно на те же байты.
+      а `subarray` позволяет читать часть общего буфера. У `Blob.slice` другая семантика: новый неизменяемый набор байтов, а не изменяемый вид TypedArray.
 
     </DarkText>
   </DarkPanel>

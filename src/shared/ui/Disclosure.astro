@@ -1,0 +1,53 @@
+---
+import { inlineMd } from '@/shared/lib/format';
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<details class="disclosure">
+  <summary set:html={inlineMd(title)} />
+  <div class="disclosure__content"><slot /></div>
+</details>
+
+<style>
+  .disclosure {
+    min-width: 0;
+    border-radius: var(--r3);
+    box-shadow: var(--shadow-card);
+    background: var(--surface);
+  }
+  .disclosure > summary {
+    padding: 18px 20px;
+    cursor: pointer;
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .disclosure > summary:focus-visible {
+    outline: 2px solid var(--tone-info-strong);
+    outline-offset: 3px;
+    border-radius: var(--r3);
+  }
+  .disclosure__content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+    padding: 0 20px 20px;
+  }
+  .disclosure__content > :global(p),
+  .disclosure__content > :global(ul),
+  .disclosure__content > :global(ol) {
+    margin: 0;
+    font-size: var(--fs-6);
+    line-height: 1.6;
+    color: var(--prose);
+    text-align: justify;
+    hyphens: auto;
+  }
+</style>

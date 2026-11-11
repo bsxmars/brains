@@ -51,6 +51,8 @@ const reset = () => { machine.value = createMachine(); };
       </div>
     </template>
 
+    <div class="model-note">Учебная схема: состояния вычисляет модель генератора, сверенная с исполнением показанного dialog().</div>
+
     <div class="split">
       <div class="pane pane--code">
         <CodeListing :lines="code" :active="activeLine" tone="dark" label="function* dialog()" />
@@ -80,6 +82,13 @@ const reset = () => { machine.value = createMachine(); };
 </template>
 
 <style scoped>
+.model-note {
+  padding: 14px 20px;
+  color: var(--text-muted);
+  font-size: var(--fs-4);
+  line-height: 1.6;
+}
+
 .bar {
   display: flex;
   align-items: center;

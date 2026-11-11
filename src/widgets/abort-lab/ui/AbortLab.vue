@@ -56,6 +56,8 @@ const verdictText = computed(() => VERDICT[tone.value]);
     </template>
 
     <div class="al-body">
+      <Md class="al-caption" :text="caption" />
+
       <Md class="al-note" :text="scenario.note" />
 
       <div class="al-pane">
@@ -64,10 +66,8 @@ const verdictText = computed(() => VERDICT[tone.value]);
 
       <div class="al-side">
         <ConsoleView :lines="run?.mini ?? []" label="учебные классы" :min-height="96" empty-label="ещё не исполнено" />
-        <ConsoleView :lines="run?.native ?? []" label="настоящий AbortController" :min-height="96" empty-label="ещё не исполнено" />
+        <ConsoleView :lines="run?.native ?? []" label="AbortController браузера" :min-height="96" empty-label="ещё не исполнено" />
       </div>
-
-      <Md class="al-caption" :text="caption" />
     </div>
 
     <template #footer>

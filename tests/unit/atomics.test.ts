@@ -16,6 +16,8 @@ import {
   RACE_MAIN_CODE,
   RACE_WORKER_CODE,
   WAIT_CODE,
+  WAIT_LOOP_CODE,
+  WAIT_NOTE,
   WAIT_OUT,
 } from '@/content/lessons/atomics/data';
 
@@ -26,7 +28,7 @@ import {
  * исполняются честно: строки из `data.ts` пишутся во временный каталог и запускаются отдельным
  * процессом `node`. Гонки недетерминированы, и тест держит только то, что обещано всегда:
  * `Atomics` даёт точный ответ, обычный код — не больше точного. Ноль перестановок у обычных
- * записей ничего не доказывает (на x86 он будет всегда), поэтому его тест не проверяет.
+ * записей ничего не доказывает независимо от архитектуры, поэтому его тест не проверяет.
  */
 
 const dir = mkdtempSync(join(tmpdir(), 'atomics-topic-'));
@@ -106,6 +108,40 @@ describe('раздел «Ждать и будить»', () => {
   it('wait, waitAsync и notify отвечают как в WAIT_OUT', () => {
     expect(run('wait.mjs', WAIT_CODE)).toEqual(WAIT_OUT);
   });
+
+  it('store не будит ожидающего; notify не меняет условие, поэтому нужен цикл', async () => {
+    const cell = new Int32Array(new SharedArrayBuffer(4));
+    const waiter = Atomics.waitAsync(cell, 0, 0);
+    Atomics.store(cell, 0, 1);
+    expect(Atomics.notify(cell, 0)).toBe(1); // После store ожидание всё ещё зарегистрировано.
+    expect(await waiter.value).toBe('ok');
+    expect(Atomics.waitAsync(cell, 0, 0)).toEqual({ async: false, value: 'not-equal' });
+
+    Atomics.store(cell, 0, 0);
+    let waitCalls = 0;
+    let secondWait!: () => void;
+    const waitingAgain = new Promise<void>((resolve) => { secondWait = resolve; });
+    const observedAtomics = {
+      load: Atomics.load,
+      waitAsync(flag: Int32Array, index: number, expected: number) {
+        const result = Atomics.waitAsync(flag, index, expected);
+        if (++waitCalls === 2) secondWait();
+        return result;
+      },
+    };
+    const waitUntilReady = new Function('Atomics', `${WAIT_LOOP_CODE}\nreturn waitUntilReady;`)(observedAtomics) as (flag: Int32Array) => Promise<void>;
+    let ready = false;
+    const done = waitUntilReady(cell).then(() => { ready = true; });
+    expect(Atomics.notify(cell, 0)).toBe(1);
+    await waitingAgain; // Уведомление доставлено, и показанный код действительно снова ждёт.
+    expect(Atomics.load(cell, 0)).toBe(0);
+    expect(ready).toBe(false);
+    Atomics.store(cell, 0, 1);
+    expect(Atomics.notify(cell, 0)).toBe(1);
+    await done;
+    expect(ready).toBe(true);
+    expect(WAIT_NOTE).toContain('снова проверяет условие');
+  });
 });
 
 describe('раздел «Замок»', () => {
@@ -116,4 +152,17 @@ describe('раздел «Замок»', () => {
     expect(plain.startsWith('без замка:')).toBe(true);
     expect(locked).toBe('с замком: 400000 400000');
   });
+});
+
+
+it('store возвращает приведённый аргумент до усечения к типу ячейки', () => {
+  const bytes = new Int8Array(new SharedArrayBuffer(1));
+  expect(Atomics.store(bytes, 0, 257)).toBe(257);
+  expect(Atomics.load(bytes, 0)).toBe(1);
+  expect(Atomics.store(bytes, 0, 3.9)).toBe(3);
+  expect(Atomics.load(bytes, 0)).toBe(3);
+  const big = new BigInt64Array(new SharedArrayBuffer(8));
+  const value = 2n ** 64n + 1n;
+  expect(Atomics.store(big, 0, value)).toBe(value);
+  expect(Atomics.load(big, 0)).toBe(1n);
 });

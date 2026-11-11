@@ -366,7 +366,7 @@ test.describe('раздел «Распознавание речи»', () => {
 
   test('RECOGNIZE_CODE: в Firefox — «распознавания нет»', async () => {
     await withBrowser(firefox, {}, async (browser) => {
-      const { logged } = await open(browser, html(RECOGNIZE_CODE));
+      const { logged } = await open(browser, html(RECOGNIZE_CODE, '<button>Распознать</button>'));
       await expect.poll(() => logged).toEqual(['распознавания нет']);
     });
   });
@@ -379,7 +379,9 @@ test.describe('раздел «Распознавание речи»', () => {
         return [await R.available({ langs: ['ru-RU'], processLocally: true }), await R.available({ langs: ['ru-RU'], processLocally: false })];
       });
       expect(states).toEqual(['downloadable', 'available']);
+      await page.setContent('<button>Распознать</button>');
       await page.evaluate((code) => new Function(code)(), RECOGNIZE_CODE);
+      await page.click('button');
       await expect.poll(() => logged, { timeout: 20_000 }).toEqual(['ошибка: no-speech', 'конец']);
     });
   });
@@ -392,10 +394,12 @@ test.describe('раздел «Голос на сервер»', () => {
       await page.evaluate(async (code) => {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const recorder = new MediaRecorder(stream);
-        new Function('recorder', 'sessionId', code)(recorder, 'abc');
+        const send = new Function(code + '\nreturn uploadRecording;')();
+        const uploaded = send(recorder, 'abc');
         await new Promise((r) => setTimeout(r, 3100));
         recorder.stop();
         stream.getTracks().forEach((t) => t.stop());
+        await uploaded;
       }, UPLOAD_CODE);
       await expect.poll(() => [...uploads.keys()].some((k) => k.startsWith('/voice/abc/done'))).toBe(true);
 

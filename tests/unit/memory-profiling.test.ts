@@ -4,6 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  CMP_ROWS,
+  CMP_RUNS,
+  SNAPSHOTS_SCENE_CODE,
+  HELD_FACTORY_CODE,
   CHAINS,
   HEAP_NODES,
   HEAP_VARIANTS,
@@ -276,20 +280,20 @@ describe('доминатор и путь удержания', () => {
     // Эти три строки лежали в теме литералами. Теперь каждая — следствие настоящей ссылки:
     // ключ объекта, индекс в массиве, ключ коллекции.
     expect(labels).toContain('el in Chart');
-    expect(labels).toContain('3 in (array)');
+    expect(labels).toContain('[3] in Array');
     expect(labels).toContain('chart in Map');
     expect(labels).toContain('this in system / Context');
 
     const chain = CHAINS[0].nodes.map((node) => node.t.trim().replace(/^└─\s*/u, ''));
-    for (const link of ['el in Chart', 'this in system / Context', '3 in (array)']) {
+    for (const link of ['el in Chart', 'this in system / Context', '[3] in Array']) {
       expect(chain, `«${link}» есть и в теме, и в обходе`).toContain(link);
     }
 
-    // Число в `3 in (array)` — индекс: функция в сцене четвёртая, и текст звена говорит так же.
-    const arrayEdge = oneWay.edges.find((edge) => edge.label === '3 in (array)')!;
+    // Число в `[3] in Array` — индекс: функция в сцене четвёртая, и текст звена говорит так же.
+    const arrayEdge = oneWay.edges.find((edge) => edge.label === '[3] in Array')!;
     const order = oneWay.edges.filter((edge) => edge.from === arrayEdge.from);
     expect(order.findIndex((edge) => edge.to === arrayEdge.to)).toBe(3);
-    const node = CHAINS[0].nodes.find((n) => n.t.trim() === '└─ 3 in (array)')!;
+    const node = CHAINS[0].nodes.find((n) => n.t.trim() === '└─ [3] in Array')!;
     expect(node.what).toContain('четвёрт');
     expect(node.what).not.toMatch(/трет/);
   });
@@ -303,7 +307,7 @@ describe('доминатор и путь удержания', () => {
       '',
       'listeners in Window',
       'elements',
-      '3 in (array)',
+      '[3] in Array',
       'context in onResize',
       'this in system / Context',
       'el in Chart',
@@ -624,11 +628,9 @@ describe('имена узлов и рёбер — как в настоящем �
     import { readFileSync, unlinkSync } from 'node:fs';
     class Chart { constructor() { this.el = {}; globalThis.onResize = () => this.el; } }
     new Chart();
-    function makeHandler() {
-      const rows = Array.from({ length: 1000 }, (_, i) => ({ id: i }));
-      return function held() { return rows.length; };
-    }
-    globalThis.h = makeHandler();
+    ${HELD_FACTORY_CODE}
+    globalThis.h = makeHandler(1000);
+    globalThis.typedSample = new Uint8Array(4096);
     const file = v8.writeHeapSnapshot();
     const s = JSON.parse(readFileSync(file, 'utf8'));
     unlinkSync(file);
@@ -637,17 +639,29 @@ describe('имена узлов и рёбер — как в настоящем �
     const N = s.nodes.length / NF, first = [];
     for (let i = 0, e = 0; i <= N; i++) { first[i] = e; if (i < N) e += s.nodes[i * NF + 4] * EF; }
     const nm = (i) => s.strings[s.nodes[i * NF + 1]], ty = (i) => T[s.nodes[i * NF]];
-    const out = { rows: null, chartEdge: null };
+    const out = { rows: null, chartEdge: null, typed: null };
+    const follow = (i, name) => {
+      for (let e = first[i]; e < first[i + 1]; e += EF) {
+        const t = ET[s.edges[e]];
+        if (t !== 'element' && t !== 'hidden' && s.strings[s.edges[e + 1]] === name) return s.edges[e + 2] / NF;
+      }
+      throw new Error('No edge ' + name);
+    };
     for (let i = 0; i < N; i++) for (let e = first[i]; e < first[i + 1]; e += EF) {
       const to = s.edges[e + 2] / NF, t = ET[s.edges[e]];
       const name = t === 'element' || t === 'hidden' ? String(s.edges[e + 1]) : s.strings[s.edges[e + 1]];
+      if (name === 'typedSample') {
+        const array = follow(to, 'buffer');
+        const backing = follow(array, 'backing_store');
+        out.typed = { wrapper: nm(to), shallow: s.nodes[to * NF + 3], backing: nm(backing), bytes: s.nodes[backing * NF + 3] };
+      }
       if (nm(i) === 'system / Context' && name === 'rows') out.rows = ty(to) + ' ' + nm(to);
       if (nm(to) === 'Chart' && ty(to) === 'object' && nm(i) === 'system / Context') out.chartEdge = name;
     }
     console.log(JSON.stringify(out));
   `;
   const dir = mkdtempSync(join(tmpdir(), 'mp-names-'));
-  let got: { rows: string; chartEdge: string };
+  let got: { rows: string; chartEdge: string; typed: { wrapper: string; shallow: number; backing: string; bytes: number } };
   try {
     const out = execFileSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', cwd: dir });
     got = JSON.parse(out.trim().split('\n').at(-1)!);
@@ -667,8 +681,24 @@ describe('имена узлов и рёбер — как в настоящем �
     expect(chain).toContain('this in system / Context');
   });
 
+  it('байты Uint8Array находятся в отдельном native-узле, на который ссылается Comparison', () => {
+    expect(got.typed.wrapper).toBe('Uint8Array');
+    expect(got.typed.shallow).toBeLessThan(4096);
+    expect(got.typed.backing).toBe('system / JSArrayBufferData');
+    expect(got.typed.bytes).toBe(4096);
+    expect(CMP_ROWS.find((row) => row.sizeDeltaN === 50_320_000)!.c).toBe(got.typed.backing);
+  });
+
   it('панель Retainers не «показывает один путь», а раскрывает один', () => {
     expect(PITFALLS.find((p) => p.n === '04')!.d).toMatch(/раскрывает один путь/u);
     expect(PITFALLS.find((p) => p.n === '04')!.d).not.toMatch(/показывает один путь/u);
+  });
+});
+
+
+describe('повторный сценарий подписки — тот же исходник, что в теме', () => {
+  it('кеш заполняется один раз, обработчики накапливаются, а отписка освобождает регистрацию', () => {
+    const result = new Function('console', SNAPSHOTS_SCENE_CODE + '\nreturn { counts, cache: cache.size, left: bus.listeners.size };')({ log() {} });
+    expect(result).toEqual({ counts: [0, CMP_RUNS, 2 * CMP_RUNS], cache: 1, left: 0 });
   });
 });

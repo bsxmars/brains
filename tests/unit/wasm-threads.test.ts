@@ -1,17 +1,25 @@
 import { execFileSync } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setImmediate as nextTurn } from 'node:timers/promises';
+import { Worker } from 'node:worker_threads';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   BOUNDARY_BYTES,
+  BOUNDARY_BYTES_CODE,
+  BOUNDARY_SETUP_CODE,
   BOUNDARY_ROWS,
   GROW_BYTES,
   GROW_CODE,
   IMPORT_FACTS,
   INSTANTIATE_CODE,
   JS_STRING_BYTES,
+  JS_STRING_BYTES_CODE,
+  JS_STRING_CODE,
   MODULE_BYTES,
+  MODULE_BYTES_CODE,
   MODULE_SECTIONS,
   MODULE_WAT,
   PAGE_FACTS,
@@ -21,6 +29,7 @@ import {
   RESIZABLE_NOTE,
   RESIZABLE_EXPECT,
   SHARED_BYTES,
+  SHARED_BYTES_CODE,
   SHARED_RULES,
   SHARED_WAT,
   SIMD_BYTES,
@@ -179,14 +188,10 @@ describe('модуль и экземпляр: импорты проверяют�
     expect(errorName(() => new WebAssembly.Instance(mod, { env: { report: 1 } }))).toBe('LinkError');
   });
 
-  it('INSTANTIATE_CODE, исполненный как есть: add(2, 3) — 5, таблица держит add, последняя строка — LinkError', async () => {
+  it('показанный байтовый исходник и INSTANTIATE_CODE исполняются целиком', async () => {
     const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => (...a: unknown[]) => Promise<unknown>;
-    const lines = INSTANTIATE_CODE.split('\n');
-    const head = lines.slice(0, -1).join('\n');
-    const got = await new AsyncFunction('bytes', `${head}\nreturn { sum: add(2, 3), same: table.get(0) === add };`)(u8(MODULE_BYTES));
+    const got = await new AsyncFunction(`${MODULE_BYTES_CODE}\n${INSTANTIATE_CODE}\nreturn { sum: add(2, 3), same: table.get(0) === add };`)();
     expect(got).toEqual({ sum: 5, same: true });
-    expect(lines.at(-1)).toContain('LinkError');
-    await expect(new AsyncFunction('bytes', INSTANTIATE_CODE)(u8(MODULE_BYTES))).rejects.toBeInstanceOf(WebAssembly.LinkError);
   });
 
   it('экспорт — обёртка: length — число параметров, name — номер функции строкой', () => {
@@ -340,15 +345,17 @@ describe('линейная память: страницы, потолок, ро�
 
 describe('граница: таблица темы вычислена, а не набрана', () => {
   it('runBoundary в Node даёт ровно BOUNDARY_ROWS', async () => {
+    const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => () => Promise<unknown>;
+    const shown = await new AsyncFunction(`${BOUNDARY_BYTES_CODE}\n${BOUNDARY_SETUP_CODE}\nreturn [i32(2 ** 32 + 5), i64(5n)];`)();
+    expect(shown).toEqual([5, 6n]);
     const got = await runBoundary(BOUNDARY_BYTES);
     expect(got).toEqual(BOUNDARY_ROWS.map(({ call, got }) => ({ call, got })));
   });
 
   it('JS String Builtins: строка ссылкой, длина 6, импортов нет; без опции — TypeError', async () => {
-    const withBuiltins = await WebAssembly.compile(u8(JS_STRING_BYTES), { builtins: ['js-string'] } as never);
-    expect(WebAssembly.Module.imports(withBuiltins)).toEqual([]);
-    const inst = await WebAssembly.instantiate(withBuiltins, {});
-    expect((inst.exports as { len: (s: string) => number }).len('привет')).toBe(6);
+    const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => () => Promise<unknown>;
+    const shown = await new AsyncFunction(`${JS_STRING_BYTES_CODE}\n${JS_STRING_CODE}\nreturn { length: exports.len('привет'), imports: WebAssembly.Module.imports(module) };`)();
+    expect(shown).toEqual({ length: 6, imports: [] });
 
     const plain = await WebAssembly.compile(u8(JS_STRING_BYTES));
     await expect(WebAssembly.instantiate(plain, {})).rejects.toThrow(TypeError);
@@ -417,7 +424,7 @@ describe('два worker_threads на одной памяти — код темы
   const dir = mkdtempSync(join(tmpdir(), 'wasm-threads-'));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-  writeFileSync(join(dir, 'shared.wasm'), u8(SHARED_BYTES));
+  writeFileSync(join(dir, 'shared-bytes.mjs'), SHARED_BYTES_CODE);
   writeFileSync(join(dir, 'worker.mjs'), THREADS_WORKER_CODE);
   writeFileSync(join(dir, 'main.mjs'), THREADS_MAIN_CODE);
 
@@ -447,6 +454,40 @@ describe('два worker_threads на одной памяти — код темы
     for (const race of [races().atomic, races().racy]) {
       expect(race.woke.every((w) => w === 0 || w === 1)).toBe(true);
       expect(race.woken).toBe(race.woke.filter((w) => w === 0).length);
+    }
+  });
+
+  it('notify без изменения флага не выпускает воркер из цикла ожидания', async () => {
+    const memory = new WebAssembly.Memory({ initial: 1, maximum: 1, shared: true });
+    const cells = new Int32Array(memory.buffer);
+    const worker = new Worker(join(dir, 'worker.mjs'), {
+      workerData: { module: new WebAssembly.Module(u8(SHARED_BYTES)), memory, fn: 'bump', n: 1 },
+    });
+    try {
+      expect(await once(worker, 'message')).toEqual(['готов']);
+      let finished = false;
+      const done = once(worker, 'message');
+      void done.then(() => { finished = true; }, () => { finished = true; });
+      const wakeRegistered = async () => {
+        // Это защита от зависшего протокола, а не замер скорости: notify > 0 доказывает,
+        // что Wasm действительно уже ждёт. После пустого пробуждения он должен ждать снова.
+        const guard = Date.now() + 5000;
+        while (Date.now() < guard) {
+          if (finished) throw new Error('Воркер начал расчёт при закрытом флаге');
+          if (Atomics.notify(cells, 1, 1) === 1) return;
+          await nextTurn();
+        }
+        throw new Error('Воркер не вернулся в wait при закрытом флаге');
+      };
+      await wakeRegistered();
+      await wakeRegistered(); // после первого notify флаг всё ещё 0 — надо снова уснуть
+      expect(Atomics.load(cells, 0)).toBe(0);
+      Atomics.store(cells, 1, 1);
+      Atomics.notify(cells, 1);
+      expect([0, 1]).toContain((await done)[0]);
+      expect(Atomics.load(cells, 0)).toBe(1);
+    } finally {
+      await worker.terminate();
     }
   });
 

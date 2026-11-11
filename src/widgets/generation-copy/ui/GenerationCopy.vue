@@ -154,7 +154,7 @@ const ratio = computed(() =>
         <div class="message" :data-tone="step.tone">{{ step.message }}</div>
 
         <div class="field">
-          <div class="t-label">цена</div>
+          <div class="t-label">что это означает</div>
           <div class="cost" :data-tone="step.tone">{{ step.cost }}</div>
         </div>
 
@@ -162,7 +162,7 @@ const ratio = computed(() =>
           <div class="counter" data-kind="copied">
             <span class="t-label">скопировано</span>
             <span class="counter__value">{{ step.copied }} КБ</span>
-            <span class="counter__note">это и есть работа сборщика</span>
+            <span class="counter__note">объём перенесённых данных</span>
           </div>
           <div class="counter" data-kind="freed">
             <span class="t-label">освобождено</span>
@@ -172,8 +172,8 @@ const ratio = computed(() =>
         </div>
 
         <div v-if="ratio" class="ratio">
-          Освобождено в {{ ratio }} раза больше, чем скопировано, — и обошлось это в одну
-          операцию. Мусор не обходился и не считался.
+          Освобождено в {{ ratio }} раза больше памяти, чем скопировано. Это соотношение объёмов
+          в учебной схеме: время работы здесь не измеряется.
         </div>
       </div>
     </div>

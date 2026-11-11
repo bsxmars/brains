@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { probeWait } from '../../src/widgets/thread-probe/model/env';
 import { OBSERVABLE } from '../../src/content/lessons/browser-architecture/data';
 
 /**
@@ -20,8 +21,8 @@ import { OBSERVABLE } from '../../src/content/lessons/browser-architecture/data'
  * строка таблицы, зависящая от железа; её значение (`8`) не сверяется ни с чем и сверяться
  * не должно, иначе проверка покраснеет от смены машины, а не от ошибки. Закрепляется форма:
  * величина есть, это целое больше нуля, и тема подаёт её как снятую, а не как общий факт.
- * Остальные строки — структурные: они следуют из того, что заголовков `Cross-Origin-Opener-Policy`
- * и `Cross-Origin-Embedder-Policy` в проекте нет нигде, а сайт раздаётся статикой.
+ * Остальные строки закрепляют наблюдённую конфигурацию развёртывания: в ней нет
+ * необходимых заголовков изоляции. Статические файлы сами по себе этому не препятствуют.
  *
  * ⚠️ Имя ошибки нормативно, текст — нет: проверяется `name` и `instanceof`, а не сообщение V8.
  *
@@ -152,53 +153,22 @@ test('new SharedArrayBuffer(8) бросает ReferenceError, а не SecurityEr
 });
 
 /**
- * Асимметрия, ради которой строка и стоит в таблице: разделяемого буфера нет, а объект
+ * Асимметрия: глобального конструктора SharedArrayBuffer нет, а объект
  * `Atomics` есть. Отсюда и ловушка проверки «умеет ли платформа в разделяемую память»
  * по наличию `Atomics`.
  */
-test('Atomics существует, хотя разделяемого буфера нет', async ({ page }) => {
+test('Atomics существует без глобального конструктора SharedArrayBuffer', async ({ page }) => {
   const seen = await page.evaluate(() => typeof Atomics);
 
   expect(seen, 'объект Atomics исчез — асимметрия раздела 0 перестала быть правдой').toBe('object');
   expect(claim(Q.atomics), 'тема обещает не то, что ответил браузер').toBe(seen);
 });
 
-/**
- * `Atomics.wait` запрещён в главном потоке отдельно и независимо от изоляции.
- *
- * ⚠️ Разделяемый буфер здесь создать нечем (см. проверку выше), поэтому вызов идёт на обычном
- * `Int32Array`. Обе возможные причины отказа — «буфер не разделяемый» и «главный поток не
- * может блокироваться» — дают `TypeError`, так что наблюдаемое имя устойчиво.
- *
- * Сначала проверяется, что метод вообще есть: если бы `Atomics.wait` оказался `undefined`,
- * вызов тоже бросил бы `TypeError`, и проверка прошла бы по неверной причине.
- */
-test('Atomics.wait в главном потоке бросает TypeError', async ({ page }) => {
-  const seen = await page.evaluate(() => {
-    const kind = typeof Atomics.wait;
-    const cell = new Int32Array(new ArrayBuffer(4));
-    try {
-      return { kind, threw: false, name: '', type: false, verdict: Atomics.wait(cell, 0, 1, 0) };
-    } catch (error) {
-      return {
-        kind,
-        threw: true,
-        name: error instanceof Error ? error.name : typeof error,
-        type: error instanceof TypeError,
-        verdict: '',
-      };
-    }
-  });
-
-  expect(seen.kind, 'Atomics.wait отсутствует — тогда TypeError придёт не от запрета').toBe(
-    'function',
-  );
-  expect(seen.threw, `вызов прошёл и вернул «${seen.verdict}»: главный поток заблокировался`).toBe(
-    true,
-  );
-  expect(seen.name, 'изменилось имя ошибки').toBe('TypeError');
-  expect(seen.type, 'ошибка не наследует TypeError').toBe(true);
-  expect(claim(Q.wait), 'тема обещает не то, что ответил браузер').toBe(seen.name);
+/** A real shared buffer is essential: ordinary ArrayBuffer throws before CanBlock. */
+test('Atomics.wait в главном потоке бросает TypeError на общей памяти', async ({ page }) => {
+  const seen = await page.evaluate(source => new Function(`return (${source})();`)(), probeWait.toString());
+  expect(seen.value, seen.note).toBe('TypeError');
+  expect(claim(Q.wait), 'тема обещает не то, что ответил браузер').toBe(seen.value);
 });
 
 /**

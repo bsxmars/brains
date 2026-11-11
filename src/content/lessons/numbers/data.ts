@@ -1,8 +1,13 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DoublePreset } from '@/widgets/double-lab/model/types';
 
 /**
  * Данные темы «Числа в JS: IEEE 754, Smi и BigInt».
+ *
+ * Редакторский проход: binary64 отделён от физического хранения; ручной разбор 1.5,
+ * пиксельный допуск, нечисловые границы nearlyEqual и точный ввод/распределение копеек
+ * сверяются с исполняемыми строками в tests/unit/numbers.test.ts.
  *
  * Тема написана здесь, 2026-10-01, — до неё числа на сайте упоминались только мимоходом:
  * `Smi` в словарях «Движка V8» и «Памяти и GC», виды элементов массива в «Движке V8»
@@ -38,7 +43,7 @@ import type { DoublePreset } from '@/widgets/double-lab/model/types';
  *     Сложение тех же дробных **во время работы** даёт HeapNumber со значением 1 — поэтому
  *     в `SMI_ROWS` половинка берётся через `Number('0.5')`.
  *
- * Учебные функции (`DOUBLE_CODE`, `CLOSE_CODE`, `TOINT32_CODE`, `HASH_CODE`, `MONEY_CODE`)
+ * Учебные функции (`DOUBLE_CODE`, `CLOSE_CODE`, `TOINT32_CODE`, `HASH_CODE`)
  * исполняет `tests/unit/numbers.test.ts`: разбор и сборка double — против `Float64Array`
  * на 300 000 случайных битовых наборов; точное десятичное значение — против `toFixed`
  * и `BigInt` и обратным разбором `Number(…)`; `toInt32` — против `x | 0`.
@@ -68,7 +73,7 @@ export const exprTones = (rows: ExprRow[]) => rows.map((r) => r.tone);
 export const GLOSSARY: GlossaryTerm[] = [
   {
     k: 'double (IEEE 754, binary64)',
-    d: 'Формат числа с плавающей точкой из стандарта IEEE 754: 64 бита. Каждое `number` в JS — такое число, в том числе `1`, `42` и `-0`: отдельного представления для целых у `number` нет. Целые произвольной длины хранит другой тип — `BigInt`.',
+    d: 'Формат значений с плавающей точкой из стандарта IEEE 754: 64 бита. Он задаёт точность и округление для `number`, в том числе `1`, `42` и `-0`. Это не физический размер каждого значения в движке (как движок хранит малые целые на деле — раздел [«Smi и HeapNumber»](#s8)). Целые произвольной длины хранит другой тип — `BigInt`.',
   },
   {
     k: 'мантисса',
@@ -88,7 +93,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: 'HeapNumber',
-    d: 'Объект в куче, внутри которого лежит один double. В него V8 упаковывает число, которое не помещается в Smi: дробное, слишком большое, `-0`, `NaN`.',
+    d: 'Объект в куче, внутри которого лежит один double. В него V8 упаковывает число, которое не помещается в Smi: дробное, слишком большое, `-0`, `NaN`. Бывает там и целое — например, `1`, полученная сложением дробных.',
   },
   {
     k: '`BigInt`',
@@ -115,7 +120,7 @@ export const PREREQ: Prereq[] = [
   {
     t: 'Куча и ссылки',
     d: 'Объекты живут в куче, а переменная или ячейка массива хранит на них ссылку. Каждый объект в куче стоит памяти и работы сборщику.',
-    href: '/js/memory-gc/#s1',
+    href: '/js/memory-gc/#s2',
     hrefLabel: '«Память и GC», раздел «Путь объекта»',
     tone: 'info',
   },
@@ -131,14 +136,14 @@ export const PREREQ: Prereq[] = [
 // ─── Раздел 1. Устройство double ───────────────────────────────────────────────────────────
 
 export const PLAIN_FIELDS =
-  'Это та же научная запись, что в школьном учебнике физики: `−1,5 · 10³` — знак, цифры и степень. Double хранит те же три вещи, только по основанию 2: знак — 1 бит, степень — 11 бит, цифры — 52 бита. Первая цифра двоичной научной записи всегда `1`, поэтому её не хранят вовсе: она подразумевается.';
+  'Это та же научная запись, что в школьном учебнике физики: `−1,5 · 10³` — знак, цифры и степень. Double хранит те же три вещи, только по основанию 2: знак — 1 бит, степень — 11 бит, цифры — 52 бита. Первая цифра двоичной научной записи у обычного числа всегда `1`, поэтому её не хранят вовсе: она подразумевается.';
 
 /**
  * Учебная реализация: биты double и точное десятичное значение.
  * Печатается на странице, исполняется виджетом `double-lab` и тестом — против `Float64Array`,
  * `toFixed` и `BigInt` на сотнях тысяч чисел.
  */
-export const DOUBLE_CODE = `// Разобрать double на три поля. DataView видит те же 8 байт, что лежат в памяти.
+export const DOUBLE_CODE = `// Записать значение как binary64 в буфер и разобрать полученные биты.
 function decodeDouble(x) {
   const view = new DataView(new ArrayBuffer(8));
   view.setFloat64(0, x);                    // старший байт — первым: в нём знак
@@ -196,7 +201,7 @@ function nextAway(x) {
 /* Листинг DOUBLE_CODE со страницы снят (решение автора 2026-11-11): его исполняет демо
    DoubleLab и проверяет tests/unit/numbers.test.ts, а читателю хватает самого демо. */
 export const DOUBLE_NOTE =
-  'Из JS биты числа видны только через `DataView`: он записывает число в буфер из 8 байт ровно так, как оно лежит в памяти, а потом читает те же байты как целые. Так их показывает и демо «Число по битам».';
+  'Из JS биты числа видны через общий буфер — `DataView` или пару типизированных массивов (`Float64Array` и `Uint32Array`). `DataView` записывает значение в буфер из 8 байт в формате binary64, а потом читает те же байты как целые. Это явная запись в буфер, а не осмотр Smi или HeapNumber.';
 
 /** Поля нескольких чисел. Тест сверяет каждую строку с `decodeDouble`. */
 export const FIELD_ROWS: { expr: string; hex: string; sign: number; exponent: string; mantissa: string; what: string; tone?: 'info' | 'warn' | 'err' | 'ok' }[] = [
@@ -212,7 +217,12 @@ export const FIELD_ROWS: { expr: string; hex: string; sign: number; exponent: st
 export const PLAIN_SUBNORMAL =
   'Порядок `0` и порядок `2047` — служебные. Нулевой означает «неявной единицы нет»: так записаны ноль и числа меньше `2⁻¹⁰²²`, которые иначе было бы не записать. Порядок из одних единиц означает «это не число в обычном смысле»: с пустой мантиссой — бесконечность, с непустой — `NaN`.';
 
+/** Ручной разбор 1.5 сверяется с decodeDouble в numbers.test.ts. */
+export const ONE_AND_HALF_NOTE =
+  '**Разберём `1.5` без hex.** Это `1 + 1/2`, то есть `1.1₂ · 2⁰`. Знак положительный — бит `0`. Степень равна нулю, поэтому записанный порядок — `0 + 1023 = 1023`, или `01111111111₂`. Перед точкой стоит неявная единица; в 52 битах мантиссы остаётся дробная часть `.1₂`: один бит `1` и затем 51 ноль. Подстановка даёт `(1 + 2⁵¹ / 2⁵²) · 2⁰ = 1.5` — это число записывается точно.';
+
 export const DOUBLE_PRESETS: DoublePreset[] = [
+  { id: 'onehalf', label: '1.5', hex: '3ff8000000000000' },
   { id: 'p01', label: '0.1', hex: '3fb999999999999a' },
   { id: 'sum', label: '0.1 + 0.2', hex: '3fd3333333333334' },
   { id: 'p03', label: '0.3', hex: '3fd3333333333333' },
@@ -223,7 +233,7 @@ export const DOUBLE_PRESETS: DoublePreset[] = [
 ];
 
 export const DEMO_CAPTION =
-  'Поля, формулу, точное значение и шаг до соседа считают функции из листинга выше: `decodeDouble`, `fieldsToExact`, `exactDecimal` и `nextAway`. Число из изменённых битов собирает `encodeDouble`. Сравните `0.3` и `0.1 + 0.2`: их мантиссы `…333` и `…334` отличаются единицей в последнем разряде. Это два соседних double, между ними других чисел нет.';
+  'Поля, формулу, точное значение и шаг до соседа демо вычисляет по битам числа, а из изменённых битов собирает число обратно. Сравните `0.3` и `0.1 + 0.2`: их мантиссы `…333` и `…334` отличаются единицей в последнем разряде. Это два соседних double, между ними других чисел нет.';
 
 // ─── Раздел 2. 0.1 + 0.2 ───────────────────────────────────────────────────────────────────
 
@@ -270,7 +280,11 @@ export const EPSILON_ROWS: ExprRow[] = [
 export const CLOSE_CODE = `// Равны ли a и b с точностью до доли rel от большего из них.
 // abs — запасной допуск для сравнений с нулём: там доли бессмысленны.
 function nearlyEqual(a, b, rel = 1e-9, abs = 0) {
+  if (!Number.isFinite(rel) || rel < 0 || !Number.isFinite(abs) || abs < 0) {
+    throw new RangeError('Допуски должны быть конечными и неотрицательными');
+  }
   if (a === b) return true;                 // в том числе Infinity === Infinity
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
   const diff = Math.abs(a - b);
   return diff <= Math.max(abs, rel * Math.max(Math.abs(a), Math.abs(b)));
 }`;
@@ -280,11 +294,16 @@ export const CLOSE_ROWS: ExprRow[] = [
   { code: 'nearlyEqual(1000.1 + 1000.2, 2000.3)', out: 'true', why: 'та же доля — у тысяч и у единиц', tone: 'ok' },
   { code: 'nearlyEqual(1e-20, 2e-20)', out: 'false', why: 'вдвое разные числа больше не «равны»', tone: 'ok' },
   { code: 'nearlyEqual(0.1 + 0.2 - 0.3, 0)', out: 'false', why: 'с нулём доля от нуля — ноль: нужен абсолютный допуск', tone: 'warn' },
-  { code: 'nearlyEqual(0.1 + 0.2 - 0.3, 0, 1e-9, 1e-12)', out: 'true', why: 'абсолютный допуск выбирают по смыслу: для метров — одно, для рублей — другое', tone: 'ok' },
+  { code: 'nearlyEqual(0.1 + 0.2 - 0.3, 0, 1e-9, 1e-12)', out: 'true', why: 'абсолютный допуск выбирают по единицам и требованиям задачи', tone: 'ok' },
 ];
 
+export const PIXEL_CODE = `const targetX = 200;
+console.log(nearlyEqual(199.8, targetX, 0, 0.5)); // true: отклонение 0.2 px
+console.log(nearlyEqual(199.4, targetX, 0, 0.5)); // false: отклонение 0.6 px
+console.log(nearlyEqual(199.5, targetX, 0, 0.5)); // true: ровно на границе`;
+
 export const CLOSE_NOTE =
-  'Универсального допуска нет. `1e-9` от большего числа — это «совпадают первые девять значащих цифр»: так по умолчанию сравнивает `math.isclose` в Python, формула та же. Деньги и пиксели допуском не сравнивают: их считают в целых — в копейках и в пикселях. Как это делается — в разделе [«Деньги»](#s9).';
+  'Универсального допуска нет. `rel = 1e-9` задаёт порог относительной разницы — одну миллиардную от большего модуля. Абсолютный допуск задают в единицах задачи; он особенно важен возле нуля. Функция считает одинаковые бесконечности равными; бесконечность и конечное число, противоположные бесконечности и любые сравнения с `NaN` дают `false`. Допуски должны быть конечными и неотрицательными. Деньги допуском не сравнивают: их считают в целых копейках. Как это делается — в разделе [«Деньги»](#s9).';
 
 // ─── Раздел 3. Где теряются целые ──────────────────────────────────────────────────────────
 
@@ -333,7 +352,7 @@ export const ZERO_ROWS: ExprRow[] = [
   { code: '-0 === 0', out: 'true', why: '`===` нулей не различает' },
   { code: 'Object.is(-0, 0)', out: 'false', why: '`Object.is` различает — смотрит на знаковый бит', tone: 'warn' },
   { code: '1 / -0', out: '-Infinity', why: 'самый простой способ увидеть знак нуля', tone: 'warn' },
-  { code: 'String(-0)', out: '"0"', why: 'при переводе в строку знак теряется — и в `JSON.stringify` тоже; `console.log(-0)` при этом печатает `-0`', tone: 'err' },
+  { code: 'String(-0)', out: '"0"', why: '`String` и шаблонная строка знак теряют, `JSON.stringify` тоже; `console.log(-0)` и `Intl.NumberFormat` при этом печатают `-0`', tone: 'err' },
   { code: 'Math.round(-0.4)', out: '-0', why: 'округление отрицательного к нулю даёт `-0`', tone: 'warn' },
   { code: '0 * -5', out: '-0', why: 'знак произведения считается и у нуля' },
   { code: '[-0].includes(0)', out: 'true', why: '`includes`, `Map` и `Set` считают нули равными', tone: 'ok' },
@@ -357,7 +376,7 @@ export const EQUALITY_ROWS: { k: string; zero: string; nan: string; who: string 
 ];
 
 export const PLAIN_NAN =
-  '`NaN` (Not a Number) — обычное значение типа `number`, которым double отмечает «результата нет»: его дают `0 / 0`, `Math.sqrt(-1)`, `Number(\'abc\')`. Исключения при этом не бросается. Хуже то, что `NaN` расходится дальше: любая арифметика с ним снова даёт `NaN`, и испорченное значение молча проходит через весь расчёт. Поэтому проверять его стоит там, где он может появиться, — сразу после разбора ввода (`Number.isNaN(x)`), а не в конце, когда уже непонятно, откуда он пришёл.';
+  '`NaN` (Not a Number) — обычное значение типа `number`, которым double отмечает «результата нет»: его дают `0 / 0`, `Math.sqrt(-1)`, `Number(\'abc\')`. Исключения при этом не бросается. Хуже то, что `NaN` расходится дальше: почти любая арифметика с ним снова даёт `NaN` (редкое исключение — `NaN ** 0`, это `1`), и испорченное значение молча проходит через весь расчёт. Поэтому проверять его стоит там, где он может появиться, — сразу после разбора ввода (`Number.isNaN(x)`), а не в конце, когда уже непонятно, откуда он пришёл.';
 
 // ─── Раздел 5. Печать и округление ─────────────────────────────────────────────────────────
 
@@ -369,7 +388,7 @@ export const PRINT_ROWS: ExprRow[] = [
   { code: '1.005 * 100', out: '100.49999999999999', why: 'умножение не помогает: то же число, только больше' },
   { code: 'Math.round(1.005 * 100) / 100', out: '1', why: 'популярный рецепт округления ошибается на том же числе', tone: 'err' },
   { code: "new Intl.NumberFormat('en', { maximumFractionDigits: 2 }).format(1.005)", out: '"1.01"', why: '`Intl` округляет короткую запись `1.005`, а не точное значение', tone: 'warn' },
-  { code: '(1.25).toFixed(1)', out: '"1.3"', why: '`1.25` хранится точно; ровно посередине `toFixed` берёт большее', tone: 'ok' },
+  { code: '(1.25).toFixed(1)', out: '"1.3"', why: '`1.25` хранится точно; ровно посередине `toFixed` уходит от нуля', tone: 'ok' },
   { code: '(1.35).toFixed(1)', out: '"1.4"', why: 'хранится `1.350000…0888`: чуть больше середины' },
   { code: '(1.45).toFixed(1)', out: '"1.4"', why: 'хранится `1.449999…`: чуть меньше середины', tone: 'warn' },
   { code: '(-2.5).toFixed(0)', out: '"-3"', why: '`toFixed` округляет модуль: середина уходит от нуля' },
@@ -387,7 +406,7 @@ export const ROUND_FACTS = [
   },
   {
     t: '«Середина» бывает только у точных чисел',
-    d: '`1.25` хранится точно и стоит ровно посередине между `1.2` и `1.3` — тут срабатывает правило «середина — к большему». `1.35` и `1.45` хранятся неточно: одно лежит чуть выше середины, другое чуть ниже. Для них правило о середине не применяется, их округляют к ближайшему. Куда уйдёт такое число, видно только по его точному значению.',
+    d: '`1.25` хранится точно и стоит ровно посередине между `1.2` и `1.3` — тут срабатывает правило `toFixed` «середина — от нуля». `1.35` и `1.45` хранятся неточно: одно лежит чуть выше середины, другое чуть ниже. Для них правило о середине не применяется, их округляют к ближайшему. Куда уйдёт такое число, видно только по его точному значению.',
   },
   {
     t: 'Округлять — в конце и один раз',
@@ -424,7 +443,7 @@ export const ASINT_NOTE =
 export const ASINT_ROWS: ExprRow[] = [
   { code: 'BigInt.asUintN(8, 256n + 5n)', out: '5n', why: 'старший бит 256 обрезан' },
   { code: 'BigInt.asIntN(8, 255n)', out: '-1n', why: 'восемь единиц со знаком — это −1' },
-  { code: 'BigInt.asIntN(64, 2n ** 63n)', out: '-9223372036854775808n', why: 'переполнение `int64`, как в C' },
+  { code: 'BigInt.asIntN(64, 2n ** 63n)', out: '-9223372036854775808n', why: '`2⁶³` не влезает в `int64`: старший бит прочитан как знак' },
   { code: 'BigInt.asUintN(64, -1n)', out: '18446744073709551615n', why: '−1 без знака — 64 единицы' },
 ];
 
@@ -442,7 +461,7 @@ function fnv1a64(text) {
 fnv1a64('a');                              // 'af63dc4c8601ec8c'`;
 
 export const BIGINT_COST =
-  '`BigInt` всегда живёт в куче, даже `1n`. На стенде миллион `BigInt` в массиве занял 32 байта на элемент в Node и 20 в Chromium — против 8 и 4 у массива малых целых. Арифметика тоже дороже: `BigInt` неизменяем, поэтому каждое действие в общем случае создаёт в куче новый объект. `BigInt` берут ради точности, ради скорости он не годится.';
+  'За точность `BigInt` платят памятью и скоростью. Маленькое целое `number` движок хранит прямо в ячейке массива, а `BigInt` — всегда отдельным объектом в куче, даже `1n`; в массиве лежит только ссылка на него. В нашей проверке миллион `BigInt` в массиве занял 32 байта на элемент в Node и 20 в Chromium — против 8 и 4 у массива малых целых. Арифметика тоже медленнее: `BigInt` нельзя изменить на месте, поэтому почти каждое действие создаёт в куче новый объект. Берите `BigInt`, когда нужна точность больших целых, а не ради скорости.';
 
 // ─── Раздел 7. Побитовые операции ──────────────────────────────────────────────────────────
 
@@ -480,14 +499,14 @@ export const BITS_FACTS = [
   },
   {
     t: '`~~x` и `x >> 0` — тот же `ToInt32`',
-    d: 'Все «короткие способы отбросить дробь» проходят через одно и то же приведение `ToInt32` и ломаются на одних и тех же числах — больше двух миллиардов.',
+    d: 'Все «короткие способы отбросить дробь» проходят через одно и то же приведение `ToInt32` и ломаются на одних и тех же числах — больше двух миллиардов по модулю.',
   },
 ];
 
 // ─── Раздел 8. Smi и HeapNumber ────────────────────────────────────────────────────────────
 
 export const PLAIN_SMI =
-  'В каждой ячейке — переменной, поле объекта, элементе массива — у V8 лежит одно слово, и обычно это ссылка: «то, что нужно, лежит в куче вон там». Для малых целых движок срезает путь: кладёт само число прямо в ячейку и помечает младший бит — «это не адрес, это значение». Как записка «долг — 300 рублей» вместо записки «долг смотри в тетради на полке». Всё остальное — дроби, большие числа, `-0` — уезжает в кучу, в отдельный объект HeapNumber.';
+  'В каждой ячейке — переменной, поле объекта, элементе массива — у V8 лежит одно слово, и обычно это ссылка: «то, что нужно, лежит в куче вон там». Для малых целых движок срезает путь: кладёт само число прямо в ячейку и помечает младший бит — «это не адрес, это значение». Как записка «долг — 300 рублей» вместо записки «долг смотри в тетради на полке». Всё остальное — дроби, большие числа, `-0` — обычно уезжает в кучу, в отдельный объект HeapNumber. Исключение — массив из одних дробных: там double лежат прямо в элементах, без объектов.';
 
 export const SMI_NOTE =
   'Размер Smi зависит от сборки движка. Node собирают без сжатия указателей: ячейка — 64 бита, и под число отдано 32 из них. Chrome сжимает указатели до 32 бит: из них один бит — пометка, и под число остаётся 31. Отсюда разные границы: у Node Smi — до `2³¹ − 1`, у Chrome — до `2³⁰ − 1`.';
@@ -529,6 +548,9 @@ export const DEBUG_FACTS = [
   },
 ];
 
+export const SMI_RUN_NOTE =
+  'Функции со знаком `%` — не JavaScript, а служебные вызовы V8. Без флага движка их нет: в обычной консоли браузера `%IsSmi(1)` — `SyntaxError`. В Node флаг передают при запуске: `node --allow-natives-syntax smi.js`. Chrome нужно закрыть целиком и открыть заново с флагом `--js-flags=--allow-natives-syntax` — тогда вызовы заработают и в консоли DevTools. Перед строками таблицы объявлены `const half = Number(\'0.5\')` и `const two = Number(\'2\')`: литерал `0.5 + 0.5` движок сложил бы ещё при разборе кода, а через `Number` сложение случается во время работы.';
+
 /**
  * Что отвечает движок. Колонка `node` пересобирается тестом в отдельном процессе Node
  * с `--allow-natives-syntax`; `chrome` — только стенд (Chromium 153 с `--js-flags`).
@@ -538,9 +560,9 @@ export const SMI_ROWS: { code: string; node: boolean; chrome: boolean; why: stri
   { code: '%IsSmi(2 ** 30 - 1)', node: true, chrome: true, why: 'влезает и в 31, и в 32 бита' },
   { code: '%IsSmi(2 ** 30)', node: true, chrome: false, why: 'граница Chrome: 31 бит со знаком кончились' },
   { code: '%IsSmi(2 ** 31 - 1)', node: true, chrome: false, why: 'последнее Smi в Node' },
-  { code: '%IsSmi(2 ** 31)', node: false, chrome: false, why: 'больше 32 бит со знаком — HeapNumber везде' },
+  { code: '%IsSmi(2 ** 31)', node: false, chrome: false, why: 'не влезает в 32 бита со знаком — HeapNumber везде' },
   { code: '%IsSmi(half + half)', node: false, chrome: false, why: '`0.5 + 0.5` во время работы: целая 1, но в HeapNumber' },
-  { code: '%IsSmi((half + half) | 0)', node: true, chrome: true, why: '`| 0` всегда даёт 32-битное целое' },
+  { code: '%IsSmi((half + half) | 0)', node: true, chrome: true, why: '`| 0` даёт целое, и малая `1` снова становится Smi' },
   { code: '%IsSmi(6 / two)', node: true, chrome: true, why: 'деление нацело движок возвращает как Smi' },
   { code: '%IsSmi(-0)', node: false, chrome: false, why: 'у целого нет минус нуля — только у double' },
   { code: '%IsSmi([1, 2][0])', node: true, chrome: true, why: 'из массива целых — Smi' },
@@ -572,45 +594,6 @@ export const MONEY_BAD_ROWS: ExprRow[] = [
   { code: '10 + 70', out: '80', why: 'в копейках — целые, а целые до `2⁵³` складываются точно', tone: 'ok' },
 ];
 
-export const MONEY_CODE = `// Сумма из текста — сразу в целые единицы, без double посередине.
-// digits — знаков после запятой: 2 для рублей, 0 для иен, 18 для эфира.
-function toUnits(text, digits) {
-  const m = /^(-)?(\\d+)(?:[.,](\\d+))?$/.exec(text.trim());
-  if (!m || (m[3] ?? '').length > digits) throw new RangeError('Не сумма: ' + text);
-  const units = BigInt(m[2] + (m[3] ?? '').padEnd(digits, '0'));
-  return m[1] ? -units : units;
-}
-
-// Копейки в number: точны, пока сумма меньше 2^53 копеек — 90 триллионов рублей.
-function toCents(text) {
-  const cents = Number(toUnits(text, 2));
-  if (!Number.isSafeInteger(cents)) throw new RangeError('Слишком большая сумма');
-  return cents;
-}
-
-function formatCents(cents) {
-  const abs = Math.abs(cents);
-  const rub = Math.trunc(abs / 100);
-  return (cents < 0 ? '-' : '') + rub + '.' + String(abs % 100).padStart(2, '0');
-}
-
-// Разделить неотрицательную сумму на n частей, чтобы части сложились ровно в неё:
-// остаток раздаётся по копейке первым частям.
-function splitCents(cents, n) {
-  const base = Math.floor(cents / n);
-  const rest = cents - base * n;
-  return Array.from({ length: n }, (_, i) => base + (i < rest ? 1 : 0));
-}`;
-
-export const MONEY_ROWS: ExprRow[] = [
-  { code: "toCents('19.99')", out: '1999', why: 'строка разобрана как текст: никакого `19.989999…`' },
-  { code: "toCents('0,29')", out: '29', why: 'запятая тоже принимается' },
-  { code: "formatCents(toCents('0.1') + toCents('0.7'))", out: '"0.80"', why: 'сложение в копейках точное' },
-  { code: 'splitCents(10000, 3)', out: '[3334, 3333, 3333]', why: '100 рублей на троих: сумма частей — ровно 10 000' },
-  { code: "toUnits('1.5', 18)", out: '1500000000000000000n', why: '18 знаков — в `number` такое уже не точно, в `BigInt` — да' },
-  { code: "toCents('90071992547409.92')", out: 'RangeError', why: 'на копейку больше `MAX_SAFE_INTEGER`: отказ вместо тихого округления' },
-];
-
 export const MONEY_FACTS = [
   {
     t: 'Хранить — целыми',
@@ -619,22 +602,102 @@ export const MONEY_FACTS = [
   },
   {
     t: 'Разбирать — как текст',
-    d: '`parseFloat(\'19.99\') * 100` уже даёт `1998.9999999999998`. Вход разбирается строкой, как в `toUnits`: цифры до запятой и после — по отдельности.',
+    d: '`parseFloat(\'19.99\') * 100` уже даёт `1998.9999999999998`. Вход разбирают как текст: цифры до запятой и после — по отдельности, и склеивают в целое: `\'19.99\'` → `1999`. Если сумма в копейках может перейти `2⁵³` (около 90 триллионов рублей) или знаков после запятой много, как у криптовалют, — `BigInt`.',
     tone: 'warn' as const,
   },
   {
     t: 'Делить — с остатком',
-    d: 'Скидку, налог и долю считают в целых и решают, кому достаётся лишняя копейка. Округление каждой доли по отдельности теряет или рождает копейки.',
+    d: 'Скидку, налог и долю считают в целых и решают, кому достаётся лишняя копейка. 100 рублей на троих — это 33,34 + 33,33 + 33,33: остаток раздают по копейке первым долям. Округление каждой доли по отдельности теряет или рождает копейки.',
   },
 ];
 
+/** Точный ввод и распределение копеек: тот же исходник исполняет numbers.test.ts. */
+export const MONEY_EXACT_CODE = `function parsePrice(text) {
+  if (typeof text !== 'string') throw new TypeError('Цена должна быть строкой');
+  const parts = /^(\\d+)(?:\\.(\\d{1,2}))?$/.exec(text);
+  if (!parts || parts[0] !== text) throw new RangeError('Нужна неотрицательная цена с точностью до копейки');
+  return BigInt(parts[1]) * 100n + BigInt((parts[2] ?? '').padEnd(2, '0'));
+}
+
+function splitCents(total, count) {
+  if (typeof total !== 'bigint' || total < 0n) {
+    throw new RangeError('Сумма должна быть неотрицательным BigInt');
+  }
+  if (!Number.isInteger(count) || count < 1 || count > 1000) {
+    throw new RangeError('Нужно от 1 до 1000 получателей');
+  }
+  const divisor = BigInt(count);
+  const base = total / divisor;
+  const rest = total % divisor;
+  return Array.from({ length: count }, (_, i) => base + (BigInt(i) < rest ? 1n : 0n));
+}
+
+function formatCents(total) {
+  if (typeof total !== 'bigint' || total < 0n) {
+    throw new RangeError('Сумма должна быть неотрицательным BigInt');
+  }
+  return (total / 100n) + '.' + (total % 100n).toString().padStart(2, '0');
+}`;
+
+/** Один вход для листинга, его вывода и схемы. Все суммы остаются BigInt. */
+export const MONEY_EXAMPLE_INPUT = { price: '100.00', count: 3 } as const;
+
+const moneyExampleApi = new Function(
+  `${MONEY_EXACT_CODE}\nreturn { parsePrice, splitCents, formatCents };`,
+)() as {
+  parsePrice: (text: string) => bigint;
+  splitCents: (total: bigint, count: number) => bigint[];
+  formatCents: (total: bigint) => string;
+};
+const moneyTotal = moneyExampleApi.parsePrice(MONEY_EXAMPLE_INPUT.price);
+const moneyDivisor = BigInt(MONEY_EXAMPLE_INPUT.count);
+const moneyParts = moneyExampleApi.splitCents(moneyTotal, MONEY_EXAMPLE_INPUT.count);
+const moneySum = moneyParts.reduce((sum, part) => sum + part, 0n);
+
+export const MONEY_EXAMPLE_CODE = `const total = parsePrice(${JSON.stringify(MONEY_EXAMPLE_INPUT.price)});
+const parts = splitCents(total, ${MONEY_EXAMPLE_INPUT.count});
+console.log(parts.map(formatCents).join(' + '));
+console.log(formatCents(parts.reduce((sum, part) => sum + part, 0n)));`;
+
+export const MONEY_EXAMPLE_OUT = `${moneyParts.map(moneyExampleApi.formatCents).join(' + ')}
+${moneyExampleApi.formatCents(moneySum)}`;
+
+/** Числа вычислены исполнением того же исходника, а не набраны для картинки. */
+export const MONEY_DIAGRAM: ConceptDiagramData = {
+  id: 'exact-money-shares',
+  title: 'Кому достаётся оставшаяся копейка',
+  description: `Разделить ${MONEY_EXAMPLE_INPUT.price} на ${MONEY_EXAMPLE_INPUT.count} получателей: сначала общая целая доля, затем распределение остатка. Получатели идут в заданном порядке; по одной дополнительной копейке получают первые из них.`,
+  width: 920,
+  height: 804,
+  nodes: [
+    { id: 'text', x: 24, y: 24, width: 220, height: 190, label: 'Цена строкой', detail: JSON.stringify(MONEY_EXAMPLE_INPUT.price), tone: 'neutral' },
+    { id: 'cents', x: 350, y: 24, width: 220, height: 190, label: 'Целые копейки', detail: `${moneyTotal}n — точный результат parsePrice.`, tone: 'info' },
+    { id: 'division', x: 676, y: 24, width: 220, height: 190, label: 'Частное и остаток', detail: `${moneyTotal}n / ${moneyDivisor}n: каждому ${moneyTotal / moneyDivisor}n, остаток ${moneyTotal % moneyDivisor}n коп.`, tone: 'warn' },
+    { id: 'remainder', x: 676, y: 310, width: 220, height: 190, label: 'Остаток по порядку', detail: `${moneyTotal % moneyDivisor}n коп.: по одной, начиная с первого.`, tone: 'warn' },
+    { id: 'shares', x: 350, y: 310, width: 220, height: 190, label: 'Доли в копейках', detail: moneyParts.map((part, i) => `${i + 1}: ${part}n`).join('; '), tone: 'info' },
+    { id: 'format', x: 24, y: 310, width: 220, height: 190, label: 'Строковый формат', detail: moneyParts.map(moneyExampleApi.formatCents).join(' + '), tone: 'ok' },
+    { id: 'sum', x: 350, y: 600, width: 220, height: 190, label: 'Сумма сохранена', detail: `${moneySum}n = ${moneyTotal}n коп. (${moneyExampleApi.formatCents(moneySum)})`, tone: 'ok' },
+  ],
+  edges: [
+    { from: 'text', to: 'cents', label: 'разобрать', labelX: 297, labelY: 98 },
+    { from: 'cents', to: 'division' },
+    { from: 'division', to: 'remainder', fromSide: 'bottom', toSide: 'top' },
+    { from: 'remainder', to: 'shares', fromSide: 'left', toSide: 'right', label: '+1n', labelX: 623, labelY: 384 },
+    { from: 'shares', to: 'format', fromSide: 'left', toSide: 'right' },
+    { from: 'shares', to: 'sum', fromSide: 'bottom', toSide: 'top', label: 'сложить доли', labelX: 545, labelY: 550 },
+  ],
+  note: 'Частное BigInt даёт базовую долю без дробных копеек. Остаток не теряется: первым получателям по порядку прибавляется по одной копейке, пока он не закончится. Каждую долю отдельно не округляют. formatCents собирает строку из целой и дробной частей, не переводя сумму в number.',
+};
+
 // ─── Тонкие места ──────────────────────────────────────────────────────────────────────────
 
+/* Повторный раздел «Тонкие места» снят: факты уже раскрыты по месту. Данные
+   сохранены для существующих проверок числовой границы идентификаторов. */
 export const PITFALLS: Pitfall[] = [
   {
     n: '01',
     t: '`0.1` в коде — уже не одна десятая',
-    d: 'Литерал округляется при разборе программы. Ошибка возникает не в сложении, а раньше: в `0.1` лежит `0.1000000000000000055…`. Сложение лишь делает её видимой при печати.',
+    d: 'Литерал округляется при разборе программы. Ошибка возникает раньше сложения: в `0.1` лежит `0.1000000000000000055…`. Сложение округляет ещё раз и делает ошибку видимой при печати.',
     tone: 'warn',
   },
   {
@@ -657,8 +720,8 @@ export const PITFALLS: Pitfall[] = [
   },
   {
     n: '05',
-    t: '`-0` теряется при печати и в JSON',
-    d: '`String(-0)` и `JSON.stringify(-0)` дают `0`, а `1 / -0` — `-Infinity`. Если знак нуля важен (направление, температура «−0»), проверяют `Object.is(x, -0)`.',
+    t: '`-0` теряется в строке и в JSON',
+    d: '`String(-0)`, шаблонная строка и `JSON.stringify(-0)` дают `0` (а `console.log` и `Intl.NumberFormat` показывают `-0`), при этом `1 / -0` — `-Infinity`. Если знак нуля важен (направление, температура «−0»), проверяют `Object.is(x, -0)`.',
     tone: 'warn',
   },
   {
@@ -686,8 +749,8 @@ export const PITFALLS: Pitfall[] = [
   },
   {
     n: '10',
-    t: 'Одна строка в массиве дробных утраивает его вес',
-    d: 'Массив double хранит числа без упаковки. Строка, `null` или объект среди них переводят массив в общий вид — и каждое число становится объектом в куче: 24 байта на элемент в Node вместо 8.',
+    t: 'Одна строка в массиве дробных утраивает его вес в Node',
+    d: 'Массив double хранит числа без упаковки. Строка, `null` или объект среди них переводят массив в общий вид — и каждое число становится объектом в куче: 24 байта на элемент в Node вместо 8, в Chromium — 16 вместо 8.',
     tone: 'warn',
   },
 ];
@@ -751,4 +814,4 @@ export const SOURCES: Source[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Движок V8, раздел «Elements»](/js/v8-engine/#s4) — виды элементов массива и переходы между ними. [Движок V8, раздел «Формы»](/js/v8-engine/#s2) — представления полей `Smi`, `Double`, `Tagged`. [Память и GC, раздел «Путь объекта»](/js/memory-gc/#s1) — куда попадает каждый HeapNumber. [WebAssembly, раздел «Граница с JS»](/js/wasm-threads/#s3) — `i64` из Wasm приходит как `BigInt`. [Строки в V8](/js/v8-strings/) — та же тема «значение и его представление в движке», только для строк. [Время и даты](/js/time-dates/) — `Date` как число миллисекунд, часовые пояса, переходы на летнее время и Temporal. [Бинарные данные](/js/binary-data/) — ArrayBuffer и виды на нём, порядок байт, TextDecoder на разрезанном символе, разбор PNG. [Копирование и сериализация](/js/serialization/) — `JSON.stringify` по шагам, алгоритм `structuredClone` и что теряет каждая копия.';
+  'Смежное на сайте: [Движок V8, раздел «Elements»](/js/v8-engine/#s4) — виды элементов массива и переходы между ними. [Движок V8, раздел «Формы»](/js/v8-engine/#s2) — представления полей `Smi`, `Double`, `Tagged`. [Память и GC, раздел «Путь объекта»](/js/memory-gc/#s2) — куда попадает каждый HeapNumber. [WebAssembly, раздел «Граница с JS»](/js/wasm-threads/#s3) — `i64` из Wasm приходит как `BigInt`. [Строки в V8](/js/v8-strings/) — та же тема «значение и его представление в движке», только для строк. [Время и даты](/js/time-dates/) — `Date` как число миллисекунд, часовые пояса, переходы на летнее время и Temporal. [Бинарные данные](/js/binary-data/) — ArrayBuffer и виды на нём, порядок байт, TextDecoder на разрезанном символе, разбор PNG. [Копирование и сериализация](/js/serialization/) — `JSON.stringify` по шагам, алгоритм `structuredClone` и что теряет каждая копия.';

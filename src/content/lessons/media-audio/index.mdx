@@ -2,8 +2,8 @@
 title: "Звук: Web Audio API"
 headingWidth: 24
 order: 24
-lead: "Web Audio собирает звук из узлов: генератор или файл, громкость, фильтр, эхо, анализатор — и соединяет их в граф. Сэмплы считает не страница, а отдельный поток, блоками по 128 и по своим часам. Ноты по этим часам планируют с точностью до сэмпла, громкость меняют расписанием, а не рывком. И ни один звук не начнётся, пока пользователь не нажмёт что-нибудь на странице."
-summary: "Первый звук: `AudioContext`, генератор, громкость, `start` и `stop`; почему контекст стоит `suspended` до клика; граф узлов — источники, обработка, анализатор; часы звука и `start(when)`; расписание `AudioParam` и откуда берётся щелчок; блоки по 128 сэмплов, `baseLatency` и `outputLatency`; свой узел на `AudioWorklet` и его порт; `decodeAudioData`."
+lead: "Кнопка запускает короткую ноту: источник создаёт сигнал, узел громкости меняет амплитуду, выход отправляет звук аудиосистеме. Страница соединяет узлы и задаёт расписание, а обработка идёт в отдельном потоке по часам AudioContext. Разрешение запуска, точность расписания и задержка вывода — разные вопросы."
+summary: "Первая нота и политика запуска AudioContext; граф узлов и две ветви эха; часы звука, AudioParam и a-rate/k-rate; размер блока и оценки задержки; AudioWorklet с портом и пустым входом; декодирование файла в AudioBuffer."
 verifiedOn: "Chromium 153, Firefox 155 и WebKit 26.6 (Playwright 1.63, headless, macOS arm64), ноябрь 2026: каждый пример с выводом исполняет tests/e2e/media-audio.spec.ts; сэмплы — на OfflineAudioContext, где рендер одинаков от запуска к запуску"
 nav:
   - { id: s1, label: Первый звук }
@@ -16,11 +16,10 @@ nav:
   - { id: s8, label: Источники }
 ---
 
-import Callout from '@/shared/ui/Callout.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -32,6 +31,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
   GLOSSARY,
   PLAIN_AUDIO,
+  FIRST_HTML,
   FIRST_CODE,
   FIRST_OUT,
   FIRST_NOTE,
@@ -43,6 +43,7 @@ import {
   NODE_ROWS,
   GRAPH_NOTE,
   PLAIN_OFFLINE,
+  ECHO_DIAGRAM,
   ECHO_CODE,
   ECHO_OUT,
   ECHO_NOTE,
@@ -56,6 +57,7 @@ import {
   START_NOTE,
   AUTOMATION_LEAD,
   AUTOMATION_ROWS,
+  SMOOTH_GAIN_CODE, PARAM_RATE_CODE, PARAM_RATE_OUT, PARAM_RATE_FIREFOX_OUT, REQUEST_RATE_CODE,
   CLICK_CODE,
   CLICK_OUT,
   CLICK_NOTE,
@@ -85,20 +87,14 @@ import {
   DECODE_OUT,
   DECODE_NOTE,
   DECODE_FACTS,
-  CLOSING,
   PITFALLS,
   SOURCES,
   RELATED,
 } from './data';
 
 <Section variant="intro" eyebrow="Звук из узлов" gap={24}>
-  <Callout size={19} pad="24px 26px">
-
-    Страница не играет звук сама — она описывает граф узлов и расписание по часам звука,
-    а сэмплы считает отдельный поток браузера. Ошибки здесь слышны, а не видны: щелчок,
-    треск или тишина, и чаще всего без единого исключения в консоли.
-
-  </Callout>
+  Источник, обработка и выход образуют звуковой граф. Узлы задают, **что** считать,
+  а расписание по часам контекста — **когда** должен измениться сигнал.
 
   <Plain text={PLAIN_AUDIO} />
 
@@ -111,9 +107,13 @@ import {
   title="Первый звук: контекст, генератор, громкость"
   lead="Короткая нота по клику — это контекст, два узла, одна цепочка `connect` и время начала и конца по часам контекста."
 >
+  <CodeBlock code={FIRST_HTML} lang="html" />
+
   <CodeBlock code={FIRST_CODE} />
 
-  <CodeBlock code={FIRST_OUT} tone="ok" />
+  Вывод на свежей странице стенда после клика:
+
+  <CodeBlock lang="text" code={FIRST_OUT} tone="ok" />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={FIRST_NOTE} />
@@ -123,15 +123,20 @@ import {
     <Md text={ONE_SHOT_NOTE} />
   </Card>
 
-  ### Без клика звук не пойдёт
-
-  <CodeBlock code={AUTOPLAY_CODE} />
-
-  <CodeBlock code={AUTOPLAY_OUT} tone="ok" />
+  ### Почему контекст может ждать пользовательского действия
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={AUTOPLAY_NOTE} />
   </Card>
+
+  <Disclosure title="Снимок политики автозапуска на трёх движках">
+
+  <CodeBlock code={AUTOPLAY_CODE} />
+
+  <CodeBlock lang="text" code={AUTOPLAY_OUT} tone="ok" />
+
+
+  </Disclosure>
 
   <Plain text={PLAIN_AUTOPLAY} />
 </Section>
@@ -142,14 +147,6 @@ import {
   title="Граф: откуда сигнал берётся и куда течёт"
   lead="Каждый узел делает одно дело. Источники создают сигнал, обработка его меняет, анализатор подсматривает, а `destination` выводит."
 >
-  <Table
-    head={['узел', 'роль', 'что делает']}
-    rows={NODE_ROWS.map((r) => [r.k, r.v, r.w])}
-    kinds={['mono', 'muted', 'prose']}
-    cols="minmax(220px,1.1fr) minmax(90px,0.5fr) minmax(260px,1.6fr)"
-    minWidth={600}
-  />
-
   <Md text={GRAPH_NOTE} />
 
   <Plain text={PLAIN_OFFLINE} />
@@ -158,7 +155,9 @@ import {
 
   <CodeBlock code={ECHO_CODE} />
 
-  <CodeBlock code={ECHO_OUT} tone="ok" />
+  <ConceptDiagram data={ECHO_DIAGRAM} />
+
+  <CodeBlock lang="text" code={ECHO_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={ECHO_NOTE} />
@@ -166,13 +165,28 @@ import {
 
   ### Фильтр и анализатор
 
-  <CodeBlock code={FILTER_CODE} />
+  Анализатор позволяет сравнить уровни частот до и после фильтра.
 
-  <CodeBlock code={FILTER_OUT} tone="ok" />
+  <Disclosure title="Полный исходник сравнения двух частот">
+    <CodeBlock code={FILTER_CODE} />
+  </Disclosure>
+
+  <CodeBlock lang="text" code={FILTER_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={FILTER_NOTE} />
   </Card>
+  <Disclosure title="Справочник источников, обработки и выхода">
+  <Table
+    head={['узел', 'роль', 'что делает']}
+    rows={NODE_ROWS.map((r) => [r.k, r.v, r.w])}
+    kinds={['mono', 'muted', 'prose']}
+    cols="minmax(220px,1.1fr) minmax(90px,0.5fr) minmax(260px,1.6fr)"
+    minWidth={600}
+  />
+
+  </Disclosure>
+
 </Section>
 
 <Section
@@ -189,7 +203,7 @@ import {
 
   <CodeBlock code={START_CODE} />
 
-  <CodeBlock code={START_OUT} tone="ok" />
+  <CodeBlock lang="text" code={START_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={START_NOTE} />
@@ -199,6 +213,29 @@ import {
 
   <Md text={AUTOMATION_LEAD} />
 
+  ### Откуда берётся щелчок
+
+  Для затухания из текущего состояния задаём начало перехода и его конец:
+
+  <CodeBlock code={SMOOTH_GAIN_CODE} />
+
+  <Md text={ANCHOR_NOTE} />
+
+  <Disclosure title="Офлайн-проба резкого и плавного затухания">
+
+    В этом примере используется OfflineAudioContext.suspend, поддержанный на стенде
+    Chromium и WebKit. Firefox этой версии его не предоставляет.
+
+    <CodeBlock code={CLICK_CODE} />
+  </Disclosure>
+
+  <CodeBlock lang="text" code={CLICK_OUT} tone="ok" />
+
+  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={CLICK_NOTE} />
+  </Card>
+
+  <Disclosure title="Методы расписания и различие a-rate / k-rate">
   <Table
     head={['метод', 'что делает']}
     rows={AUTOMATION_ROWS.map((r) => [r.k, r.v])}
@@ -207,25 +244,29 @@ import {
     minWidth={560}
   />
 
-  ### Откуда берётся щелчок
+    Значение a-rate может меняться внутри блока. K-rate держит значение неизменным до следующего блока.
+    Возможность сменить automationRate зависит и от конкретного параметра; здесь проверяется GainNode.gain:
 
-  <CodeBlock code={CLICK_CODE} />
+    <CodeBlock code={PARAM_RATE_CODE} />
 
-  <CodeBlock code={CLICK_OUT} tone="ok" />
+    В Chromium и WebKit стенда вывод такой:
 
-  <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={CLICK_NOTE} />
-  </Card>
+    <CodeBlock code={PARAM_RATE_OUT} lang="text" tone="ok" />
 
-  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={ANCHOR_NOTE} />
-  </Card>
+    Firefox 155 не предоставляет свойство automationRate:
+
+    <CodeBlock code={PARAM_RATE_FIREFOX_OUT} lang="text" tone="ok" />
+
+    Присваивание неизвестному свойству создало бы обычное поле JS, не изменив обработку звука.
+    Поэтому возможность выбора проверяется до присваивания.
+
+  </Disclosure>
 </Section>
 
 <Section
   id="s4"
   eyebrow="Раздел 4"
-  title="Блоки по 128 сэмплов и задержка"
+  title="Блоки обработки и задержка"
   lead="Поток звука работает порциями. От размера порции и запаса впереди зависит, через сколько миллисекунд после `start` звук выйдет из колонки."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
@@ -234,13 +275,19 @@ import {
 
   <Plain text={PLAIN_BLOCK} />
 
+  <Md text={QUANTUM_NOTE} />
+
+  <Disclosure title="Остановка офлайн-рендера на границе блока">
+
   <CodeBlock code={SUSPEND_CODE} />
 
-  <CodeBlock code={SUSPEND_OUT} tone="ok" />
+  <CodeBlock lang="text" code={SUSPEND_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={SUSPEND_NOTE} />
   </Card>
+
+  </Disclosure>
 
   ### Задержка до колонки
 
@@ -248,6 +295,8 @@ import {
     <Md text={LATENCY_NOTE} />
     <NumberedList items={LATENCY_FACTS} size={15.5} />
   </Card>
+
+  <Disclosure title="Снятые значения задержек и запрос sampleRate">
 
   <Table
     head={['`latencyHint`', '`baseLatency` в Chromium 153', 'в Firefox 155', 'в WebKit 26.6']}
@@ -259,9 +308,9 @@ import {
 
   <Md text={LATENCY_TABLE_NOTE} />
 
-  <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={QUANTUM_NOTE} />
-  </Card>
+  <CodeBlock code={REQUEST_RATE_CODE} />
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -276,11 +325,17 @@ import {
 
   <Plain text={PLAIN_WORKLET} />
 
+  AudioWorklet доступен в безопасном контексте: HTTPS или localhost. У неподключённого
+  входа может не быть каналов; обработчик ниже подставляет ноль и продолжает работу.
+
+
   <CodeBlock code={WORKLET_PROCESSOR_CODE} />
 
-  <CodeBlock code={WORKLET_MAIN_CODE} />
+  <Disclosure title="Загрузить процессор и проверить его выход">
+    <CodeBlock code={WORKLET_MAIN_CODE} />
+  </Disclosure>
 
-  <CodeBlock code={WORKLET_OUT} tone="ok" />
+  <CodeBlock lang="text" code={WORKLET_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={WORKLET_NOTE} />
@@ -292,26 +347,28 @@ import {
 
   <Md text={WORKLET_PORT_LINKS} />
 
-  ### Главный поток занят, а звук идёт
+  <Disclosure title="Проба отдельного потока: счётчик process при занятой странице">
 
   <CodeBlock code={BUSY_CODE} />
 
-  <CodeBlock code={BUSY_OUT} tone="ok" />
+  <CodeBlock lang="text" code={BUSY_OUT} tone="ok" />
 
   <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={BUSY_NOTE} />
   </Card>
+  </Disclosure>
+
 </Section>
 
 <Section
   id="s6"
   eyebrow="Раздел 6"
   title="Декодирование файла в буфер"
-  lead="Короткие звуки — щелчки, шаги, ноты сэмплера — загружают файлом и декодируют в `AudioBuffer` один раз. Потом их играют сколько угодно раз без задержки."
+  lead="Короткие звуки — щелчки, шаги, ноты сэмплера — загружают файлом и декодируют в `AudioBuffer` один раз. Потом буфер переиспользуют без нового декодирования; планирование и вывод всё равно имеют задержку."
 >
   <CodeBlock code={DECODE_CODE} />
 
-  <CodeBlock code={DECODE_OUT} tone="ok" />
+  <CodeBlock lang="text" code={DECODE_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={DECODE_NOTE} />
@@ -321,15 +378,11 @@ import {
     <NumberedList items={DECODE_FACTS} size={15.5} />
   </Card>
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
-      <Md text={CLOSING} />
-    </DarkText>
-  </DarkPanel>
+
 </Section>
 
 <Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
-  <Pitfalls items={PITFALLS} />
+  <Pitfalls items={PITFALLS.filter((item) => ['04', '06'].includes(item.n))} />
 </Section>
 
 <Section id="s8" eyebrow="Раздел 8" title="Источники">

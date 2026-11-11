@@ -90,6 +90,82 @@ const SETTLE = `window.settle = (p, t = 1500) => Promise.race([
   new Promise((r) => setTimeout(() => r('pending'), t)),
 ]);`;
 
+test('VIS_CODE переживает отказ, объединяет запросы и отпускает поздний замок скрытой страницы', async () => {
+  await withBrowser(launchShell, async (ctx) => {
+    const fixture = `let state = 'visible';
+      Object.defineProperty(document, 'visibilityState', { get: () => state });
+      const locks = window.locks = [];
+      let calls = 0;
+      navigator.wakeLock.request = () => {
+        if (++calls === 1) return Promise.reject(new DOMException('denied', 'NotAllowedError'));
+        const lock = new EventTarget();
+        lock.released = false;
+        lock.release = async () => { lock.released = true; lock.dispatchEvent(new Event('release')); };
+        locks.push(lock);
+        return new Promise((resolve) => { window.resolveWake = () => resolve(lock); });
+      };
+      window.changeVisibility = (value) => { state = value; document.dispatchEvent(new Event('visibilitychange')); };
+      window.getCalls = () => calls;`;
+    await serve(ctx, page(BUTTONS, `${fixture}\n${VIS_CODE}`, true));
+    const p = await ctx.newPage();
+    const lines = collect(p);
+    await p.goto(`${ORIGIN}/`);
+    await p.click('#awake');
+    await expect.poll(() => lines.includes('отказ: NotAllowedError')).toBe(true);
+    await p.evaluate(() => {
+      const w = window as unknown as { changeVisibility: (value: string) => void };
+      w.changeVisibility('hidden'); w.changeVisibility('visible');
+    });
+    await p.click('#awake');
+    expect(await p.evaluate(() => (window as unknown as { getCalls: () => number }).getCalls())).toBe(2);
+    await p.evaluate(() => {
+      const w = window as unknown as { changeVisibility: (value: string) => void; resolveWake: () => void };
+      w.changeVisibility('hidden'); w.resolveWake();
+    });
+    await expect.poll(() => p.evaluate(() => (window as unknown as { locks: { released: boolean }[] }).locks[0].released)).toBe(true);
+    expect(lines.some((line) => line.startsWith('pageerror:'))).toBe(false);
+  });
+});
+
+test('SHARE_CODE оставляет ссылку, если нет share и запись в буфер отклонена', async () => {
+  await withBrowser(launchShell, async (ctx) => {
+    const fixture = `Object.defineProperty(navigator, 'share', { value: undefined });
+      navigator.clipboard.writeText = () => Promise.reject(new DOMException('denied', 'NotAllowedError'));`;
+    await serve(ctx, page(BUTTONS, `${fixture}\n${SHARE_CODE}`, true));
+    const p = await ctx.newPage();
+    const lines = collect(p);
+    await p.goto(`${ORIGIN}/`);
+    await p.click('#share');
+    await expect(p.locator('a')).toHaveAttribute('href', `${ORIGIN}/`);
+    expect(lines).toContain('скопируйте ссылку на странице');
+    expect(lines.some((line) => line.startsWith('pageerror:'))).toBe(false);
+  });
+});
+
+for (const result of ['network', 'http', 'unpaid', 'paid'] as const) {
+  test(`PAY_CODE завершает ответ по подтверждению сервера: ${result}`, async () => {
+    await withBrowser(launchShell, async (ctx) => {
+      const fixture = `window.completed = [];
+        window.PaymentRequest = class {
+          async canMakePayment() { return true; }
+          async show() { return { details: { token: 'test-only' }, complete: async (status) => window.completed.push(status) }; }
+        };
+        window.fetch = async () => {
+          if (${JSON.stringify(result)} === 'network') throw new TypeError('offline');
+          return { ok: ${result !== 'http'}, status: 500, json: async () => ({ paid: ${result === 'paid'} }) };
+        };`;
+      await serve(ctx, page(BUTTONS, `${fixture}\n${PAY_CODE}`));
+      const p = await ctx.newPage();
+      const lines = collect(p);
+      await p.goto(`${ORIGIN}/`);
+      await expect.poll(() => lines.length).toBeGreaterThanOrEqual(1);
+      await p.click('#pay');
+      await expect.poll(() => p.evaluate(() => (window as unknown as { completed: string[] }).completed)).toEqual([result === 'paid' ? 'success' : 'fail']);
+      expect(lines.some((line) => line.startsWith('pageerror:'))).toBe(false);
+    });
+  });
+}
+
 // ─── Раздел «Wake Lock» ────────────────────────────────────────────────────────────────────
 
 test('Wake Lock: замок по клику и отпускание вторым кликом — WAKE_OUT', async () => {

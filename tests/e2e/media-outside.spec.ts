@@ -2,22 +2,26 @@ import { readFileSync } from 'node:fs';
 import { chromium, expect, firefox, test, webkit, type Browser, type BrowserType, type Page } from '@playwright/test';
 import {
   DPIP_CODE,
+  DPIP_MARKUP,
   DPIP_FACTS,
   DPIP_OUT,
   FOCUS_ROWS,
   GDM_AUDIO,
   GDM_CODE,
+  GDM_MARKUP,
   GDM_ERRORS,
   GDM_OUT,
   HEADLESS_NOTE,
   MS_ACTIONS,
   MS_BASE_ACTIONS,
   MS_CODE,
+  MS_MARKUP,
   MS_LIMITS,
   MS_OUT,
   MS_POSITION,
   MS_POSITION_NOTE,
   PIP_CODE,
+  PIP_MARKUP,
   PIP_ERRORS,
   PIP_OUT,
   PIP_RULES,
@@ -64,7 +68,7 @@ async function open(browser: Browser, body: string, origin = ORIGIN): Promise<{ 
   await page.route(`${origin}/**`, (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/clip.webm') return route.fulfill({ contentType: 'video/webm', body: CLIP });
-    if (path === '/tone.webm') return route.fulfill({ contentType: 'audio/webm', body: TONE });
+    if (path === '/tone.webm' || path === '/ep-11.webm' || path === '/ep-12.webm') return route.fulfill({ contentType: 'audio/webm', body: TONE });
     return route.fulfill({ contentType: 'text/html', body: `<!doctype html><meta charset="utf-8">${body}` });
   });
   await page.goto(`${origin}/`);
@@ -85,7 +89,7 @@ test.describe('раздел «Картинка в картинке»', () => {
     try {
       const { page, logs } = await open(
         browser,
-        `<video src="/clip.webm" muted width="320" height="180"></video><button id="pip" ${BIG_BUTTON}>pip</button><script>${PIP_CODE}</script>`,
+        `${PIP_MARKUP}<script>${PIP_CODE}</script>`,
       );
       await expect.poll(() => page.evaluate(() => document.querySelector('video')!.readyState)).toBeGreaterThanOrEqual(1);
       await page.click('#pip');
@@ -278,7 +282,7 @@ test.describe('раздел «Document Picture-in-Picture»', () => {
             contentType: 'text/html',
             body: `<!doctype html><meta charset="utf-8"><style>#player { color: rgb(1, 2, 3) }</style>
             <link rel="stylesheet" href="https://cdn.media-outside.test/a.css">
-            <div id="home"><p id="player">плеер</p></div><button id="float" ${BIG_BUTTON}>float</button><script>${DPIP_CODE}</script>`,
+            ${DPIP_MARKUP}<script>${DPIP_CODE}</script>`,
           }),
         );
         await page.goto(`${ORIGIN}/`);
@@ -397,11 +401,27 @@ test.describe('раздел «Document Picture-in-Picture»', () => {
 // ─── Раздел «Media Session» ─────────────────────────────────────────────────────────────────
 
 test.describe('раздел «Кнопки в системе: Media Session»', () => {
+  test('MS_CODE обрабатывает ранний timeupdate и отказ play', async () => {
+    const browser = await chromium.launch();
+    try {
+      const { page, logs } = await open(browser, `${MS_MARKUP}<script>${MS_CODE}
+        audio.dispatchEvent(new Event('timeupdate'));
+        console.log('ранняя позиция обработана');
+        audio.play = () => Promise.reject(new DOMException('blocked', 'NotAllowedError'));
+        play();
+      </script>`);
+      await expect.poll(() => logs.includes('play: NotAllowedError')).toBe(true);
+      expect(logs).toContain('ранняя позиция обработана');
+      expect(logs.some((line) => line.startsWith('pageerror:'))).toBe(false);
+      await page.close();
+    } finally { await browser.close(); }
+  });
+
   for (const [name, type] of ENGINES) {
     test(`MS_CODE и таблицы действий и позиции: ${name}`, async () => {
       const browser = await type.launch();
       try {
-        const { page, logs } = await open(browser, `<audio src="/tone.webm"></audio><script>${MS_CODE}</script>`);
+        const { page, logs } = await open(browser, `${MS_MARKUP}<script>${MS_CODE}</script>`);
         await expect.poll(() => logs.length).toBeGreaterThanOrEqual(1);
         expect(logs).toEqual([MS_OUT]);
 
@@ -501,12 +521,55 @@ test.describe('раздел «Кнопки в системе: Media Session»', 
 // ─── Раздел «Захват экрана» ─────────────────────────────────────────────────────────────────
 
 test.describe('раздел «Захват экрана»', () => {
+  test('показанный контроллер очищает поздний поток и оставшееся аудио', async () => {
+    const browser = await chromium.launch();
+    try {
+      const fixture = `<script>
+        const captures = window.captures = [];
+        const audioContext = new AudioContext();
+        navigator.mediaDevices.getDisplayMedia = () => {
+          const canvas = document.createElement('canvas');
+          const audio = audioContext.createMediaStreamDestination().stream;
+          const stream = new MediaStream([...canvas.captureStream(1).getTracks(), ...audio.getTracks()]);
+          captures.push(stream);
+          return new Promise((resolve) => { window.finishChoice = () => resolve(stream); });
+        };
+      </script>`;
+      const { page, logs } = await open(browser, `${GDM_MARKUP}${fixture}<script>${GDM_CODE}</script>`);
+      await page.click('#stop'); // Остановка безопасна до первого запроса.
+      await page.click('#share');
+      await page.click('#share'); // Один незавершённый выбор не создаёт второй поток.
+      await page.click('#stop');
+      await page.evaluate(() => (window as unknown as { finishChoice: () => void }).finishChoice());
+      await expect.poll(() => page.evaluate(() => {
+        const captures = (window as unknown as { captures: MediaStream[] }).captures;
+        return captures.length === 1 && captures[0].getTracks().every((track) => track.readyState === 'ended');
+      })).toBe(true);
+
+      await page.click('#share');
+      await page.evaluate(() => (window as unknown as { finishChoice: () => void }).finishChoice());
+      await expect.poll(() => page.evaluate(() => document.querySelector('video')!.srcObject !== null)).toBe(true);
+      await page.evaluate(() => {
+        const stream = (window as unknown as { captures: MediaStream[] }).captures[1];
+        const [video] = stream.getVideoTracks();
+        video.stop();
+        // Доставляем ended управляемо: кнопку браузера тест не нажимает.
+        video.dispatchEvent(new Event('ended'));
+      });
+      expect(await page.evaluate(() => ({
+        states: (window as unknown as { captures: MediaStream[] }).captures[1].getTracks().map((track) => track.readyState),
+        preview: document.querySelector('video')!.srcObject,
+      }))).toEqual({ states: ['ended', 'ended'], preview: null });
+      expect(logs.some((line) => line.startsWith('pageerror:'))).toBe(false);
+    } finally { await browser.close(); }
+  });
+
   test('GDM_CODE: вкладка со звуком, stop() без события ended', async () => {
     const browser = await chromium.launch({ args: FAKE_SCREEN });
     try {
       const { page, logs } = await open(
         browser,
-        `<video autoplay muted></video><button id="share" ${BIG_BUTTON}>share</button><button id="stop" ${BIG_BUTTON}>stop</button><script>${GDM_CODE}</script>`,
+        `${GDM_MARKUP}<script>${GDM_CODE}</script>`,
       );
       await page.click('#share');
       await expect.poll(() => logs.length).toBeGreaterThanOrEqual(1);

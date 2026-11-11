@@ -17,6 +17,8 @@ nav:
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -31,6 +33,7 @@ import {
   GLOSSARY,
   PLAIN_OUTSIDE,
   PIP_CODE,
+  PIP_MARKUP,
   PIP_OUT,
   PIP_NOTE,
   PLAIN_ACTIVATION,
@@ -38,10 +41,12 @@ import {
   PIP_ERRORS,
   PIP_ERRORS_NOTE,
   DPIP_CODE,
+  DPIP_MARKUP,
   DPIP_OUT,
   DPIP_NOTE,
   DPIP_FACTS,
   MS_CODE,
+  MS_MARKUP,
   MS_OUT,
   MS_NOTE,
   PLAIN_SESSION,
@@ -51,13 +56,14 @@ import {
   MS_POSITION_NOTE,
   MS_LIMITS,
   GDM_CODE,
+  GDM_MARKUP,
   GDM_OUT,
   GDM_NOTE,
   GDM_AUDIO,
   PLAIN_FOCUS,
   FOCUS_ROWS,
   FOCUS_NOTE,
-  STOP_NOTE,
+  CAPTURE_STOP_DIAGRAM,
   GDM_ERRORS,
   HEADLESS_NOTE,
   GDM_NEXT,
@@ -71,7 +77,7 @@ import {
   <Callout size={19} pad="24px 26px">
 
     Страница живёт во вкладке, а человек из неё уходит: переключается в другую программу, гасит
-    экран телефона, жмёт кнопку на наушниках. Эти API позволяют странице работать и тогда. Но
+    экран телефона, жмёт кнопку на наушниках. PiP сохраняет отдельное окно, а Media Session связывает плеер с системными кнопками. Захват экрана передаёт странице выбранное изображение; сам по себе он не обеспечивает фоновое выполнение. Но
     открыть окно или начать показ экрана один ваш код не может: нужен клик человека, а браузер
     может отказать.
 
@@ -86,11 +92,13 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Картинка в картинке: видео поверх всех окон"
-  lead="Один вызов у элемента `<video>`, и кадр переезжает в маленькое окно поверх всех программ. Окно живёт, пока его не закроет человек или пока страница не вызовет `document.exitPictureInPicture()`."
+  lead="Один вызов у элемента `<video>`, и кадр переезжает в маленькое окно поверх всех программ. Окном управляют человек и браузер; страница может закрыть его через document.exitPictureInPicture()."
 >
+  <CodeBlock lang="html" code={PIP_MARKUP} />
   <CodeBlock code={PIP_CODE} />
 
-  <CodeBlock code={PIP_OUT} tone="ok" />
+  <Md text="Записанный вывод Chromium headless; размеры и поддержка окна зависят от среды." />
+  <CodeBlock lang="text" code={PIP_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={PIP_NOTE} />
@@ -110,6 +118,7 @@ import {
     <NumberedList items={PIP_RULES} size={15.5} />
   </Card>
 
+  <Disclosure title="Записанные отказы Picture-in-Picture в трёх движках">
   ### Какую ошибку получит код в каждом движке
 
   <Table
@@ -121,6 +130,7 @@ import {
   />
 
   <Md text={PIP_ERRORS_NOTE} />
+  </Disclosure>
 </Section>
 
 <Section
@@ -129,9 +139,10 @@ import {
   title="Целая страница в маленьком окне: Document Picture-in-Picture"
   lead="В обычное окно «картинка в картинке» помещается только кадр видео. `documentPictureInPicture.requestWindow` открывает поверх всех программ окно с целым документом. Туда переносят плеер с кнопками, субтитры, таймер, окошко звонка."
 >
+  <CodeBlock lang="html" code={DPIP_MARKUP} />
   <CodeBlock code={DPIP_CODE} />
 
-  <CodeBlock code={DPIP_OUT} tone="ok" />
+  <CodeBlock lang="text" code={DPIP_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={DPIP_NOTE} />
@@ -148,9 +159,10 @@ import {
   title="Кнопки в системе: Media Session"
   lead="Кнопки «пауза» и «следующий трек» есть в шторке телефона, на клавиатуре, на наушниках и на экране блокировки. Нажимает их человек, а сигнал получает браузер. `navigator.mediaSession` говорит браузеру, что сейчас играет и что делать по каждой кнопке."
 >
+  <CodeBlock lang="html" code={MS_MARKUP} />
   <CodeBlock code={MS_CODE} />
 
-  <CodeBlock code={MS_OUT} tone="ok" />
+  <CodeBlock lang="text" code={MS_OUT} tone="ok" />
 
   <Plain text={PLAIN_SESSION} />
 
@@ -158,6 +170,7 @@ import {
     <Md text={MS_NOTE} />
   </Card>
 
+  <Disclosure title="Справочник действий и ограничений setPositionState на стенде">
   ### Какие кнопки знает движок
 
   <Table
@@ -182,6 +195,8 @@ import {
 
   <Md text={MS_POSITION_NOTE} />
 
+  </Disclosure>
+
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={MS_LIMITS} />
   </Card>
@@ -193,9 +208,10 @@ import {
   title="Захват экрана: getDisplayMedia"
   lead="`getDisplayMedia` просит человека выбрать, что показать: весь экран, окно программы или вкладку. Ответ — `MediaStream`, такой же, как с камеры. Его показывают в `<video>`, записывают в файл или отправляют собеседнику."
 >
+  <CodeBlock lang="html" code={GDM_MARKUP} />
   <CodeBlock code={GDM_CODE} />
 
-  <CodeBlock code={GDM_OUT} tone="ok" />
+  <CodeBlock lang="text" code={GDM_OUT} tone="ok" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={GDM_NOTE} />
@@ -205,6 +221,7 @@ import {
     <Md text={GDM_AUDIO} />
   </Card>
 
+  <Disclosure title="CaptureController: управление фокусом при выборе источника">
   ### Куда переключится человек: `CaptureController`
 
   <Plain text={PLAIN_FOCUS} />
@@ -220,11 +237,11 @@ import {
 
   <Md text={FOCUS_NOTE} />
 
+  </Disclosure>
+
   ### Как заканчивается показ
 
-  <Callout size={17} lh={1.55} pad="20px 22px">
-    <Md text={STOP_NOTE} />
-  </Callout>
+  <ConceptDiagram data={CAPTURE_STOP_DIAGRAM} />
 
   ### Отказы
 
@@ -236,9 +253,12 @@ import {
     minWidth={560}
   />
 
+  <Disclosure title="Как проверять захват экрана с поддельным устройством Chromium">
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={HEADLESS_NOTE} />
   </Card>
+
+  </Disclosure>
 
   <Md text={GDM_NEXT} />
 

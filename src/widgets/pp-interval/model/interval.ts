@@ -59,10 +59,10 @@ export function intervalReport(input: IntervalInput, reference = NODE_DEFAULT_IN
   const samplesPerSec = bytesPerSec / input.intervalB;
   const fnSamples = samplesPerSec * input.share * input.windowS;
   const err95 = fnSamples > 0 ? 1.96 / Math.sqrt(fnSamples) : Infinity;
-  const pObject = 1 - Math.exp(-input.objectB / input.intervalB);
+  const pObject = -Math.expm1(-input.objectB / input.intervalB);
   const vsReference = reference / input.intervalB;
   const totalSamples = samplesPerSec * input.windowS;
-  const minShare = totalSamples > 0 ? Math.min(1, SAMPLES_FOR_20PCT / totalSamples) : 1;
+  const minShare = totalSamples > 0 ? SAMPLES_FOR_20PCT / totalSamples : Infinity;
   return { samplesPerSec, fnSamples, err95, pObject, vsReference, minShare };
 }
 

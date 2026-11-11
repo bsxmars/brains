@@ -33,7 +33,7 @@ function show(v: unknown): string {
 }
 
 /** Учебные функции темы — в области видимости каждого выражения таблиц. */
-const SCOPE = [t.CLOSE_CODE, t.TOINT32_CODE, t.HASH_CODE, t.MONEY_CODE].join('\n');
+const SCOPE = [t.CLOSE_CODE, t.TOINT32_CODE, t.HASH_CODE].join('\n');
 
 function run(code: string): string {
   try {
@@ -219,7 +219,6 @@ describe('таблицы «выражение → результат» испо�
     ['ASINT_ROWS', t.ASINT_ROWS],
     ['BIT_ROWS', t.BIT_ROWS],
     ['MONEY_BAD_ROWS', t.MONEY_BAD_ROWS],
-    ['MONEY_ROWS', t.MONEY_ROWS],
   ];
 
   for (const [name, rows] of tables) {
@@ -255,16 +254,14 @@ describe('раздел «Где теряются целые»', () => {
     expect(t.JSON_BIG_CODE).toContain(`// '${out[1]}'`);
   });
 
-  it('тонкое место про id: граница — 2⁵³, а не число цифр (пример той же длины, что MAX_SAFE_INTEGER)', () => {
-    const p = t.PITFALLS.find((x) => x.t.includes('Идентификатор'))!;
-    expect(p.t).not.toMatch(/\d+ цифр/);
-    expect(p.t).toContain('2⁵³');
+  it('граница id — 2⁵³, а не число цифр (пример той же длины, что MAX_SAFE_INTEGER)', () => {
     const id = '9007199254740993';
-    expect(p.d).toContain(id);
+    // Привязка к действующему примеру, а не к снятому повторному списку тонких мест.
+    expect(t.JSON_BIG_CODE).toContain(id);
     expect(id.length).toBe(String(Number.MAX_SAFE_INTEGER).length);
     expect(BigInt(id) > BigInt(Number.MAX_SAFE_INTEGER)).toBe(true);
     expect(String(JSON.parse(id))).toBe('9007199254740992');
-    expect(Number.isSafeInteger(9_000_000_000_000_000)).toBe(true); // 16 цифр — и точное
+    expect(Number.isSafeInteger(9_000_000_000_000_000)).toBe(true);
   });
 });
 
@@ -300,11 +297,9 @@ describe('BigInt и побитовые', () => {
 });
 
 describe('раздел «Деньги»: числа в тексте', () => {
-  it('2^53 копеек — 90 триллионов рублей, отказ на копейку выше', () => {
+  it('2^53 копеек — около 90 триллионов рублей', () => {
     expect(Math.floor(Number.MAX_SAFE_INTEGER / 100 / 1e12)).toBe(90);
-    expect(t.MONEY_CODE).toContain('90 триллионов');
-    const toUnits = new Function(`${t.MONEY_CODE}\nreturn toUnits;`)() as (s: string, d: number) => bigint;
-    expect(toUnits('90071992547409.92', 2)).toBe(BigInt(Number.MAX_SAFE_INTEGER) + 1n);
+    expect(t.MONEY_FACTS[1].d).toContain('90 триллионов');
   });
 
   it('факт «parseFloat(19.99) * 100»', () => {
@@ -367,5 +362,83 @@ describe('Smi и HeapNumber — в отдельном процессе с --allo
   it('Node собран без сжатия указателей — отсюда 32-битные Smi', () => {
     const v = (process.config.variables as Record<string, unknown>).v8_enable_pointer_compression;
     expect(v === 0 || v === false || v === undefined).toBe(true);
+  });
+});
+
+
+describe('новые примеры: биты, допуск из задачи и точные копейки', () => {
+  const money = new Function(`${t.MONEY_EXACT_CODE}\nreturn { parsePrice, splitCents, formatCents };`)() as {
+    parsePrice: (text: unknown) => bigint;
+    splitCents: (total: unknown, count: number) => bigint[];
+    formatCents: (total: unknown) => string;
+  };
+  const close = new Function(`${t.CLOSE_CODE}\nreturn nearlyEqual;`)() as (a: number, b: number, rel?: number, abs?: number) => boolean;
+  const output = (source: string) => {
+    const lines: string[] = [];
+    new Function('console', source)({ log: (...args: unknown[]) => lines.push(args.join(' ')) });
+    return lines.join('\n');
+  };
+
+  it('ручной разбор 1.5 совпадает с полями и битами от движка', () => {
+    const fields = api.decodeDouble(1.5);
+    expect(fields).toEqual({ sign: 0, exponent: 1023, mantissa: 2n ** 51n });
+    expect(hexOf(1.5)).toBe('3ff8000000000000');
+    expect(t.DOUBLE_PRESETS[0].hex).toBe(hexOf(1.5));
+  });
+
+  it('листинг координат исполняется с выбранным допуском половины пикселя', () => {
+    expect(output(`${t.CLOSE_CODE}\n${t.PIXEL_CODE}`)).toBe('true\nfalse\ntrue');
+    expect(close(20_000.4, 20_000, 0, 0.5)).toBe(true);
+    expect(close(20_000.6, 20_000, 0, 0.5)).toBe(false);
+    expect(close(Infinity, Infinity)).toBe(true);
+    expect(close(Infinity, 1)).toBe(false);
+    expect(close(-Infinity, Infinity)).toBe(false);
+    expect(close(NaN, NaN)).toBe(false);
+    for (const tolerance of [-1, Infinity, NaN]) {
+      expect(() => close(1, 1, tolerance, 0)).toThrow(RangeError);
+      expect(() => close(1, 1, 0, tolerance)).toThrow(RangeError);
+    }
+  });
+
+  it('денежный листинг печатает распределение и исходную сумму целиком', () => {
+    const actual = output(`${t.MONEY_EXACT_CODE}\n${t.MONEY_EXAMPLE_CODE}`);
+    // Буквальный ответ независим от вычисляемых данных схемы и её подписи.
+    expect(actual).toBe('33.34 + 33.33 + 33.33\n100.00');
+    expect(t.MONEY_EXAMPLE_OUT).toBe(actual);
+  });
+
+  it.each([['0', 0n], ['0.1', 10n], ['19.99', 1999n], ['000.05', 5n], ['9007199254740993.01', 900719925474099301n]])(
+    'разбирает цену %s без промежуточного number', (text, cents) => {
+      expect(money.parsePrice(text)).toBe(cents);
+      expect(money.parsePrice(money.formatCents(cents))).toBe(cents);
+    },
+  );
+
+  it.each(['', ' ', '1 ', '1\n', '-1', '+1', '1e2', 'Infinity', 'NaN', '.5', '1.', '1.001', '1,50'])('отклоняет неподдерживаемый ввод %j', (text) => {
+    expect(() => money.parsePrice(text)).toThrow(RangeError);
+  });
+
+  it('проверяет тип цены, сумму и границы числа получателей', () => {
+    expect(() => money.parsePrice(19.99)).toThrow(TypeError);
+    for (const total of [-1n, 1, '100']) {
+      expect(() => money.splitCents(total, 3)).toThrow(RangeError);
+      expect(() => money.formatCents(total)).toThrow(RangeError);
+    }
+    for (const count of [0, -1, 1.5, 1001, Infinity, NaN, Number.MAX_SAFE_INTEGER]) {
+      expect(() => money.splitCents(100n, count)).toThrow(RangeError);
+    }
+  });
+
+  it('сохраняет сумму, порядок остатка и разницу долей не больше копейки', () => {
+    for (const total of [0n, 1n, 2n, 10000n, 900719925474099301n]) {
+      for (const count of [1, 3, 7, 1000]) {
+        const parts = money.splitCents(total, count);
+        expect(parts).toHaveLength(count);
+        expect(parts.reduce((sum, part) => sum + part, 0n)).toBe(total);
+        expect(parts[0] - parts.at(-1)!).toBeLessThanOrEqual(1n);
+        expect(parts.every((part, i) => part >= 0n && (i === 0 || parts[i - 1] >= part))).toBe(true);
+      }
+    }
+    expect(money.splitCents(2n, 3)).toEqual([1n, 1n, 0n]);
   });
 });

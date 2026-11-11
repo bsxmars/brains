@@ -75,6 +75,9 @@ function expectAll(checks: Check[]) {
 }
 
 describe('примеры кода исполняются, как напечатаны', () => {
+  it('новый DataView сохраняет окно только при передаче его границ', async () => {
+    expectAll(await runAnnotated(`${t.VIEWS_CODE}\n${t.WINDOW_CODE}`));
+  });
   const blocks = {
     VIEWS_CODE: t.VIEWS_CODE,
     ALIGN_CODE: t.ALIGN_CODE,
@@ -299,6 +302,13 @@ describe('FILE_SIZE_CODE и COLLECT_CODE', () => {
     const icon = readFileSync(new URL('../../node_modules/playwright-core/lib/server/chromium/appIcon.png', import.meta.url));
     expect(await pngSize(new Blob([icon]))).toEqual({ width: 400, height: 400 });
     await expect(pngSize(new Blob(['GIF89a……………………………']))).rejects.toThrow('не PNG');
+    await expect(pngSize(new Blob([PNG.subarray(0, 16)]))).rejects.toThrow('не PNG');
+    for (const offset of [4, 8, 12, 16, 20]) {
+      const broken = PNG.slice();
+      if (offset === 16 || offset === 20) broken.fill(0, offset, offset + 4);
+      else broken[offset] ^= 1;
+      await expect(pngSize(new Blob([broken])), `испорчено поле ${offset}`).rejects.toThrow();
+    }
   });
 
   it('collect собирает поток блоба в растущий буфер и упирается в потолок', async () => {

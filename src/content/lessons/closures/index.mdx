@@ -3,7 +3,7 @@ title: "Замыкания и области видимости"
 heading: "Замыкания и области видимости"
 headingWidth: 24
 order: 1
-lead: "Функция в JavaScript помнит место, где её создали: какие там были переменные и что снаружи от этого места. Поэтому она видит эти переменные, даже когда её вызывают совсем в другом месте. Из этого следуют три частых сюрприза. `var` в цикле с таймером печатает `3 3 3`, а `let` — `0 1 2`. `typeof` для необъявленного имени безопасен, а для имени, объявленного через `let` строкой ниже, бросает ошибку. А маленькая стрелочная функция может держать в памяти чужой мегабайт."
+lead: "Функция сохраняет доступ к переменным того места, где её создали. Поэтому возвращённый счётчик продолжает менять свой count после завершения makeCounter, а другой счётчик хранит собственное состояние. Эту связь функции с окружением называют замыканием."
 summary: "Окружения и цепочка `outer`; какие окружения создают программа, модуль, функция и блок; подъём `var` и `function`, мёртвая зона `let` и `const`, `typeof`; замыкание как функция плюс `[[Environment]]`: переменная, а не снимок значения, устаревшее замыкание, `this` у стрелки; `for (let …)` и копия в окружение итерации; приватность через замыкание, `once` и `memoize`, и чем она отличается от `#`-полей."
 verifiedOn: "Node 26.8.2 (V8 14.6), Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: учебный интерпретатор сверен с vm в Node и с Chromium на программах темы и двух десятках своих; контексты циклов сняты %DebugPrint и байткодом. Всё повторяет tests/unit/closures.test.ts"
 nav:
@@ -17,6 +17,8 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
@@ -50,7 +52,13 @@ import {
   CALL_CODE,
   CALL_NOTE,
   COUNTER_PROGRAM,
+  COUNTER_ENV_DIAGRAM,
+  PROGRAM_OUT,
+  HOIST_PROGRAM,
+  PEEK_PROGRAM,
+  LOOP_LET_ENV_NOTE,
   WALLET_PROGRAM,
+  WALLET_OUT,
   CLOSURE_FACTS,
   INTERPRETER_CODES,
   PROGRAMS,
@@ -87,32 +95,35 @@ import {
   RELATED,
 } from './data';
 
-<Section variant="intro" eyebrow="Что функция уносит" gap={24}>
-  <Callout size={19} pad="24px 26px">
+<Section variant="intro" eyebrow="Два счётчика, два состояния" gap={24}>
+  <CodeBlock code={COUNTER_PROGRAM.code} />
 
-    Функция — это код плюс ссылка на окружение, где её создали. Имя функция ищет по этой
-    ссылке, а не там, откуда её вызвали. Почти всё, что в JavaScript удивляет про
-    переменные, — следствие одного этого правила.
+  <CodeBlock code={PROGRAM_OUT.counter.join('\n')} lang="text" tone="ok" />
 
-  </Callout>
-
-  Возьмём `makeCounter`: функция заводит переменную `count` и возвращает стрелку, которая её
-  увеличивает. Вызов `makeCounter` давно закончился, его кадр снят со стека — а стрелка
-  по-прежнему видит `count` и меняет его. Переменная не скопирована в стрелку и не лежит
-  в глобальной области. Она живёт в окружении вызова, и стрелка держит это окружение.
+  Каждый вызов `makeCounter()` создаёт свою переменную `count`. Функция `a` увеличивает
+  первую: два вызова возвращают `1`, затем `2`. Функция `b` увеличивает другую и возвращает `1`.
+  Оба вызова `makeCounter` уже завершились, но возвращённые функции продолжают работать
+  с их переменными. Это и есть замыкание.
 
   <Plain text={PLAIN_CLOSURE} />
 
-  <Glossary items={GLOSSARY} />
+  <Glossary items={GLOSSARY.filter((term) => term.k !== 'Context (V8)')} />
 </Section>
 
 <Section
   id="s1"
   eyebrow="Раздел 1"
   title="Окружения и их цепочка"
-  lead="Имя в коде само по себе ничего не значит: `count` в одной функции и `count` в другой — разные переменные. Связь имени с переменной движок ищет в окружении — таблице имён того места, где выполняется код. У каждой таблицы есть ссылка `outer` на внешнюю, и поиск идёт по этой цепочке наружу, до глобального окружения."
+  lead="У двух счётчиков переменные называются одинаково — `count`, — но принадлежат разным вызовам `makeCounter`. Окружение связывает имя с конкретной переменной. Если имени нет в текущем окружении, поиск продолжается во внешнем: эту связь называют outer."
 >
   <Plain text={PLAIN_ENV} />
+
+  <ConceptDiagram data={COUNTER_ENV_DIAGRAM} />
+
+  Место вызова `a()` или `b()` эту связь не меняет: функция обращается к переменным
+  того вызова `makeCounter`, в котором была создана.
+
+  <Disclosure title="Какие окружения создают функции, блоки, модули и скрипты">
 
   <Table
     head={['окружение', 'когда создаётся', 'что в нём', 'outer']}
@@ -121,19 +132,6 @@ import {
     cols="minmax(120px,.6fr) minmax(170px,.9fr) minmax(260px,1.6fr) minmax(170px,.9fr)"
     minWidth={760}
   />
-
-  Окружений много, но устроены они одинаково, и поиск имени умещается в четыре десятка
-  строк. Ниже — эти строки из учебного интерпретатора темы. Он исполняет небольшое подмножество
-  JavaScript и ведёт окружения так, как их описывает спецификация. На нём же работает демо
-  «Окружения по шагам» в разделе [«Замыкание»](#s3).
-
-  <Card title="Окружение изнутри" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={ENV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-
-    <CardNote tone="prose">
-      <Md text={ENV_NOTE} />
-    </CardNote>
-  </Card>
 
   ### Глобальное окружение — из двух частей
 
@@ -153,6 +151,26 @@ import {
   />
 
   <Md text={GLOBAL_NOTE} />
+
+  </Disclosure>
+
+  <Disclosure title="Как учебный интерпретатор хранит окружения и ищет имя">
+
+    В модели окружение — таблица записей и ссылка на внешнюю таблицу.
+    `lookup` идёт по этой цепочке, `read` читает найденную переменную,
+    а `declare` и `initialize` отдельно создают запись и дают ей начальное значение.
+    Это исходник учебной модели, а не реализация движка браузера.
+
+  <Card title="Окружение изнутри" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={ENV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={ENV_NOTE} />
+    </CardNote>
+  </Card>
+
+  </Disclosure>
+
 </Section>
 
 <Section
@@ -161,13 +179,13 @@ import {
   title="Подъём и мёртвая зона"
   lead="Перед первой строкой функции или блока движок проходит по объявлениям и заводит имена. Разница между `var` и `let` не в том, «поднимается» ли имя: поднимаются оба. Разница в том, с каким значением имя появляется и докуда оно видно."
 >
-  <Card title="Подъём в интерпретаторе" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={HOIST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <CodeBlock code={HOIST_PROGRAM.code} />
 
-    <CardNote tone="prose">
-      <Md text={HOIST_NOTE} />
-    </CardNote>
-  </Card>
+  <CodeBlock code={PROGRAM_OUT.hoist.join('\n')} lang="text" tone="ok" />
+
+  Чтение `v` до строки `var v = 1` возвращает `undefined`, а объявленная ниже функция
+  уже доступна для вызова. Это не перенос строк кода наверх: при входе в область
+  объявления обрабатываются раньше выполнения её инструкций.
 
   <Table
     head={['объявление', 'где видно', 'до своей строки', 'повторно в той же области']}
@@ -195,6 +213,20 @@ import {
 
   <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={TYPEOF_NOTE} />
 
+  <Disclosure title="Как интерпретатор подготавливает объявления до первой строки">
+
+  <Card title="Подъём в интерпретаторе" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={HOIST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={HOIST_NOTE} />
+    </CardNote>
+  </Card>
+
+  </Disclosure>
+
+  <Disclosure title="Почему текст ReferenceError различается между движками">
+
   ### Тип ошибки во всех движках один, текст у каждого свой
 
   <Table
@@ -206,6 +238,9 @@ import {
   />
 
   <Md text={ERROR_NOTE} />
+
+  </Disclosure>
+
 </Section>
 
 <Section
@@ -214,26 +249,15 @@ import {
   title="Замыкание: функция плюс окружение"
   lead="Замыкание — не особый вид функции. Любая функция при создании запоминает окружение, где её создали, в скрытом поле `[[Environment]]`. При вызове новое окружение получает `outer` из этого поля. Поэтому функция видит переменные места, где её написали, даже когда тот вызов давно вернулся."
 >
-  <Card title="Создание и вызов функции" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CALL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  Две функции, созданные одним вызовом, могут работать с одной переменной.
+  В кошельке `add` меняет `money`, а `show` читает ту же переменную:
 
-    <CardNote tone="prose">
-      <Md text={CALL_NOTE} />
-    </CardNote>
-  </Card>
+  <CodeBlock code={WALLET_PROGRAM} />
 
-  <CardGrid min={300} gap={16} align="start">
-    <Card title="Счётчик" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={COUNTER_PROGRAM.code} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-
-    <Card title="Кошелёк" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={WALLET_PROGRAM} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-  </CardGrid>
+  <CodeBlock code={WALLET_OUT} lang="text" tone="ok" />
 
   <CardGrid min={260} gap={14} align="start">
-    {CLOSURE_FACTS.map((fact) => (
+    {CLOSURE_FACTS.filter((fact) => fact.t !== 'Каждый вызов — новое окружение').map((fact) => (
       <Card title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
     ))}
 
@@ -282,14 +306,30 @@ import {
 
   ### Окружения по шагам
 
+  Учебный интерпретатор строит цепочки окружений, а браузер отдельно исполняет
+  тот же исходник. Сравнение выводов проверяет, что модель объясняет наблюдаемое поведение.
+  Нарисованные окружения — данные модели, а не снимок памяти движка.
+
   <ScopeLab client:visible codes={INTERPRETER_CODES} programs={PROGRAMS} caption={DEMO_CAPTION} />
+  <Disclosure title="Как учебная модель создаёт функцию и вызывает её">
+
+  <Card title="Создание и вызов функции" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <CodeBlock code={CALL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={CALL_NOTE} />
+    </CardNote>
+  </Card>
+
+  </Disclosure>
+
 </Section>
 
 <Section
   id="s4"
   eyebrow="Раздел 4"
   title="Цикл for: одна переменная или три"
-  lead="Классика собеседований: цикл ставит три таймера, и с `var` они печатают `3 3 3`, а с `let` — `0 1 2`. Таймеры здесь ни при чём, они только откладывают чтение. Разница в том, сколько окружений создаёт цикл: с `var` переменная одна на всё, с `let` у каждой итерации своё окружение."
+  lead="Цикл ставит три таймера. Их обработчики прочитают `i` позже, когда цикл уже закончится. С `var` все они обращаются к одной переменной; с `let` в заголовке `for` у итераций свои переменные. При переходе к следующей итерации переносится текущее значение `i`, а не заранее заданный номер шага."
 >
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="var: 3 3 3" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
@@ -302,6 +342,21 @@ import {
       <Md text={LOOP_LET_NOTE} />
     </Card>
   </CardGrid>
+
+  ### Копия, а не номер итерации
+
+  <CardGrid min={300} gap={16} align="start">
+    <Card pad={18} radius={5} gap={11} size={15.5}>
+      <CodeBlock code={BODY_INC_PROGRAM} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={BODY_INC_OUT} tone="ok" size={11.5} lh={1.6} pad="10px 14px" />
+    </Card>
+
+    <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={COPY_NOTE} />
+  </CardGrid>
+
+  <Disclosure title="Точные шаги for-let: пять окружений, init и копирование">
+
+    <Md text={LOOP_LET_ENV_NOTE} />
 
   <Card title="Новое окружение на каждую итерацию" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={NEXT_ITERATION_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -318,16 +373,15 @@ import {
 
   </CardGrid>
 
-  ### Копия, а не номер итерации
+    ### Замыкание в init видит другую переменную
 
-  <CardGrid min={300} gap={16} align="start">
-    <Card pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={BODY_INC_PROGRAM} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock code={BODY_INC_OUT} tone="ok" size={11.5} lh={1.6} pad="10px 14px" />
-    </Card>
+    <CodeBlock code={PEEK_PROGRAM.code} />
 
-    <Card tone="info" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={COPY_NOTE} />
-  </CardGrid>
+    <CodeBlock code={PROGRAM_OUT.peek.join('\n')} lang="text" tone="ok" />
+
+    `peek` создана в части `init` и сохраняет доступ к первой переменной `i`.
+    Рабочие переменные итераций получают копии её значения, а последующие `i++`
+    изменяют уже их. Поэтому `peek()` продолжает возвращать `0`.
 
   ### Как обходились до let
 
@@ -340,6 +394,9 @@ import {
   </CardGrid>
 
   <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LOOP_V8_NOTE} />
+
+  </Disclosure>
+
 </Section>
 
 <Section

@@ -63,7 +63,7 @@ watch(picked, rerun);
 
 const MODES: { id: ModeId; label: string }[] = [
   { id: 'global', label: 'глобальная переменная' },
-  { id: 'als', label: 'ALS · Node 24' },
+  { id: 'als', label: 'ALS · запись Node' },
   { id: 'mini', label: 'учебная обёртка' },
 ];
 
@@ -118,6 +118,7 @@ const shown = (v: string | null | undefined) => (v === undefined ? '…' : v ===
 
     <div class="cx-body">
       <Md class="cx-note" :text="scenario.note" />
+      <p class="cx-note">Глобальная переменная и учебная обёртка выполняются в браузере. Колонка ALS — записанный результат Node, сверяемый тестом с тем же сценарием.</p>
 
       <div class="cx-split">
         <div class="cx-pane">

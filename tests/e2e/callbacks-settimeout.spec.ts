@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { PITFALLS } from '../../src/content/lessons/callbacks/data';
+import { PITFALLS, DOM_LATE_LISTENER_CODE } from '../../src/content/lessons/callbacks/data';
 
 /**
  * «Колбэки», тонкое место 02: `setTimeout(fn(), 100)` в браузере.
@@ -37,4 +37,10 @@ test('setTimeout с не-функцией: без ошибки, без конс�
 
   const text = PITFALLS.find((p) => p.n === '02')!.d;
   expect(text, 'тема называет механизм').toContain('**исполняет как код**');
+});
+
+
+test('слушатель предка, добавленный до всплытия, участвует в том же DOM-событии', async ({ page }) => {
+  const out = await page.evaluate((source) => new Function(`${source}\nreturn out;`)(), DOM_LATE_LISTENER_CODE);
+  expect(out).toEqual(['button', 'parent']);
 });

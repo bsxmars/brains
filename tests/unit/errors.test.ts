@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -677,41 +677,56 @@ describe('FRONT_RUN в Chromium', () => {
   });
 });
 
-/**
- * На странице напечатано ядро `SERIALIZE_CORE_CODE`, а демо и тесты выше работают на полной
- * `SERIALIZE_CODE`. На обычных ошибках — цепочка `cause`, свои поля, брошенная строка — ядро
- * обязано собрать то же самое; отличаются они только защитами (цикл, глубина, Aggregate/Suppressed)
- * и пометкой об отброшенных кадрах.
- */
-describe('SERIALIZE_CORE_CODE — то же, что полная версия, на обычных ошибках', () => {
-  const core = new Function(`${t.SERIALIZE_CORE_CODE}\nreturn serializeError;`)() as (e: unknown, n?: number) => Record<string, unknown>;
-  /** Полная версия без пометки «… отброшено кадров» и без поля type у не-ошибки. */
-  const strip = (r: Record<string, unknown>): Record<string, unknown> => {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(r)) {
-      if (k === 'type') continue;
-      if (k === 'stack' && typeof v === 'string') out[k] = v.split('\n').filter((l) => !l.includes('отброшено кадров')).join('\n');
-      else if (k === 'cause' && v && typeof v === 'object') out[k] = strip(v as Record<string, unknown>);
-      else out[k] = v;
-    }
-    return out;
-  };
+describe('исходники демо доступны читателю и совпадают с исполняемыми', () => {
+  const mdx = readFileSync(new URL('../../src/content/lessons/errors/index.mdx', import.meta.url), 'utf8');
+  it('полные сериализатор и парсер напечатаны по одному разу перед их демо', () => {
+    expect([...mdx.matchAll(/<CodeBlock\s+code=\{SERIALIZE_CODE\}/g)]).toHaveLength(1);
+    expect([...mdx.matchAll(/<CodeBlock\s+code=\{PARSE_CODE\}/g)]).toHaveLength(1);
+    expect(mdx.indexOf('<CodeBlock code={PARSE_CODE}')).toBeLessThan(mdx.indexOf('<StackLab'));
+    expect(mdx.indexOf('<CodeBlock code={SERIALIZE_CODE}')).toBeLessThan(mdx.indexOf('<ReportLab'));
+    expect(mdx).not.toContain('SERIALIZE_CORE_CODE');
+  });
+});
 
-  function deep(n: number): Error {
-    return n === 0 ? new Error('дно') : deep(n - 1);
+describe('практический маршрут: причина, граница и один явный отчёт', () => {
+  async function submit(fetch: () => Promise<unknown>) {
+    const reports: Record<string, unknown>[] = [];
+    const successes: unknown[] = [];
+    const messages: string[] = [];
+    // Первая функция берётся из сквозного примера, а не из её копии в тесте.
+    const saveOrder = t.FRONT_RUN.code.slice(0, t.FRONT_RUN.code.indexOf('\n\ntry'));
+    const run = new Function('fetch', 'send', 'showSuccess', 'showError',
+      `return (async () => {${saveOrder}\n${t.BOUNDARY_CODE}\n})();`);
+    await run(fetch,
+      (report: Record<string, unknown>) => reports.push(report),
+      (value: unknown) => successes.push(value),
+      (message: string) => messages.push(message));
+    return { reports, successes, messages };
   }
 
-  it.each([
-    ['цепочка cause со своими полями', () => {
-      const db = Object.assign(new Error('connect ECONNRESET'), { code: 'ECONNRESET', response: { body: 'x' } });
-      return new Error('Заказ не сохранён', { cause: db });
-    }],
-    ['длинный стек обрезается', () => deep(30)],
-    ['брошенная строка', () => 'нет денег'],
-    ['cause — не ошибка', () => new Error('обёртка', { cause: 42 })],
-  ])('%s', (_name, make) => {
-    const err = make();
-    expect(core(err, 3)).toEqual(strip(serialize(err, { maxFrames: 3 }) as Record<string, unknown>));
+  it('HTTP 502 сохраняется в cause, отчёт отправляется один раз на границе', async () => {
+    const result = await submit(async () => ({ ok: false, status: 502 }));
+    expect(result.reports).toHaveLength(1);
+    expect(result.reports[0]).toMatchObject({
+      name: 'Error', message: 'Не удалось сохранить заказ',
+      cause: { name: 'Error', message: 'Сервер ответил 502' },
+    });
+    expect(typeof result.reports[0].stack).toBe('string');
+    expect(result.messages).toEqual(['Заказ не сохранён. Попробуйте ещё раз.']);
+    expect(result.successes).toEqual([]);
+  });
+
+  it('ошибка сети не теряется при добавлении контекста операции', async () => {
+    const result = await submit(async () => { throw new TypeError('network failed'); });
+    expect(result.reports).toHaveLength(1);
+    expect(result.reports[0].cause).toMatchObject({ name: 'TypeError', message: 'network failed' });
+  });
+
+  it('успешный ответ обновляет интерфейс и не создаёт отчёт об ошибке', async () => {
+    const result = await submit(async () => ({ ok: true, json: async () => ({ id: 7 }) }));
+    expect(result.successes).toEqual([{ id: 7 }]);
+    expect(result.reports).toEqual([]);
+    expect(result.messages).toEqual([]);
   });
 });
 

@@ -25,12 +25,15 @@
 import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
-import { Button } from '@/shared/ui';
+import { Button, SegmentedControl } from '@/shared/ui';
+import type { IcState } from '@/widgets/ic-states/model/types';
 import { DEFAULTS, IC_CASES, benchRound, prepare, shapeExample, summarise, timerReady, unavailable } from '../model/bench';
 import type { BenchOptions, IcBenchResult, RoundResult } from '../model/types';
 
 const props = withDefaults(
   defineProps<{
+    states?: IcState[];
+    recordedNote?: string;
     iterations?: number;
     ring?: number;
     runs?: number;
@@ -38,11 +41,13 @@ const props = withDefaults(
     note?: string;
   }>(),
   {
+    states: () => [],
+    recordedNote: '',
     iterations: DEFAULTS.iterations,
     ring: DEFAULTS.ring,
     runs: DEFAULTS.runs,
     warmups: DEFAULTS.warmups,
-    note: '«1 форма» и «20 форм» — это то, что мы **положили в кольцо**, а не ответ движка: состояние кеша на месте чтения со страницы не спросить. Видно только следствие — сколько стоят одинаковые чтения.',
+    note: '«1 форма» и «20 форм» — это то, что мы **положили в кольцо**, а не ответ движка: состояние кеша на месте чтения со страницы не спросить. Видно только следствие — сколько стоят одинаковые чтения. В Firefox и Safari замер относится к другому движку: его пороги могут отличаться от модели V8.',
   },
 );
 
@@ -52,6 +57,11 @@ const options = computed<BenchOptions>(() => ({
   runs: props.runs,
   warmups: props.warmups,
 }));
+
+const picked = ref('0');
+const current = computed(() => props.states[Number(picked.value)]);
+const stateOptions = computed(() => props.states.map((state, i) => ({ value: String(i), label: state.label })));
+const recordedRatio = (state: IcState) => (state.ms / props.states[0].ms).toFixed(2);
 
 const running = ref(false);
 const phase = ref('');
@@ -144,7 +154,7 @@ const params = computed(() => {
  * `tests/e2e/markup.spec.ts` сразу на двух страницах.
  */
 const axisNote =
-  'Полосы — кратность. Миллисекунды рядом **машинозависимы**: на другом железе они будут другими, а кратность — примерно той же.';
+  'Полосы — результат запуска в вашем браузере. Миллисекунды и отношения зависят от движка, оборудования и нагрузки; сравнивайте прежде всего порядок случаев, а не точное совпадение чисел.';
 </script>
 
 <template>
@@ -159,9 +169,28 @@ const axisNote =
       </div>
     </template>
 
+    <div v-if="current" class="ib-state">
+      <div class="t-label">модель V8 · ожидаемые состояния для этих случаев</div>
+      <SegmentedControl v-model="picked" class="l-pills" label="Число форм" :options="stateOptions" />
+      <div class="ib-state__name">{{ current.state }}</div>
+      <Md :text="current.what" />
+      <Md :text="current.opt" />
+      <details>
+        <summary>Сравнить с записанным замером Node 24</summary>
+        <dl class="ib-params">
+          <template v-for="state in states" :key="state.label">
+            <dt class="ib-params__key">{{ state.label }}</dt>
+            <dd class="ib-params__value">{{ state.ms }} мс · ×{{ recordedRatio(state) }}</dd>
+          </template>
+        </dl>
+        <Md :text="current.note" />
+        <Md :text="recordedNote" />
+      </details>
+    </div>
+
     <div class="ib-split">
       <div class="ib-pane">
-        <div class="t-label">во сколько раз дороже мономорфного</div>
+        <div class="t-label">ваш замер · относительно одной формы</div>
 
         <div class="ib-chart">
           <div v-for="row in bars" :key="row.key" class="ib-row">
@@ -205,14 +234,13 @@ const axisNote =
         </div>
 
         <div class="ib-block">
-          <div class="t-label">что лежало в кольце</div>
+          <div class="t-label">формы объектов в замере</div>
           <ul class="ib-cases">
             <li v-for="item in IC_CASES" :key="item.key" class="ib-case">
               <b class="ib-case__label">{{ item.label }}</b>
               <span class="ib-case__shapes">
                 <span v-for="(shape, k) in shapeExample(item.shapes)" :key="k" class="ib-case__shape">{{ shape }}</span>
               </span>
-              <span class="ib-case__what">{{ item.what }}</span>
             </li>
           </ul>
         </div>
@@ -226,6 +254,25 @@ const axisNote =
 </template>
 
 <style scoped>
+.ib-state {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-bottom: 1px solid var(--divider);
+}
+.ib-state__name {
+  font: 600 var(--fs-6) var(--mono);
+  color: var(--ink);
+}
+.ib-state details {
+  font-size: var(--fs-6);
+  line-height: 1.6;
+  color: var(--prose);
+}
+.ib-state summary { cursor: pointer; }
+.ib-state .ib-params { margin: 16px 0; }
+
 .ib-bar {
   display: flex;
   align-items: center;

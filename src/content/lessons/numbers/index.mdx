@@ -2,7 +2,7 @@
 title: "Числа в JS: IEEE 754, Smi и BigInt"
 headingWidth: 24
 order: 5
-lead: "Каждое `number` в JS — 64 бита по стандарту IEEE 754: знак, порядок и мантисса. Отсюда `0.1 + 0.2`, потерянные идентификаторы больше `2⁵³`, `-0` и `(1.005).toFixed(2) === \"1.00\"`. Внутри V8 то же число бывает малым целым прямо в ячейке или объектом в куче. А для точного счёта есть второй тип — `BigInt`."
+lead: "Значения типа `number` подчиняются формату IEEE 754 binary64: он определяет точность, округление и особые значения. Отсюда `0.1 + 0.2` и потеря больших целых. Как движок физически хранит число — отдельный вопрос: V8 использует Smi, HeapNumber и массивы double. Для точных целых произвольной длины есть `BigInt`."
 summary: "Биты double и его точное десятичное значение; почему `0.1 + 0.2 !== 0.3` и как сравнивать с допуском; `MAX_SAFE_INTEGER` и JSON с большими id; `-0` и `NaN`; печать, `toFixed` и банковское округление; `BigInt` и `asIntN`; побитовые операции и `ToInt32`; Smi и HeapNumber в V8 — границы в Node и Chrome и байты на элемент; деньги в целых."
 verifiedOn: "Node 24.11.0 (V8 13.6) и 26.8.2 (V8 14.6), Chromium 153.0.8010.12, Firefox 155, WebKit 26.6, октябрь 2026: таблицы выражений исполняет tests/unit/numbers.test.ts; учебные функции сверены с Float64Array, toFixed и x | 0 на сотнях тысяч чисел; Smi и байты на элемент — %IsSmi, %DebugPrint и heapUsed в отдельном процессе Node, колонка Chromium — стенд. Без таймерных замеров"
 nav:
@@ -15,29 +15,27 @@ nav:
   - { id: s7, label: Побитовые операции }
   - { id: s8, label: Smi и HeapNumber }
   - { id: s9, label: Деньги }
-  - { id: s10, label: Тонкие места }
-  - { id: s11, label: Источники }
+  - { id: s10, label: Источники }
 ---
 
-import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
-import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DoubleLab from '@/widgets/double-lab/ui/DoubleLab.vue';
 import {
   GLOSSARY,
   PLAIN_DOUBLE,
   PLAIN_FIELDS,
+  ONE_AND_HALF_NOTE,
   DOUBLE_CODE,
   DOUBLE_NOTE,
   FIELD_ROWS,
@@ -52,6 +50,7 @@ import {
   CLOSE_CODE,
   CLOSE_ROWS,
   CLOSE_NOTE,
+  PIXEL_CODE,
   SAFE_NOTE,
   SAFE_ROWS,
   STEP_ROWS,
@@ -83,38 +82,27 @@ import {
   DEBUG_FACTS,
   SMI_ROWS,
   SMI_ROWS_NOTE,
+  SMI_RUN_NOTE,
   BYTES_ROWS,
   BYTES_NOTE,
   MONEY_BAD_ROWS,
-  MONEY_CODE,
-  MONEY_ROWS,
   MONEY_FACTS,
+  MONEY_EXACT_CODE,
+  MONEY_EXAMPLE_CODE,
+  MONEY_EXAMPLE_OUT,
+  MONEY_DIAGRAM,
   code,
   exprRows,
   exprTones,
-  PITFALLS,
   SOURCES,
   RELATED,
 } from './data';
 
-<Section variant="intro" eyebrow="Шестьдесят четыре бита" gap={24}>
-  <Callout size={19} pad="24px 26px">
-
-    У типа `number` нет отдельного представления для целых: `5` и `5.5` хранятся одинаково —
-    как double, 64-битное число с плавающей точкой (знак, цифры и степень двойки). Поэтому
-    целые до `2⁵³` он хранит точно, а большинство десятичных дробей — нет: `0.1` в памяти
-    чуть больше одной десятой. Для целых больше `2⁵³` в языке есть отдельный тип —
-    [`BigInt`](#s6). Почти все «странности» `number` следуют из того, что он double, и их
-    можно предсказать, если посмотреть на биты.
-
-  </Callout>
-
-  В коде `0.1` или `42` выглядят как обычные числа, но в памяти у каждого числа ровно 64 бита:
-  знак, порядок и цифры. Больше места нет, поэтому одни числа записываются точно, а другие —
-  только приблизительно. Отсюда три вещи, которые удивляют: `0.1 + 0.2` печатается как
-  `0.30000000000000004`, после `2⁵³` соседние целые сливаются в одно число, а `5` и `5.5` хранятся
-  одинаково. Отдельно от этого V8 хранит маленькие целые по-своему, компактнее, — в коде
-  разницы не видно, она видна только по расходу памяти.
+<Section variant="intro" eyebrow="Значение числа и его хранение" gap={24}>
+  В JavaScript `5` и `5.5` имеют один тип — `number`. Для его значений действуют правила
+  double: конечный набор представимых чисел и округление к ближайшему из них.
+  Это **модель значения**, а не обещание, что каждое число занимает в памяти ровно восемь байт.
+  В частности, V8 может хранить малое целое прямо в ячейке, без отдельного объекта в куче.
 
   <Plain text={PLAIN_DOUBLE} />
 
@@ -126,11 +114,24 @@ import {
   eyebrow="Раздел 1 · демо"
   eyebrowTone="demo"
   title="Устройство double: знак, порядок, мантисса"
-  lead="64 бита делятся так: 1 бит знака, 11 бит порядка и 52 бита мантиссы. Значение обычного числа — `±(1 + мантисса / 2⁵²) · 2^(порядок − 1023)`. Вычитание 1023 нужно, чтобы порядок бывал и отрицательным: так записываются числа меньше единицы."
+  lead="В формате binary64 один бит задаёт знак, 11 бит — порядок, 52 бита — мантиссу. На числе `1.5` видно, как эти поля складываются в значение без округления."
 >
   <Plain text={PLAIN_FIELDS} />
 
-  <Md text={DOUBLE_NOTE} />
+  <Md text={ONE_AND_HALF_NOTE} />
+
+  <DoubleLab client:visible code={DOUBLE_CODE} presets={DOUBLE_PRESETS} caption={DEMO_CAPTION} />
+
+  Для обычного числа формула та же: `±(1 + мантисса / 2⁵²) · 2^(порядок − 1023)`.
+  Вычитание `1023` позволяет записать отрицательную степень двойки и числа меньше единицы.
+  Нули, субнормальные числа и бесконечности используют особые комбинации полей.
+
+  <Disclosure title="Шестнадцатеричная запись и особые значения">
+
+    <Md text={DOUBLE_NOTE} />
+
+    В hex-записи одна шестнадцатеричная цифра заменяет четыре бита: все 64 бита
+    помещаются в 16 цифр. Значение числа от такой записи не меняется.
 
   <Table
     head={['число', 'биты (hex)', 'знак', 'порядок', 'мантисса', 'что это']}
@@ -143,9 +144,8 @@ import {
 
   <Plain text={PLAIN_SUBNORMAL} />
 
-  ### Число по битам
+  </Disclosure>
 
-  <DoubleLab client:visible code={DOUBLE_CODE} presets={DOUBLE_PRESETS} caption={DEMO_CAPTION} />
 </Section>
 
 <Section
@@ -199,6 +199,19 @@ import {
   />
 
   <Md text={CLOSE_NOTE} />
+
+  ### Допуск из задачи: половина пикселя
+
+  Допустим, при выравнивании элемента считаем попаданием отклонение не больше `0.5` CSS-пикселя.
+  Тогда допуск абсолютный: он задаёт допустимый сдвиг, а не число совпавших цифр.
+  Координата `200` или `20 000` не меняет этого требования. Относительную часть отключаем,
+  передав `rel = 0`; границу включаем в допуск.
+
+  <CodeBlock code={PIXEL_CODE} />
+
+  `0.5` здесь — условие задачи. Если приложению нужна другая точность, меняется это условие,
+  а не `Number.EPSILON`.
+
 </Section>
 
 <Section
@@ -247,7 +260,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="−0 и NaN"
-  lead="Оба значения заложены в сам формат double. Знаковый бит есть у любого double, в том числе у нуля. А для «результата нет» формат держит особый порядок — из одних единиц."
+  lead="Оба значения заложены в сам формат double. Знаковый бит есть у любого double, в том числе у нуля. А для «результата нет» формат держит особый набор битов: порядок из одних единиц и непустую мантиссу (с пустой — это бесконечность)."
 >
   ### Минус ноль
 
@@ -275,7 +288,7 @@ import {
 
   ### Три равенства
 
-  В языке три способа сравнить два числа, и отличаются они ровно на `-0` и `NaN`.
+  Для двух чисел в языке три правила равенства (`==` между числами совпадает с `===`), и отличаются они ровно на `-0` и `NaN`.
 
   <Table
     head={['сравнение', 'нули', '`NaN`', 'где встречается']}
@@ -317,7 +330,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="BigInt: целые без предела"
-  lead="`BigInt` — отдельный тип для целых чисел любой длины: `2n ** 100n` хранится точно, сколько бы цифр ни получилось. Дробей у него нет — `7n / 2n` даёт `3n`. Смешать его с обычным `number` в одном выражении нельзя: `1n + 1` бросает `TypeError`. Одно в другое переводят явно, через `Number(x)` или `BigInt(x)`, — при таком переводе можно потерять точность, и язык оставляет это решение программисту."
+  lead="`BigInt` — отдельный тип для целых чисел любой длины: `2n ** 100n` хранится точно, сколько бы цифр ни получилось (предел ставит движок: в V8 — около миллиарда бит, дальше `RangeError`). Дробей у него нет — `7n / 2n` даёт `3n`. Смешать его с обычным `number` в одном выражении нельзя: `1n + 1` бросает `TypeError`. Одно в другое переводят явно, через `Number(x)` или `BigInt(x)`. `Number(x)` может молча потерять точность, `BigInt(x)` на дробном бросает `RangeError` — язык оставляет это решение программисту."
 >
   <Plain text={PLAIN_BIGINT} />
 
@@ -382,14 +395,14 @@ import {
   id="s8"
   eyebrow="Раздел 8"
   title="Внутри V8: Smi и HeapNumber"
-  lead="Язык знает один тип `number`, а движок — два способа его хранить. Малое целое лежит прямо в ячейке — это Smi. Всё остальное упаковано в объект HeapNumber в куче, а в ячейке — ссылка на него."
+  lead="Язык знает один тип `number`, а движок — два способа его хранить. Малое целое лежит прямо в ячейке — это Smi. Остальное обычно упаковано в объект HeapNumber в куче, а в ячейке — ссылка на него; исключение — массив из одних дробных, где double лежат без упаковки."
 >
   <Plain text={PLAIN_SMI} />
 
   <Md text={SMI_NOTE} />
 
   <CardGrid min={300} gap={16} align="start">
-    <Card title="Спросить движок" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <Card title="Как V8 хранит эти числа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={DEBUG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
@@ -406,6 +419,8 @@ import {
   </CardGrid>
 
   ### Smi в Node и в Chrome
+
+  <Md text={SMI_RUN_NOTE} />
 
   <Table
     head={['вызов', 'Node 24 и 26', 'Chromium 153', 'почему']}
@@ -436,7 +451,7 @@ import {
   id="s9"
   eyebrow="Раздел 9"
   title="Деньги: целые копейки или BigInt"
-  lead="Сумма в рублях с копейками — десятичная дробь, а double хранит двоичные. Ошибка появляется уже при записи цены и копится при каждом сложении. Деньги хранят и считают целыми числами в самых мелких единицах."
+  lead="Десятичная цена может округлиться уже при переводе в `number`. Для расчёта с точностью до копейки можно разбирать цену из текста и работать с целыми копейками. Деление требует отдельного правила: что делать с остатком, который поровну не делится."
 >
   <Table
     head={['выражение', 'результат', 'что не так']}
@@ -447,42 +462,35 @@ import {
     minWidth={760}
   />
 
-  <Card title="Копейки из текста и обратно" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={MONEY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
-
-  <Table
-    head={['вызов', 'результат', 'почему']}
-    rows={exprRows(MONEY_ROWS)}
-    kinds={['mono', 'mono', 'prose']}
-    cols="minmax(280px,1.5fr) minmax(190px,.9fr) minmax(220px,1.2fr)"
-    minWidth={760}
-  />
-
   <CardGrid min={280} gap={14} align="start">
-    {MONEY_FACTS.map((fact) => (
+    {MONEY_FACTS.slice(0, 2).map((fact) => (
       <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
     ))}
 
   </CardGrid>
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
+  ### Разделить сумму и сохранить каждую копейку
 
-      **Деньги — это счёт, а не измерение.** Double создан для физических величин, где важны
-      первые 15 значащих цифр и неважно, что последняя чуть сдвинулась. У денег важна каждая
-      копейка. Поэтому деньги считают целыми в самых мелких единицах: `number`, пока сумма в пределах `2⁵³`,
-      и `BigInt`, если больше или нужно много знаков после запятой.
+  В примере цена неотрицательна, разделитель — точка, после неё допускается одна или две цифры.
+  Пробелы, знак, экспоненциальная запись и лишние дробные разряды отклоняются. Функции используют
+  `BigInt`, чтобы при переводе и сложении не проходить через приближённый `number`.
 
-    </DarkText>
-  </DarkPanel>
+  Пример ограничивает число получателей диапазоном от 1 до 1000.
+
+  <CodeBlock code={MONEY_EXACT_CODE} />
+
+  <CodeBlock code={MONEY_EXAMPLE_CODE} />
+
+  <CodeBlock lang="text" tone="ok" code={MONEY_EXAMPLE_OUT} />
+
+  <ConceptDiagram data={MONEY_DIAGRAM} />
+
+  Такой расчёт решает конкретную задачу деления одной суммы. Для скидок, налогов и валют
+  отдельно задаются масштаб и правила округления.
+
 </Section>
 
-<Section id="s10" eyebrow="Раздел 10" title="Тонкие места">
-  <Pitfalls items={PITFALLS} />
-</Section>
-
-<Section id="s11" eyebrow="Раздел 11" title="Источники">
+<Section id="s10" eyebrow="Раздел 10" title="Источники">
   <Card title="Источники" titleSize={18} pad={22} gap={14}>
 
     <SourceList items={SOURCES} />

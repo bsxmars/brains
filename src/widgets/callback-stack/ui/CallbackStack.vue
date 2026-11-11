@@ -40,7 +40,7 @@ const step = computed(() => mode.value.steps[Math.min(index.value, total.value -
   <DemoFrame>
     <template #toolbar>
       <div class="modes">
-        <span class="modes__label">как передана функция:</span>
+        <span class="modes__label">учебная схема · вызов:</span>
         <SegmentedControl v-model="picked" class="l-pills" label="Вид колбэка" :options="options" />
       </div>
     </template>

@@ -82,6 +82,8 @@ function place(f: Frame) {
     </template>
 
     <div class="el-body">
+      <Md class="el-caption" :text="caption" />
+
       <Md class="el-note" :text="current.note" />
 
       <div class="el-split">
@@ -111,17 +113,26 @@ function place(f: Frame) {
         </div>
       </div>
 
+      <details class="el-raw">
+        <summary>Исходная строка error.stack</summary>
       <div class="el-pane">
         <span class="el-label">error.stack</span>
         <pre class="el-code el-code--raw">{{ stack }}</pre>
       </div>
-
-      <Md class="el-caption" :text="caption" />
+      </details>
     </div>
   </DemoFrame>
 </template>
 
 <style scoped>
+.el-raw > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--fs-4);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
 .el-tools {
   display: flex;
   flex-wrap: wrap;

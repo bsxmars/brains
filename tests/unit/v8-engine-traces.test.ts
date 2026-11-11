@@ -6,6 +6,8 @@ import {
   BENCH_SNIPPETS,
   FIELD_REP_SCENE_CODE,
   FIELD_REP_STEPS,
+  GET_CODE,
+  GET_CALLS_CODE,
   IC_STEPS,
   MYTHS,
   PIPELINE,
@@ -66,8 +68,12 @@ describe('конвейер ярусов: пример `get` проходит т�
     expect(again).toBe(true);
   });
 
+  it('чтение свойства возвращает 1, 2, 3 независимо от расположения x', () => {
+    expect(run([], `${GET_CODE}\n${GET_CALLS_CODE}`).trim().split('\n')).toEqual(['1', '2', '3']);
+  });
+
   it('пример печатает сумму — код на странице исполняется целиком', () => {
-    expect(trace).toMatch(/^1000001000002$/m);
+    expect(trace).toMatch(/^999999000001$/m);
   });
 
   it('демо цитирует те же строки трассы', () => {
@@ -77,15 +83,11 @@ describe('конвейер ярусов: пример `get` проходит т�
     expect(log).toContain('kind: deopt-eager, reason: wrong map');
   });
 
-  /**
-   * Шаг про профиль цитирует байткод. ⚠️ До 2026-10-01 там стояло `GetNamedProperty a0, [0], [0]`
-   * и «второй ноль — номер ячейки»: у `o.x + 1` ячейка чтения первая, нулевая — у сложения.
-   * Node 26.8 печатает тот же операнд как `FBV[1]`, Node 24.11 — как `[1]`.
-   */
-  it('`o.x` в байткоде `get` — `GetNamedProperty a0, [0], [1]`, как пишет шаг демо', () => {
+  /** Теперь get читает только x: без сложения его ячейка профиля нулевая. */
+  it('`o.x` в байткоде `get` — `GetNamedProperty a0, [0], [0]`, как пишет шаг демо', () => {
     const bytecode = run(['--print-bytecode', '--print-bytecode-filter=get'], PIPELINE_CODE);
-    expect(bytecode).toMatch(/GetNamedProperty a0, \[0[^\]]*\], (?:FBV)?\[1\]/);
-    expect(PIPELINE.map((s) => s.message).join('\n')).toContain('`GetNamedProperty a0, [0], [1]`');
+    expect(bytecode).toMatch(/GetNamedProperty a0, \[0[^\]]*\], (?:FBV)?\[0\]/);
+    expect(PIPELINE.map((s) => s.message).join('\n')).toContain('`GetNamedProperty a0, [0], [0]`');
   });
 });
 

@@ -5,7 +5,7 @@ import type { GraphEdge, GraphNode, ObjectGraph, OpaqueRef, Origin } from './typ
  * Обход настоящей структуры объектов: узлы и имена ссылок спрашиваются у движка.
  *
  * Имя ребра нигде не написано руками — оно собирается прямо в обходе из того, чем ссылка
- * оказалась: ключ объекта даёт `el in Chart`, индекс массива даёт `3 in (array)`, ключ
+ * оказалась: ключ объекта даёт `el in Chart`, индекс массива даёт `[3] in Array`, ключ
  * коллекции даёт `chart in Map`. Ровно эти строки в теме лежали литералами, вместе
  * с рисующими отступ символами; теперь и строка, и отступ — следствие обхода.
  *
@@ -143,7 +143,7 @@ export function buildGraph(scene: Scene): ObjectGraph {
     }
 
     list.forEach((item, i) => {
-      if (isRef(item)) link(storeId, visit(item), `${i} in ${self.ref}`, 'engine');
+      if (isRef(item)) link(storeId, visit(item), `[${i}] in ${self.ref}`, 'engine');
     });
   };
 
@@ -174,7 +174,7 @@ export function buildGraph(scene: Scene): ObjectGraph {
     if (value instanceof Set) {
       let i = 0;
       for (const item of value) {
-        if (isRef(item)) link(self.id, visit(item), `${i} in ${self.ref}`, 'engine');
+        if (isRef(item)) link(self.id, visit(item), `[${i}] in ${self.ref}`, 'engine');
         i++;
       }
       return;

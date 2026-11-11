@@ -444,6 +444,22 @@ describe('очередь nextTick сливается досуха, вместе 
 // ---------------------------------------------------------------------------
 
 describe('queueMicrotask и .then — одна очередь', () => {
+  it('pending ждёт resolve, завершённый промис ставит реакцию при подписке', async () => {
+    const out: string[] = [];
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    pending.then(() => out.push('pending'));
+    Promise.resolve().then(() => out.push('settled'));
+    queueMicrotask(() => out.push('marker'));
+    finish();
+    await drain();
+    expect(out).toEqual(['settled', 'marker', 'pending']);
+    // Строка таблицы раньше безусловно связывала постановку только с resolve.
+    const claim = MICRO_ROWS.find((r) => r.k === '.then / .catch / .finally')!.v;
+    expect(claim).toContain('pending');
+    expect(claim).toContain('уже завершён');
+  });
+
   const row = (needle: string): string[] => {
     const found = QM_ROWS.find((r) => r[0].includes(needle));
     if (!found) throw new Error(`в таблице QM_ROWS нет строки про «${needle}»`);

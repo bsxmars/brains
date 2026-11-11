@@ -17,6 +17,7 @@
  * кто-то держится со стороны.
  */
 import { computed, ref, watch } from 'vue';
+import Md from '@/shared/ui/Md.vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { Button, SegmentedControl } from '@/shared/ui';
 import type { EphemeronScenario } from '../model/types';
@@ -41,10 +42,10 @@ const keyReachableOutside = computed(
 const entrySurvives = computed(() => keyReachableOutside.value);
 
 const verdict = computed(() => {
-  if (!collected.value) return { tone: 'dim', text: 'сборка ещё не запускалась' };
+  if (!collected.value) return { tone: 'dim', text: 'выберите случай и посмотрите, что сохранится по схеме' };
   return entrySurvives.value
-    ? { tone: 'err', text: 'запись жива: ключ достижим снаружи записи' }
-    : { tone: 'ok', text: 'запись удалена целиком — и ключ, и значение собраны' };
+    ? { tone: 'ok', text: 'запись сохраняется: к ключу есть внешний путь' }
+    : { tone: 'ok', text: 'ключ и значение можно собрать: внешних ссылок нет' };
 });
 
 /** Погашенным рисуем то, чего после сборки не осталось. */
@@ -56,9 +57,11 @@ const gone = computed(() => collected.value && !entrySurvives.value);
     <template #toolbar>
       <div class="bar">
         <SegmentedControl v-model="picked" class="l-pills" label="Расклад ссылок" :options="options" />
-        <Button variant="primary" @click="collected = true">прогнать GC</Button>
+        <Button variant="primary" @click="collected = true">показать результат по схеме</Button>
       </div>
     </template>
+
+    <div class="model-note">Учебная схема: результат следует из показанных ссылок. Сборка мусора в браузере здесь не запускается.</div>
 
     <div class="split">
       <div class="pane">
@@ -98,7 +101,7 @@ const gone = computed(() => collected.value && !entrySurvives.value);
 
       <div class="pane pane--right">
         <div class="verdict" :data-tone="verdict.tone">{{ verdict.text }}</div>
-        <div class="why">{{ scenario.why }}</div>
+        <Md class="why" :text="scenario.why" />
 
         <div v-if="probe" class="probe">
           <div class="t-label">то же в Node</div>
@@ -111,6 +114,12 @@ const gone = computed(() => collected.value && !entrySurvives.value);
 </template>
 
 <style scoped>
+.model-note {
+  padding: 14px 20px;
+  font-size: var(--fs-4);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
 .bar {
   display: flex;
   align-items: center;

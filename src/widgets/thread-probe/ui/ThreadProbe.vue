@@ -1,26 +1,7 @@
 <script setup lang="ts">
-/**
- * Два потока и одна работа — замером в этой вкладке, а не рассказом о ней.
- *
- * Тема объясняет, из чего состоит браузер, и почти всё в этом объяснении со страницы
- * не наблюдаемо. Наблюдаемо ровно одно, зато главное: **что происходит со страницей, пока
- * кто-то считает.** Одна и та же функция (`model/work.ts`, в воркер уезжает буквально она же
- * через `toString()`) крутится сперва в выделенном воркере, потом на главном потоке, а прибор
- * всё это время считает кадры. В первом случае кадры идут, во втором их нет — и это не число
- * из чужого замера, а пауза, которую видно глазом прямо здесь.
- *
- * Почему кадры, а не миллисекунды. Микротайминг здесь мерить нечем: без изоляции по источнику
- * `performance.now()` загрублён до сотен микросекунд — и соседняя колонка это показывает
- * не словами, а ответом платформы. Пауза между кадрами живёт на шкале в сотни миллисекунд,
- * где загрубление роли не играет.
- *
- * ⚠️ **Чего здесь нет и быть не может.** Число процессов браузера, память рендерера,
- * запасной процесс наготове, границы изолятов, содержимое чужой вкладки — из JS не видно
- * ни одним способом. Это граница безопасности, а не недоделка прибора, и подменять её
- * «примерными» числами нельзя: демо обязано показывать то, что спросило.
- *
- * ⚠️ Автостарта нет намеренно. Прогон на главном потоке **заедает страницу**, и делать это
- * без спроса в момент, когда читатель до демо долистал, выглядело бы поломкой сайта.
+/** Native rAF-callback probe. One time-budgeted burn function runs on main and worker;
+ * callbacks are not a measurement of frames physically presented by the compositor.
+ * No automatic start: the main-thread run deliberately blocks JS for a short time.
  */
 import { computed, onBeforeUnmount, ref, useTemplateRef } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
@@ -39,7 +20,7 @@ const props = withDefaults(
   }>(),
   {
     workMs: DEFAULT_WORK_MS,
-    note: 'Со страницы видно ровно это. **Сколько у браузера процессов, сколько памяти у рендерера, держит ли он запасной процесс наготове, где проходят границы изолятов** — из JS не наблюдаемо ни одним способом, и это граница безопасности, а не недоделка демо. Наблюдаемо следствие: отдаёт ли **эта** вкладка кадры, пока идёт работа, и что она отвечает на прямые вопросы о себе.',
+    note: 'Со страницы видно ровно это. **Сколько у браузера процессов, сколько памяти у рендерера, держит ли он запасной процесс наготове, где проходят границы изолятов** — не раскрываются стандартным API страницы, и это граница безопасности, а не недоделка демо. Наблюдаемо следствие: вызываются ли у **этой** вкладки callbacks requestAnimationFrame, и что она отвечает на прямые вопросы о себе.',
   },
 );
 
@@ -138,7 +119,7 @@ const cards = computed<Card[]>(() => [
   {
     mode: 'main',
     title: 'на главном потоке',
-    what: 'та же функция в том же потоке, который рисует кадры и обрабатывает клики',
+    what: 'та же функция занимает поток JS, DOM и callbacks requestAnimationFrame',
     run: runs.value.main,
   },
 ]);
@@ -149,34 +130,34 @@ const verdict = computed(() => {
   if (!inWorker?.ok || !onMain?.ok || inWorker.longestGapMs <= 0) return '';
 
   const times = onMain.longestGapMs / inWorker.longestGapMs;
-  return `Работа одинаковая, поток разный: самая длинная пауза между кадрами выросла в **${times.toFixed(1)}** раза — с **${inWorker.longestGapMs.toFixed(0)} мс** до **${onMain.longestGapMs.toFixed(0)} мс**. Ровно столько страница не отвечала ни на что.`;
+  return `Бюджет времени одинаковый, поток разный: самая длинная пауза между callbacks rAF изменилась в **${times.toFixed(1)}** раза — с **${inWorker.longestGapMs.toFixed(0)} мс** до **${onMain.longestGapMs.toFixed(0)} мс**. Это пауза в вызовах JS, а не число пропущенных экраном кадров.`;
 });
 
 const sums = computed(() => {
   const inWorker = runs.value.worker;
   const onMain = runs.value.main;
   if (!inWorker?.ok || !onMain?.ok) return '';
-  return `Суммы разные (${inWorker.checksum.toLocaleString('ru-RU')} и ${onMain.checksum.toLocaleString('ru-RU')}), и так и должно быть: работа отмерена **временем, а не числом оборотов**. Важно, что они есть, — значит цикл выполнялся, а не был выброшен.`;
+  return `Суммы (${inWorker.checksum.toLocaleString('ru-RU')} и ${onMain.checksum.toLocaleString('ru-RU')}) могут отличаться: работа отмерена **временем, а не числом оборотов**. Важно, что они есть, — значит цикл выполнялся, а не был выброшен.`;
 });
 
 /** Полоска кадров: доля от секунды при 60 Гц. Длиннее — значит паузу видно и без чисел. */
 const gapWidth = (ms: number) => Math.min(100, Math.round((ms / 1000) * 100));
 
 /**
- * «1 кадр» / «3 кадра» / «45 кадров» — счётная форма по образцу `topics()` из `shared/lib/format`.
+ * «1 вызов» / «3 вызова» / «45 вызовов» — счётная форма по образцу `topics()` из `shared/lib/format`.
  *
  * Своя, а не общая: там счётная форма живёт в `shared`, потому что одно и то же число печатают
  * два места курса. Здесь место одно, и заводить общее правило ради него значит расширять
  * нижний слой под единственного потребителя. Правило русское, а не `n === 1`: у 11–14 форма
- * своя, и без этой ветки прибор показал бы «11 кадра».
+ * своя, и без этой ветки прибор показал бы «11 вызова».
  */
 function framesOf(n: number): string {
   const mod100 = n % 100;
   const mod10 = n % 10;
-  if (mod100 >= 11 && mod100 <= 14) return `${n} кадров`;
-  if (mod10 === 1) return `${n} кадр`;
-  if (mod10 >= 2 && mod10 <= 4) return `${n} кадра`;
-  return `${n} кадров`;
+  if (mod100 >= 11 && mod100 <= 14) return `${n} вызовов rAF`;
+  if (mod10 === 1) return `${n} вызов rAF`;
+  if (mod10 >= 2 && mod10 <= 4) return `${n} вызова rAF`;
+  return `${n} вызовов rAF`;
 }
 </script>
 
@@ -195,7 +176,7 @@ function framesOf(n: number): string {
 
     <div class="tp-split">
       <div class="tp-pane">
-        <div class="t-label">кадры, пока идёт работа</div>
+        <div class="t-label">callbacks requestAnimationFrame</div>
 
         <div class="tp-live">
           <div class="tp-live__track">
@@ -214,11 +195,11 @@ function framesOf(n: number): string {
             <div class="tp-metrics">
               <div class="tp-metric">
                 <span class="tp-metric__value">{{ card.run.frames }}</span>
-                <span class="tp-metric__key">кадров</span>
+                <span class="tp-metric__key">вызовов rAF</span>
               </div>
               <div class="tp-metric">
                 <span class="tp-metric__value">{{ card.run.fps.toFixed(0) }}</span>
-                <span class="tp-metric__key">кадров в секунду</span>
+                <span class="tp-metric__key">вызовов rAF в секунду</span>
               </div>
               <div class="tp-metric tp-metric--gap">
                 <span class="tp-metric__value">{{ card.run.longestGapMs.toFixed(0) }} мс</span>

@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PITFALLS } from '@/content/lessons/promise-internals/data';
+import { PITFALLS, PROMISE_CHAIN_CODE } from '@/content/lessons/promise-internals/data';
 
 /**
  * Тонкие места урока «Промис изнутри» — запуском, а не по памяти.
@@ -28,11 +28,32 @@ import { PITFALLS } from '@/content/lessons/promise-internals/data';
  *                                      на pending не тратит тиков, резолв выкладывает список
  *                                      разом, подписка на settled стоит один тик.
  *
- * ⚠️ Листингов в `data.ts` этой темы нет: у `Pitfall` поле `code` не заполнено ни у одного
- * пункта, а примеры из текста живут внутри JSX в `index.mdx` и импортироваться не умеют.
- * Поэтому приём «исполнить листинг прямо из данных» (`tests/unit/callbacks.test.ts`) здесь
- * применить не к чему — сверяются формулировки и поведение.
+ * Листинг цепочки берётся из `data.ts` и исполняется целиком. Для тонких мест без поля
+ * `code` сверяются короткие смысловые формулировки и поведение движка.
  */
+
+describe('один промис, две подписки и цепочка', () => {
+  it('исходный p сохраняет результат, а .then возвращает отдельный q', () => {
+    const run = runInNode(PROMISE_CHAIN_CODE);
+    expect(run.status).toBe(0);
+    expect(run.stdout).toEqual(['p === q: false', 'p: 10', 'q: 11']);
+  });
+
+  it('settled ставит реакцию при подписке, pending — после resolve', async () => {
+    const out: string[] = [];
+    let resolve!: () => void;
+    const pending = new Promise<void>((done) => { resolve = done; });
+    pending.then(() => out.push('pending'));
+    Promise.resolve().then(() => out.push('settled'));
+    queueMicrotask(() => out.push('marker'));
+    resolve();
+    await drain();
+    expect(out).toEqual(['settled', 'marker', 'pending']);
+    // Исправление ложного «.then ничего не стоит»: речь только о постановке микрозадачи.
+    expect(pitfall('02').t).toContain('ещё не ставит');
+    expect(pitfall('02').d).toContain('новый промис');
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Инструменты

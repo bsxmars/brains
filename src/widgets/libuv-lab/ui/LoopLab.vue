@@ -28,8 +28,8 @@ const picked = ref(props.scenarios[0].id);
 const options = props.scenarios.map((s) => ({ value: s.id, label: s.label }));
 const machine = ref<'fast' | 'slow'>('fast');
 const machines = [
-  { value: 'fast', label: 'быстрая машина' },
-  { value: 'slow', label: 'медленная: +1 мс на оборот' },
+  { value: 'fast', label: 'модель: 0 мс на оборот' },
+  { value: 'slow', label: 'модель: +1 мс на оборот' },
 ];
 
 const scenario = computed(() => props.scenarios.find((s) => s.id === picked.value) ?? props.scenarios[0]);
@@ -90,6 +90,7 @@ const realRows = computed(() =>
     </template>
 
     <div class="ll-body">
+      <p class="ll-note">Учебная модель с виртуальным временем. Результаты настоящего Node — отдельная запись стенда.</p>
       <div class="ll-cols">
         <div class="ll-col">
           <span class="ll-label">сценарий</span>

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { POOL_RUNS, REJECTION_RUNS } from '@/content/lessons/promise-internals/data';
+import { POOL_CODE, POOL_RUNS, REJECTION_RUNS } from '@/content/lessons/promise-internals/data';
 
 /**
  * Два утверждения темы «Промис изнутри», которые дороже всего проверять глазами.
@@ -68,15 +68,10 @@ describe('необработанный отказ: где проходит гр�
 });
 
 describe('пул конкурентности против Promise.all', () => {
-  /** Тот же пул, что напечатан в теме. */
-  async function pool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
-    const it = items[Symbol.iterator]();
-    await Promise.all(
-      Array.from({ length: limit }, async () => {
-        for (let next = it.next(); !next.done; next = it.next()) await fn(next.value);
-      }),
-    );
-  }
+  /** Исполняется исходник из data.ts, напечатанный на странице. */
+  const pool = new Function(POOL_CODE + '\nreturn pool;')() as <T>(
+    items: T[], limit: number, fn: (item: T) => Promise<void>,
+  ) => Promise<void>;
 
   /**
    * Считает пик одновременно выполняющихся задач.

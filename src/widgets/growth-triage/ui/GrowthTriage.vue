@@ -69,7 +69,7 @@ const height = (v: number) => `${6 + (v / 100) * 20}px`;
 
       <div class="right">
         <div class="field">
-          <div class="t-label">диагноз</div>
+          <div class="t-label">что проверить</div>
           <div class="dx" :data-tone="current.tone">{{ current.dx }}</div>
         </div>
 

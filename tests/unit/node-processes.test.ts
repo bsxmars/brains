@@ -52,10 +52,24 @@ function run(name: string, code: string): string[] {
     .split('\n');
 }
 
-describe('раздел «Первый воркер и четыре способа»', () => {
+describe('первая законченная задача и выбор механизма', () => {
   it('main.mjs + sum.mjs печатают ровно FIRST_OUT', () => {
     write('sum.mjs', FIRST_WORKER_CODE);
     expect(run('main.mjs', FIRST_MAIN_CODE)).toEqual(FIRST_OUT.split('\n'));
+  });
+
+  it.each([
+    ['брошенная ошибка', "throw new Error('задача упала')"],
+    ['ненулевой выход без error', 'process.exit(3)'],
+    ['выход 0 без ответа', '// ответа нет'],
+  ])('исходный главный файл возвращает ошибку задачи: %s', (_, body) => {
+    write('sum.mjs', body);
+    const result = spawnSync(process.execPath, [write('first-failure.mjs', FIRST_MAIN_CODE)], {
+      cwd: dir, encoding: 'utf8', timeout: 20_000,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).not.toContain('сумма:');
+    expect(result.stdout).toContain('воркер вышел с кодом');
   });
 
   it('таблица: у воркера pid тот же, у процессов — свой', () => {
@@ -126,8 +140,39 @@ console.log(isMarkedAsUntransferable(Buffer.alloc(3).buffer), isMarkedAsUntransf
 });
 
 describe('раздел «child_process: программа рядом»', () => {
-  it('spawn: два куска, exit раньше close', () => {
+  it('spawn: собирает вывод независимо от границ data, exit раньше close', () => {
     expect(run('spawn.mjs', SPAWN_CODE)).toEqual(SPAWN_OUT);
+  });
+
+  it('показанный spawn обрабатывает ENOENT и возвращает ненулевой статус', () => {
+    const source = SPAWN_CODE.replace('spawn(process.execPath,', "spawn('no-such-bin-node-processes-topic',");
+    const result = spawnSync(process.execPath, [write('spawn-missing.mjs', source)], {
+      encoding: 'utf8', timeout: 20_000,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('не удалось запустить: ENOENT');
+    expect(result.stdout).toContain('close:');
+    expect(result.stdout).not.toContain('exit:');
+  });
+
+  it('показанный spawn проверяет ненулевой код дочерней программы', () => {
+    const source = SPAWN_CODE.replace("process.stdout.write('раз');", 'process.exitCode = 4;');
+    const result = spawnSync(process.execPath, [write('spawn-failed.mjs', source)], {
+      encoding: 'utf8', timeout: 20_000,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('close: 4 null');
+  });
+
+  it('fork наследует stdio, silent:true создаёт pipe для родителя', () => {
+    const out = run('fork-stdio.mjs', `import { fork } from 'node:child_process';
+import { once } from 'node:events';
+for (const silent of [false, true]) {
+  const c = fork(new URL('./pid-child.cjs', import.meta.url), { silent });
+  console.log(c.stdout === null, c.stderr === null);
+  await once(c, 'exit');
+}`);
+    expect(out).toEqual(['true true', 'false false']);
   });
 
   it('kill() — exit с кодом null и сигналом SIGTERM', () => {
@@ -166,6 +211,23 @@ exec('exit 4', (err) => {
   it('fork: JSON теряет Date и Map молча, advanced — нет', () => {
     write('echo.cjs', FORK_CHILD_CODE);
     expect(run('parent.mjs', FORK_CODE)).toEqual(FORK_OUT);
+  });
+
+  it('показанный fork находит соседний файл независимо от cwd родителя', () => {
+    write('echo.cjs', FORK_CHILD_CODE);
+    const file = write('fork-different-cwd.mjs', FORK_CODE);
+    const out = execFileSync(process.execPath, [file], { cwd: tmpdir(), encoding: 'utf8', timeout: 20_000 });
+    expect(out.trim().split('\n')).toEqual(FORK_OUT);
+  });
+
+  it('показанный fork отклоняет задачу, если процесс вышел без ответа', () => {
+    write('echo.cjs', 'process.exit(0);');
+    const file = write('fork-no-reply.mjs', FORK_CODE);
+    const result = spawnSync(process.execPath, [file], { cwd: dir, encoding: 'utf8', timeout: 20_000 });
+    expect(result.error, 'ожидание ответа не должно зависнуть до внешнего timeout').toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/Дочерний процесс не вернул ответ|ERR_IPC_CHANNEL_CLOSED|EPIPE/);
+    write('echo.cjs', FORK_CHILD_CODE);
   });
 
   it('fork: SharedArrayBuffer — {} в JSON и ошибка клонирования в advanced', () => {

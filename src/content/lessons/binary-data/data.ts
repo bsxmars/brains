@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LensPreset, PngVariant } from '@/widgets/bytes-lab/model/types';
 
@@ -57,7 +58,7 @@ import type { LensPreset, PngVariant } from '@/widgets/bytes-lab/model/types';
 export const GLOSSARY: GlossaryTerm[] = [
   {
     k: '`ArrayBuffer`',
-    d: 'Кусок памяти фиксированного размера в байтах. Сам по себе ничего не умеет: ни прочитать байт, ни записать. Это просто место.',
+    d: 'Буфер байтов. Обычно длина фиксирована; при создании с `maxByteLength` её можно менять. Сам по себе ничего не умеет: ни прочитать байт, ни записать. Это просто место.',
   },
   {
     k: 'вид (view)',
@@ -77,7 +78,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: 'чанк и CRC',
-    d: 'Чанк (блок) — кусок файла со своей длиной и типом. CRC — контрольная сумма: 4 байта, посчитанные из содержимого. Изменился хоть один бит — сумма не сойдётся.',
+    d: 'Чанк (блок) — кусок файла со своей длиной и типом. CRC — контрольная сумма: 4 байта, посчитанные из содержимого. Помогает обнаружить случайную порчу. Подлинность файла не подтверждает: контрольную сумму можно пересчитать.',
   },
 ];
 
@@ -163,6 +164,38 @@ String.fromCharCode(...name);      // → 'IHDR'`;
 
 export const VIEWS_NOTE =
   'Запись через `bytes` видна через `words`: это два вида на один и тот же буфер, а не два отдельных массива. На этом же держится разница между `subarray` и `slice`. Первый даёт окно на те же байты, со своим `byteOffset`. Второй копирует. Окно дёшево, но правка через него меняет исходник — и наоборот. Почему `words[2]` равно не 13, а огромному числу, объясняет раздел [«Порядок байт»](#s3).';
+
+export const WINDOW_CODE = `// Продолжение примера: name — четыре байта IHDR со смещения 12.
+const whole = new DataView(name.buffer);
+const field = new DataView(name.buffer, name.byteOffset, name.byteLength);
+whole.byteLength;                  // → 16 — доступен весь исходный буфер
+whole.getUint8(0);                 // → 0x89 — первый байт сигнатуры PNG
+field.byteLength;                  // → 4 — доступно только окно
+field.getUint8(0);                 // → 0x49 — буква I в IHDR
+field.getUint8(4);                 // ✗ RangeError — за границей окна`;
+
+export const WINDOW_DIAGRAM: ConceptDiagramData = {
+  id: 'binary-data-view-window',
+  title: 'Один буфер, разные границы чтения',
+  description: 'name — окно из четырёх байтов на смещении 12 в 16-байтовом буфере. DataView только от buffer видит все 16 байтов. DataView с byteOffset и byteLength видит только IHDR.',
+  width: 900, height: 528,
+  nodes: [
+    { id: 'buffer', x: 20, y: 32, width: 220, height: 176, label: 'Буфер: 16 байт', detail: 'Сигнатура PNG, длина блока и имя `IHDR`.', tone: 'neutral' },
+    { id: 'name', x: 20, y: 320, width: 220, height: 176, label: '`name`: 4 байта', detail: '`byteOffset = 12`\n`byteLength = 4`', tone: 'info' },
+    { id: 'wide', x: 330, y: 32, width: 230, height: 176, label: 'Только `name.buffer`', detail: '`new DataView(name.buffer)`', tone: 'warn' },
+    { id: 'bounded', x: 330, y: 320, width: 230, height: 176, label: 'Буфер + границы окна', detail: 'Переданы `byteOffset` и `byteLength`.', tone: 'ok' },
+    { id: 'signature', x: 650, y: 32, width: 230, height: 176, label: 'Индекс 0 → `0x89`', detail: 'Начало всего буфера. Доступны 16 байт.', tone: 'warn' },
+    { id: 'ihdr', x: 650, y: 320, width: 230, height: 176, label: 'Индекс 0 → `0x49`', detail: 'Начало `IHDR`. Доступны 4 байта.', tone: 'ok' },
+  ],
+  edges: [
+    { from: 'name', to: 'buffer', fromSide: 'top', toSide: 'bottom', label: 'тот же .buffer', labelX: 130, labelY: 272 },
+    { from: 'buffer', to: 'wide' },
+    { from: 'name', to: 'bounded' },
+    { from: 'wide', to: 'signature' },
+    { from: 'bounded', to: 'ihdr' },
+  ],
+  note: 'Смещения DataView считаются от начала самого вида. Передача только .buffer теряет границы исходного окна и может дать доступ к соседним данным.',
+};
 
 export const TYPES_NOTE =
   'Типизированных массивов двенадцать. Отличаются они двумя вещами: сколько байт занимает элемент и как эти байты понимать — как целое со знаком, без знака или как дробь.';
@@ -293,7 +326,7 @@ export const LENS_PRESETS: LensPreset[] = [
 ];
 
 export const LENS_CAPTION =
-  'Байты одни и те же, меняется только вид. Числа считает функция `readAs` через `DataView`. Для сравнения те же байты читает настоящий `Int16Array` или `Float32Array` вашего устройства: с его ответом всегда совпадает порядок LE.';
+  'Байты одни и те же, меняется только вид. Числа считает функция `readAs` через `DataView`. Для сравнения те же байты читает настоящий `Int16Array` или `Float32Array` вашего устройства: совпадающий ответ показывает порядок байтов этой платформы.';
 
 // ─── Раздел 4. Текст и base64 ──────────────────────────────────────────────────────────────
 
@@ -403,16 +436,27 @@ export const BLOB_FACTS = [
   },
 ];
 
-export const FILE_SIZE_CODE = `// Размер картинки, не читая файл целиком: нужны только первые 24 байта.
+export const FILE_SIZE_CODE = `// Предварительное чтение заголовка, не полная проверка PNG.
 async function pngSize(file) {
   const head = new Uint8Array(await file.slice(0, 24).arrayBuffer());
-  const view = new DataView(head.buffer);
-  if (view.getUint32(0) !== 0x89504e47) throw new Error('не PNG');
-  return { width: view.getUint32(16), height: view.getUint32(20) };
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (head.length < 24 || signature.some((byte, i) => head[i] !== byte)) {
+    throw new Error('не PNG');
+  }
+  const view = new DataView(head.buffer, head.byteOffset, head.byteLength);
+  if (view.getUint32(8) !== 13 || view.getUint32(12) !== 0x49484452) {
+    throw new Error('неверный IHDR');
+  }
+  const width = view.getUint32(16);
+  const height = view.getUint32(20);
+  if (!width || !height || width > 0x7fffffff || height > 0x7fffffff) {
+    throw new Error('неверные размеры PNG');
+  }
+  return { width, height };
 }`;
 
 export const FILE_SIZE_NOTE =
-  'Так проверяют загрузку до отправки: `<input type="file">` даёт `File`, а 24 байта хватает, чтобы узнать размер и отказать картинке 20 000 × 20 000. На сервере проверку всё равно повторяют — клиенту верить нельзя ([«Загрузка файлов», раздел «Проверки на сервере»](/platform/uploads/#s5)).';
+  'Так предварительно читают размер до отправки: `<input type="file">` даёт `File`, первых 24 байт достаточно для полей размеров. Это не полная проверка PNG: CRC, содержимое блоков и декодирование здесь не проверяются. На сервере проверку всё равно повторяют — клиенту верить нельзя ([«Загрузка файлов», раздел «Проверки на сервере»](/platform/uploads/#s5)).';
 
 // ─── Раздел 6. Растущий буфер и transfer ───────────────────────────────────────────────────
 
@@ -447,7 +491,7 @@ async function collect(stream, max = 64 * 1024 * 1024) {
 }`;
 
 export const COLLECT_NOTE =
-  'Без растущего буфера здесь пришлось бы копить массив кусков и в конце склеивать их в новый буфер — то есть держать в памяти всё дважды. С ним кусок кладётся сразу на место, а вид `bytes` создаётся один раз. `maxByteLength` — потолок: при попытке вырасти дальше `resize` бросит `RangeError`, и файл больше лимита не уронит вкладку.';
+  'Без растущего буфера здесь пришлось бы копить массив кусков и в конце склеивать их в новый буфер — при таком способе сборки потребуются и исходные части, и место под результат. С ним код записывает очередной кусок в общий буфер, а вид `bytes` создаёт один раз. Движок может копировать память при изменении размера. `maxByteLength` ограничивает размер этого буфера: превышение даёт `RangeError`. Это не ограничение всей памяти вкладки и не гарантия успешного выделения.';
 
 export const TRANSFER_CODE = `const small = new ArrayBuffer(8);
 const view = new Uint8Array(small);
@@ -463,7 +507,7 @@ view[0];                           // → undefined — чтение молчи�
 view.set([1]);                     // ✗ TypeError — а метод бросает`;
 
 export const TRANSFER_NOTE =
-  '`transfer()` — та же передача владения, что при `postMessage` со списком переноса ([«Воркеры и параллелизм», раздел «Передача владения»](/js/workers/#s3)), только внутри одного потока. Старый буфер становится пустым, новый получает байты, а с аргументом — ещё и другую длину. Без воркера это нужно, чтобы функция могла забрать буфер себе: она отсоединяет его у вызывающего, и тот уже не испортит данные. Растущий буфер `transfer()` оставляет растущим, `transferToFixedLength()` — делает обычным. Память WebAssembly тоже растёт, но её `buffer` при росте отсоединяется, а растущим становится только через `memory.toResizableBuffer()` — [«WebAssembly», раздел «Линейная память»](/js/wasm-threads/#s2).';
+  '`transfer()` — та же передача владения, что при `postMessage` со списком переноса ([«Воркеры и параллелизм», раздел «Передача владения»](/js/workers/#s3)), только внутри одного потока. Старый буфер становится пустым, новый получает сохранённую часть байтов, а с аргументом — ещё и другую длину. При увеличении добавленные байты нулевые; при уменьшении хвост теряется. Отсутствие физической копии стандарт не гарантирует. Без воркера это нужно, чтобы функция могла забрать буфер себе: она отсоединяет его у вызывающего, и тот уже не испортит данные. Растущий буфер `transfer()` оставляет растущим, `transferToFixedLength()` — делает обычным. Память WebAssembly тоже растёт, но её `buffer` при росте отсоединяется, а растущим становится только через `memory.toResizableBuffer()` — [«WebAssembly», раздел «Линейная память»](/js/wasm-threads/#s2).';
 
 // ─── Раздел 7. Разбор PNG ──────────────────────────────────────────────────────────────────
 
@@ -699,4 +743,4 @@ export const SOURCES: Source[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Воркеры и параллелизм, раздел «Передача владения»](/js/workers/#s3) — буфер, отданный другому потоку, и [«Общая память и Atomics»](/js/atomics/) — `SharedArrayBuffer` и правила работы с ним. [MessageChannel, раздел «Правила transfer-списка»](/js/message-channel/#s3) — что бывает с забытым списком переноса. [WebAssembly, раздел «Линейная память»](/js/wasm-threads/#s2) — память модуля как `ArrayBuffer`, который отсоединяется при росте. [Числа в JS, раздел «Устройство double»](/js/numbers/#s1) — что лежит в восьми байтах `Float64Array`. [Unicode и Intl, раздел «Байты»](/js/unicode-intl/#s8) — UTF-8 против UTF-16. [Стримы и обратное давление, раздел «Итерация и байты»](/platform/streams/#s6) — байтовые потоки и BYOB. [Хранилища браузера, раздел «IndexedDB: версии, индексы, курсоры»](/platform/browser-storage/#s3) — где хранить `Blob`. [Загрузка файлов, раздел «Проверки на сервере»](/platform/uploads/#s5) — сигнатуры форматов. [Passkeys, раздел «Регистрация»](/platform/passkeys/#s2) — ещё один формат, который читают `DataView`. [Копирование и сериализация](/js/serialization/) — `JSON.stringify` по шагам, алгоритм `structuredClone` и что теряет каждая копия. [Что внутри gzip](/algorithms/deflate/) — LZ77, коды Хаффмана и блоки DEFLATE по битам.';
+  'Смежное на сайте: [Воркеры и параллелизм, раздел «Передача владения»](/js/workers/#s3) — буфер, отданный другому потоку, и [«Общая память и Atomics»](/js/atomics/) — `SharedArrayBuffer` и правила работы с ним. [MessageChannel, раздел «Правила transfer-списка»](/js/message-channel/#s2) — что бывает с забытым списком переноса. [WebAssembly, раздел «Линейная память»](/js/wasm-threads/#s2) — память модуля как `ArrayBuffer`, который отсоединяется при росте. [Числа в JS, раздел «Устройство double»](/js/numbers/#s1) — что лежит в восьми байтах `Float64Array`. [Unicode и Intl, раздел «Байты»](/js/unicode-intl/#s8) — UTF-8 против UTF-16. [Стримы и обратное давление, раздел «Итерация и байты»](/platform/streams/#s6) — байтовые потоки и BYOB. [Хранилища браузера, раздел «IndexedDB: версии, индексы, курсоры»](/platform/browser-storage/#s3) — где хранить `Blob`. [Загрузка файлов, раздел «Проверки на сервере»](/platform/uploads/#s5) — сигнатуры форматов. [Passkeys, раздел «Регистрация»](/platform/passkeys/#s2) — ещё один формат, который читают `DataView`. [Копирование и сериализация](/js/serialization/) — `JSON.stringify` по шагам, алгоритм `structuredClone` и что теряет каждая копия. [Что внутри gzip](/algorithms/deflate/) — LZ77, коды Хаффмана и блоки DEFLATE по битам.';

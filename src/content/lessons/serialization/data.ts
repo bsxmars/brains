@@ -1,4 +1,5 @@
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { CloneSample } from '@/widgets/clone-lab/model/types';
 
 /**
@@ -37,6 +38,14 @@ import type { CloneSample } from '@/widgets/clone-lab/model/types';
  * Только по документации, без запуска: DOM-узлы и прочие platform-объекты в `structuredClone`
  * (в Node их нет; список — по спецификации HTML и MDN); IndexedDB как третий потребитель
  * того же алгоритма (по спецификации IndexedDB, разбор — в «Хранилищах браузера»).
+ *
+ * 2026-11-11, официальный Node 26.8.2, serialization.test.ts:
+ * - MEMORY_MAP_CODE исполняется целиком, включая catch JSON-ошибки и проверки связей;
+ * - stringify учитывает toJSON функции, clone использует встроенный getTime и итераторы
+ *   Map/Set вместо переопределённых методов; отдельные элементы CORPUS сверяют это с API;
+ * - демо JSON-roundtrip бросает SyntaxError для undefined, как настоящий JSON.parse;
+ * - reviver может фильтровать на шаге массива, а не только удалять элементы с дырами;
+ * - обычный AbortSignal в Node превращается в {}, а не рабочий сигнал или DataCloneError.
  */
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
@@ -48,7 +57,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: 'поверхностная и глубокая копия',
-    d: 'Поверхностная копирует только верхний уровень: вложенные объекты остаются общими с оригиналом. Глубокая проходит всё дерево и создаёт новые объекты на каждом уровне.',
+    d: 'Поверхностная создаёт новый внешний контейнер: вложенные объекты остаются общими с оригиналом. Глубокая копирует поддерживаемые вложенные значения. Они образуют граф: один объект может встречаться в нескольких полях и ссылаться на себя. Сохранение этих связей зависит от алгоритма.',
   },
   {
     k: 'дескриптор свойства',
@@ -69,7 +78,7 @@ export const GLOSSARY: GlossaryTerm[] = [
 ];
 
 export const PLAIN_COPY =
-  'Скопировать объект — как переписать адресную книгу. Можно переписать только первую страницу, а на остальные поставить «см. оригинал» — это поверхностная копия. Можно переписать всё, но через диктовку по телефону (JSON): что не произносится словами — фотография, закладка, — не дойдёт. А можно снять ксерокопию (`structuredClone`): страницы и закладки приедут, но переплёт и подписи на полях — нет.';
+  'Сначала определите, что должно остаться общим. Для изменения одного товара достаточно скопировать контейнеры на пути к нему. Для независимого набора данных нужна глубокая копия поддерживаемых значений. Для отправки текста нужен формат вроде JSON, а экземпляр класса обычно передают как данные и собирают заново.';
 
 /* Здесь стоял лид «Тема опирается на четыре вещи… подробности — по ссылке» — пересказ устройства блока. Снят 2026-11-11. */
 export const PREREQ_NOTE = '';
@@ -86,7 +95,7 @@ export const PREREQ: Prereq[] = [
     t: 'Передача данных в воркер',
     d: '`postMessage` копирует сообщение тем же алгоритмом, что и `structuredClone`, и платят за копию оба потока: отправитель записывает, получатель собирает.',
     href: '/js/workers/#s2',
-    hrefLabel: '«Воркеры и параллелизм», раздел «Что можно передать»',
+    hrefLabel: '«Воркеры и параллелизм», раздел «Копия, перенос и общие байты»',
     tone: 'info',
   },
   {
@@ -111,17 +120,20 @@ export const PREREQ: Prereq[] = [
  * Заказ — сквозной пример темы. Все примеры ниже исполняются с этим кодом впереди
  * (`new Function('console', ORDER_CODE + код)`), а стрелки `// →` сверяет тест.
  */
-export const ORDER_CODE = `const order = {
-  id: 1017,
-  createdAt: new Date('2026-10-02T09:30:00Z'),
-  items: [{ title: 'Кофе', qty: 2 }],
-  tags: new Set(['new']),
-  promo: undefined,
-};`;
+export const ORDER_CODE = `function createOrder() {
+  return {
+    id: 1017,
+    createdAt: new Date('2026-10-02T09:30:00Z'),
+    items: [{ title: 'Кофе', qty: 2 }],
+    tags: new Set(['new']),
+    promo: undefined,
+  };
+}`;
 
 // ─── Раздел 1. Поверхностная копия ─────────────────────────────────────────────────────────
 
-export const SHALLOW_CODE = `const copy = { ...order };
+export const SHALLOW_CODE = `const order = createOrder();
+const copy = { ...order };
 
 copy.id = 2000;
 console.log(order.id);                      // → 1017
@@ -135,6 +147,17 @@ export const SHALLOW_NOTE =
 
 export const PLAIN_SHALLOW =
   'Как ключи от квартиры. Сделали дубликат связки — связка новая, а квартира та же. Кто откроет дверь своим ключом и переставит мебель, переставит её для всех.';
+
+export const UPDATE_CODE = `const order = createOrder();
+const changed = {
+  ...order,
+  items: order.items.map((item, index) => index === 0 ? { ...item, qty: 5 } : item),
+};
+console.log(order.items[0].qty, changed.items[0].qty); // → 2 5
+console.log(changed.tags === order.tags);            // → true`;
+
+export const UPDATE_NOTE =
+  'Новый заказ, массив items и изменённый товар созданы отдельно. Поэтому правка qty не затрагивает исходный заказ. Остальные ссылки, включая tags, намеренно сохранены: это обновление выбранного пути, а не полная глубокая копия. Если позже менять tags на месте, изменение снова будет общим.';
 
 export const GETTER_CODE = `let reads = 0;
 const cart = {
@@ -171,7 +194,8 @@ export const SHALLOW_LINK =
 
 // ─── Раздел 2. JSON.stringify ──────────────────────────────────────────────────────────────
 
-export const STRINGIFY_ORDER_CODE = `console.log(JSON.stringify(order));
+export const STRINGIFY_ORDER_CODE = `const order = createOrder();
+console.log(JSON.stringify(order));
 // → {"id":1017,"createdAt":"2026-10-02T09:30:00.000Z","items":[{"title":"Кофе","qty":2}],"tags":{}}`;
 
 export const STRINGIFY_ORDER_NOTE =
@@ -196,7 +220,7 @@ export const PLAIN_SPEC_STEPS =
  * (`tests/unit/serialization.test.ts` сверяет его с `JSON.stringify` байт в байт).
  * `JSON.rawJSON` (разобран в «Числах») опущен ради длины.
  */
-export const STRINGIFY_CODE = String.raw`// Учебный JSON.stringify — по шагам ECMA-262 (25.5.2).
+export const STRINGIFY_CODE = String.raw`// Учебный JSON.stringify — по шагам ECMA-262.
 function stringify(value, replacer, space) {
   const stack = [];          // объекты, которые сейчас на пути: от циклов
   let indent = '';
@@ -226,7 +250,7 @@ function stringify(value, replacer, space) {
   // SerializeJSONProperty: значение свойства key у holder → текст или undefined.
   function property(holder, key) {
     let value = holder[key];
-    if (value !== null && (typeof value === 'object' || typeof value === 'bigint')) {
+    if (value !== null && (typeof value === 'object' || typeof value === 'function' || typeof value === 'bigint')) {
       const toJSON = value.toJSON;
       if (typeof toJSON === 'function') value = toJSON.call(value, key);
     }
@@ -307,7 +331,7 @@ function unbox(v) {
 }`;
 
 export const STRINGIFY_CODE_NOTE =
-  'Сто строк повторяют шаги спецификации `SerializeJSONProperty`, `SerializeJSONObject`, `SerializeJSONArray` и `QuoteJSONString`. Циклы функция ловит так: она держит стек объектов, внутри которых сейчас находится, — от корня до текущего. Если очередной объект уже **в этом стеке**, это цикл. Если он просто встречался раньше в другой ветке, это не цикл. Поэтому общая ссылка записывается дважды, а цикл бросает исключение.';
+  'Сто строк повторяют основные шаги SerializeJSONProperty, SerializeJSONObject, SerializeJSONArray и QuoteJSONString. Это учебная модель без JSON.rawJSON, а не замена встроенного API. Функция держит стек текущего пути от корня: повтор объекта в этом стеке означает цикл. Встреча того же объекта в другой ветке циклом не считается, поэтому общая ссылка записывается дважды.';
 
 /** Каждая строка: выражение, ответ `JSON.stringify` (строкой, как напечатал бы `console.log`), причина. */
 export const STRINGIFY_ROWS = [
@@ -331,7 +355,8 @@ export const STRINGIFY_ROWS = [
 export const STRINGIFY_ERRORS_LINK =
   'Отдельная история — ошибки: `JSON.stringify(err)` даёт `{}` или одни перечисляемые поля вроде `code`, а сериализовать их приходится своим обходом. Это разобрано в [«Ошибках и стеках», раздел «Отчёт»](/js/errors/#s6).';
 
-export const REPLACER_CODE = `const seen = [];
+export const REPLACER_CODE = `const order = createOrder();
+const seen = [];
 JSON.stringify(order, function (key, value) {
   seen.push(key === '' ? '(корень)' : key);
   if (key === 'createdAt') {
@@ -343,9 +368,10 @@ console.log(seen.join(' '));
 // → (корень) id createdAt items 0 title qty tags promo`;
 
 export const REPLACER_NOTE =
-  'Порядок обхода — сверху вниз: сначала владелец, потом его свойства, корень первым с ключом `""`. Replacer получает `createdAt` **уже строкой**: `toJSON` у `Date` отработал раньше. Проверка `value instanceof Date` в replacer не сработает никогда. Исходный объект достаётся через `this[key]`: `this` — объект, в котором лежит свойство.';
+  'Порядок обхода — сверху вниз: сначала владелец, потом его свойства, корень первым с ключом `""`. В этом примере replacer получает createdAt уже строкой: стандартный Date.prototype.toJSON отработал раньше. У даты с переопределённым toJSON результат может быть другим. Исходное свойство доступно как this[key], потому что this — объект-владелец; его повторное чтение снова вызовет геттер, если свойство задано геттером.';
 
-export const ARRAY_REPLACER_CODE = `console.log(JSON.stringify(order, ['items', 'id', 'title']));
+export const ARRAY_REPLACER_CODE = `const order = createOrder();
+console.log(JSON.stringify(order, ['items', 'id', 'title']));
 // → {"items":[{"title":"Кофе"}],"id":1017}`;
 
 export const ARRAY_REPLACER_NOTE =
@@ -406,10 +432,14 @@ export const SOURCE_NOTE =
   'Третий аргумент `context` — новинка из предложения «JSON.parse source text access»; в Node 24 и Chromium 153 он уже есть. В `context.source` лежит **исходный текст** значения, как он был в JSON, — только у примитивов: у объектов и массивов его нет. По исходному тексту можно правильно прочитать большие идентификаторы, которые `JSON.parse` иначе молча округлил бы, — разобрано в [«Числах», раздел «Где теряются целые»](/js/numbers/#s3).';
 
 export const DROP_CODE = `const list = JSON.parse('[1, 2, 3]', (key, value) => (value === 2 ? undefined : value));
-console.log(list.length, 1 in list);    // → 3 false`;
+console.log(list.length, 1 in list);    // → 3 false
+
+const compact = JSON.parse('[1, 2, 3]', (key, value) =>
+  Array.isArray(value) ? value.filter((item) => item !== 2) : value);
+console.log(compact.length, compact[1]); // → 2 3`;
 
 export const DROP_NOTE =
-  '`undefined` из reviver **удаляет** свойство. В объекте ключ пропадает, а в массиве остаётся дыра: длина прежняя, элемента нет. Отфильтровать массив reviver-ом нельзя — только оставить в нём пустое место.';
+  'undefined из reviver удаляет обрабатываемое свойство. Для элемента массива это оставляет дыру и сохраняет длину. Фильтрация возможна на шаге самого массива: когда его элементы уже обработаны, reviver возвращает новый массив через filter. В примере compact индекс 1 занят значением 3.';
 
 export const PARSE_FACTS = [
   {
@@ -430,7 +460,8 @@ export const PARSE_FACTS = [
 
 // ─── Раздел 4. structuredClone ─────────────────────────────────────────────────────────────
 
-export const CLONE_ORDER_CODE = `const copy = structuredClone(order);
+export const CLONE_ORDER_CODE = `const order = createOrder();
+const copy = structuredClone(order);
 console.log(copy.createdAt instanceof Date, copy.tags.has('new'), 'promo' in copy);
 // → true true true
 console.log(copy.items === order.items);   // → false`;
@@ -448,7 +479,7 @@ export const CLONE_STEPS = [
 ];
 
 export const PLAIN_SLOT =
-  'Внутренний слот — как штамп в паспорте, который видит только пограничник. Объект может назваться датой (`Symbol.toStringTag`), прикинуться ею через прототип — пограничник смотрит на штамп. `structuredClone` проверяет штампы, поэтому подделку под `Date` он скопирует как обычный объект, а настоящую дату — датой.';
+  'Тип определяется внутренними данными объекта, а не одним названием или прототипом. Если обычному объекту присвоить Date.prototype, он не получит хранящееся у настоящей даты время. Поэтому structuredClone создаёт Date для настоящей даты, а обычный объект обрабатывает как набор свойств.';
 
 /**
  * Учебный `structuredClone`. Печатается на странице, исполняется демо и тестом
@@ -465,7 +496,7 @@ function clone(value, memory = new Map()) {
   let out;
   let deep = false;                                         // обходить ли свойства
   if (unbox(value) !== undefined) out = Object(unbox(value)); // new Number(1) и соседи
-  else if (is(Date.prototype.getTime, value)) out = new Date(value.getTime());
+  else if (is(Date.prototype.getTime, value)) out = new Date(Date.prototype.getTime.call(value));
   else if (is(regExpSource, value) && value !== RegExp.prototype) {
     out = new RegExp(regExpSource.call(value), regExpFlags.call(value)); // lastIndex не берётся
   } else if (is(bufferLength, value)) {
@@ -489,9 +520,9 @@ function clone(value, memory = new Map()) {
   if (!deep) return out;
 
   if (out instanceof Map) {
-    for (const [k, v] of [...value]) out.set(clone(k, memory), clone(v, memory));
+    for (const [k, v] of [...Map.prototype.entries.call(value)]) out.set(clone(k, memory), clone(v, memory));
   } else if (out instanceof Set) {
-    for (const v of [...value]) out.add(clone(v, memory));
+    for (const v of [...Set.prototype.values.call(value)]) out.add(clone(v, memory));
   } else {
     for (const key of Object.keys(value)) {                 // свои перечисляемые, без символов
       if (!Object.hasOwn(value, key)) continue;             // геттер мог удалить ключ
@@ -540,7 +571,7 @@ const typedArrayName = getter(Object.getPrototypeOf(Uint8Array.prototype), Symbo
 const REFUSED = [WeakMap.prototype.has, WeakSet.prototype.has, WeakRef.prototype.deref, Symbol.prototype.valueOf];`;
 
 export const CLONE_CODE_NOTE =
-  'Слоты из JavaScript не видны, поэтому учебная функция проверяет их косвенно. Она вызывает встроенный метод на проверяемом объекте: `Date.prototype.getTime.call(value)` бросает исключение, если у `value` нет слота `[[DateValue]]`, то есть это не настоящая дата. Так же устроен `Error.isError`. Две вещи эта функция повторить не может. Прокси снаружи неотличим от своей цели, а настоящий алгоритм видит его слот `[[ProxyHandler]]` и отказывает — разобрано в [«Proxy и Reflect», раздел «Личность и слоты»](/js/proxy-reflect/#s5). И DOM-узлы, `Blob` и прочие объекты браузера копируются по рецептам, которые описаны в их собственных спецификациях.';
+  'Слоты из JavaScript не видны, поэтому учебная функция проверяет их косвенно: Date.prototype.getTime.call(value) бросает, если у объекта нет внутренних данных даты. Встроенные методы здесь вызываются напрямую, чтобы переопределённый getTime или итератор Map не подменили содержимое. Это ограниченная модель, а не полифил. Прокси снаружи неотличим от обычного объекта в общем случае: универсальной проверки isProxy в JS нет. Встроенный алгоритм клонирования распознаёт прокси и отказывает — подробнее в теме [«Proxy и Reflect», раздел «Прокси и цель: разные ссылки и скрытые данные»](/js/proxy-reflect/#s5). Не реализованы SharedArrayBuffer, DOM и все платформенные типы. Их обработку нужно проверять настоящим API своей среды; общая память разобрана в теме [«Общая память и Atomics»](/js/atomics/#s1).';
 
 export const SLOTS_CODE = `const buffer = new ArrayBuffer(8);
 const head = new Uint8Array(buffer, 0, 4);
@@ -593,21 +624,48 @@ const moved = structuredClone(frame, { transfer: [frame] });
 console.log(frame.byteLength, moved.byteLength);   // → 0 1024`;
 
 export const TRANSFER_NOTE =
-  'Второй аргумент `structuredClone` — список переноса, как у `postMessage`. Буфер из списка не копируется, а **переезжает**: у копии данные, у оригинала пусто. Зачем это нужно и как ошибки в списке ломают передачу — в [«Воркерах», раздел «Передача владения»](/js/workers/#s3) и [«MessageChannel», раздел «Правила transfer-списка»](/js/message-channel/#s3).';
+  'Список переноса находится в опции transfer второго аргумента structuredClone. Буфер передаёт владение данными: исходный буфер отсоединяется, доступ к байтам остаётся у полученного объекта. Правила списка переноса разобраны в темах [«Воркеры», раздел «Передача владения»](/js/workers/#s3) и [«MessageChannel», раздел «Правила transfer-списка»](/js/message-channel/#s2). SharedArrayBuffer устроен иначе: копируется объект-обёртка, а байты остаются общими. Это не независимая копия памяти — подробнее в теме [«Общая память и Atomics»](/js/atomics/#s1).';
 
 /** Общие ссылки и циклы. Перенесено 2026-11-03 из «Воркеров»; исполняется `serialization.test.ts`. */
 export const MEMORY_MAP_CODE = `const inner = { n: 1 };
 const src = { a: inner, b: inner };   // ОДИН объект в двух полях
 src.self = src;                       // цикл
 
-JSON.parse(JSON.stringify(src));      // TypeError: Converting circular structure
+try {
+  JSON.parse(JSON.stringify(src));
+} catch (error) {
+  console.log(error.name);             // → TypeError
+}
 
 const c = structuredClone(src);
-c.a === c.b;    // true  ← идентичность сохранена: это по-прежнему ОДИН объект
-c.self === c;   // true  ← цикл сохранён и указывает на сам клон`;
+console.log(c.a === c.b, c.self === c, c.a === src.a); // → true true false`;
 
 export const MEMORY_MAP_NOTE =
-  'Это работа таблицы `memory`: встретив объект второй раз, алгоритм возвращает уже сделанную копию, а не обходит его заново. `JSON.stringify` такой таблицы не ведёт. Он превратил бы `inner` в два независимых объекта, а на цикле просто упал. Смысл данных при этом меняется без предупреждения. Допустим, одна запись доступна из двух словарей — по id и по имени. После JSON записей станет две, и правка через один словарь перестанет быть видна через другой. Таблица живёт ровно один вызов: два `structuredClone` — или два `postMessage` — с одним и тем же объектом дают два независимых объекта. Идентичность между вызовами не переносится.';
+  'memory сопоставляет каждый исходный объект его копии. При повторной встрече алгоритм использует готовую копию, сохраняя общие ссылки и циклы. Но сама таблица живёт один вызов: два structuredClone или два отдельных сообщения с одним исходным объектом создают независимые копии. JSON не кодирует идентичность объектов: без цикла inner записался бы дважды, а после разбора ссылки стали бы разными.';
+
+export const MEMORY_DIAGRAM: ConceptDiagramData = {
+  id: 'serialization-shared-references',
+  title: 'Схема: новые объекты с прежними связями',
+  description:
+    'В листинге src.a и src.b ссылаются на один inner. В копии c эти два поля тоже ссылаются на один объект, но он уже отличается от исходного inner. Сплошные стрелки — ссылки a и b; пунктир — создание нового корня.',
+  width: 920,
+  height: 520,
+  nodes: [
+    { id: 'source', x: 40, y: 0, width: 240, height: 130, label: '`src`', detail: 'Исходный объект', tone: 'info' },
+    { id: 'original-inner', x: 40, y: 350, width: 240, height: 130, label: '`inner`', detail: 'Один объект для `a` и `b`', tone: 'info' },
+    { id: 'copy', x: 600, y: 0, width: 240, height: 130, label: '`c`', detail: 'Новый корень копии', tone: 'ok' },
+    { id: 'copied-inner', x: 600, y: 350, width: 240, height: 130, label: '`c.a` и `c.b`', detail: 'Один новый объект', tone: 'ok' },
+  ],
+  edges: [
+    { from: 'source', to: 'original-inner', fromSide: 'bottom', toSide: 'top', label: 'a', labelX: 160, labelY: 240 },
+    { from: 'source', to: 'original-inner', fromSide: 'left', toSide: 'left', via: [[10, 65], [10, 415]], label: 'b', labelX: 10, labelY: 240 },
+    { from: 'source', to: 'copy', dashed: true, label: 'structuredClone(src)', labelX: 440, labelY: 50 },
+    { from: 'copy', to: 'copied-inner', fromSide: 'bottom', toSide: 'top', label: 'a', labelX: 720, labelY: 240 },
+    { from: 'copy', to: 'copied-inner', fromSide: 'right', toSide: 'right', via: [[910, 65], [910, 415]], label: 'b', labelX: 910, labelY: 240 },
+  ],
+  note:
+    'structuredClone не создаёт отдельный объект для каждого пути a и b: повторный путь ведёт к уже созданной копии. Поле self из листинга тоже восстанавливается: c.self указывает на c, а не на src.',
+};
 
 /**
  * Экземпляр класса через копирование. Перенесено 2026-11-03 из «Воркеров»; на этот класс
@@ -642,11 +700,11 @@ export const MONEY_NOTE =
 export const CLONE_GROUPS = [
   {
     t: 'Переживает',
-    d: 'Примитивы, включая `BigInt` и `undefined`; объекты-обёртки; `Date`; `RegExp`; массивы и обычные объекты; `Map` и `Set`; `ArrayBuffer`, `DataView` и все TypedArray; `Error` со стандартными подтипами — `name`, `message`, `cause`; `Blob`, `File`, `ImageData`, `ImageBitmap`, `CryptoKey`, `DOMException`, `DOMPoint` и соседи.',
+    d: 'Примитивы, кроме Symbol, включая BigInt и undefined; объекты-обёртки, кроме Object(Symbol()); Date, RegExp, массивы, обычные объекты, Map, Set, ArrayBuffer и виды на буфер. Error — по отдельным правилам. Платформенные типы, например Blob, File, CryptoKey, DOMException, имеют собственные правила сериализации и ограничения доступности в среде.',
   },
   {
     t: 'Падает громко — `DataCloneError`',
-    d: 'Функции, включая стрелочную функцию в собственном поле. `Symbol` как значение. DOM-узлы и большинство встроенных объектов браузера. `Proxy` — а значит, `reactive()` из Vue, observable из MobX и черновики immer. Уже отсоединённый `ArrayBuffer`. `WeakMap`, `WeakSet`, `WeakRef`. `Promise` и `AbortSignal` — всегда: в список переноса их тоже не положить. `MessagePort` — если его забыли положить в список переноса.',
+    d: 'Функции, Symbol как значение, DOM-узлы, Proxy, отсоединённый ArrayBuffer, WeakMap, WeakSet, WeakRef и Promise. MessagePort требует переноса вместо копии. Для платформенных объектов нужен явно поддержанный алгоритм: у обычного AbortSignal в браузере его нет. В Node 26.8.2 structuredClone(signal) возвращает обычный пустой объект, который не передаёт отмену. Успешный вызов ещё не означает сохранение поведения.',
   },
   {
     t: 'Теряется молча — и это опаснее',
@@ -655,7 +713,7 @@ export const CLONE_GROUPS = [
 ];
 
 export const CLONE_USERS =
-  'Тот же алгоритм работает ещё в трёх местах: `postMessage` в воркер, окно или `MessageChannel`, запись в IndexedDB и `history.pushState`. Поэтому `reactive()`-объект из Vue одинаково не уходит ни в воркер, ни в базу. Как IndexedDB хранит клонированные записи — в [«Хранилищах браузера», раздел «IndexedDB»](/platform/browser-storage/#s3).';
+  'Семейство structured clone используется в postMessage, IndexedDB и history.pushState, но возможности API различаются: передача сообщения и запись для хранения имеют разные ограничения. Поэтому поддержку одного API нельзя автоматически приписывать другому. Proxy, включая reactive-объект Vue, не сериализуется ни для сообщения, ни для хранения. Подробности записи данных — в теме [«Хранилища браузера», раздел «IndexedDB»](/platform/browser-storage/#s3).';
 
 // ─── Раздел 5. Три способа рядом ───────────────────────────────────────────────────────────
 
@@ -687,7 +745,7 @@ export const COMPARE_ROWS: { k: string; json: string; clone: string; lodash: str
 ];
 
 export const COMPARE_NOTE =
-  'Ни один способ не копирует «всё». JSON теряет больше всех, зато молча и предсказуемо: результат — данные, годные для сети и диска. `structuredClone` переносит типы и граф ссылок, но громко отказывает на функциях. `cloneDeep` ничего не роняет, но там, где не умеет копировать, оставляет **ссылку на оригинал** — функция, ошибка, `WeakMap` в копии те же, что в оригинале. И сохраняет прототип без приватных полей: объект выглядит как экземпляр класса, а его методы падают при первом обращении к `#`-полю.';
+  'Выбор определяется нужным результатом. JSON даёт текст с ограниченным набором типов и может как преобразовать значение, так и бросить исключение. structuredClone сохраняет поддерживаемые типы и связи, но не поведение произвольного класса. cloneDeep в этих примерах оставляет неподдерживаемые вложенные значения — функцию, Error, WeakMap — ссылками на оригинал. Сохранённый прототип тоже не гарантирует рабочий экземпляр: приватных полей в копии нет.';
 
 export const LODASH_CLASS_CODE = `class Money {
   #cents;
@@ -703,7 +761,7 @@ try {
 }`;
 
 export const DEMO_CAPTION =
-  'Пример — тело функции, которое возвращает значение; его можно править. Каждый способ получает свой свежий экземпляр. Спред здесь — для сравнения: он копирует один уровень, и общие с оригиналом объекты помечены. Колонки JSON и `clone` считают учебные функции темы, а пометка у каждой из них говорит, совпал ли её ответ с настоящими `JSON.stringify` и `structuredClone` вашего браузера.';
+  'JSON и clone здесь вычисляют учебные функции темы, а не полные реализации платформенных API. Каждый способ получает свежий экземпляр примера. Пометка сравнивает текст учебного stringify с JSON.stringify браузера, а структуру учебного clone — со structuredClone. Отдельно отмечаются найденные различия с исходным значением. Совпадение на примере не доказывает полноту реализации.';
 
 const sample = (id: string, label: string, note: string, code: string): CloneSample => ({ id, label, note, code });
 
@@ -713,7 +771,7 @@ export const DEMO_SAMPLES: CloneSample[] = [
     'order',
     'заказ',
     'Сквозной пример темы. JSON теряет дату, множество и `promo`, спред делит с оригиналом массив товаров.',
-    `${ORDER_CODE}\nreturn order;`,
+    `${ORDER_CODE}\nreturn createOrder();`,
   ),
   sample(
     'class',
@@ -788,8 +846,8 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '02',
     t: 'Replacer видит дату строкой',
-    d: '`toJSON` срабатывает раньше replacer, поэтому `value instanceof Date` в replacer всегда `false`. Исходное значение — `this[key]`.',
-    code: "JSON.stringify(order, function (k, v) {\n  return this[k] instanceof Date ? this[k].getTime() : v;\n});",
+    d: 'При стандартном Date.prototype.toJSON replacer получает строку, поэтому value instanceof Date не узнает исходную дату. this[key] даёт исходное свойство, но такое повторное чтение может снова вызвать геттер. Когда важен строгий формат, лучше подготовить данные для JSON явно.',
+    code: "const order = createOrder();\nJSON.stringify(order, function (k, v) {\n  return this[k] instanceof Date ? this[k].getTime() : v;\n});",
     tone: 'warn',
   },
   {
@@ -813,7 +871,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '06',
     t: 'Экземпляр класса приезжает обычным объектом',
-    d: '`structuredClone` и JSON всегда дают `Object.prototype`. `cloneDeep` прототип сохраняет, но приватные поля — нет, и метод, который читает `#`-поле, бросает `TypeError` на копии. Через границу копирования отправляют данные, а экземпляр собирают на месте: `Money.from(dto)`.',
+    d: 'Обычный экземпляр пользовательского класса после structuredClone становится объектом с Object.prototype. JSON может дополнительно изменить его через toJSON. cloneDeep способен сохранить прототип, но приватные поля — нет: читающий их метод бросит TypeError. Для Money передают данные через toDTO(), а экземпляр собирают через Money.from(dto).',
     tone: 'err',
   },
   {
@@ -831,6 +889,11 @@ export const PITFALLS: Pitfall[] = [
 ];
 
 export const SOURCES: Source[] = [
+  {
+    title: 'DOM Standard — AbortSignal',
+    href: 'https://dom.spec.whatwg.org/#interface-abortsignal',
+    what: 'Обычный AbortSignal не объявлен Serializable; HTML отклоняет платформенные объекты без алгоритма сериализации. В Node поведение проверяется отдельно.',
+  },
   {
     title: 'ECMA-262 — JSON.stringify',
     href: 'https://tc39.es/ecma262/#sec-json.stringify',
@@ -869,4 +932,4 @@ export const SOURCES: Source[] = [
 ];
 
 export const RELATED =
-  'Смежное на сайте: [Воркеры, раздел «Что можно передать»](/js/workers/#s2) — кто платит за копию в `postMessage` и как передать экземпляр класса. [MessageChannel, раздел «Правила transfer-списка»](/js/message-channel/#s3) — перенос вместо копии. [Ошибки и стеки, раздел «Отчёт»](/js/errors/#s6) — как сериализовать ошибку целиком. [Proxy и Reflect, раздел «Личность и слоты»](/js/proxy-reflect/#s5) — почему прокси не клонируется. [Числа, раздел «Где теряются целые»](/js/numbers/#s3) — большие числа в JSON. [Объектная модель, раздел «Дескрипторы»](/js/object-model/#s5) — что теряет спред. [Хранилища браузера, раздел «IndexedDB»](/platform/browser-storage/#s3) — третий потребитель того же алгоритма.';
+  'Смежное на сайте: [Воркеры, раздел «Копия, перенос и общие байты»](/js/workers/#s2) — кто платит за копию в `postMessage` и как передать экземпляр класса. [MessageChannel, раздел «Правила transfer-списка»](/js/message-channel/#s2) — перенос вместо копии. [Ошибки и стеки, раздел «Отчёт»](/js/errors/#s6) — как сериализовать ошибку целиком. [Proxy и Reflect, раздел «Прокси и цель: разные ссылки и скрытые данные»](/js/proxy-reflect/#s5) — почему прокси не клонируется. [Числа, раздел «Где теряются целые»](/js/numbers/#s3) — большие числа в JSON. [Объектная модель, раздел «Дескрипторы»](/js/object-model/#s5) — что теряет спред. [Хранилища браузера, раздел «IndexedDB»](/platform/browser-storage/#s3) — третий потребитель того же алгоритма.';

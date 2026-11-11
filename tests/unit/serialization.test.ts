@@ -36,6 +36,7 @@ const arrows = (code: string) => [...code.matchAll(/\/\/ → (.*)$/gm)].map((m) 
 describe('примеры темы: вывод совпадает со стрелками в коде', () => {
   const examples: [string, string][] = [
     ['SHALLOW_CODE', t.SHALLOW_CODE],
+    ['UPDATE_CODE', t.UPDATE_CODE],
     ['GETTER_CODE', t.GETTER_CODE],
     ['STRINGIFY_ORDER_CODE', t.STRINGIFY_ORDER_CODE],
     ['REPLACER_CODE', t.REPLACER_CODE],
@@ -43,6 +44,7 @@ describe('примеры темы: вывод совпадает со стрел
     ['REVIVER_CODE', t.REVIVER_CODE],
     ['DROP_CODE', t.DROP_CODE],
     ['CLONE_ORDER_CODE', t.CLONE_ORDER_CODE],
+    ['MEMORY_MAP_CODE', t.MEMORY_MAP_CODE],
     ['SLOTS_CODE', t.SLOTS_CODE],
     ['ERROR_CODE', t.ERROR_CODE],
     ['THROW_CODE', t.THROW_CODE],
@@ -358,6 +360,10 @@ const CORPUS: [string, () => unknown][] = [
   ['symbol value', () => ({ s: Symbol('s') })],
   ['symbol object', () => Object(Symbol('s'))],
   ['function', () => ({ f() {} })],
+  ['function toJSON', () => Object.assign(() => 0, { toJSON: () => 42 })],
+  ['date overridden getTime', () => Object.assign(new Date(0), { getTime: () => 123 })],
+  ['map overridden iterator', () => Object.assign(new Map([['a', 1]]), { *[Symbol.iterator]() { yield ['wrong', 2]; } })],
+  ['set overridden iterator', () => Object.assign(new Set([1]), { *[Symbol.iterator]() { yield 2; } })],
   ['weak', () => [new WeakMap(), new WeakSet()]],
   ['promise', () => Promise.resolve(1)],
   ['bigint top', () => 10n],
@@ -588,6 +594,14 @@ describe('случайные деревья: 400 зёрен', () => {
 // ─── Демо ────────────────────────────────────────────────────────────────────────────────
 
 describe('демо: примеры и учебные функции', () => {
+  it('JSON-копия undefined отказывает на parse, а не возвращает undefined', () => {
+    expect(() => JSON.parse(JSON.stringify(undefined) as unknown as string)).toThrow(SyntaxError);
+    const result = runMethods(() => undefined, impl).find((r) => r.id === 'json')!;
+    expect(result.shown).toBeNull();
+    expect(result.error).toMatch(/^SyntaxError:/);
+    expect(result.native, 'сравнение относится к stringify, чей undefined совпал').toBe('same');
+  });
+
   const results = (id: string) => {
     const s = t.DEMO_SAMPLES.find((x) => x.id === id)!;
     return Object.fromEntries(runMethods(loadSample(s.code), impl).map((m) => [m.id, m]));
@@ -656,17 +670,37 @@ describe('демо: примеры и учебные функции', () => {
 
 describe('раздел «Structured clone по шагам» · общие ссылки и циклы', () => {
   it('MEMORY_MAP_CODE: JSON падает на цикле, клон сохраняет и общую ссылку, и цикл', () => {
-    const jsonLine = 'JSON.parse(JSON.stringify(src));';
-    expect(t.MEMORY_MAP_CODE).toContain(jsonLine);
     const run = new Function(
+      'console',
       `"use strict";
-${t.MEMORY_MAP_CODE.replace(jsonLine, `let jsonError; try { ${jsonLine} } catch (e) { jsonError = e; }`)}
+${t.MEMORY_MAP_CODE}
 const again = structuredClone(src);
-return { jsonError, shared: c.a === c.b, cycle: c.self === c, across: again.a === c.a };`,
-    ) as () => { jsonError: unknown; shared: boolean; cycle: boolean; across: boolean };
-    const out = run();
-    expect(out.jsonError).toBeInstanceOf(TypeError);
-    expect(out).toMatchObject({ shared: true, cycle: true, across: false });
+return { shared: c.a === c.b, cycle: c.self === c, across: again.a === c.a, original: c.a === src.a };`,
+    ) as (console: Pick<Console, 'log'>) => { shared: boolean; cycle: boolean; across: boolean; original: boolean };
+    const out = run({ log() {} });
+    expect(out).toEqual({ shared: true, cycle: true, across: false, original: false });
+  });
+});
+
+describe('граница среды: обычный AbortSignal в Node', () => {
+  it('успех structuredClone не означает передачу состояния сигнала', () => {
+    const ac = new AbortController();
+    ac.abort();
+    const copied = structuredClone(ac.signal);
+    expect(ac.signal.aborted).toBe(true);
+    expect(copied).toEqual({});
+    expect(copied).not.toBeInstanceOf(AbortSignal);
+    expect(copied.aborted).toBeUndefined();
+  });
+});
+
+describe('общая память не становится независимой', () => {
+  it('structuredClone создаёт новый SharedArrayBuffer над теми же байтами', () => {
+    const source = new SharedArrayBuffer(1);
+    const copied = structuredClone(source);
+    expect(copied).not.toBe(source);
+    new Uint8Array(copied)[0] = 7;
+    expect(new Uint8Array(source)[0]).toBe(7);
   });
 });
 

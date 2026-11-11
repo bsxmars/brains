@@ -139,6 +139,22 @@ describe('окружения в демо', () => {
     expect(varStep.envs.find((e) => e.title === 'глобальное')?.vars.find((v) => v.name === 'i')?.value).toBe('3');
   });
 
+  it('for-let с тремя проходами: одно init и четыре окружения итераций, всего пять', () => {
+    const steps = trace(t.LOOP_LET_PROGRAM.code).steps;
+    const init = new Set<number>();
+    const iterations = new Set<number>();
+    for (const step of steps) {
+      for (const env of step.envs) {
+        if (env.title === 'for: init') init.add(env.id);
+        if (env.title === 'итерация') iterations.add(env.id);
+      }
+    }
+    expect(init.size).toBe(1);
+    expect(iterations.size).toBe(4);
+    // В подробном разборе считаются и init, и итерация с последней ложной проверкой.
+    expect(t.LOOP_LET_ENV_NOTE).toContain('окружений пять');
+  });
+
   it('копия итерации: peek держит окружение init, где i так и осталась 0', () => {
     const end = last(trace(t.PEEK_PROGRAM.code));
     expect(end.envs).toEqual([expect.objectContaining({ title: 'глобальное', role: 'current' })]);
@@ -382,7 +398,7 @@ describe('числа в тексте', () => {
     expect(t.INTERPRETER_CODES.join('\n')).toContain('Cannot access');
   });
 
-  it('LOOP_LET_NOTE: окружений пять — init и четыре копии, последняя с i = 3', () => {
+  it('LOOP_LET_ENV_NOTE: окружений пять — init и четыре копии, последняя с i = 3', () => {
     const tr = trace(t.LOOP_LET_PROGRAM.code);
     expect(tr.steps.filter((s) => s.event === 'for')).toHaveLength(1);
     expect(tr.steps.filter((s) => s.event === 'copy')).toHaveLength(4);
@@ -390,7 +406,7 @@ describe('числа в тексте', () => {
     const fs: (() => string)[] = [];
     for (let i = 0, init = (fs.push(() => 'init:' + i), 0); fs.push(() => String(i)), i < 3; i++) void init;
     expect(fs.map((f) => f())).toEqual(['init:0', '0', '1', '2', '3']);
-    expect(t.LOOP_LET_NOTE).toContain('окружений пять');
+    expect(t.LOOP_LET_ENV_NOTE).toContain('окружений пять');
   });
 });
 
