@@ -391,7 +391,7 @@ describe('браузер: демо гидратации — тот же моду
     expect(text[1]).toContain('10 узлов');
     expect(attr[1]).toContain('класс остался серверным');
     expect(attr[2]).toContain('класс остался серверным');
-    expect(ext[2]).toContain('сдвинулся весь хвост');
+    expect(ext[2]).toContain('заменено всё**, что стояло после лишнего узла');
   });
 });
 

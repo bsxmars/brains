@@ -46,7 +46,7 @@ describe('GRAPH_FACTS: computed, который пишет в свой исто�
     void c.value;
     void c.value;
     expect(calls).toBe(3);
-    const fact = GRAPH_FACTS.find((f) => f.t.startsWith('Побочные эффекты'))!;
+    const fact = GRAPH_FACTS.find((f) => f.t.includes('побочных эффектов'))!;
     expect(fact.d).not.toContain('Maximum recursive updates exceeded');
     expect(fact.d).toContain('кеш не держится');
   });
