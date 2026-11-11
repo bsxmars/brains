@@ -26,9 +26,9 @@
 <details>
 <summary><b>Подвох</b> — крайние случаи и частые ошибки</summary>
 
-- Фолбэк `scheduler.yield?.()` без `globalThis` бросает `ReferenceError`.
+- Запасной путь через `scheduler.yield?.()` без `globalThis` бросает `ReferenceError`.
 - `setTimeout(0)` платит дважды: конец очереди и 4 мс при вложенности > 5.
-- Чанкер на rAF в скрытой вкладке не доработает никогда.
+- Нарезка на rAF в скрытой вкладке стоит, пока вкладку не покажут.
 
 </details>
 
