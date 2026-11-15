@@ -32,7 +32,7 @@ interface Props {
 const { data } = Astro.props;
 ---
 
-<figure class="ghrd-frame">
+<figure data-render-illustration="pages-routes" class="ghrd-frame">
   <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
 
   <div class="ghrd-root" set:html={inlineMd(data.request)} />

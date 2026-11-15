@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { GpuPreset } from '@/widgets/gpu-compute/model/types';
 
@@ -43,7 +44,7 @@ import type { GpuPreset } from '@/widgets/gpu-compute/model/types';
 // ---- Вводный раздел ----
 
 export const PLAIN_MODEL =
-  'WebGL похож на разговор с мастером по телефону: «возьми эту кисть», «теперь синюю краску», «рисуй» — и каждая фраза уходит сразу, а мастер помнит, что вы сказали раньше. WebGPU — это заказ-наряд: вы заранее заполняете бланк целиком (какой станок, какие детали, в каком порядке), сдаёте пачку бланков в окошко и потом забираете готовое. Бланк проверяют один раз при приёме, а не на каждой фразе.';
+  'WebGL похож на разговор с мастером по телефону: «возьми эту кисть», «теперь синюю краску», «рисуй» — и каждая фраза уходит сразу, а мастер помнит, что вы сказали раньше. WebGPU — это заказ-наряд: вы заранее заполняете бланк целиком (какой станок, какие детали, в каком порядке), сдаёте пачку бланков в окошко и потом забираете готовое. Форму заказа и доступное оборудование можно согласовать заранее. При записи поручений и передаче их на исполнение проверки всё равно остаются.';
 
 export const GLOSSARY: GlossaryTerm[] = [
   {
@@ -133,7 +134,7 @@ export const MODEL_ROWS = {
     ['вход', '`canvas.getContext("webgl2")` — контекст рождается из канваса', '`navigator.gpu` → адаптер → устройство; канвас нужен, только если рисуете на экран'],
     ['состояние', 'глобальный автомат: `useProgram`, `bindBuffer`, `enable(BLEND)` меняют «текущее», и оно доживает до следующего вызова', '«текущего» нет: всё состояние собрано в объекты — конвейер, группы привязок — и передаётся явно'],
     ['команды', 'каждый вызов уходит сразу', 'записываются в энкодер, отправляются пачкой через `queue.submit`'],
-    ['когда проверяется', 'на каждом вызове отрисовки: драйвер смотрит на всё текущее состояние', 'при создании конвейера и группы привязок — один раз; при записи — только то, что меняется'],
+    ['когда проверяется', 'на каждом вызове отрисовки: драйвер смотрит на всё текущее состояние', 'при создании объектов, записи и отправке команд; совместимость готовых объектов можно проверять заранее'],
     ['ошибки', '`gl.getError()` — синхронный флаг, опрашивать вручную', 'объект становится «недействительным», ошибка приходит промисом из области ошибок или событием'],
     ['вычисления', 'только через рисование: данные в текстуре, результат в пикселях', 'вычислительные шейдеры, storage-буферы, атомарные операции'],
     ['чтение результата', '`readPixels` — ждёт GPU и останавливает поток', '`mapAsync` — промис; поток свободен, пока GPU работает'],
@@ -179,59 +180,67 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
 /**
  * Хост-код сложения — целиком, от адаптера до прочитанного массива.
+ * Дополнительно unit исполняет эту же строку без API, на пустом входе и при отказе mapAsync;
+ * устройство освобождается через finally, исходная трёхдвижковая проверка выше относится к вычислению.
  *
  * ⚠️ Исполнен как есть: скрипт проверки темы подставляет `ADD_WGSL` и зовёт `addOnGpu` в трёх
  * движках, результат совпал с `a[i] + b[i]` на всех элементах. Раскладку привязок из этой
  * строки тест сверяет с `@binding` в `ADD_WGSL` — разбором строки.
  */
 export const ADD_HOST_CODE = `async function addOnGpu(a, b) {
+  if (a.length !== b.length) throw new RangeError('разные длины массивов');
+  if (a.length === 0) return new Uint32Array();
+  if (!navigator.gpu) return null;
   const adapter = await navigator.gpu.requestAdapter();
   if (!adapter) return null;                   // имя есть, видеокарты нет
   const device = await adapter.requestDevice();
-  const U = GPUBufferUsage;
+  try {
+    const U = GPUBufferUsage;
 
-  const upload = (data) => {
-    const buf = device.createBuffer({ size: data.byteLength, usage: U.STORAGE | U.COPY_DST });
-    device.queue.writeBuffer(buf, 0, data);    // копия снята в момент вызова
-    return buf;
-  };
-  const bufA = upload(a);
-  const bufB = upload(b);
-  const bufSum = device.createBuffer({ size: a.byteLength, usage: U.STORAGE | U.COPY_SRC });
-  const readback = device.createBuffer({ size: a.byteLength, usage: U.MAP_READ | U.COPY_DST });
+    const upload = (data) => {
+      const buf = device.createBuffer({ size: data.byteLength, usage: U.STORAGE | U.COPY_DST });
+      device.queue.writeBuffer(buf, 0, data);    // копия снята в момент вызова
+      return buf;
+    };
+    const bufA = upload(a);
+    const bufB = upload(b);
+    const bufSum = device.createBuffer({ size: a.byteLength, usage: U.STORAGE | U.COPY_SRC });
+    const readback = device.createBuffer({ size: a.byteLength, usage: U.MAP_READ | U.COPY_DST });
 
-  // Раскладка: какие ресурсы и под какими номерами увидит шейдер
-  const layout = device.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
-    { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
-    { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-  ] });
-  // Конвейер: шейдер + раскладка, проверяются здесь, один раз
-  const pipeline = device.createComputePipeline({
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
-    compute: { module: device.createShaderModule({ code: ADD_WGSL }), entryPoint: 'main' },
-  });
-  // Группа привязок: конкретные буферы под эти номера
-  const group = device.createBindGroup({ layout, entries: [
-    { binding: 0, resource: { buffer: bufA } },
-    { binding: 1, resource: { buffer: bufB } },
-    { binding: 2, resource: { buffer: bufSum } },
-  ] });
+    // Раскладка: какие ресурсы и под какими номерами увидит шейдер
+    const layout = device.createBindGroupLayout({ entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+      { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    ] });
+    // Конвейер связывает шейдер и раскладку; команды и отправка проверяются отдельно
+    const pipeline = device.createComputePipeline({
+      layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+      compute: { module: device.createShaderModule({ code: ADD_WGSL }), entryPoint: 'main' },
+    });
+    // Группа привязок: конкретные буферы под эти номера
+    const group = device.createBindGroup({ layout, entries: [
+      { binding: 0, resource: { buffer: bufA } },
+      { binding: 1, resource: { buffer: bufB } },
+      { binding: 2, resource: { buffer: bufSum } },
+    ] });
 
-  const encoder = device.createCommandEncoder();   // запись…
-  const pass = encoder.beginComputePass();
-  pass.setPipeline(pipeline);
-  pass.setBindGroup(0, group);
-  pass.dispatchWorkgroups(Math.ceil(a.length / 64));
-  pass.end();
-  encoder.copyBufferToBuffer(bufSum, 0, readback, 0, a.byteLength);
-  device.queue.submit([encoder.finish()]);         // …и отправка
+    const encoder = device.createCommandEncoder();   // запись…
+    const pass = encoder.beginComputePass();
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, group);
+    pass.dispatchWorkgroups(Math.ceil(a.length / 64));
+    pass.end();
+    encoder.copyBufferToBuffer(bufSum, 0, readback, 0, a.byteLength);
+    device.queue.submit([encoder.finish()]);         // …и отправка
 
-  await readback.mapAsync(GPUMapMode.READ);        // ждать результата — отдельный шаг
-  const sum = new Uint32Array(readback.getMappedRange().slice(0));
-  readback.unmap();
-  device.destroy();
-  return sum;
+    await readback.mapAsync(GPUMapMode.READ);        // ждать результата — отдельный шаг
+    const sum = new Uint32Array(readback.getMappedRange().slice(0));
+    readback.unmap();
+    return sum;
+  } finally {
+    device.destroy();
+  }
 }`;
 
 export const ENCODE_FACTS: { t: string; d: string; tone?: 'warn' | 'err' | 'ok' }[] = [
@@ -245,8 +254,8 @@ export const ENCODE_FACTS: { t: string; d: string; tone?: 'warn' | 'err' | 'ok' 
     d: 'У объекта `GPUComputePipeline` ровно два члена: `label` и `getBindGroupLayout()`. Ни одного сеттера. Нужно другое смешивание, другой формат или другой шейдер — создают **другой конвейер**. Поэтому графические движки на WebGPU собирают все конвейеры заранее, а в кадре только выбирают нужный.',
   },
   {
-    t: 'Почему это быстрее, а не просто строже',
-    d: 'В WebGL драйвер не знает, что вы поменяете следующим, и на каждом вызове отрисовки перепроверяет **всё** текущее состояние. В WebGPU проверка перенесена в момент создания объекта: у готового конвейера проверять нечего. Цена смены состояния из [«Что стоит дорого»](/render/webgl/#s3) осталась, но её платят заранее и один раз.',
+    t: 'Какая работа переносится в подготовку',
+    d: 'В WebGPU шейдер и раскладка связываются при создании конвейера, а конкретные ресурсы — при создании группы. Это позволяет переиспользовать подготовленные объекты. Но проверки остаются при записи команд и при `submit`: например, нельзя повторно отправить один и тот же командный буфер. Одной подготовки недостаточно для обещания скорости кадра.',
     tone: 'ok',
   },
   {
@@ -659,7 +668,7 @@ export const CHOOSE_ROWS = {
     ['интерфейс, текст, формы', 'DOM и CSS', 'браузер сам решает, что перерисовать; доступность и выделение текста бесплатны'],
     ['диаграмма, несколько тысяч фигур, простая анимация', 'Canvas 2D или SVG', 'хватает процессора; ни шейдеров, ни потери устройства'],
     ['3D-сцена, десятки тысяч объектов, эффекты по пикселям — и нужна вся аудитория', 'WebGL 2 (или библиотека поверх)', 'работает везде, где есть видеокарта, включая старые браузеры и устройства'],
-    ['то же, но много смен состояния и вызовов отрисовки', 'WebGPU', 'проверка переезжает в создание конвейеров, запись команд дешевле и её можно вести в воркере'],
+    ['то же, но много смен состояния и вызовов отрисовки', 'WebGPU', 'часть совместимости проверяется при подготовке конвейеров и групп; при записи и отправке остаются свои проверки, команды можно записывать в воркере'],
     ['вычисления над большими массивами: физика частиц, свёртки, нейросети, сортировка', 'WebGPU compute', 'в WebGL это делают через рисование в текстуру; здесь — прямо: буферы, группы, атомики'],
     ['посчитать немного и сразу', 'JS или WebAssembly', 'дорога до GPU и обратно — буферы, отправка, `mapAsync` — дороже самой работы на малых данных'],
   ],
@@ -793,3 +802,104 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [WebGL и конвейер GPU](/render/webgl/) — сам конвейер, шейдеры, цена вызова отрисовки, потеря контекста. [Кадр браузера](/render/render-pipeline/) — где в кадре оказывается канвас. [Воркеры и параллелизм](/js/workers/) — офскрин-канвас и куда уносить запись команд. [Устройство браузера](/js/browser-architecture/) — GPU-процесс, в котором на самом деле идёт проверка.';
+
+
+/** Предметная схема: те же объекты и зависимости, что в примере темы. */
+export const READBACK_DIAGRAM: ConceptDiagramData = {
+  "id": "webgpu-readback",
+  "title": "`submit` отправляет работу. `mapAsync` открывает результат",
+  "description": "В программе сложения шейдер пишет в storage-буфер. JS читает копию в readback-буфере, когда отображение этого буфера завершится.",
+  "width": 840,
+  "height": 480,
+  "nodes": [
+    {
+      "id": "encode",
+      "x": 0,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Записать команды",
+      "detail": "Compute pass складывает массивы, затем copyBufferToBuffer копирует ответ.",
+      "tone": "info"
+    },
+    {
+      "id": "submit",
+      "x": 300,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "`queue.submit`",
+      "detail": "Отдать командный буфер очереди. Возврат вызова не означает готовность данных.",
+      "tone": "warn"
+    },
+    {
+      "id": "storage",
+      "x": 600,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Storage → readback",
+      "detail": "GPU выполняет вычисление и копирование в порядке записанных команд.",
+      "tone": "ok"
+    },
+    {
+      "id": "owned",
+      "x": 0,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "Своя копия результата",
+      "detail": "`slice(0)` сохраняет байты независимо от отображённого диапазона.",
+      "tone": "ok"
+    },
+    {
+      "id": "mapped",
+      "x": 300,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "`getMappedRange()`",
+      "detail": "После mapAsync JS получает диапазон; unmap сделает его недоступным.",
+      "tone": "info"
+    },
+    {
+      "id": "wait",
+      "x": 600,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "`await mapAsync(READ)`",
+      "detail": "Промис ожидает готовность к чтению; главный поток может выполнять другую работу.",
+      "tone": "warn"
+    }
+  ],
+  "edges": [
+    {
+      "from": "encode",
+      "to": "submit"
+    },
+    {
+      "from": "submit",
+      "to": "storage"
+    },
+    {
+      "from": "storage",
+      "to": "wait",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "wait",
+      "to": "mapped",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "from": "mapped",
+      "to": "owned",
+      "fromSide": "left",
+      "toSide": "right"
+    }
+  ],
+  "note": "MAP_READ у readback сочетается с COPY_DST; у результата шейдера — STORAGE и COPY_SRC. После копирования в собственный массив readback можно unmap."
+};

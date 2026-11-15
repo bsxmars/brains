@@ -32,7 +32,7 @@ const { data } = Astro.props;
 const SIDES: Side[] = ['blue', 'green'];
 ---
 
-<figure class="pdbg-frame">
+<figure data-render-illustration="bluegreen-rollback" class="pdbg-frame">
   <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
 
   <div class="pdbg-states">

@@ -2,7 +2,7 @@
 title: "StatefulSet, тома и данные"
 order: 10
 kicker: доставка
-lead: "Deployment считает поды одинаковыми и заменяемыми, а базе данных нужно обратное: чтобы вторая реплика после любого перезапуска оставалась второй — с тем же именем и тем же диском. StatefulSet даёт подам **номер, DNS-имя и собственный том**, PersistentVolumeClaim держит данные дольше пода. Платить за это приходится порядком и привязками: контроллер ждёт каждую реплику, диск не выходит из своей зоны, а после уменьшения числа реплик диски **не удаляются сами**."
+lead: "Deployment считает поды одинаковыми и заменяемыми, а базе данных нужно обратное: чтобы вторая реплика после любого перезапуска оставалась второй — с тем же именем и тем же диском. StatefulSet даёт подам **номер, DNS-имя и собственный том**, PersistentVolumeClaim держит данные дольше пода. Платить за это приходится порядком и привязками: контроллер ждёт каждую реплику, диск не выходит из своей зоны, а после уменьшения числа реплик при политике Retain диски не удаляются сами."
 summary: "Почему Deployment не годится для базы; StatefulSet — имена по номерам, headless-сервис и DNS-имена подов, порядок создания и удаления, обновление с конца и partition; PV, PVC, StorageClass, режимы доступа, Retain и Delete, привязка к зоне; свой PVC на реплику и retention policy; emptyDir и hostPath; снапшоты, операторы и честный ответ, нужна ли база в кластере."
 verifiedOn: "Порядок действий контроллера, судьба PVC и DNS-имена — учебной моделью темы по документации Kubernetes (StatefulSets, StatefulSet Basics); её сверяет тест на случаях и таблицах из самой документации. Кластер не поднимался, kubectl не запускался: тома, классы хранения, снапшоты и операторы — по документации, сентябрь 2026, и помечены в тексте"
 nav:
@@ -17,6 +17,7 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -41,7 +42,6 @@ import {
   CLAIM_TABLE,
   CLAIM_WHY,
   DEMO_CAPTION,
-  DEMO_NOTE,
   DEMO_SET,
   DEPLOY_VS_STS,
   DNS_NOTE,
@@ -103,7 +103,7 @@ import {
   ORDER_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
+<Section variant="intro" eyebrow="Механика и границы" lead={INTRO_NOTE}>
   <Glossary items={GLOSSARY} />
 </Section>
 
@@ -127,9 +127,11 @@ import {
     minWidth={DEPLOY_VS_STS.minWidth}
   />
 
-  ### Сквозной пример: Postgres на трёх репликах
+  ### Три независимых Postgres: идентичность без настройки репликации
 
-  <CodeBlock code={STS_CODE} />
+  <Disclosure title="Манифесты headless Service и StatefulSet">
+    <CodeBlock lang="yaml" code={STS_CODE} />
+  </Disclosure>
 
   <CardGrid min={270} gap={14} align="start">
     {STS_NOTES.map((fact) => (
@@ -170,7 +172,7 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Тома: где живут данные и сколько"
-  lead="Каждый вид тома отвечает на один вопрос — до какого момента живут данные. У слоя контейнера это перезапуск, у `emptyDir` — жизнь пода, у `hostPath` — жизнь узла. Пережить под и узел может только заявка на диск."
+  lead="Каждый вид тома отвечает на один вопрос — до какого момента живут данные. В Kubernetes записываемый слой теряется с заменой контейнера, emptyDir живёт до удаления пода, hostPath зависит от конкретного узла. PVC отделяет данные от пода, но его устойчивость к потере узла определяется самим хранилищем."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={EPHEMERAL_WHY} />
@@ -321,7 +323,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Порядок и обновление"
-  lead="Контроллер StatefulSet идёт по номерам: создаёт снизу вверх, удаляет и обновляет сверху вниз и каждый раз ждёт, пока тронутый под станет готов."
+  lead="Контроллер StatefulSet идёт по номерам: при OrderedReady создаёт снизу вверх и уменьшает число реплик сверху вниз. RollingUpdate заменяет с наибольшего номера. Удаление самого объекта StatefulSet не обещает упорядоченного завершения подов."
 >
   <Card title="Четыре гарантии" titleSize={17} pad={20} gap={13}>
     <NumberedList items={ORDER_RULES} size={15.5} />
@@ -367,7 +369,9 @@ import {
     <Md text={SIM_WHY} />
   </Card>
 
-  <CodeBlock code={SIM_CODE} />
+  <Disclosure title="Полный исходник учебной модели контроллера">
+    <CodeBlock code={SIM_CODE} />
+  </Disclosure>
 
   ### Случаи из документации
 
@@ -389,12 +393,8 @@ import {
   eyebrow="Раздел 5 · демо"
   eyebrowTone="demo"
   title="Контроллер по шагам"
-  lead="Масштабируйте, меняйте образ, двигайте partition и роняйте поды — и смотрите, в каком порядке контроллер отвечает и какие заявки остаются без хозяина."
+  lead="Учебная модель различает изменение желаемого состояния, готовность пода и очередной проход сведения. Она показывает порядок и судьбу PVC, но не задержки API, планировщик или подключение диска."
 >
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={DEMO_NOTE} />
-  </Card>
-
   <StsController client:visible code={SIM_CODE} spec={DEMO_SET} caption={DEMO_CAPTION} />
 </Section>
 

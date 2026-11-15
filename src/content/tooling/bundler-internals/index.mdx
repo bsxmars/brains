@@ -17,6 +17,8 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BundlerLab from '@/widgets/bundler-lab/ui/BundlerLab.vue';
 import {
+  SELECTION_DIAGRAM,
   GLOSSARY,
   PLAIN_BUNDLER,
   APP_MAIN,
@@ -92,10 +95,10 @@ import {
 
   </Callout>
 
-  Внутри rolldown, Rollup и esbuild — одна и та же работа в четыре шага. Обойти импорты и построить граф модулей. Отобрать из графа нужное.
-  Сложить уцелевший код в один файл и развести одинаковые имена. Разрезать на чанки
-  и подписать каждый хешем. Правила у каждого шага простые, и почти любое «почему
-  в бандле так» сводится к одному из них.
+  Сборщик решает две разные задачи: сохранить наблюдаемое поведение программы и
+  подготовить файлы для загрузки. Первая ограничивает удаление и перестановку кода.
+  Вторая определяет границы чанков и их адреса. Даже неиспользуемое объявление останется,
+  если его инициализация может изменить мир или бросить исключение.
 
   <Plain text={PLAIN_BUNDLER} />
 
@@ -131,19 +134,21 @@ import {
     </Card>
   </CardGrid>
 
+  <ConceptDiagram data={SELECTION_DIAGRAM} />
+
   ### Шаг 1: обход
 
   Учебный сборщик темы понимает узкое подмножество JavaScript: каждый `import` — одна
   строка, операторы верхнего уровня разделены пустой строкой. Этого хватает, чтобы
   собрать магазин так же, как собирает его rolldown, — символ в символ.
 
-  <Card title="Граф: resolve, разбор, обход" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Исходник обхода: resolve, разбор, граф">
     <CodeBlock code={GRAPH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={GRAPH_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   <Card title="Порядок модулей магазина" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={560} chips={APP_ORDER.map((path) => ({ label: path, tone: path === 'src/main.js' ? 'ok' : 'ink' }))} />
@@ -177,9 +182,9 @@ import {
 
   <Plain text={PLAIN_MARK} />
 
-  <Card title="Шаг 2: отбор" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Исходник отбора операторов">
     <CodeBlock code={SHAKE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  </Disclosure>
 
   <Card title="Отбор на магазине" titleSize={16.5} pad={18} gap={11} size={15.5}>
     <NumberedList items={SHAKE_STEPS} size={14.5} />
@@ -225,9 +230,9 @@ import {
 >
   <Plain text={PLAIN_HOIST} />
 
-  <Card title="Шаг 3: имена и вывод" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Исходник склейки и переименования">
     <CodeBlock code={HOIST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  </Disclosure>
 
   ### Магазин после склейки — два сборщика
 
@@ -360,13 +365,13 @@ import {
     <CodeBlock code={PLACEHOLDER_LINES} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
-  <Card title="Хеши с каскадом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Учебный расчёт хешей: только ациклический граф">
     <CodeBlock code={HASH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={HASH_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   ### Какие имена меняет одна правка
 

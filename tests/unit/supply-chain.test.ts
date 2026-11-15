@@ -150,6 +150,18 @@ describe('скрипты установки — как в теме', () => {
     expect(t.IGNORE_SCRIPTS_NOTE).toContain('`postinstall` в вашем `package.json` тоже не выполнятся');
   }, 60_000);
 
+  it('rebuild при ignore-scripts в .npmrc требует явного разрешения', async () => {
+    const d = app('a-rebuild-policy', {}, 'ignore-scripts=true\n');
+    copyFileSync(join(dir, 'pkg/greeter-1.0.0.tgz'), join(d, 'greeter-1.0.0.tgz'));
+    expect((await npm(d, ['install', './greeter-1.0.0.tgz'])).code).toBe(0);
+    expect(readLog(d)).toBe(null);
+    expect((await npm(d, ['rebuild', 'greeter'])).code).toBe(0);
+    expect(readLog(d)).toBe(null);
+    expect((await npm(d, ['rebuild', 'greeter', '--ignore-scripts=false'])).code).toBe(0);
+    expect(events(readLog(d))).toEqual(['preinstall', 'install', 'postinstall']);
+    expect(t.IGNORE_SCRIPTS_NOTE).toContain('--ignore-scripts=false');
+  }, 60_000);
+
   it('npm pack без --ignore-scripts запускает prepare у автора', async () => {
     const at = join(dir, 'pkg-prepare');
     writePkg(at, GREETER);
@@ -489,6 +501,14 @@ describe('SRI_CODE против ssri и node:crypto', () => {
       }
     }
     expect(n).toBeGreaterThan(100);
+  });
+
+  it('совпавший integrity принимает произвольные байты, не оценивая их смысл', async () => {
+    const bytes = new TextEncoder().encode('произвольный файл, которому автор задал честный хеш');
+    const hash = await sri.integrityOf(bytes);
+    expect(sri.verdict(await sri.checkIntegrity(bytes, hash, 'npm'), 'npm')).toBe('pass');
+    expect(sri.verdict(await sri.checkIntegrity(bytes, hash, 'browser'), 'browser')).toBe('pass');
+    expect(t.PROVENANCE_FACTS[0].d).toContain('не независимая пересборка');
   });
 
   it('LIB_HASHES — хеши LIB_JS и LIB_JS_OLD; тег в теме несёт sha384', () => {

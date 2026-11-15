@@ -133,7 +133,7 @@ describe('PUBLISH_CODE против pnpm pack', () => {
 
 describe('CACHE_CODE: ключ задачи', () => {
   const sha = (s: string) => createHash('sha256').update(s).digest('hex');
-  const base = { command: 'build', files: { 'src/index.js': 'a' }, depKeys: ['k1'], env: {} };
+  const base = { task: '@shop/web#build', command: 'build', files: { 'src/index.js': 'a' }, depKeys: ['k1'], env: {} };
 
   it('sha256 через crypto.subtle = node:crypto', async () => {
     for (const s of ['', 'abc', 'кириллица ₽', JSON.stringify(t.FIXTURE_FILES)]) {
@@ -147,10 +147,27 @@ describe('CACHE_CODE: ключ задачи', () => {
     expect(await cache.taskKey({ ...base, files: { 'src/index.js': 'b' } })).not.toBe(k);
     expect(await cache.taskKey({ ...base, depKeys: ['k2'] })).not.toBe(k);
     expect(await cache.taskKey({ ...base, command: 'test' })).not.toBe(k);
+    expect(await cache.taskKey({ ...base, task: '@shop/ui#build' })).not.toBe(k);
     expect(await cache.taskKey({ ...base, env: { API_URL: 'x' } })).not.toBe(k);
     // Порядок перечисления файлов и зависимостей не важен.
     const two = { ...base, files: { a: '1', b: '2' }, depKeys: ['x', 'y'] };
     expect(await cache.taskKey({ ...two, files: { b: '2', a: '1' }, depKeys: ['y', 'x'] })).toBe(await cache.taskKey(two));
+  });
+
+  it('два пакета с одинаковыми файлами не получают чужой результат сборки', async () => {
+    const packages = [
+      { name: '@shop/ui', dir: 'packages/ui', deps: [] },
+      { name: '@shop/web', dir: 'apps/web', deps: [] },
+    ];
+    const files = Object.fromEntries(packages.map((p) => [p.name, { 'src/index.js': 'same source' }]));
+    const rows = await cache.runWithCache({
+      packages, levels: [['@shop/ui', '@shop/web']], files, cache: new Map(),
+      env: { API_URL: 'https://prod.example' }, declared: ['API_URL'], strict: true,
+    });
+    // buildPackage читает имя пакета: при прежнем ключе web получал строку dist/index.js от ui.
+    expect(rows.map((r) => r.hit)).toEqual([false, false]);
+    expect(rows[1].output).toBe('fetch("https://prod.example/price")');
+    expect(rows[0].key).not.toBe(rows[1].key);
   });
 
   it('правка файла меняет ключи ровно у affected — пакета и его зависимых', async () => {

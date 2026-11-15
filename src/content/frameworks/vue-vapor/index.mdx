@@ -25,6 +25,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -33,7 +35,7 @@ import {
   CART_SFC, CART_TEMPLATE, CART_INITIAL, VAPOR_CODE, VDOM_CODE,
   STEP_SIGNALS, STEP_DOM, STEP_BLOCKS, STEP_COMPILER, MINI_VAPOR_CODE, MINI_OUT,
   INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PLAIN_TEMPLATE, OUTPUT_NOTE, OUTPUT_FACTS,
-  RUNTIME_HEAD, RUNTIME_ROWS, SETTEXT_SOURCE, BLOCK_EFFECT_NOTE, PLAIN_MEMO,
+  RUNTIME_HEAD, RUNTIME_ROWS, SETTEXT_SOURCE, BLOCK_EFFECT_NOTE, PLAIN_MEMO, VAPOR_BLOCK_DIAGRAM,
   FOR_NOTE, IF_NOTE, FAST_REMOVE_NOTE,
   MINI_LEAD, PLAIN_COMPILE, MINI_NOTE, MINI_VS_REAL_HEAD, MINI_VS_REAL_ROWS, MINI_VS_REAL_NOTE,
   SCENARIOS, MEASURED_HEAD, MEASURED_ROWS, PLAIN_MEASURE, MEASURE_NOTE, DEMO_NOTE,
@@ -66,7 +68,11 @@ import {
 
   ### Обычный вывод: render-функция
 
-  <CodeBlock code={VDOM_CODE} />
+  <Disclosure title="Полный вывод обычного компилятора: render и VNode">
+
+    <CodeBlock code={VDOM_CODE} />
+
+  </Disclosure>
 
   ### Vapor-вывод: шаблон и эффекты
 
@@ -100,6 +106,8 @@ import {
   ### Эффект на блок, память на узле
 
   <Plain text={PLAIN_MEMO} />
+
+  <ConceptDiagram data={VAPOR_BLOCK_DIAGRAM} />
 
   <Card title="`setText` в `runtime-vapor` 3.6.0-rc.9, без ветки гидратации" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SETTEXT_SOURCE} />
@@ -157,11 +165,15 @@ import {
 
   <CodeBlock code={STEP_BLOCKS} />
 
+  <Disclosure title="Исходник учебного компилятора">
+
   ### Компилятор
 
   <Plain text={PLAIN_COMPILE} />
 
   <CodeBlock code={STEP_COMPILER} />
+
+  </Disclosure>
 
   <Card title="Что мини-компилятор выдаёт для `Cart`" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="jsx" code={MINI_OUT} />
@@ -193,8 +205,6 @@ import {
   <CodeBlock code={INC_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
   <Md text={INC_SCENE_NOTE} />
-
-  Тот же `count++` по шагам — сначала в VDOM, потом в Vapor.
 
   <CardGrid min={290} gap={14} align="start">
     {INC_STEPS.map((b) => (
@@ -283,9 +293,13 @@ import {
     minWidth={640}
   />
 
+  <Disclosure title="Исходник счётчика для сравнения веса сборок">
+
   <Card title="Приложение для замера сборки" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="vue" code={BUNDLE_APP} />
   </Card>
+
+  </Disclosure>
 
   <Table
     head={BUNDLE_HEAD}

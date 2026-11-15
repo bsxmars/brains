@@ -18,9 +18,13 @@ nav:
   - { id: s8, label: Окна }
   - { id: s9, label: Один бюджет }
   - { id: s10, label: Тонкие места }
+  - { id: practice, label: Где применять }
   - { id: s11, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import { MECHANISM_DIAGRAM, PRACTICE_CARDS, AUTOCOMPLETE_CODE } from './data';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -97,8 +101,7 @@ import {
   <Callout size={19} pad="24px 26px">
 
     Все алгоритмы темы отвечают на два вопроса: **сколько событий пропустить за отрезок
-    времени** и **что сделать с лишними**. Debounce сливает серию в один вызов, throttle —
-    в вызов на каждые `wait` миллисекунд, ведро жетонов отказывает, дырявое ведро ставит
+    времени** и **что сделать с лишними**. Debounce сливает серию в один вызов, throttle ограничивает вызовы окнами по `wait` миллисекунд, ведро жетонов отказывает, дырявое ведро ставит
     в очередь. Разные бюджеты, одна идея.
 
   </Callout>
@@ -111,20 +114,16 @@ import {
   <Plain text={PLAIN_BUDGET} />
 
   <Glossary items={GLOSSARY} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 </Section>
 
 <Section
   id="s1"
-  eyebrow="Раздел 1 · демо"
-  eyebrowTone="demo"
+  eyebrow="Раздел 1"
   title="Debounce и throttle: в чём разница"
-  lead="Оба прореживают поток событий, но по-разному, и их постоянно путают. **Debounce** — «сделай, когда поток утихнет». **Throttle** — «делай, но не чаще чем раз в `wait`». Подсказки в поле поиска — debounce: запрос уходит, когда пользователь перестал печатать. Индикатор прокрутки — throttle: он движется на ходу, но не на каждый пиксель."
+  lead="Оба прореживают поток событий, но по-разному, и их постоянно путают. **Debounce** — «сделай, когда поток утихнет». **Throttle** — «обновляй на ходу, ограничивая вызовы временными окнами». Вариант lodash допускает вызовы ближе `wait` на границе серий. Подсказки в поле поиска — debounce: запрос уходит, когда пользователь перестал печатать. Индикатор прокрутки — throttle: он движется на ходу, но не на каждый пиксель."
 >
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={DEBOUNCE_DEMO_NOTE} />
-  </Card>
-
-  <DebounceThrottle client:visible sequences={DEMO_SEQUENCES} wait={DEMO_WAIT} />
 
   Throttle с обеими опциями — полтора десятка строк. Первое событие окна вызывает функцию
   сразу (leading), остальные только запоминаются, а в конце окна функция зовётся с последним
@@ -132,10 +131,11 @@ import {
 
   <CodeBlock code={SIMPLE_THROTTLE_CODE} />
 
+
   <CardGrid min={280} gap={14}>
     <Card pad={16} radius={4} size={15.5}>
 
-      **Обе зовут функцию с аргументами последнего события в окне**, а не первого. Поэтому
+      **Вызов trailing получает аргументы последнего события; leading — первого.** Поэтому
       индикатор скролла покажет актуальную позицию, а не устаревшую.
 
     </Card>
@@ -155,8 +155,11 @@ import {
     </Card>
     <Card tone="err" color="tone" pad={16} radius={4} size={15.5}>
 
-      **Debounce нельзя применять к функции, чей результат вам нужен.** Вызов `debounced()`
-      отдаёт результат **предыдущего** фактического вызова — текущий ещё не состоялся.
+      **У отложенного вызова нет отдельного результата для каждого события.** Lodash возвращает
+      результат последнего фактического выполнения функции. При `leading: true` первое событие
+      выполняет её сразу и получает свежий результат; отложенные события могут получить старый
+      результат или `undefined`. Для асинхронного поиска результат передают в обработчик,
+      отдельно проверяя, что запрос ещё актуален.
 
     </Card>
   </CardGrid>
@@ -181,7 +184,9 @@ import {
   <Plain text={PLAIN_CLOCK} />
 
   <Card title="Часы с таймерами и кадрами" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CLOCK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходный код clock">
+      <CodeBlock code={CLOCK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <Card title="Лента событий на этих часах" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
@@ -200,7 +205,9 @@ import {
   lead="Базовый debounce ждёт тишины длиной `wait` и зовёт функцию один раз в конце серии. У lodash к этому три настройки, и каждая заметно меняет поведение на одной и той же ленте."
 >
   <Card title="Debounce целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={DEBOUNCE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходный код debounce">
+      <CodeBlock code={DEBOUNCE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={DEBOUNCE_NOTE} />
@@ -242,7 +249,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Throttle — это debounce с потолком"
-  lead="Throttle обещает «не чаще раза в `wait`». В lodash он не написан отдельно: это вызов debounce, где `maxWait` равен самому `wait`."
+  lead="В lodash throttle построен на debounce, где `maxWait` равен самому `wait`. Это ограничивает откладывание на непрерывном потоке, но не гарантирует расстояние `wait` между любой парой вызовов: начало новой серии может оказаться рядом с концом предыдущей."
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="lodash-es/throttle.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -290,6 +297,15 @@ import {
   ### Три обёртки на одной ленте
 
   <Md text={RAF_NOTE} />
+
+  ### Начало и конец серии
+
+  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
+    <Md text={DEBOUNCE_DEMO_NOTE} />
+  </Card>
+  В этом коротком сравнении throttle использует окна из `SIMPLE_THROTTLE_CODE`: trailing открывает следующее окно. Это другая граница серий, чем у lodash; их различие разобрано в «Throttle — это debounce с потолком».
+
+  <DebounceThrottle client:visible sequences={DEMO_SEQUENCES} wait={DEMO_WAIT} />
 
   <RateLab client:visible mode="wrappers" code={RATE_CODE} tapes={TAPES} start="typing" caption={WRAP_CAPTION} />
 </Section>
@@ -425,6 +441,18 @@ import {
 
 <Section id="s10" eyebrow="Раздел 10" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Где применять">
+  <CardGrid min={300} gap={16}>
+    {PRACTICE_CARDS.map((item) => <Card title={item.t} text={item.d} />)}
+  </CardGrid>
+
+  ### Поиск, который не показывает устаревший ответ
+
+  Версия меняется при новом вводе, пока следующий запрос ещё ждёт debounce. Поэтому ответ предыдущего запроса не успеет подменить подсказки во время этой паузы. `request` возвращает промис результата, `show` обновляет интерфейс, `onError` принимает актуальную ошибку. Функции отображения и обработки ошибок в этом примере синхронны.
+
+  <CodeBlock code={AUTOCOMPLETE_CODE} />
 </Section>
 
 <Section id="s11" eyebrow="Раздел 11" title="Источники">

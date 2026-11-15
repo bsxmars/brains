@@ -650,3 +650,35 @@ describe('codemod и Prettier', () => {
     expect(t.FORMAT_RULES_NOTE).toContain(`устаревших ${t.RULE_COUNTS.deprecated}`);
   });
 });
+
+
+describe('схема конфликта правок', () => {
+  it('диапазоны схемы принадлежат тем же проходам настоящего сквозного примера', () => {
+    const result = api.verifyAndFix(t.DISCOUNT_CODE, api.rules);
+    const [first, second] = result.passes;
+    const detail = (id: string) => t.MECHANISM_DIAGRAM.nodes.find((node) => node.id === id)!.detail!;
+    for (const message of [...first.applied.slice(0, 1), ...first.skipped]) {
+      expect(detail('fix')).toContain(`[${message.fix!.range.join(', ')}]`);
+    }
+    expect(detail('next')).toContain('===');
+    expect(t.MECHANISM_DIAGRAM.nodes.find((node) => node.id === 'next')!.label)
+      .toContain(`[${second.applied[0].fix!.range.join(', ')}]`);
+    const mdx = readFileSync('src/content/tooling/ast-linters/index.mdx', 'utf8');
+    for (const source of ['WALK_CODE', 'RULES_CODE', 'LINT_CODE']) {
+      expect(mdx.indexOf(`code={${source}}`), source).toBeLessThan(mdx.indexOf('<AstLab'));
+    }
+  });
+
+  it('вид Identifier не определяет тип значения: одинаковая структура для строки и числа', () => {
+    const stringValue = parse("const code = 'SALE'; code == 'SALE';");
+    const numberValue = parse("const code = 5; code == 'SALE';");
+    const comparison = (tree: EsNode) => {
+      let left: EsNode | undefined;
+      api.traverse(tree, { BinaryExpression: [(node: EsNode) => { left = node.left as EsNode; }] });
+      return left;
+    };
+    expect(comparison(stringValue)?.type).toBe('Identifier');
+    expect(comparison(numberValue)?.type).toBe('Identifier');
+    expect(comparison(stringValue)?.name).toBe(comparison(numberValue)?.name);
+  });
+});

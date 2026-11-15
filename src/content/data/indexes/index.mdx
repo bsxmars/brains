@@ -16,6 +16,7 @@ nav:
   - { id: s6, label: Index Only Scan и особые индексы }
   - { id: s7, label: Цена на запись }
   - { id: s8, label: Тонкие места }
+  - { id: practice, label: Где применять }
   - { id: s9, label: Источники }
 ---
 
@@ -24,6 +25,8 @@ import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -37,6 +40,11 @@ import BtreeLab from '@/widgets/index-lab/ui/BtreeLab.vue';
 import PlanLab from '@/widgets/index-lab/ui/PlanLab.vue';
 import {
   GLOSSARY,
+  FEED_INDEX_SQL,
+  FEED_QUERY_SQL,
+  FEED_NOTE,
+
+  ACCESS_DIAGRAM,
   PLAIN_HEAP,
   SETUP_SQL,
   SETUP_NOTE,
@@ -130,7 +138,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Таблица — это страницы"
-  lead="Пример на всю тему — таблица пользователей на 30 000 строк. В файле она лежит страницами по 8 КБ, строки — в порядке вставки. Без индекса найти строку можно одним способом: прочитать все страницы."
+  lead="Пример на всю тему — таблица пользователей на 30 000 строк. В файле она лежит страницами по 8 КБ, на этой свежезагруженной таблице строки лежат в порядке вставки. Для поиска по email без подходящего индекса план читает все страницы."
 >
   <Card title="Таблица users" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="sql" code={SETUP_SQL} size={11.5} lh={1.65} pad="14px 16px" />
@@ -192,7 +200,11 @@ import {
   ### Как дерево растёт
 
   <Card title="Мини-B-дерево: вставка, поиск, диапазон" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={BTREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Вставка, расщепление, поиск и диапазон">
+
+      <CodeBlock code={BTREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     <Md text={BTREE_NOTE} />
   </Card>
 
@@ -268,7 +280,11 @@ import {
   ### Цена трёх планов
 
   <Card title="Модель стоимости" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PLANNER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Формулы модели стоимости">
+
+      <CodeBlock code={PLANNER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     <Md text={PLANNER_NOTE} />
   </Card>
 
@@ -337,6 +353,8 @@ import {
 
   <Md text={IOS_TEXT} />
 
+  <ConceptDiagram data={ACCESS_DIAGRAM} />
+
   <Card title="Только из индекса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="sql" code={IOS_SQL + ';'} size={11.5} lh={1.65} pad="14px 16px" />
     <Table
@@ -402,7 +420,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Цена индекса на запись"
-  lead="Индекс ускоряет чтение, а платит за это запись: каждый `INSERT` кладёт ключ в каждый индекс таблицы. Цену видно в тех же единицах — страницах и записях журнала."
+  lead="Индекс ускоряет чтение, а платит за это запись: каждый `INSERT` обслуживает подходящие индексы таблицы; частичный индекс — только для строк, прошедших его условие. Цену видно в тех же единицах — страницах и записях журнала."
 >
   <Md text={WRITE_TEXT} />
 
@@ -439,6 +457,14 @@ import {
 
 <Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Где применять">
+  ### Лента по городу с составным курсором
+
+  <CodeBlock lang="sql" code={FEED_INDEX_SQL + ';\n\n' + FEED_QUERY_SQL + ';'} />
+  <Md text={FEED_NOTE} />
 </Section>
 
 <Section id="s9" eyebrow="Раздел 9" title="Источники">

@@ -246,6 +246,16 @@ describe('PGlite: версии строк и снимки одной сесси�
     expect((await db.query('SHOW deadlock_timeout')).rows[0]).toEqual({ deadlock_timeout: t.SHOW_DEFAULTS.deadlock_timeout });
     await db.close();
   });
+
+  it('synchronous_commit можно отключить для транзакции; COMMIT не означает неизменные настройки долговечности', async () => {
+    const db = await fresh();
+    await db.exec('BEGIN; SET LOCAL synchronous_commit = off');
+    expect((await db.query('SHOW synchronous_commit')).rows).toEqual([{ synchronous_commit: 'off' }]);
+    await db.exec('COMMIT');
+    expect(t.ACID_ROWS.find((row) => row.k.startsWith('D'))!.how).toContain('synchronous_commit=off');
+    // PGlite доказывает настройку SQL, но не сохранность физического диска после аварии.
+    await db.close();
+  });
 });
 
 describe('RETRY_CODE на настоящей ошибке 40001', () => {
@@ -271,6 +281,29 @@ describe('RETRY_CODE на настоящей ошибке 40001', () => {
     return { db, log, pool: { connect: async () => client } };
   }
   const raise = (code: string) => `DO $$ BEGIN RAISE EXCEPTION 'нарочно' USING ERRCODE = '${code}'; END $$`;
+
+  it('ограничение попыток проверяется до получения соединения; falsy error сохраняется', async () => {
+    let connects = 0;
+    const p = { connect: async () => { connects++; return { query: async () => {}, release() {} }; } };
+    for (const attempts of [0, -1, 0.5, Infinity, NaN]) {
+      await expect(inTransaction(p, 'READ COMMITTED', async () => {}, attempts)).rejects.toBeInstanceOf(RangeError);
+    }
+    expect(connects).toBe(0);
+    for (const error of [null, undefined, false, 0, '']) {
+      await expect(inTransaction(p, 'READ COMMITTED', async () => { throw error; })).rejects.toBe(error);
+    }
+  });
+
+  it('backoff начинается после release, чтобы ожидание не занимало соединение пула', async () => {
+    const log: string[] = [];
+    const fastRetry = new Function('setTimeout', `${t.RETRY_CODE}\nreturn inTransaction;`)((resolve: () => void) => {
+      log.push('backoff'); resolve();
+    }) as typeof inTransaction;
+    const p = { connect: async () => ({ query: async () => {}, release() { log.push('release'); } }) };
+    let calls = 0;
+    await fastRetry(p, 'READ COMMITTED', async () => { if (++calls === 1) throw { code: '40001' }; });
+    expect(log).toEqual(['release', 'backoff', 'release']);
+  });
 
   it('повторяет всю работу, а откаченная попытка не оставляет следа', async () => {
     const { db, pool: p, log } = await pool();

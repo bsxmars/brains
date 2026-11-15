@@ -1,0 +1,56 @@
+---
+import Md from '@/shared/ui/Md.astro';
+interface Props { rows: { st: number; first: number; second: number; what: string }[] }
+const { rows } = Astro.props;
+const frames = [0, 360, 380].map((st) => rows.find((row) => row.st === st)!);
+const scale = 0.65;
+---
+
+<figure class="sbd" data-render-illustration="sticky-section-boundary">
+  <figcaption class="sbd-title">Шапку ограничивает конец её секции</figcaption>
+  <div class="sbd-scroll">
+    <svg class="sbd-svg" viewBox="0 0 780 360" fill="none" role="img" aria-labelledby="sbd-title sbd-desc">
+      <title id="sbd-title">Три положения липкой шапки в одной ленте</title>
+      <desc id="sbd-desc">Окно ленты высотой 300, секция 400, шапка 40 CSS-пикселей. {frames.map((row) => `При scrollTop ${row.st} верх шапки Вчера равен ${row.first}, Сегодня ${row.second}: ${row.what}.`).join(' ')}</desc>
+      <defs>
+        {frames.map((_, i) => <clipPath id={`sbd-clip-${i}`}><rect x={30 + i * 260} y="80" width="220" height={300 * scale} rx="10" /></clipPath>)}
+      </defs>
+      {frames.map((row, i) => {
+        const x = 30 + i * 260;
+        const sectionEnd = 80 + (400 - row.st) * scale;
+        return <g>
+          <text x={x} y="28" class="sbd-label">scrollTop = {row.st}</text>
+          <text x={x} y="57" class="sbd-note">верх «Вчера»: {row.first}px</text>
+          <rect class="sbd-port" x={x} y="80" width="220" height={300 * scale} rx="10" />
+          <g clip-path={`url(#sbd-clip-${i})`}>
+            <rect class="sbd-section" x={x} y={80 - row.st * scale} width="220" height={400 * scale} />
+            <rect class="sbd-old" x={x + 5} y={80 + row.first * scale} width="210" height={40 * scale} rx="5" />
+            {row.first < 300 && row.first + 40 > 0 && <text x={x + 14} y={99 + row.first * scale}>Вчера</text>}
+            <rect class="sbd-new" x={x + 5} y={80 + row.second * scale} width="210" height={40 * scale} rx="5" />
+            {row.second < 300 && row.second + 40 > 0 && <text x={x + 14} y={99 + row.second * scale}>Сегодня</text>}
+          </g>
+          {sectionEnd >= 80 && sectionEnd <= 275 && <line class="sbd-end" x1={x} x2={x + 220} y1={sectionEnd} y2={sectionEnd} />}
+          <text x={x} y="310" class="sbd-note">окно: 300px</text>
+          <text x={x} y="338" class="sbd-note">секция: 400px</text>
+        </g>;
+      })}
+    </svg>
+  </div>
+  <Md text="Фиолетовая область — секция «Вчера», пунктир — её нижняя граница. При `scrollTop = 380` шапка уже не может стоять на нуле: её нижний край должен остаться внутри своей секции. Числа — из того же примера, что в таблице." />
+</figure>
+
+<style>
+  .sbd { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); box-shadow: var(--shadow-card); background: var(--surface); }
+  .sbd-title { font-size: var(--fs-7); line-height: 1.45; color: var(--ink); font-weight: 600; }
+  .sbd-scroll { overflow-x: auto; margin: 16px 0; }
+  .sbd-svg { display: block; width: 100%; min-width: 780px; height: auto; }
+  .sbd-svg text { font-size: var(--fs-4); font-family: var(--mono); fill: var(--prose); }
+  .sbd-svg .sbd-label { font-weight: 600; }
+  .sbd-svg .sbd-note { font-size: var(--fs-3); fill: var(--text-muted); }
+  .sbd-port { fill: var(--surface-2); stroke: var(--border-strong); }
+  .sbd-section { fill: var(--tone-info-bg); }
+  .sbd-old { fill: var(--tone-warn-bg); stroke: var(--tone-warn-line); }
+  .sbd-new { fill: var(--tone-ok-bg); stroke: var(--tone-ok-line); }
+  .sbd-end { stroke: var(--tone-info-strong); stroke-width: 2; stroke-dasharray: 6 4; }
+  .sbd > :global(.md) { font-size: var(--fs-5); line-height: 1.6; color: var(--text-muted); }
+</style>

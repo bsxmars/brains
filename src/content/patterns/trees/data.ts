@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
@@ -43,6 +44,7 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  * `HierarchyRequestError` — по спецификации DOM (pre-insertion validity) и разовым запуском
  * в Chromium 153.0.8010.12 (Playwright, 2026-10-06). happy-dom 20.14.5 этого **не** делает —
  * тест закрепляет расхождение, чтобы не принять happy-dom за стенд.
+ * Практика: текущий active-путь отличает цикл от повторной ссылки; сумма 200 и отказ обратной ссылки проверены исполнением PRACTICE_CODE.
  */
 
 /* ──────────────────── Вводный раздел · словарь ──────────────────── */
@@ -694,3 +696,126 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Объектная модель, раздел «Протокол итератора»](/js/object-model/#s8) — протокол, одноразовость итератора, `return()` и помощники. [Генераторы и асинхронные итераторы](/js/generators/) — что хранит пауза генератора и как обходить асинхронные источники. [React изнутри, раздел «Файбер и цикл»](/frameworks/react-internals/#s2) — обход дерева компонентов без рекурсии. [AST и линтеры, раздел «Обход и селекторы»](/tooling/ast-linters/#s2) — то же дерево и тот же обход в ESLint. [TypeScript на уровне типов, раздел «Рекурсия и её пределы»](/tooling/typescript/#s5) — откуда предел у рекурсивных типов. [Создание объектов](/patterns/creational/) — порождающие паттерны и что из них JS умеет сам.';
+
+
+/** Практический пример: та же строка проверяется tsc и исполняется patterns-trees.test.ts. */
+export const PRACTICE_CODE = `type Item = { kind: 'item'; price: number };
+type Box = { kind: 'box'; children: Node[] };
+type Node = Item | Box;
+function total(root: Node): number {
+  type Frame = { node: Node; leave: boolean };
+  const stack: Frame[] = [{ node: root, leave: false }];
+  const active = new Set<Node>(); // текущий путь, а не все посещённые узлы
+  let sum = 0;
+  while (stack.length) {
+    const { node, leave } = stack.pop()!;
+    if (leave) { active.delete(node); continue; }
+    if (active.has(node)) throw new Error('Цикл в заказе');
+    if (node.kind === 'item') { sum += node.price; continue; }
+    active.add(node);
+    stack.push({ node, leave: true });
+    // Обратная укладка сохраняет порядок детей при извлечении.
+    for (let i = node.children.length - 1; i >= 0; i--) {
+      stack.push({ node: node.children[i], leave: false });
+    }
+  }
+  return sum;
+}
+const item: Item = { kind: 'item', price: 100 };
+const left: Box = { kind: 'box', children: [item] };
+const right: Box = { kind: 'box', children: [item] };
+const order: Box = { kind: 'box', children: [left, right] };
+console.log(total(order)); // одна ссылка в двух позициях — две единицы товара
+right.children.push(order);
+try { total(order); } catch (error) { console.log((error as Error).message); }`;
+export const PRACTICE_OUT = [200, "Цикл в заказе"];
+export const PRACTICE_DIAGRAM: ConceptDiagramData = {
+  "title": "Повторная ссылка и цикл — разные случаи",
+  "description": "Один item стоит в двух позициях заказа и учитывается дважды. Обратная ссылка right → order возвращает активного предка и останавливает расчёт.",
+  "width": 1040,
+  "height": 590,
+  "nodes": [
+    {
+      "id": "order",
+      "x": 390,
+      "y": 10,
+      "width": 260,
+      "height": 230,
+      "label": "order",
+      "detail": "Общая цена складывается по позициям. После ухода из ветки её узлы покидают active.",
+      "tone": "neutral"
+    },
+    {
+      "id": "left",
+      "x": 10,
+      "y": 350,
+      "width": 260,
+      "height": 230,
+      "label": "left → item",
+      "detail": "100. Ветка завершилась; item не закрепляется в глобальном visited.",
+      "tone": "info"
+    },
+    {
+      "id": "right",
+      "x": 770,
+      "y": 350,
+      "width": 260,
+      "height": 230,
+      "label": "right → item",
+      "detail": "Ещё 100. Та же ссылка допустима в другой позиции. Итого 200.",
+      "tone": "ok"
+    },
+    {
+      "id": "cycle",
+      "x": 390,
+      "y": 350,
+      "width": 260,
+      "height": 230,
+      "label": "right → order",
+      "detail": "Добавленная обратная ссылка: order ещё в active. Вместо бесконечного обхода — ошибка.",
+      "tone": "err"
+    }
+  ],
+  "edges": [
+    {
+      "to": "left",
+      "fromSide": "left",
+      "toSide": "top",
+      "via": [
+        [
+          140,
+          125
+        ]
+      ],
+      "from": "order"
+    },
+    {
+      "to": "right",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [
+        [
+          900,
+          125
+        ]
+      ],
+      "from": "order"
+    },
+    {
+      "to": "cycle",
+      "fromSide": "left",
+      "toSide": "right",
+      "dashed": true,
+      "from": "right"
+    },
+    {
+      "to": "order",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "dashed": true,
+      "from": "cycle"
+    }
+  ],
+  "note": "Считать уникальные сущности или вхождения — правило предметной области. Глобальный Set выбрал бы другой ответ и скрыл бы часть циклов.",
+  "id": "patterns-trees-boundary"
+};

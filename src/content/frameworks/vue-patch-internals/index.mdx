@@ -2,7 +2,7 @@
 title: "Vue 3 изнутри: рендерер и patch"
 order: 12
 kicker: фреймворки изнутри
-lead: "Рендерер Vue помещается в несколько сотен строк: `patch` сравнивает два дерева обычных объектов и отдаёт хосту список работ, для списков с ключами ищет наибольшую возрастающую подпоследовательность, а флаги компилятора позволяют не смотреть на статику. Мини-версия из этой темы исполняется прямо на странице и выдаёт тот же журнал операций, что настоящий рендерер Vue 3.5."
+lead: "После перестановки списка поле ввода должно сохранить своё состояние рядом с тем же элементом. Рендерер узнаёт элементы по типу и ключу, сверяет старые VNode с новыми и переносит настоящие узлы. Учебный createRenderer показывает эти операции в журнале; разобранные сценарии сверены с Vue 3.5."
 summary: "Свой `createRenderer` — VNode, `patch`, дети без ключей и с ключами, LIS, флаги патча и блоки, компонент как эффект — на журналирующем хосте, сверенный по операциям с `@vue/runtime-core` 3.5 в обеих сборках."
 verifiedOn: Vue 3.5.42 · Node 26.8.2
 nav:
@@ -25,6 +25,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import PatchLisDiagram from '@/widgets/patch-lis-diagram/ui/PatchLisDiagram.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -91,7 +93,11 @@ import {
 >
   <Plain text={PLAIN_HOST} />
 
-  <CodeBlock code={STEP_HOST} />
+  <Disclosure title="Исходник хоста: узлы и журнал операций">
+
+    <CodeBlock code={STEP_HOST} />
+
+  </Disclosure>
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={HOST_NOTE} />
 
@@ -143,7 +149,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Дети с ключами: края, карта, LIS"
-  lead="С ключами узел узнаётся где угодно, и задача меняется: не «что поменялось на позиции», а «как переставить старые узлы в новый порядок за наименьшее число операций». Vue решает её в пять шагов, и три из них — дешёвые проходы с краёв."
+  lead="Ключ связывает старый узел с новым даже после перестановки. Сначала Vue сопоставляет совпавшее начало и конец. Если один список кончился — остаток можно добавить или удалить. Только оставшаяся середина требует карты ключей и выбора узлов, которые не придётся переносить."
 >
   <CodeBlock code={STEP_KEYED} />
 
@@ -164,6 +170,8 @@ import {
   ### LIS: кого не двигать
 
   <Plain text={PLAIN_LIS} />
+
+  <PatchLisDiagram from={PATCH_SCENARIOS[0].from} to={PATCH_SCENARIOS[0].to} />
 
   <CodeBlock code={STEP_LIS} />
 
@@ -191,11 +199,15 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Как getSequence восстанавливает C и D: двоичный поиск и предшественники">
+
   <Card title="`getSequence([5, 3, 4, 0])` по шагам" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="text" code={LIS_TRACE} />
 
     <Md text={LIS_TRACE_NOTE} />
   </Card>
+
+  </Disclosure>
 
   <Plain text={PLAIN_LIS_STRATEGIES} />
 
@@ -268,6 +280,8 @@ import {
     <Md text={BLOCK_NOTE} />
   </Card>
 
+  <Disclosure title="Другие подсказки компилятора: кеш, фрагмент и статическая строка">
+
   ### Кеш статики, фрагмент, статика одной строкой
 
   <CardGrid min={290} gap={16} align="start">
@@ -277,6 +291,8 @@ import {
 
     <Card title="`createStaticVNode`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={STATIC_NOTE} />
   </CardGrid>
+
+  </Disclosure>
 </Section>
 
 <Section

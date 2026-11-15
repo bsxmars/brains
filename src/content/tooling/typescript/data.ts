@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
@@ -64,10 +65,8 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  * и намеренно подан в теме как то, на что нельзя закладываться.
  *
  * ── Второй проход: что добавлено и чем проверено ────────────────────────────────────────
- * `tsc` 6.0.3 (`--noEmit --strict`) по отдельным фикстурам во временной папке, каждая
- * с ассертами `Expect<IsEqual<…>>`; ⚠️ **сторожем не закреплено** — в
- * `tests/unit/ts-type-level.test.ts` этих фикстур нет (кроме `fsm`/`NoInfer` и `satisfies`,
- * которые там уже были):
+ * `tsc` 6.0.3 (`--noEmit --strict`), ассертами `Expect<IsEqual<…>>`.
+ * Фикстуры закреплены в `tests/unit/ts-type-level.test.ts`:
  *   — `INFER_VALUES_CODE`: `let` → `string`, `const` → `'dark'`, поле объекта → `string`
  *     (`ts(2345)` на обоих вызовах), `as const` и `satisfies { mode: Mode }` сохраняют литерал;
  *     `fsm` без `NoInfer` молча выводит `'on' | 'off' | 'idle'`;
@@ -114,10 +113,12 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  * декоратор метода даёт две ошибки на строке с `@` — `ts(1241)` и `ts(1270)` (поэтому
  * `pageMarkers` в тесте теперь читает все коды из комментария строки).
  *
- * ⚠️ Отдельно стоит блок `ERASURE_*` в разделе 1: он снят прогоном (`tsc` 6.0.3 с эмитом
- * и с `--erasableSyntaxOnly`, плюс `node <файл>.ts` на Node 26.8.2), но **сторожем не
- * закреплён** — фикстур про стирание в `tests/unit/ts-type-level.test.ts` нет. Подробности
- * замера — в докстринге у самого блока.
+ * Блок `ERASURE_*`: эмит tsc, диагностика `erasableSyntaxOnly` и прямой запуск Node
+ * закреплены `ts-type-level.test.ts`; размеры 188/43 байта — по `ERASURE_SIZE_EXAMPLES`.
+ * Сужение по const-метке (4.4), связь двух const-полей (4.6) и вывод литералов (4.8)
+ * разведены по официальным release notes; текущий компилятор исполняет те же строки.
+ * `COMPILE_BOUNDARY_CODE`: отсутствие диагностики не создаёт валидатор JSON,
+ * проверено компиляцией и TypeError при выполнении того же примера.
  */
 
 /* ────────────────────────── Раздел 1 · тип как вычисление ────────────────────────── */
@@ -254,9 +255,8 @@ type C = Exact<string | number>;      // 'нет'   ← дистрибуция �
  * `node <файл>.ts` на Node 26.8.2, где стирание типов встроено и работает **только
  * вычёркиванием**: компилировать конструкцию оно не умеет вовсе.
  *
- * ⚠️ **Сторожем не закреплено**: `tests/unit/ts-type-level.test.ts` этих фикстур не гоняет,
- * в отличие от остальных чисел темы. Прогон разовый, и повторить его надо на следующей
- * версии компилятора — `ts(1294)` и состав четвёрки это правила `tsc`, а не контракт языка.
+ * Эмит, состав таблицы, `ts(1294)` и исполнение Node закреплены
+ * `tests/unit/ts-type-level.test.ts`. Состав четвёрки — правила версии tsc, не контракт языка.
  */
 export const ERASURE_CODE = `  ИСХОДНИК (.ts)                        ЧТО ПРИЕХАЛО В .js
   ──────────────                        ──────────────────
@@ -333,7 +333,7 @@ export const ERASURE_ROWS: {
 
 /** Четыре подробности, которые видно только в выводе компилятора, а не в правиле. */
 export const ERASURE_NOTES: string[] = [
-  '`enum` — единственный из четвёрки, кто добавляет в бандл собственный объект. Файл из перечисления и одной функции сравнения даёт **188 байт** JS; тот же файл, где `Level` объявлен объединением строк, — **43**. И объект в рантайме не совпадает с перечислением из исходника. `enum` хранит и обратную связь «число → имя», поэтому ключей у объекта **четыре** — `["0","1","Low","High"]`.',
+  'Числовой `enum` добавляет объект с прямыми и обратными соответствиями. В исходниках сравнения ниже файл из перечисления и функции даёт **188 байт** JS; вариант со строковым объединением — **43** (tsc 6.0.3, ES2022/ESNext, без минификации). `namespace` со значением тоже создаёт объект, но без обратных соответствий. И объект в рантайме не совпадает с перечислением из исходника. `enum` хранит и обратную связь «число → имя», поэтому ключей у объекта **четыре** — `["0","1","Low","High"]`.',
   '`const enum` — исключение внутри исключения. Объявление исчезает, а на месте обращения компилятор подставляет само значение: в `.js` стоит `1 /* Flag.On */`. Кода нет, зато файлы становятся зависимыми друг от друга — чтобы подставить значение, компилятор должен прочитать чужой файл. Поэтому под `isolatedModules` обращение к `const enum`, объявленному через `declare` (ambient), даёт `ts(2748)`, а локальный на 6.0.3 проходит молча.',
   '`namespace` стирается целиком, только когда внутри одни типы: от такого файла в `.js` остаётся `export {};` и больше ничего. Стоит появиться `export const` — в бандл попадает немедленно вызываемая функция (IIFE) из примера выше.',
   '`declare` снимает вопрос: `declare enum` не порождает никакого кода, и `erasableSyntaxOnly` на него не ругается. Это описание кода, который живёт где-то ещё, а не сам код.',
@@ -722,7 +722,7 @@ export const STATE_NOTES: string[] = [
   '**Метка — общее поле с литералом в каждом члене.** `status: \'ok\'`, а не `status: string`: сравнение `s.status === \'ok\'` оставляет только те члены, у которых метка может быть `\'ok\'`. Будь у метки тип `string`, сравнивать стало бы не с чем, и сужения не случилось бы.',
   '**Поля читаются только там, где они точно есть.** `s.data` вне `case \'ok\'` — `ts(2339)`. Так объединение заменяет набор опциональных полей `{ data?: …; error?: … }`, где «данные и ошибка одновременно» — допустимое состояние, а в объединении — невозможное.',
   '**`never` в `default` — проверка полноты.** После четырёх `case` в `s` не осталось ни одного члена, его тип — `never`, и `assertNever(s)` компилируется. Добавили пятое состояние — `s` в `default` стал `{ status: \'retry\' … }`, и каждый `switch`, который его не знает, краснеет. Без этой строки забытый случай молча вернул бы `undefined`. При выполнении `assertNever` бросает исключение — на случай, если данные пришли не те, что обещал тип.',
-  '**Деструктуризация сужение не ломает** (с 4.6): `const { status } = s; if (status === \'ok\') s.data` работает. Условие, вынесенное в константу, — тоже (с 4.4): `const isOk = s.status === \'ok\'; if (isOk) s.data`.',
+  '**Две разные связи после деструктуризации.** С 4.4 `const { status } = s; if (status === \'ok\') s.data` сужает исходный объект; вынесенное в `const` условие работает с той же версии. С 4.6 сохраняется связь **двух извлечённых полей**: `const { status, data } = s; if (status === \'ok\') data`. Здесь важен `const`: последующее независимое присваивание разрушило бы связь.',
 ];
 
 /**
@@ -944,14 +944,16 @@ export const U2I_STEPS: string[] = [
   'Результат — `{a:1} & {b:2}`. На примитивах приём бесполезен: `UnionToIntersection<string | number>` — это `never`, **проверено компилятором**.',
 ];
 
-/** `infer … extends` с 4.7: фильтрация и единственный мост между строкой и числом. */
+/** Ограничение infer — с 4.7; вывод числового литерала из строки — с 4.8. */
 export const INFER_EXTENDS_CODE = `// фильтрация: не подошло под ограничение — ветка не сработала
 type FirstChar<S extends string> = S extends \`\${infer C extends string}\${string}\` ? C : never;
 type A = FirstChar<'hello'>;   // 'h'
 
 // приведение: строковый литерал внутри шаблона становится числовым
 type ToNumber<S extends string> = S extends \`\${infer N extends number}\` ? N : never;
-type B = ToNumber<'42'>;       // 42 — числовой литерал, а не '42'`;
+type B = ToNumber<'42'>;       // 42 — с 4.8; на 4.7 был number
+type C = ToNumber<'1.0'>;      // number: обратная печать дала бы '1'
+type D = ToNumber<'text'>;     // never: число прочитать нельзя`;
 
 /** `infer` в шаблоне жаден слева, а `ReturnType` от перегрузки берёт последнюю сигнатуру. */
 export const OVERLOAD_CODE = `type Split<S> = S extends \`\${infer H}.\${infer R}\` ? [H, R] : never;
@@ -1373,7 +1375,7 @@ export const TRACE_STEPS: string[] = [
   '`tsc --noEmit --extendedDiagnostics` — **есть ли проблема**. Счётчики — числа, а не секунды: их можно сравнивать между коммитами и между машинами. Скачок `Types` или `Instantiations` на порядок после правки — сигнал раньше, чем редактор начнёт думать.',
   `\`tsc --noEmit --generateTrace trace\` — **где она**. В папке появятся два файла. \`trace.json\` — запись работы компилятора в формате трасс Chrome: откройте его в \`about://tracing\` или в Perfetto. Каждая полоса — шаг проверки с путём к файлу и позицией в нём, и самая широкая полоса внутри вашего файла указывает на строку: в этом примере это событие \`checkExpression\` над вызовом \`cls('1-2-3')\`, проверка аргумента против объединения из 8000 строк. ⚠️ Короткие шаги трасса пишет **выборочно**: шаг попадает в запись, только если пересёк границу десятимиллисекундного интервала. Медленное место видно всегда, а шаг в пару миллисекунд — через раз; этот вызов стоит меньше 2 мс и появляется не в каждом прогоне. ⚠️ Счётчики снимайте отдельным прогоном, без трассы: запись трассы сама создаёт типы, и на этом примере \`Types\` с ней вырастает с ${fmt(SLOW_COUNTS.slow.types)} до ${fmt(SLOW_COUNTS.slowTraced.types)}.`,
   '`types.json` из той же папки — **что это за тип**. Там перечислены все созданные типы с номерами, и объединение, породившее проблему, видно по размеру: в этом примере у одного типа 8000 членов. Номер типа из `types.json` стоит и в аргументах событий сравнения типов (`structuredTypeRelatedTo`: `sourceId`, `targetId`), и по такому событию можно дойти до самого типа. ⚠️ Но эти события тоже записываются выборочно: в пяти прогонах этого примера ни одно не сослалось на объединение из 8000 строк. Поэтому искать виновника надёжнее по размеру — в `types.json`.',
-  `Дальше лечение — из этой темы: хвостовая рекурсия вместо нехвостовой (раздел [«Рекурсия и её пределы»](#s5)), проверка по кускам вместо шаблона-произведения (раздел «Условные типы и \`infer\`»). Счётчики после правки подтвердят, что стало лучше: здесь \`Types\` упал в ${(SLOW_COUNTS.slow.types / SLOW_COUNTS.fast.types).toFixed(1)} раза.`,
+  `Дальше лечение — из этой темы: хвостовая рекурсия вместо нехвостовой (раздел [«Рекурсия и её пределы»](#s5)), проверка по кускам вместо шаблона-произведения (раздел «Условные типы и \`infer\`»). Счётчики после правки подтвердят, что стало лучше: здесь \`Types\` упал в ${(SLOW_COUNTS.slow.types / SLOW_COUNTS.fast.types).toFixed(1).replace('.', ',')} раза.`,
 ];
 
 /* ────────────────────────── Раздел 6 · вариантность ────────────────────────── */
@@ -2000,6 +2002,21 @@ export const VERIFIED: { k: string; v: string; code: string }[] = [
  */
 export const SOURCES: Source[] = [
   {
+    title: 'TypeScript 4.4 и 4.6 — два вида сужения после деструктуризации',
+    href: 'https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-4.html',
+    what: '4.4: извлечённая метка сужает объект; связь соседних извлечённых const-полей появилась в 4.6 (release notes следующей ссылки)',
+  },
+  {
+    title: 'TypeScript 4.6 — Control Flow Analysis for Destructured Discriminated Unions',
+    href: 'https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-6.html',
+    what: 'проверка status сужает отдельно извлечённое data, если const-переменные не меняются',
+  },
+  {
+    title: 'TypeScript 4.8 — Improved Inference for infer Types in Template String Types',
+    href: 'https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-8.html',
+    what: "'42' превращается в 42, а '1.0' остаётся number из-за проверки обратной печати",
+  },
+  {
     title: 'TypeScript Handbook — Conditional Types',
     href: 'https://www.typescriptlang.org/docs/handbook/2/conditional-types.html',
     what: 'дистрибутивность, infer, область видимости переменной вывода',
@@ -2152,3 +2169,61 @@ export const PREREQ: Prereq[] = [
 
 export const RELATED =
   'Смежное на сайте: [модули](/tooling/modules/) — как типы и код приезжают в проект одними и теми же путями и почему `moduleResolution` в библиотеке — ловушка. [Объектная модель](/js/object-model/) — как устроен объект, который описывает тип.';
+
+/** Две независимые дороги из одного .ts: проверка и выпуск JavaScript. */
+export const MECHANISM_DIAGRAM: ConceptDiagramData = {
+  id: 'typescript-boundary',
+  title: 'Проверка типов заканчивается до запуска JavaScript',
+  description: 'Из одного исходника tsc получает диагностику и JavaScript. Проверка формы данных из сети появится при запуске только в том случае, если её написал программист.',
+  width: 980, height: 620,
+  nodes: [
+    { id: 'source', x: 0, y: 170, width: 260, height: 240, label: 'Исходник .ts', detail: 'Значения, типы и обращения к внешним данным написаны в одном файле.', tone: 'info' },
+    { id: 'checker', x: 360, y: 0, width: 260, height: 240, label: 'Проверка типов', detail: 'Вывод, условные типы и присваиваемость дают типы и сообщения об ошибках.', tone: 'warn' },
+    { id: 'emit', x: 360, y: 380, width: 260, height: 240, label: 'JavaScript', detail: 'Аннотации исчезли. Вызовы функций и явно написанные проверки остались.', tone: 'ok' },
+    { id: 'input', x: 720, y: 0, width: 260, height: 240, label: 'JSON снаружи', detail: 'Поле name может оказаться числом: объявление interface этому не препятствует.', tone: 'warn' },
+    { id: 'runtime', x: 720, y: 380, width: 260, height: 240, label: 'Выполнение', detail: 'label({ name: 7 }) бросит TypeError на toUpperCase, хотя JSON.parse прошёл проверку типов.', tone: 'err' },
+  ],
+  edges: [
+    { from: 'source', to: 'checker', via: [[310, 290], [310, 120]], label: 'проверить', labelX: 310, labelY: 90 },
+    { from: 'source', to: 'emit', via: [[310, 290], [310, 500]], label: 'выпустить', labelX: 310, labelY: 550 },
+    { from: 'emit', to: 'runtime', label: '.js', labelX: 670, labelY: 485 },
+    { from: 'input', to: 'runtime', fromSide: 'bottom', toSide: 'top', label: 'данные', labelX: 850, labelY: 315 },
+  ],
+  note: '`noEmitOnError` может остановить выпуск JavaScript при диагностике. Этот флаг управляет сборкой; проверок входящих данных в JavaScript он не добавляет.',
+};
+
+/** Один и тот же исходник печатается и исполняется тестом после настоящего tsc. */
+export const COMPILE_BOUNDARY_CODE = `interface User { name: string }
+
+function label(user: User) {
+  return user.name.toUpperCase();
+}
+
+const input = JSON.parse('{"name":7}'); // any: проверка присваивания проходит
+label(input);                          // при запуске: TypeError`;
+
+/** Две разные возможности сужения: версии взяты из официальных release notes. */
+export const STATE_NARROW_CODE = `type Result =
+  | { status: 'ok'; data: string[] }
+  | { status: 'error'; data: Error };
+
+function byTag(s: Result) {
+  const { status } = s;             // с 4.4: метка сужает исходный объект
+  if (status === 'ok') return s.data.join(', ');
+}
+
+function byAlias(s: Result) {
+  const isOk = s.status === 'ok';   // с 4.4: сохраняется смысл const-условия
+  if (isOk) return s.data.join(', ');
+}
+
+function byFields(s: Result) {
+  const { status, data } = s;       // с 4.6: связь соседних const-переменных
+  if (status === 'ok') return data.join(', ');
+}`;
+
+/** Байты сравниваются на этих файлах, без минификации, tsc 6.0.3, ES2022/ESNext. */
+export const ERASURE_SIZE_EXAMPLES = {
+  enum: 'export enum Level { Low, High }\nexport const isHigh = (l: Level) => l === Level.High;\n',
+  union: "export type Level = 'low' | 'high';\nexport const isHigh = (l: Level) => l === 'high';\n",
+};

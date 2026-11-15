@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   BOUNDARY_NUMBERS,
+  CACHE_MATCH_CODE,
+  CACHE_SEARCH_ENTRIES,
+  CACHE_DIAGRAM,
+  BOUNDARY_DIAGRAM,
+  EVENT_FACTS,
   CACHE_FACTS,
   CACHE_MISS,
   GLOSSARY,
@@ -20,6 +25,7 @@ import {
   span,
   toSpans,
 } from '@/widgets/pipeline-timeline/model/timeline';
+import { loadCacheLookup } from '@/widgets/github-actions-cache-diagram/model/lookup';
 import type { Span } from '@/widgets/pipeline-timeline/model/timeline';
 
 /**
@@ -402,5 +408,34 @@ describe('вычитка 2026-10-30: утверждения по докумен�
     );
     expect(mdx).not.toContain('Остальные пять значат');
     expect(mdx).toContain('Второй и третий значат, что ключ');
+  });
+});
+
+
+describe('поиск кеша: ключ, префиксы и внутренняя версия', () => {
+  const find = loadCacheLookup(CACHE_MATCH_CODE);
+  it('точное совпадение сильнее более свежего префикса', () => {
+    const result = find(CACHE_SEARCH_ENTRIES, 'Linux-node-a1', ['Linux-node-'], 'npm-zstd');
+    expect([result.entry?.key, result.exact, result.via]).toEqual(['Linux-node-a1', true, 'key']);
+  });
+  it('сам key ищется как префикс даже без restore-keys', () => {
+    const result = find(CACHE_SEARCH_ENTRIES, 'Linux-node-', [], 'npm-zstd');
+    expect([result.entry?.key, result.exact, result.via]).toEqual(['Linux-node-b7', false, 'key-prefix']);
+    expect(CACHE_DIAGRAM.rows[1].ask).toContain('самого key');
+  });
+  it('restore-keys проверяются в заданном порядке, не по глобальной свежести', () => {
+    const result = find(CACHE_SEARCH_ENTRIES, 'Windows-node-new', ['Linux-node-a', 'Linux-node-'], 'npm-zstd');
+    expect([result.entry?.key, result.via, result.exact]).toEqual(['Linux-node-a1', 'restore-key', false]);
+  });
+  it('одинаковая строка ключа с другой внутренней версией не восстанавливается', () => {
+    expect(find(CACHE_SEARCH_ENTRIES, 'Linux-node-b7', [], 'unknown').entry).toBeNull();
+    expect(find(CACHE_SEARCH_ENTRIES, 'Linux-node-b7', [], 'npm-zstd').entry?.created).toBe(2);
+    expect(CACHE_DIAGRAM.caption).toContain('внутренней версией');
+  });
+  it('историческая схема границ явно ограничена GitHub-hosted, а event ref не обобщён на все события', () => {
+    expect(BOUNDARY_DIAGRAM.caption).toContain('self-hosted');
+    expect(EVENT_FACTS[1].d).toContain('refs/pull/<номер>/merge');
+    expect(EVENT_FACTS[1].d).toContain('pull_request_target');
+    expect(EVENT_FACTS[1].d).toContain('workflow_dispatch');
   });
 });

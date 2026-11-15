@@ -1,5 +1,37 @@
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LabSetup } from '@/widgets/iframe-lab/model/probe';
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
+
+export const SANDBOX_ORIGIN_DIAGRAM: ConceptDiagramData = {
+  id: 'iframe-sandbox-origin',
+  title: 'allow-same-origin сохраняет источник, а не выдаёт источник родителя',
+  description: 'Две строки сравнивают одинаковые флаги sandbox для srcdoc магазина и документа widget.example. Только в первом случае сохранённый источник совпадает с родителем.',
+  width: 1000, height: 550,
+  nodes: [
+    { id: 'srcdoc', x: 10, y: 10, width: 260, height: 230, label: 'srcdoc магазина', detail: 'Без принудительного opaque origin этот документ наследует источник shop.example.', tone: 'info' },
+    { id: 'own-flags', x: 370, y: 10, width: 260, height: 230, label: 'allow-scripts + allow-same-origin', detail: 'Скрипт разрешён. Источник остаётся shop.example, как у родителя.', tone: 'warn' },
+    { id: 'escape', x: 730, y: 10, width: 260, height: 230, label: 'Доступ к своему iframe', detail: 'Код может снять sandbox с тега и перезагрузиться уже без его ограничений.', tone: 'err' },
+    { id: 'foreign', x: 10, y: 310, width: 260, height: 230, label: 'src: widget.example', detail: 'Этот документ пришёл с другого источника. Его origin — widget.example.', tone: 'info' },
+    { id: 'foreign-flags', x: 370, y: 310, width: 260, height: 230, label: 'Те же два флага', detail: 'Скрипт разрешён. Сохранён собственный widget.example, а не origin магазина.', tone: 'warn' },
+    { id: 'closed', x: 730, y: 310, width: 260, height: 230, label: 'DOM магазина закрыт', detail: 'SOP продолжает отделять документы. Эти флаги сами по себе не открывают родителя.', tone: 'ok' },
+  ],
+  edges: [{ from: 'srcdoc', to: 'own-flags' }, { from: 'own-flags', to: 'escape' }, { from: 'foreign', to: 'foreign-flags' }, { from: 'foreign-flags', to: 'closed' }],
+  note: 'Учебная схема двух случаев, не замер. Без allow-same-origin оба документа получают отдельный непрозрачный источник. Sandbox не запрещает все сетевые загрузки: изображения и другие разрешённые ресурсы требуют собственной CSP.',
+};
+
+export const RESIZE_MESSAGE_DIAGRAM: ConceptDiagramData = {
+  id: 'iframe-resize-message',
+  title: 'Доверенный отправитель ещё не означает подходящие данные',
+  description: 'Родитель проверяет два разных свойства сообщения: кто прислал его и можно ли применить содержимое. Высота меняется только после обеих проверок.',
+  width: 1030, height: 260,
+  nodes: [
+    { id: 'sender', x: 10, y: 10, width: 270, height: 240, label: 'Источник и конкретное окно', detail: 'origin должен быть WIDGET, source — chat.contentWindow. Другой фрейм того же сервиса не подходит.', tone: 'info' },
+    { id: 'schema', x: 380, y: 10, width: 270, height: 240, label: 'Тип и допустимая высота', detail: 'Только resize и конечное число от 0 до 10 000. Строка, NaN или чрезмерное значение отклоняются.', tone: 'warn' },
+    { id: 'apply', x: 750, y: 10, width: 270, height: 240, label: 'Изменить рамку фрейма', detail: 'Родитель округляет значение и ставит height. Он получает число, а не доступ к чужому DOM.', tone: 'ok' },
+  ],
+  edges: [{ from: 'sender', to: 'schema' }, { from: 'schema', to: 'apply' }],
+  note: 'Учебный протокол из примера. Предел 10 000 px — правило этого приложения; другой виджет может выбрать свой предел и прокрутку.',
+};
 
 /**
  * Данные темы «iframe: чужой и свой документ внутри страницы».
@@ -43,6 +75,12 @@ import type { LabSetup } from '@/widgets/iframe-lab/model/probe';
  * `allow-top-navigation-by-user-activation`, `allow-storage-access-by-user-activation`,
  * что делает `credentialless` (снята только его поддержка), заголовок `Content-Security-Policy:
  * sandbox`. Поведение Safari, Chrome и Firefox у пользователя не снималось.
+ *
+ * Уточнено 2026-11-12: lazy может начать загрузку до попадания в экран (HTML Standard,
+ * lazy load scroll margin); H64 — достаточная техника, не обязательность ровно title.
+ * Родительская Permissions-Policy не расширяется атрибутом allow; resize проверяет origin,
+ * source, тип, конечность и диапазон числа — tests/unit/iframe.test.ts, три движка.
+ * Process/thread в THREAD_NOTE ограничен измеренным стендом, не обещанием любого iframe.
  */
 
 // ─── Зачин ─────────────────────────────────────────────────────────────────────────────────
@@ -144,7 +182,7 @@ export const EMBED_FACTS = [
   },
   {
     t: '`title` — имя для чтения с экрана',
-    d: 'Программа чтения с экрана объявляет фрейм по атрибуту `title`. Без него человек слышит «фрейм» и не знает, что внутри. Так требует WCAG (техника H64).',
+    d: 'Дайте фрейму понятное доступное имя, например `title="Чат поддержки"`: так человек, использующий программу чтения с экрана, узнает назначение документа. `title` — одна из достаточных техник WCAG (H64), а не единственный допустимый способ задать имя.',
   },
   {
     t: 'Размер по умолчанию — 300 × 150',
@@ -152,7 +190,7 @@ export const EMBED_FACTS = [
   },
   {
     t: '`loading="lazy"` — грузить, когда понадобится',
-    d: 'Фрейм ниже первого экрана не загружается, пока до него не доскроллят. В наших проверках запрос за таким фреймом ушёл только после прокрутки — в Chromium, Firefox и WebKit. Для фреймов на первом экране атрибут не нужен: они нужны сразу.',
+    d: 'Браузер откладывает загрузку удалённого от видимой области фрейма и может начать загрузку заранее, до его появления на экране. Порог выбирает браузер. В нашем стенде с отступом 6000 px запрос ушёл после прокрутки во всех трёх движках; это наблюдение, а не обещание точного момента загрузки. При отключённом JavaScript отложенная загрузка не применяется.',
     tone: 'ok' as const,
   },
 ];
@@ -219,7 +257,10 @@ const SHOP = 'https://shop.example';
 
 window.addEventListener('message', (event) => {
   if (event.origin !== SHOP) return;
-  if (event.data?.type === 'theme') document.body.dataset.theme = event.data.value;
+  if (event.source !== parent) return;
+  const data = event.data;
+  if (data?.type !== 'theme' || !['dark', 'light'].includes(data.value)) return;
+  document.body.dataset.theme = data.value;
 });
 
 parent.postMessage({ type: 'ready' }, SHOP);`;
@@ -391,7 +432,7 @@ export const SUPPORTS_MISSING = {
 // ─── Раздел 5. Права фрейма ───────────────────────────────────────────────────────────────
 
 export const PLAIN_ALLOW =
-  'Песочница отбирает, а `allow` выдаёт. Это как пропуск в офис: гость без пропуска сидит в переговорной и ничего не включает, с пропуском «камера» может включить камеру. Пропуск выдаёт хозяин страницы. Но даже с пропуском браузер всё равно спросит человека, можно ли включить камеру.';
+  'Атрибут `allow` — пропуск к конкретной возможности, например к камере. Если браузер поддерживает соответствующую директиву заголовка, этот пропуск не расширяет запрет в Permissions-Policy родителя. Он также не заменяет разрешение пользователя. Для некоторых возможностей отдельно нужны защищённый контекст и действие человека. Поэтому `allow` — делегирование, а не команда браузеру немедленно включить API.';
 
 export const ALLOW_CODE = `<!-- видео: полный экран и автозапуск -->
 <iframe src="https://video.example/embed/42" allow="fullscreen; autoplay" title="Видео"></iframe>
@@ -414,6 +455,9 @@ export const FULLSCREEN_ROWS = [
 export const ALLOW_NOTE =
   'У большинства возможностей умолчание — «только свой источник». Свой фрейм получает их без атрибута, чужой — только по `allow`. Что именно ответят Wake Lock, `navigator.share` и оплата во фрейме без `allow` и почему WebKit всё равно ждёт клика, разобрано в [«Интеграции с ОС», раздел «Жест и iframe»](/js/os-integration/#s5). Тот же список для всей страницы задаёт заголовок `Permissions-Policy`, о нём — в [«Безопасности фронтенда», раздел «CSRF и кликджекинг»](/platform/security/#s5).';
 
+export const FULLSCREEN_HEADER_NOTE =
+  'Поддержка атрибута и заголовка различается. На том же стенде родительский `Permissions-Policy: fullscreen=()` при `allow="fullscreen"` оставил `fullscreenEnabled` равным `false` в Chromium 153, но `true` в Firefox 155 и WebKit 26.6. Нормативное правило пересечения не означает, что каждый движок уже применяет эту директиву заголовка.';
+
 export const TOPNAV_NOTE =
   'Увести всю вкладку без клика фрейм чужого источника не может, даже без песочницы: `top.location = …` из скрипта при загрузке дал `SecurityError` в Chromium, Firefox и WebKit. Это защита от рекламы, которая перебрасывает человека на свой сайт. Зато в песочнице с `allow-top-navigation` вкладка ушла и без клика. Поэтому этот флаг чужому коду не дают, а дают `allow-top-navigation-by-user-activation`.';
 
@@ -428,7 +472,7 @@ export const REFERRER_NOTE =
   'По умолчанию чужой фрейм узнаёт только источник родителя: путь и параметры отрезаны. `referrerpolicy` у фрейма меняет это для одного фрейма. Попросить полный адрес (`unsafe-url`) можно, но Firefox и WebKit в наших проверках всё равно отдали только источник.';
 
 export const CREDENTIALLESS_NOTE =
-  '`<iframe credentialless>` загружает чужой документ без кук и с чистым хранилищем, которое живёт до закрытия вкладки. Нужен страницам с заголовком `Cross-Origin-Embedder-Policy`: обычный чужой фрейм туда не встроить, а такой — можно. Зачем странице эти заголовки, разобрано в [«Безопасности фронтенда», раздел «Изоляция страницы»](/platform/security/#s7). В наших проверках атрибут есть только в Chromium: `\'credentialless\' in HTMLIFrameElement.prototype` — `true` в Chromium 153 и `false` в Firefox 155 и WebKit 26.6. Остальные браузеры атрибут молча пропустят и загрузят фрейм с куками.';
+  '`<iframe credentialless>` создаёт отдельный временный контекст без доступа к обычным кукам и хранилищу этого источника. Это позволяет изолированной странице встроить документ без обычного согласования COEP. Механизм разобран в [«Безопасности фронтенда», раздел «Изоляция страницы»](/platform/security/#s7). На нашем стенде атрибут поддержан только Chromium 153; Firefox 155 и WebKit 26.6 его игнорируют. При таком игнорировании действуют обычные правила кук и хранилища, включая блокировку сторонних кук: их отправка не гарантирована. Обнаружение атрибута в прототипе проверено, поведение credentialless здесь не измерялось.';
 
 // ─── Раздел 6. Высота ─────────────────────────────────────────────────────────────────────
 // Обе строки сторож исполняет как есть и проверяет: высота растёт, когда содержимого больше,
@@ -450,7 +494,11 @@ const chat = document.querySelector('#chat');
 
 window.addEventListener('message', (event) => {
   if (event.origin !== WIDGET || event.source !== chat.contentWindow) return;
-  if (event.data?.type === 'resize') chat.style.height = \`\${event.data.height}px\`;
+  const data = event.data;
+  if (data?.type !== 'resize') return;
+  if (typeof data.height !== 'number' || !Number.isFinite(data.height)) return;
+  if (data.height < 0 || data.height > 10_000) return; // предел приложения
+  chat.style.height = \`\${Math.ceil(data.height)}px\`;
 });`;
 
 export const PLAIN_RESIZE =
@@ -491,7 +539,7 @@ export const THREAD_ROWS = [
 ];
 
 export const THREAD_NOTE =
-  'Фрейм своего сайта живёт в том же процессе и на том же главном потоке, что и родитель. Тяжёлый скрипт в одном вешает другой. Фрейм чужого сайта в полном Chromium уезжает в свой процесс и тикает дальше. В headless-сборке Chromium, а также в Firefox и WebKit из Playwright он в наших проверках ждал так же, как свой. Как браузеры делят процессы по сайтам, разобрано в [«Устройстве браузера», раздел «Site»](/js/browser-architecture/#s1), а главный поток — там же, в разделе [«Потоки»](/js/browser-architecture/#s3).';
+  'На этом стенде фрейм своего источника делил главный поток с родителем: тяжёлый скрипт в одном задерживал таймер другого. Фрейм чужого сайта в полном Chromium продолжал тикать. В headless shell Chromium, Firefox и WebKit Playwright он ждал родителя. По этому опыту нельзя обещать процесс или поток для произвольного iframe: размещение зависит от движка, режима и настроек изоляции. Связь сайта, источника и процесса разобрана в [«Устройстве браузера»](/js/browser-architecture/#s1).';
 
 export const WHEN_CASES = [
   {

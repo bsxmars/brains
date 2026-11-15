@@ -20,7 +20,7 @@ interface Props {
 const { diagram } = Astro.props;
 ---
 
-<figure class="rfd-frame">
+<figure class="rfd-frame" data-render-illustration="websocket-frame-bytes">
   <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(diagram.title)} />
 
   <ol class="rfd-fields">

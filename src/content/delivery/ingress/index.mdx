@@ -2,9 +2,9 @@
 title: "Вход в кластер: Ingress и Gateway API"
 order: 7
 kicker: доставка
-lead: "Сервис Kubernetes видит адрес и порт, но не хост и не путь. Чтобы один внешний адрес раздавал запросы разным приложениям, нужен вход — прокси с правилами «хост и путь → сервис». Правила пишут в Ingress или в Gateway API, а исполняет их отдельный контроллер. Без него правила **ничего не делают и ни на что не жалуются**, а `Prefix /api` совпадает с `/api/orders`, но не с `/apiary`."
+lead: "Сервис Kubernetes видит адрес и порт, но не хост и не путь. Чтобы один внешний адрес раздавал запросы разным приложениям, нужен вход — прокси с правилами «хост и путь → сервис». Правила пишут в Ingress или в Gateway API, а исполняет их отдельный контроллер. Без него правила сами не пересылают трафик, а `Prefix /api` совпадает с `/api/orders`, но не с `/apiary`."
 summary: "Путь запроса снаружи до пода; Ingress — хост, путь, pathType и как выбирается совпадение; IngressClass и аннотации контроллера; TLS и cert-manager; Gateway API — роли, условия, веса, редирект и переписывание; статус ingress-nginx; SPA, кеш и WebSocket на входе."
-verifiedOn: "Правила выбора бэкенда — учебной функцией темы по спецификациям Ingress (networking.k8s.io/v1) и Gateway API (gateway.networking.k8s.io/v1); её сверяет тест на таблицах примеров из самих спецификаций. Кластер не поднимался: умолчания ingress-nginx, cert-manager и статус проектов — по документации, сентябрь 2026, и помечены в тексте"
+verifiedOn: "Правила выбора бэкенда — учебной функцией темы по спецификациям Ingress (networking.k8s.io/v1) и Gateway API (gateway.networking.k8s.io/v1); её сверяет тест на таблицах примеров из самих спецификаций. Кластер не поднимался: умолчания ingress-nginx и cert-manager — исторический снимок документации сентября 2026; канал TLSRoute уточнён по релизам Gateway API v1.5.0 и v1.7.0 в ноябре 2026"
 nav:
   - { id: s1, label: Путь запроса }
   - { id: s2, label: 'Ingress: хост и путь' }
@@ -17,6 +17,7 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -90,7 +91,6 @@ import {
   MATCH_SCENE,
   MATCH_WALK,
   MATCH_FOOT,
-  PLAIN_MATCH,
   TLS_SCENE,
   TLS_VARIANTS,
   PLAIN_TLS,
@@ -98,7 +98,7 @@ import {
   ROLES_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
+<Section variant="intro" eyebrow="Механика и границы" lead={INTRO_NOTE}>
   <Plain text={PLAIN_ENTRY} />
 
   <Glossary items={GLOSSARY} />
@@ -200,7 +200,7 @@ import {
     <Md text={CONTROLLER_WHY} />
   </Card>
 
-  <CodeBlock code={INGRESS_CLASS_CODE} />
+  <CodeBlock lang="yaml" code={INGRESS_CLASS_CODE} />
 
   <CardGrid min={270} gap={14} align="start">
     {CLASS_FACTS.map((fact) => (
@@ -356,8 +356,6 @@ import {
 
   <Md text={MATCH_FOOT} />
 
-  <Plain text={PLAIN_MATCH} />
-
   ### Фильтры: редирект и переписывание пути
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
@@ -404,13 +402,15 @@ import {
   eyebrow="Раздел 6 · демо"
   eyebrowTone="demo"
   title="Куда уйдёт запрос"
-  lead="Правила выбора из обеих спецификаций — одной функцией. Её же исполняет демо: впишите адрес и посмотрите, какое правило выиграет и почему."
+  lead="Учебный маршрутизатор показывает проверенные правила совпадения и собственные оговорённые решения для неоднозначных случаев. Он не заменяет запрос к установленному контроллеру."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={ROUTER_WHY} />
   </Card>
 
-  <CodeBlock code={ROUTER_CODE} />
+  <Disclosure title="Учебный маршрутизатор: полный исходник и выбранная нормализация путей">
+    <CodeBlock code={ROUTER_CODE} />
+  </Disclosure>
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={DEMO_NOTE} />

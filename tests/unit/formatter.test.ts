@@ -371,3 +371,17 @@ describe('демо', () => {
     expect(keys.every((g) => g.type === 'group')).toBe(true);
   });
 });
+
+
+describe('схема одного Doc при разных ширинах', () => {
+  it('число строк в каждой ветке схемы получается из того же NEST_CODE', async () => {
+    const ids = ['wide', 'medium', 'narrow', 'small'];
+    for (const [index, row] of t.OUTER_ROWS.entries()) {
+      const output = await fmtTrim(t.NEST_CODE, { printWidth: row.w });
+      expect(output.split('\n')).toHaveLength(row.lines);
+      const node = t.MECHANISM_DIAGRAM.nodes.find((node) => node.id === ids[index])!;
+      expect(node.label).toContain(String(row.w));
+      if (row.lines > 1) expect(node.detail).toContain(`${row.lines} строк`);
+    }
+  });
+});

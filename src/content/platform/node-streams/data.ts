@@ -1,3 +1,9 @@
+/**
+ * Уточнения 2026-11-12: порог — сигнал производителю, а не потолок памяти;
+ * write(null) может синхронно бросить TypeError (node-streams.test.ts).
+ * _writev означает пакетный вызов стока, а не обещание одного системного вызова.
+ */
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { NsModeInfo, NsParams } from '@/widgets/ns-tick-lab/model/types';
 
@@ -1028,7 +1034,7 @@ export const DEMO_NOTE =
   'Источник на каждый `_read()` отвечает одним чанком через тик — как диск или сеть. Потребитель тратит на чанк заданное число тиков. Тик — это «источник ответил, потребитель поработал, отложенное на `process.nextTick` и в промисы доиграло».';
 
 export const DEMO_CAPTION =
-  `Сравните \`for await\` и \`on('data')\` при одних и тех же числах. При значениях по умолчанию у \`on('data')\` \`'end'\` приходит на тике ${DEMO_CHECKS.data.endTick}, а работа кончается на ${DEMO_CHECKS.data.lastTick}: всё это время чанки, которые источник выдал без спроса, ждут у потребителя вне стрима. У \`for await\` \`'end'\` приходит на тике ${DEMO_CHECKS.iterator.endTick} — источник шёл со скоростью потребителя. Вывод для своего кода: если потребитель медленнее источника, читайте через \`for await\` или \`pipeline()\`, а не \`on('data')\`. Настоящего \`node:stream\` в браузере нет, поэтому демо работает на модели (она напечатана ниже) — по каждому сочетанию переключателей она совпадает с Node 26.8.2 кадр в кадр.`;
+  `Сравните \`for await\` и \`on('data')\` при одних и тех же числах. При значениях по умолчанию у \`on('data')\` \`'end'\` приходит на тике ${DEMO_CHECKS.data.endTick}, а работа кончается на ${DEMO_CHECKS.data.lastTick}: всё это время чанки, которые источник выдал без спроса, ждут у потребителя вне стрима. У \`for await\` \`'end'\` приходит на тике ${DEMO_CHECKS.iterator.endTick} — источник шёл со скоростью потребителя. Вывод для своего кода: если потребитель медленнее источника, читайте через \`for await\` или \`pipeline()\`, а не \`on('data')\`. Настоящего \`node:stream\` в браузере нет, поэтому демо работает на модели (её ограничения перечислены в исходнике) — по каждому сочетанию переключателей её модельные тики сверены с Node 26.8.2.`;
 
 export const SCENARIO_NOTE =
   'Журнал ведётся подменой `emit`, а не подпиской: подписка на `\'data\'` или `\'readable\'` сама переключила бы режим. Поэтому в журнале видны и события, которых никто не слушает, — с пометкой «слушателей нет».';
@@ -1571,3 +1577,138 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Стримы и обратное давление](/platform/streams/) — Web Streams, `desiredSize`, `write()` → `false`, `.pipe()` против `pipeline()` и переходники между API. [Event Loop](/js/event-loop/) — очередь `process.nextTick`, через которую стрим отдаёт свои события. [Объектная модель](/js/object-model/) — протокол итератора и `return()`, на котором `break` разрушает стрим. [Память в Node](/js/node-memory/) — как очередь, которую никто не разбирает, выглядит в памяти процесса. [Воркеры и параллелизм](/js/workers/) — обратное давление на пуле, когда стрима нет.';
+
+export const NODE_PRESSURE_DIAGRAM: ConceptDiagramData = {
+  "id": "node-stream-pressure-return",
+  "title": "Чанк принят, но следующую запись нужно отложить",
+  "description": "У обычного незавершённого Writable false означает достигнутый порог. drain сообщает, что накопленная работа завершена и запись можно продолжить.",
+  "width": 990,
+  "height": 560,
+  "nodes": [
+    {
+      "id": "producer",
+      "x": 50,
+      "y": 10,
+      "width": 250,
+      "height": 220,
+      "label": "Производитель",
+      "detail": "Читает или вычисляет следующую порцию, пока потребитель готов.",
+      "tone": "info"
+    },
+    {
+      "id": "write",
+      "x": 370,
+      "y": 10,
+      "width": 250,
+      "height": 220,
+      "label": "write(chunk)",
+      "detail": "Принимает чанк. Возврат false — сигнал остановить следующие записи, а не повторить текущую.",
+      "tone": "warn"
+    },
+    {
+      "id": "sink",
+      "x": 690,
+      "y": 10,
+      "width": 250,
+      "height": 220,
+      "label": "Работа стока",
+      "detail": "Текущий _write завершится вызовом callback. Он не равен подтверждению от удалённого клиента.",
+      "tone": "neutral"
+    },
+    {
+      "id": "pause",
+      "x": 50,
+      "y": 340,
+      "width": 250,
+      "height": 220,
+      "label": "Пауза производителя",
+      "detail": "Новые записи отложены. pipeline приостанавливает чтение источника.",
+      "tone": "warn"
+    },
+    {
+      "id": "drain",
+      "x": 370,
+      "y": 340,
+      "width": 250,
+      "height": 220,
+      "label": "drain",
+      "detail": "После false очередь в нормальном потоке опустела: производитель может продолжить.",
+      "tone": "ok"
+    },
+    {
+      "id": "complete",
+      "x": 690,
+      "y": 340,
+      "width": 250,
+      "height": 220,
+      "label": "Очередь разгружается",
+      "detail": "Завершение записей уменьшает writableLength. Ошибка ведёт к другому исходу.",
+      "tone": "info"
+    }
+  ],
+  "edges": [
+    {
+      "to": "write",
+      "from": "producer"
+    },
+    {
+      "to": "sink",
+      "from": "write"
+    },
+    {
+      "to": "complete",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "from": "sink"
+    },
+    {
+      "to": "drain",
+      "fromSide": "left",
+      "toSide": "right",
+      "from": "complete"
+    },
+    {
+      "to": "pause",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          495,
+          285
+        ],
+        [
+          175,
+          285
+        ]
+      ],
+      "label": "false",
+      "labelX": 315,
+      "labelY": 270,
+      "from": "write"
+    },
+    {
+      "to": "pause",
+      "fromSide": "left",
+      "toSide": "right",
+      "from": "drain"
+    },
+    {
+      "to": "producer",
+      "fromSide": "left",
+      "toSide": "left",
+      "dashed": true,
+      "from": "pause",
+      "via": [
+        [
+          20,
+          450
+        ],
+        [
+          20,
+          120
+        ]
+      ]
+    }
+  ],
+  "note": "Схема показывает сотрудничество производителя со стоком. Если игнорировать false, очередь может перерасти highWaterMark."
+};

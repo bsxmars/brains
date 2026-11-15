@@ -1,7 +1,10 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ConditionEnv, ExportsPreset, ExportsValue } from '@/widgets/exports-lab/model/types';
 
 /**
+ * Уточнение 2026-11: npm pack --dry-run запускает prepack и может менять локальные файлы;
+ * сторож package-publishing.test.ts проверяет это вместе с --ignore-scripts.
  * Данные темы «Публикация npm-пакета: exports, ESM и CJS, типы».
  *
  * Тема написана здесь, 2026-10-02. Ничего не публиковалось: тарболы собраны `npm pack`
@@ -627,7 +630,7 @@ export const PRESETS: ExportsPreset[] = [
 export const DEMO_TEXT: Record<string, string> = {
   ok: 'Резолвер выбрал `{file}`, и файл в пакете есть.',
   MISSING_FILE: 'Резолвер ответил `{file}`, но такого файла в пакете нет: `import.meta.resolve` вернёт этот адрес, а загрузка упадёт `ERR_MODULE_NOT_FOUND`.',
-  ERR_PACKAGE_PATH_NOT_EXPORTED: 'Подпуть не экспортирован: ключа для него нет, или он закрыт `null`, или ни одно условие не подошло. Файл в пакете может лежать — снаружи его не достать.',
+  ERR_PACKAGE_PATH_NOT_EXPORTED: 'Подпуть не экспортирован: ключа для него нет, или он закрыт `null`, или ни одно условие не подошло. Файл в пакете может лежать, но импорт по имени пакета его не откроет; карта не запрещает чтение по абсолютному пути.',
   ERR_INVALID_PACKAGE_TARGET: 'Цель в карте неверная: она не начинается с `./` или выходит из пакета. Это ошибка автора пакета, а не того, кто импортирует.',
   ERR_INVALID_MODULE_SPECIFIER: 'В кусок, который подставляется вместо `*`, попал сегмент `.` или `..`. Выйти из папки шаблона нельзя.',
   ERR_INVALID_PACKAGE_CONFIG: 'Карта сломана целиком: в одном объекте смешаны подпути и условия (или ключ-число). Node откажет на любой импорт пакета.',
@@ -1207,3 +1210,19 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Модули и сборка, раздел «CommonJS против ESM»](/tooling/modules/#s3) — интероп, двойной `default`, таблица условий Node и лекарства от двойного пакета. [Пакетные менеджеры](/tooling/package-managers/#s1) — диапазоны версий, lock-файл и `peerDependencies` со стороны установки. [Монорепозиторий, раздел «Воркспейсы»](/tooling/monorepo/#s1) — соседние пакеты и `workspace:` при публикации. [Бандлер изнутри, раздел «Что выживает»](/tooling/bundler-internals/#s2) — что сборщик делает с `sideEffects`. [Транспиляция и полифилы, раздел «esbuild и tsc»](/tooling/transpilation/#s6) — во что понижать синтаксис библиотеки. [TypeScript на уровне типов](/tooling/typescript/) — язык, на котором написаны `.d.ts`. [Цепочка поставок](/platform/supply-chain/) — скрипты установки, `integrity` в lock-файле, SRI в браузере и путаница зависимостей.';
+
+export const PACKAGE_DIAGRAM: ConceptDiagramData = {
+  id: 'package-publishing-two-contracts', title: 'Доступность пути и наличие файла проверяются отдельно',
+  description: 'npm собирает архив по files и ignore-правилам. Загрузчик выбирает публичный путь по exports. Успешный выбор пути ещё не означает, что выбранный файл попал в архив.',
+  width: 920, height: 280,
+  nodes: [
+    { id: 'files', x: 0, y: 30, width: 260, height: 220, label: '`files` и ignore', detail: 'Что положить в тарбол: например, dist/index.mjs. Проверяется через npm pack.', tone: 'info' },
+    { id: 'exports', x: 330, y: 30, width: 260, height: 220, label: '`exports`', detail: 'Какой подпуть открыт и какой файл выбрать для включённых условий.', tone: 'warn' },
+    { id: 'load', x: 660, y: 30, width: 260, height: 220, label: 'Чистый потребитель', detail: 'Выбранный файл должен существовать и иметь ожидаемый формат ESM/CJS и типы.', tone: 'ok' },
+  ],
+  edges: [
+    { from: 'files', to: 'exports', label: 'архив', labelX: 295, labelY: 125 },
+    { from: 'exports', to: 'load', label: 'путь', labelX: 625, labelY: 125 },
+  ],
+  note: 'Файл может лежать в архиве и быть закрыт через exports. Обратная ошибка: exports указывает на файл, которого в архиве нет.',
+};

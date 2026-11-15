@@ -30,6 +30,19 @@ const B = `http://127.0.0.1:${PORT_B}`;
 const raster = loadRaster(t.RASTER_CODE);
 const probeLocal = loadProbe(t.PROBE_CODE); // в Node не исполняется — только собирается
 
+describe('схема двух размеров: оценка одного буфера RGBA8', () => {
+  it('буфер для DPR 2 совпадает с моделью и измеренным объёмом данных', () => {
+    const row = t.MEMORY_ROWS.find((entry) => entry.dpr === 2)!;
+    expect(row.buffer).toEqual([1600, 1200]);
+    expect(row.bytes).toBe(1600 * 1200 * 4);
+    const nodes = t.CANVAS_SIZE_DIAGRAM.nodes;
+    expect(nodes.find((node) => node.id === 'bitmap')!.label).toContain(row.buffer.join(' × '));
+    expect(nodes.find((node) => node.id === 'memory')!.detail).toContain('7 680 000');
+    // Эти числа — данные пикселей, не обещание фиксированного расхода всей памяти ImageBitmap.
+    expect(t.BITMAP_NOTE).toContain('оценка одного буфера');
+  });
+});
+
 /** PNG w×h одним цветом — без библиотек, как на стенде. */
 function png(w: number, h: number, rgba: [number, number, number, number]): Buffer {
   const table = Array.from({ length: 256 }, (_, n) => {

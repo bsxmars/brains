@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { chromium } from 'playwright';
+import { withBrowser } from '../helpers/with-browser';
 import { createRequire } from 'node:module';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -553,3 +555,14 @@ function SOURCE_INLINE_CSS(): string {
     .join('\n')
     .replace('@import "tailwindcss";', '@import "tailwindcss" source(none);');
 }
+
+it('важность обращает порядок слоёв в реальном браузере', async () => {
+  await withBrowser(chromium, {}, async (browser) => {
+    const page = await browser.newPage();
+    for (const [css, expected] of [[t.IMPORTANT_ORDER_CODE, '0px'], [t.IMPORTANT_ORDER_CODE.replaceAll('!important', ''), '32px']]) {
+      await page.setContent(`<style>${css}</style><button class="btn p-4">Кнопка</button>`);
+      expect(await page.locator('button').evaluate((el) => getComputedStyle(el).padding)).toBe(expected);
+    }
+    expect(t.IMPORTANT_ORDER_NOTE).toContain('у важных деклараций первым становится ранний слой');
+  });
+});

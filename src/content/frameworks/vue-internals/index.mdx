@@ -2,7 +2,7 @@
 title: "Vue 3 изнутри: своя реактивность"
 order: 11
 kicker: фреймворки изнутри
-lead: "Реактивность Vue помещается в три сотни строк: `Proxy` замечает чтение, таблица `WeakMap → Map → Dep` помнит, кто что читал, номер версии не даёт будить зря, а очередь в микрозадаче превращает три записи в одну перерисовку. Мини-версия из этой темы исполняется прямо на странице и ведёт себя так же, как настоящий Vue 3.5."
+lead: "После трёх записей компонент обновляется один раз, а закрытая ветка перестаёт зависеть от своих данных. Эти наблюдения можно получить из небольшой реализации: Proxy замечает чтения, Dep хранит подписчиков и версии, эффект перестраивает связи, планировщик объединяет задания. На разобранных сценариях её поведение сверено с Vue 3.5."
 summary: "Мини-Vue за шесть шагов — `reactive`, `track`/`trigger`, `effect`, `ref`, `computed`, планировщик — исполняется в демо и сверяется тестом с `@vue/runtime-core` 3.5 в обеих сборках."
 verifiedOn: Vue 3.5.42 · Node 26.8.2
 nav:
@@ -25,6 +25,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -32,7 +34,7 @@ import MiniReactivity from '@/widgets/mini-reactivity/ui/MiniReactivity.vue';
 import {
   MINI_VUE_CODE, STEP_REACTIVE, STEP_TRACK, STEP_EFFECT, STEP_REF, STEP_COMPUTED, STEP_SCHEDULER,
   INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PLAIN_PROXY, RECEIVER_CODE, RECEIVER_NOTE, CACHE_NOTE, SET_NOTE,
-  TABLE_SHAPE, PLAIN_TABLE, ACTIVE_NOTE, BACKREF_NOTE, ITERATE_NOTE, NOTIFY_NOTE,
+  TABLE_SHAPE, DEP_TABLE_DIAGRAM, PLAIN_TABLE, ACTIVE_NOTE, BACKREF_NOTE, ITERATE_NOTE, NOTIFY_NOTE,
   PLAIN_CLEANUP, BRANCH_CODE, CLEANUP_NOTE, NESTED_NOTE, RECURSE_NOTE,
   PLAIN_REF, REF_NOTE, SHALLOW_NOTE,
   PLAIN_COMPUTED, LAZY_NOTE, VERSION_NOTE, GLITCH_NOTE,
@@ -84,9 +86,11 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="`track` и `trigger`: таблица «кто что читал»"
-  lead="Зависимости хранятся не в эффектах и не в объектах, а в отдельной таблице из трёх уровней: `WeakMap` от объекта к `Map` от ключа к `Dep` — набору подписчиков с номером версии. `track` дописывает в неё текущий эффект, `trigger` достаёт из неё тех, кого надо разбудить."
+  lead="Для reactive адрес зависимости — пара «исходный объект, ключ». WeakMap выбирает объект, Map — ключ, Dep хранит подписчиков и версию. Эффект помнит обратные связи: без них пришлось бы искать его по всей таблице при каждой отписке."
 >
   <Plain text={PLAIN_TABLE} />
+
+  <ConceptDiagram data={DEP_TABLE_DIAGRAM} />
 
   <CodeBlock lang="text" code={TABLE_SHAPE} />
 
@@ -101,6 +105,8 @@ import {
 
     <Card tone="warn" title="Копия перед обходом" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6} text={NOTIFY_NOTE} />
   </CardGrid>
+
+  <Disclosure title="Почему обход Set требует копии и проверки версии">
 
   ### Копия и версия: две страховки от бесконечного обхода
 
@@ -121,6 +127,8 @@ import {
   </CardGrid>
 
   <Plain text={PLAIN_NOTIFY} />
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -171,7 +179,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="`computed`: ленивый, кеширующий, и подписчик, и источник"
-  lead="У `computed` две роли. Для своих источников он подписчик: внутри сидит эффект с геттером. Для тех, кто читает `.value`, он источник: у него свой `Dep`. Между ними — флаг `dirty` и номер версии, и на этих двух полях держится вся экономия."
+  lead="У computed две роли: он читает источники и сам служит источником для своих читателей. В мини-версии геттер выполняет отдельный эффект, результат хранится в кеше. Пометка dirty требует проверки, а версия Dep показывает, изменилось ли значение для следующего звена. В Vue 3.5 computed реализован отдельным подписчиком, без вложенного ReactiveEffect."
 >
   <Plain text={PLAIN_COMPUTED} />
 
@@ -269,6 +277,8 @@ import {
     <Md text={REAL_NOTE} />
   </Card>
 
+  <Disclosure title="Массивы и коллекции настоящего Vue: что отсутствует в мини-версии">
+
   ### Массивы и коллекции
 
   <Plain text={PLAIN_COLLECTIONS} />
@@ -286,6 +296,8 @@ import {
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={ALIEN_NOTE} />
   </Card>
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -302,7 +314,6 @@ import {
   id="s10"
   eyebrow="Раздел 10"
   title="Источники"
-  lead="Каждая строка мини-версии имеет оригинал в исходниках Vue — и там же видно, во что он вырос."
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

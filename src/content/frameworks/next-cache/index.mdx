@@ -4,7 +4,7 @@ heading: "Слои кеша в Next.js: от fetch до роутера"
 headingWidth: 22
 order: 20
 kicker: фреймворки изнутри
-lead: "Данные в базе поменялись, а страница показывает старое. В Next.js это почти всегда не ошибка кеша: кешей четыре, они стоят друг за другом, и у каждого свой срок и свой способ сброса. Чтобы понять, почему страница не обновилась, нужно найти, какой из четырёх кешей держит старую копию."
+lead: "Данные в базе поменялись, а страница показывает старое. В Next.js это почти всегда не ошибка кеша: здесь важны четыре разных кеша, и у каждого свой срок и свой способ сброса. Чтобы понять, почему страница не обновилась, нужно найти, какой из четырёх кешей держит старую копию."
 summary: "Склейка одинаковых `fetch` в рендере, кеш данных (`force-cache`, `revalidate`, теги, `unstable_cache`), кеш маршрута (статика, ISR, `x-nextjs-cache`: `HIT`, `STALE`, `MISS`), кеш роутера во вкладке (префетч, переходы без запроса), `revalidateTag`, `updateTag`, `revalidatePath`, что сменилось по умолчанию в 15-й версии и новая модель `'use cache'`. Учебная модель четырёх слоёв сверена тестом с журналом настоящего Next 16.3.8."
 verifiedOn: "next 16.3.8 (Turbopack), React 19.3.0, Node 24.11.0, Chromium 153 (Playwright 1.63), октябрь 2026: приложение темы собрано next build и запущено next start рядом со счётчиком-бэкендом; запросы к бэкенду, x-nextjs-cache, Cache-Control, содержимое страниц и запросы вкладки пересобирает tests/unit/next-cache-stand.test.ts, модель четырёх слоёв сверена с этим журналом шаг в шаг. История значений по умолчанию, сроки кеша роутера числами и поведение next dev — по документации 16.3.8"
 nav:
@@ -21,6 +21,8 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
@@ -36,6 +38,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import NextCacheLab from '@/widgets/next-cache-lab/ui/NextCacheLab.vue';
 import {
+  MECHANISM_DIAGRAM,
   GLOSSARY,
   PLAIN_LAYERS,
   LAYERS,
@@ -95,9 +98,11 @@ import {
   Next.js кеширует много, и многое — по умолчанию. Поэтому статические страницы открываются быстро,
   а до базы доходит мало запросов. Обратная сторона — вопрос, который рано или поздно задаёт каждый:
   «я обновил данные, почему страница старая?» Ответ зависит от того, где лежит старая копия. Чтобы
-  её найти, нужно знать, как устроены слои и в каком порядке Next их проверяет.
+  её найти, нужно знать, какой результат хранится на каждой границе и какая работа нужна при промахе.
 
   <Plain text={PLAIN_LAYERS} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 
   <Glossary items={GLOSSARY} />
 </Section>
@@ -105,8 +110,8 @@ import {
 <Section
   id="s1"
   eyebrow="Раздел 1"
-  title="Четыре слоя и в каком порядке их проверяют"
-  lead="Три слоя живут на сервере: два хранят данные, третий — готовые страницы. Четвёртый живёт во вкладке браузера. Запрос может пройти через все четыре, а может получить ответ уже в первом."
+  title="Четыре места, где сохраняется результат"
+  lead="Во вкладке сохраняется результат перехода, на сервере — данные и готовые маршруты. Request Memoization живёт только в текущем React-render. Если подходящий результат уже найден во вкладке или кеше маршрута, новый render вообще не нужен."
 >
   <Table
     head={['слой', 'где живёт', 'сколько живёт', 'что сбрасывает']}
@@ -328,6 +333,7 @@ import {
     <CodeBlock lang="jsx" code={ROUTES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
+  <Disclosure title="Исходник модели: сервер и вкладка">
   <Card title="Сервер: слои 1–3" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SERVER_MODEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
@@ -335,12 +341,14 @@ import {
   <Card title="Вкладка: слой 4 и шаги" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ROUTER_MODEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-    <CardNote tone="prose">
-      <Md text={MODEL_NOTE} />
-    </CardNote>
+
   </Card>
 
+  </Disclosure>
+
   ### Четыре слоя в работе
+
+  <Md text={MODEL_NOTE} />
 
   <NextCacheLab client:visible codes={{ routes: ROUTES_CODE, server: SERVER_MODEL_CODE, router: ROUTER_MODEL_CODE }} scenarios={SCENARIOS} caption={DEMO_CAPTION} />
 

@@ -16,6 +16,7 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -36,6 +37,7 @@ import HealthTimeline from '@/widgets/compose-health-diagram/ui/HealthTimeline.a
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ServiceStartup from '@/widgets/service-startup/ui/ServiceStartup.vue';
 import {
+  APP_SCRIPT_CODE,
   APP_FAIL_LOG,
   APP_OK_LOG,
   BUILD_CODE,
@@ -63,6 +65,7 @@ import {
   SERVICES,
   SOURCES,
   STACK_CODE,
+  DEPENDENCY_RESTART_CODE,
   START_NUMBERS,
   VOLUME_CODE,
   VOLUME_FACTS,
@@ -146,7 +149,11 @@ import {
   title="Сервис, сеть и имена"
   lead="В файле ниже нет ни слова про сеть, но сеть есть. Compose создаёт её сам, подключает к ней все сервисы и даёт каждому имя. По этому имени сервисы обращаются друг к другу — его и пишут в строке подключения к базе."
 >
-  <CodeBlock code={STACK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <Disclosure title="Полный compose.yml исторического стенда">
+    <CodeBlock lang="yaml" code={STACK_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="bash" code={APP_SCRIPT_CODE} />
+    <Md text="Сохраните второй листинг как app.sh рядом с compose.yml. Это минимальная программа для повторения успешного или неуспешного первого подключения; старые журналы и их миллисекунды относятся к сохранённому историческому прогону." />
+  </Disclosure>
 
   <Plain text={PLAIN_NETWORK} />
 
@@ -228,6 +235,17 @@ import {
   <Plain text={PLAIN_HEALTHCHECK} />
 
   <CodeBlock lang="yaml" code={HEALTH_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+
+  ### Статус unhealthy не означает перезапуск
+
+  Если база стала unhealthy после старта app, Compose не останавливает app и не
+  пересоздаёт базу из-за этого статуса. Политика restart реагирует на завершение процесса,
+  а не на провал healthcheck. Само приложение обрабатывает обрыв соединения и повторное подключение.
+
+  <Disclosure title="Два разных restart: контейнер и зависимый сервис">
+    <CodeBlock lang="yaml" code={DEPENDENCY_RESTART_CODE} />
+    <Md text="`restart: on-failure:3` — политика процесса db. `depends_on.db.restart: true` — перезапуск app после явной операции Compose над db, например `docker compose restart db`. Автоматический перезапуск db рантаймом не равен такой операции." />
+  </Disclosure>
 
   ### Четыре поля на одной шкале запуска
 
@@ -473,7 +491,9 @@ import {
   title="Переменные окружения: какой источник кого перебивает"
   lead="Одну и ту же переменную можно задать четырьмя способами: в файле `.env`, в файле из `env_file`, в секции `environment` и в оболочке, из которой запускают Compose. Если значение задано в нескольких местах, одно перебивает другое. Порядок проверен запуском: у четырёх сервисов разный набор источников и одна переменная `GREETING`."
 >
-  <CodeBlock lang="text" code={ENV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <Disclosure title="Справка: подстановка и окружение на одном примере">
+    <CodeBlock lang="text" code={ENV_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  </Disclosure>
 
   ### Два момента, когда Compose читает переменные
 

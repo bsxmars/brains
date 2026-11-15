@@ -4,7 +4,7 @@ heading: "Suspense и границы ошибок: кто ловит броше�
 headingWidth: 22
 order: 23
 kicker: фреймворки изнутри
-lead: "Компонент, которому не хватает данных, бросает промис. Компонент, который сломался, бросает ошибку. И то и другое летит вверх по дереву до ближайшей границы, которая умеет это ловить, — `<Suspense>` или границы ошибок. Как React и Vue выбирают границу, почему промис обязан быть стабильным, откуда берётся водопад запросов и что не ловит ни одна граница."
+lead: "В React `use(promise)` приостанавливает рендер до готовности данных, а `<Suspense>` задаёт заглушку для ожидания. Ошибку обрабатывает отдельная граница. Vue использует `async setup` и `onErrorCaptured`, поэтому области ожидания и перехвата в двух фреймворках различаются."
 summary: "`use(promise)` и бросок до ближайшего `<Suspense>`, повтор рендера с начала и прогрев соседей, стабильный промис и вечная заглушка, водопад вложенных границ, переходы без заглушки, классовая граница ошибок и чего она не ловит, `onCaughtError`/`onUncaughtError` у корня React 19, `<Suspense>` с `async setup`, `onErrorCaptured` и `app.config.errorHandler` во Vue, учебная модель, сверенная с обоими фреймворками."
 verifiedOn: "React 19.3.0, Vue 3.5.42, happy-dom 20.14.5, Node 24.11.0, октябрь 2026: все примеры кода темы исполняются в настоящих React и Vue тестом tests/unit/suspense-errors.test.ts; учебная модель сверена с обоими фреймворками на всех 243 сочетаниях демо-дерева и в режиме загрузки волнами. Задержка заглушки 300 мс и обработчики корня по умолчанию — по исходникам React 19.3"
 nav:
@@ -21,11 +21,11 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -37,6 +37,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BoundaryLab from '@/widgets/boundary-lab/ui/BoundaryLab.vue';
 import {
   GLOSSARY,
+  BOUNDARY_DECISION_DIAGRAM,
   PLAIN_THROW,
   S1_LEAD,
   USE_CODE,
@@ -104,10 +105,10 @@ import {
 <Section variant="intro" eyebrow="Бросок вверх" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Рендер не умеет ждать и не умеет сообщать об ошибке иначе, чем броском. Поэтому
-    и «данных ещё нет», и «всё сломалось» — это `throw` из функции компонента. Разница
-    только в том, **что** брошено и **кто** это ловит: промис ловит `<Suspense>`, ошибку —
-    граница ошибок. Всё, что брошено не из рендера, не ловит ни та, ни другая.
+    Ожидание данных и ошибка требуют разных решений. `<Suspense>` выбирает, что показать,
+    пока зависимость не готова; граница ошибок выбирает, что показать после сбоя.
+    В React граница ошибок ловит также синхронные сбои эффектов и методов жизненного цикла,
+    но не обычный `onClick` или отдельный колбэк таймера. Во Vue перехват охватывает и события компонента.
 
   </Callout>
 
@@ -141,6 +142,8 @@ import {
 
   <Md text={USE_NOTE} />
 
+  <ConceptDiagram data={BOUNDARY_DECISION_DIAGRAM} />
+
   <Plain text={PLAIN_RETRY} />
 
   <CardGrid min={280} gap={14} align="start">
@@ -150,7 +153,11 @@ import {
 
   </CardGrid>
 
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={S1_INTERNALS} />
+  <Disclosure title="Внутренний перехват и полоса повторного рендера">
+
+    <Md text={S1_INTERNALS} />
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -369,11 +376,15 @@ import {
   title="Дерево границ: модель"
   lead={S8_LEAD}
 >
+  <Disclosure title="Исходник учебной модели границ">
+
   <Card title="Учебная модель: кто что ловит" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={BOUNDARY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Md text={MODEL_NOTE} />
+
+  </Disclosure>
 
   ### Демо-дерево
 
@@ -383,16 +394,7 @@ import {
 
   <BoundaryLab client:visible code={BOUNDARY_CODE} tree={DEMO_TREE} names={DEMO_NAMES} presets={DEMO_PRESETS} caption={DEMO_CAPTION} />
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
 
-      **Граница — это решение о том, что пользователь увидит, пока часть страницы ждёт или
-      сломана.** Ставьте её вокруг каждого блока, который имеет смысл сам по себе: ленты,
-      сайдбара, виджета. Тогда ожидание одного не прячет остальное, а поломка одного
-      не снимает страницу целиком.
-
-    </DarkText>
-  </DarkPanel>
 </Section>
 
 <Section id="s9" eyebrow="Раздел 9" title="Тонкие места">

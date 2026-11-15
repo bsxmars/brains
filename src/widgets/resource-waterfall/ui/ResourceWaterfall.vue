@@ -9,9 +9,8 @@
  * это за читателя, а браузер сообщает всё сам — через Resource Timing.
  *
  * Что рисуется. Полоска каждого ресурса разрезана на четыре фазы холодного запроса: DNS,
- * соединение вместе с TLS, ожидание ответа (TTFB) и передача тела. Именно в таком порядке
- * они и складываются в RTT-бюджет из первого раздела: три фазы до первого байта — это цена
- * нового origin, и видно её только так.
+ * соединение вместе с TLS, ожидание после запроса и передача тела. Фазы поставлены по
+ * абсолютным отметкам Resource Timing: очередь и другие промежутки не присоединяются к ним.
  *
  * Отдельно помечено то, ради чего написан весь раздел про кеширование: **ресурсы, которые
  * не поехали по сети вовсе**. Признак измеримый — `transferSize === 0` при ненулевом
@@ -27,9 +26,11 @@ import ChartFrame from '@/shared/ui/ChartFrame.vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { Button, SegmentedControl } from '@/shared/ui';
 import type { WaterfallRow } from '../model/types';
+import { loadTiming } from '../model/timing';
 import { fmtKb as kb } from '@/shared/lib/format';
 
-const props = withDefaults(defineProps<{ limit?: number }>(), { limit: 20 });
+const props = withDefaults(defineProps<{ source: string; limit?: number }>(), { limit: 20 });
+const { resourceTimings, waterfallPhases } = loadTiming(props.source);
 
 const WIDTH = 760;
 const ROW_H = 24;
@@ -61,7 +62,8 @@ function shortName(url: string): string {
 }
 
 function toRow(entry: PerformanceResourceTiming, i: number): WaterfallRow {
-  const cached = entry.transferSize === 0 && entry.decodedBodySize > 0;
+  const worker = entry.workerStart > 0;
+  const cached = !worker && entry.transferSize === 0 && entry.decodedBodySize > 0;
   // Кросс-доменный ресурс без `Timing-Allow-Origin` отдаёт нули во всех фазах. Ноль там
   // означает «не покажу», а не «мгновенно», — и рисовать его как мгновенный было бы враньём.
   const opaque = entry.responseStart === 0 && !cached;
@@ -72,10 +74,8 @@ function toRow(entry: PerformanceResourceTiming, i: number): WaterfallRow {
     full: entry.name,
     kind: entry.initiatorType || 'other',
     start: entry.startTime,
-    dns: Math.max(0, entry.domainLookupEnd - entry.domainLookupStart),
-    connect: Math.max(0, entry.connectEnd - entry.connectStart),
-    wait: Math.max(0, entry.responseStart - entry.requestStart),
-    transfer: Math.max(0, entry.responseEnd - entry.responseStart),
+    phases: waterfallPhases(entry),
+    worker,
     end: entry.responseEnd,
     cached,
     protocol: entry.nextHopProtocol ?? '',
@@ -88,10 +88,7 @@ function toRow(entry: PerformanceResourceTiming, i: number): WaterfallRow {
 function collect() {
   if (typeof performance === 'undefined') return;
 
-  const navigation = performance.getEntriesByType('navigation') as PerformanceResourceTiming[];
-  const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
-
-  rows.value = [...navigation, ...resources]
+  rows.value = resourceTimings(performance)
     .map(toRow)
     .sort((a, b) => a.start - b.start)
     .slice(0, props.limit);
@@ -164,27 +161,14 @@ const yTicks = computed(() =>
   visible.value.map((row, i) => ({ at: i * ROW_H + ROW_H / 2, label: row.name })),
 );
 
-/** Четыре фазы подряд: полоска и есть их сумма. */
+/** Place each phase at its native timestamp; queueing gaps stay visible. */
 function segmentsOf(row: WaterfallRow) {
-  const parts = [
-    { key: 'dns', ms: row.dns },
-    { key: 'connect', ms: row.connect },
-    { key: 'wait', ms: row.wait },
-    { key: 'transfer', ms: row.transfer },
-  ];
-
-  let at = row.start;
-  return parts
-    .filter((part) => part.ms > 0)
-    .map((part) => {
-      const from = at;
-      at += part.ms;
-      return {
-        ...part,
-        x: x.value(from),
-        width: Math.max(1, x.value(at) - x.value(from)),
-      };
-    });
+  if (row.cached || row.opaque) return [];
+  return row.phases.map((part) => ({
+    ...part,
+    x: x.value(part.from),
+    width: Math.max(1, x.value(part.to) - x.value(part.from)),
+  }));
 }
 
 
@@ -274,6 +258,16 @@ const reload = () => {
             </g>
 
             <text
+              v-else-if="row.worker"
+              class="tag tag--dim"
+              :x="x(row.start) + 6"
+              :y="i * ROW_H + ROW_H / 2"
+              dominant-baseline="middle"
+            >
+              через Service Worker
+            </text>
+
+            <text
               v-else-if="row.opaque"
               class="tag tag--dim"
               :x="x(row.start) + 6"
@@ -313,7 +307,7 @@ const reload = () => {
         <div class="legend">
           <span class="legend__item"><i data-part="dns"></i>DNS</span>
           <span class="legend__item"><i data-part="connect"></i>соединение + TLS</span>
-          <span class="legend__item"><i data-part="wait"></i>ожидание ответа (TTFB)</span>
+          <span class="legend__item"><i data-part="wait"></i>ожидание после запроса</span>
           <span class="legend__item"><i data-part="transfer"></i>передача</span>
         </div>
       </template>

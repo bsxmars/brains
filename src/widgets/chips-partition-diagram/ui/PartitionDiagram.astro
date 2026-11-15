@@ -1,0 +1,46 @@
+---
+interface Props { partitions: { site: string; cookie: string }[] }
+const { partitions } = Astro.props;
+---
+
+<figure class="cpd" data-render-illustration="chips-partition">
+  <figcaption class="cpd-title">Один embed.test, два независимых состояния</figcaption>
+  <p class="cpd-note">В обоих фреймах один и тот же источник и одинаковые имена кук. Браузер выбирает раздел по сайту верхнего уровня, поэтому запись под одним магазином не заменяет запись под другим.</p>
+  <div class="cpd-scroll">
+    <svg class="cpd-svg" viewBox="0 0 820 455" role="img" aria-labelledby="cpd-title cpd-desc">
+      <title id="cpd-title">Разделённые куки embed.test под top.test и top2.test</title>
+      <desc id="cpd-desc">Фрейм под top.test читает chip=top и jschip=top. Тот же источник под top2.test читает chip=top2 и jschip=top2. Это независимые разделы браузерного хранилища, а не два разных origin виджета.</desc>
+      {partitions.map((partition, i) => {
+        const x = 20 + i * 410;
+        return <g>
+          <rect class="cpd-browser" x={x} y="20" width="370" height="415" rx="14" />
+          <text class="cpd-site" x={x + 185} y="58" text-anchor="middle">{partition.site}</text>
+          <rect class="cpd-frame" x={x + 25} y="90" width="320" height="120" rx="10" />
+          <text class="cpd-label" x={x + 185} y="127" text-anchor="middle">iframe: embed.test</text>
+          <text class="cpd-muted" x={x + 185} y="164" text-anchor="middle">origin виджета одинаков</text>
+          <path class="cpd-path" d={`M ${x + 185} 215 v 53 m -8 -8 l 8 8 8 -8`} />
+          <rect class="cpd-store" x={x + 25} y="280" width="320" height="130" rx="10" />
+          <text class="cpd-label" x={x + 185} y="312" text-anchor="middle">Свой раздел кук</text>
+          {partition.cookie.split('; ').map((cookie, index) => <text class="cpd-value" x={x + 185} y={347 + index * 30} text-anchor="middle">{cookie}</text>)}
+        </g>;
+      })}
+    </svg>
+  </div>
+  <p class="cpd-note">Учебная схема прямого встраивания. Значения взяты из CHIPS_READBACK: четыре режима стенда дали одинаковые результаты. Куки хранятся в браузере; рамки на рисунке показывают контекст выбора раздела.</p>
+</figure>
+
+<style>
+.cpd { margin: 0; min-width: 0; padding: 20px; background: var(--surface); box-shadow: var(--shadow-card); border-radius: var(--r3); }
+.cpd-title { color: var(--ink); font-size: var(--fs-7); font-weight: 600; line-height: 1.45; }
+.cpd-note { margin: 10px 0 0; color: var(--text-muted); font-size: var(--fs-5); line-height: 1.6; }
+.cpd-scroll { min-width: 0; overflow-x: auto; margin-top: 16px; }
+.cpd-svg { display: block; width: 100%; min-width: 820px; height: auto; fill: none; }
+.cpd-browser { fill: var(--surface-2); stroke: var(--border-strong); }
+.cpd-frame { fill: var(--tone-info-bg); stroke: var(--tone-info-line); }
+.cpd-store { fill: var(--tone-ok-bg); stroke: var(--tone-ok-line); }
+.cpd-path { stroke: var(--dim); stroke-width: 2; }
+.cpd-site { font-family: var(--mono); font-size: var(--fs-6); fill: var(--ink); }
+.cpd-label { font-size: var(--fs-6); fill: var(--prose); font-weight: 600; }
+.cpd-muted { font-size: var(--fs-5); fill: var(--text-muted); }
+.cpd-value { font-family: var(--mono); font-size: var(--fs-5); fill: var(--tone-ok-text); }
+</style>

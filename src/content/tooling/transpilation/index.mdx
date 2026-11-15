@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -38,6 +40,7 @@ import {
   GLOSSARY,
   PLAIN_TRANSPILE,
   SAMPLE_CODE,
+  TWO_REPAIRS_CODE,
   KIND_ROWS,
   POLYFILL_AT_CODE,
   NAIVE_AT_CODE,
@@ -89,6 +92,7 @@ import {
   PITFALLS,
   SOURCES,
   RELATED,
+  MECHANISM_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Два разных ремонта" gap={24}>
@@ -117,7 +121,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Переписать или дописать"
-  lead="Сквозной пример на всю тему — класс корзины. В нём собраны обе беды старого браузера: синтаксис, которого он не прочтёт, и встроенные функции, которых у него нет."
+  lead="Незнакомый синтаксис останавливает разбор всего файла; отсутствующий метод останавливает только дошедший до него вызов. Оба случая могут встретиться в одном выражении."
 >
   <Card title="cart.js" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SAMPLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -139,6 +143,14 @@ import {
   а падают только методы, дошедшие до недостающего, — `last` на `.at`, `total`
   на `structuredClone`.
 
+  <CodeBlock code={TWO_REPAIRS_CODE} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
+
+  При `items === null` optional chaining не доходит до вызова, поэтому отсутствие `at`
+  незаметно. Проверять надо и непустую ветку: именно там транспилированный файл может
+  упасть на API, которого сборщик не добавил.
+
   ### Как выглядит полифил
 
   <CardGrid min={300} gap={16} align="start">
@@ -158,7 +170,7 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="От запроса к плагинам"
-  lead="Babel не знает слов «старый браузер». Он знает список версий и таблицу «с какой версии умеет». Решение принимается в три шага, и каждый можно повторить руками."
+  lead="Babel сравнивает конкретные версии браузеров с таблицей поддержки. Если хотя бы одной цели не хватает конструкции, преобразование включается для всего выходного файла."
 >
   <Card title="Путь решения" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={760} chips={DECIDE_CHIPS} />
@@ -166,13 +178,13 @@ import {
 
   <Plain text={PLAIN_TARGETS} />
 
-  <Card title="Решение preset-env — полсотни строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Учебная функция выбора целей и преобразований">
     <CodeBlock code={DECIDE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={DECIDE_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   ### Решение по таблице
 
@@ -235,25 +247,26 @@ import {
     <CodeBlock code={SNIP_OPTIONAL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
-  Каждый `?.` вычисляет левую часть один раз, кладёт её во временную переменную и сравнивает
+  Сложное выражение перед `?.` вычисляется один раз: Babel сохраняет результат
+  во временную переменную и сравнивает
   с `null` и `undefined` по отдельности. Сравнение `== null` было бы короче, но разошлось бы
   с языком на `document.all` — объекте, который в браузере притворяется `undefined`.
 
-  <Card title="Приватное поле" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+  <Disclosure title="Развёрнутый JavaScript приватного поля">
     <CodeBlock code={SNIP_PRIVATE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={SNIPPET_NOTE_PRIVATE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
-  <Card title="async/await" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+  <Disclosure title="Развёрнутый JavaScript async/await">
     <CodeBlock code={SNIP_ASYNC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={SNIPPET_NOTE_ASYNC} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   ### Переписано, хотя браузер умеет
 

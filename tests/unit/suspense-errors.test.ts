@@ -407,6 +407,21 @@ describe('TRANSITION_CODE: обычное обновление против пе
 // ─── Раздел 5. Граница ошибок ──────────────────────────────────────────────────────────────
 
 describe('BOUNDARY_CLASS_CODE: порядок вызовов', () => {
+  it.each([null, undefined, false, 0, ''])('граница показывает fallback и для ложного значения throw: %s', async (failure) => {
+    withAct(true);
+    const caught: unknown[] = [];
+    const Bomb = () => { throw failure; };
+    const el = container();
+    const root = createRoot(el, { onCaughtError: () => {} });
+    await act(async () => root.render(h(EB, {
+      fallback: h('p', null, 'ошибка'),
+      onError: (error: unknown) => caught.push(error),
+    }, h(Bomb))));
+    expect(visible(el)).toEqual(['ошибка']);
+    expect(caught).toEqual([failure]);
+    await act(async () => root.unmount());
+  });
+
   it('Feed бросает → повтор корня → getDerivedStateFromError → fallback → коммит: onCaughtError, componentDidCatch', async () => {
     withAct(false);
     const log: string[] = [];
@@ -465,6 +480,48 @@ describe('BOUNDARY_CLASS_CODE: порядок вызовов', () => {
 });
 
 describe('что граница не ловит — NOT_CAUGHT_ROWS', () => {
+  it('отказ async-действия useTransition попадает в границу', async () => {
+    withAct(true);
+    const failure = new Error('действие перехода');
+    let trigger!: () => void;
+    const Child = () => {
+      const [, start] = React.useTransition();
+      trigger = () => start(async () => { await null; throw failure; });
+      return h('p', null, 'готово');
+    };
+    const caught: unknown[] = [];
+    const el = container();
+    const root = createRoot(el, { onCaughtError: () => {} });
+    await act(async () => root.render(h(EB, { fallback: h('p', null, 'ошибка'),
+      onError: (error: unknown) => caught.push(error) }, h(Child))));
+    await act(async () => trigger());
+    expect(visible(el)).toEqual(['ошибка']);
+    expect(caught).toEqual([failure]);
+    expect(t.NOT_CAUGHT_ROWS.find((row) => row.k.includes('useTransition'))?.res).toBe('**ловит**');
+    await act(async () => root.unmount());
+  });
+
+  it.each(['layout', 'passive'] as const)('синхронная ошибка эффекта %s доходит до границы', async (phase) => {
+    withAct(true);
+    const failure = new Error(`эффект ${phase}`);
+    const caught: unknown[] = [];
+    const Child = () => {
+      const hook = phase === 'layout' ? React.useLayoutEffect : React.useEffect;
+      hook(() => { throw failure; }, []);
+      return h('p', null, 'содержимое');
+    };
+    const el = container();
+    const root = createRoot(el, { onCaughtError: () => {} });
+    await act(async () => root.render(h(EB, {
+      fallback: h('p', null, 'ошибка эффекта'),
+      onError: (error: unknown) => caught.push(error),
+    }, h(Child))));
+    expect(visible(el)).toEqual(['ошибка эффекта']);
+    expect(caught).toEqual([failure]);
+    expect(t.NOT_CAUGHT_ROWS.find((row) => row.k.includes('синхронный бросок'))?.res).toBe('**ловит**');
+    await act(async () => root.unmount());
+  });
+
   it('отклонённый промис в use: сначала заглушка Suspense, потом граница ошибок', async () => {
     withAct(false);
     const rejected = Promise.reject(new Error('404'));
@@ -802,6 +859,22 @@ describe('Vue: Suspense с async setup', () => {
 });
 
 describe('Vue: VUE_BOUNDARY_SFC и app.config.errorHandler — VUE_ROWS', () => {
+  it.each([null, undefined, false, 0, ''])('Vue-граница выводит fallback после throw %s', async (failure) => {
+    const Boundary = sfc(t.VUE_BOUNDARY_SFC);
+    const Bomb = Vue.defineComponent({ setup: () => () => { throw failure; } });
+    const caught: unknown[] = [];
+    const el = container();
+    const app = Vue.createApp({
+      render: () => Vue.h(Boundary, { fallback: 'ошибка', onCaught: (error: unknown) => caught.push(error) },
+        { default: () => Vue.h(Bomb) }),
+    });
+    app.mount(el);
+    await Vue.nextTick();
+    expect(visible(el)).toEqual(['ошибка']);
+    expect(caught).toEqual([failure]);
+    app.unmount();
+  });
+
   const settle = async () => {
     for (let i = 0; i < 5; i++) await macrotask();
   };

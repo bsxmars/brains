@@ -15,6 +15,7 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -28,6 +29,7 @@ import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import RolloutTimeline from '@/widgets/rollout-timeline/ui/RolloutTimeline.vue';
@@ -85,6 +87,8 @@ import {
   SCALE_NOTE,
   SELECTOR_NOTE,
   SERVICE_CODE,
+  VERIFICATION_SOURCES,
+  ENDPOINT_CONDITIONS_CODE,
   SERVICE_KINDS,
   SERVICE_NOTE,
   SERVICE_STEPS,
@@ -120,7 +124,7 @@ import {
   TERMINATION_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
+<Section variant="intro" eyebrow="Контроллеры, готовность и трафик" lead={INTRO_NOTE}>
   <Plain text={PLAIN_RECONCILE} />
 
   <Glossary items={GLOSSARY} />
@@ -130,7 +134,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Под, ReplicaSet, Deployment — кто кем управляет"
-  lead="Три объекта, и каждый следующий нужен потому, что предыдущий чего-то не умеет. Под не умеет восстанавливаться — пропавший под заменяет ReplicaSet. ReplicaSet не умеет менять версию — это делает Deployment. Зная, кто за что отвечает, причину поломки ищут на нужном уровне, а не наугад."
+  lead="Три объекта, и каждый следующий нужен потому, что предыдущий чего-то не умеет. Kubelet может перезапустить контейнер внутри пода; потерянный под Deployment заменяет через ReplicaSet. ReplicaSet не умеет менять версию — это делает Deployment. Зная, кто за что отвечает, причину поломки ищут на нужном уровне, а не наугад."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={POD_WHY} />
@@ -162,7 +166,9 @@ import {
 
   ### Манифест: главное в YAML-описании Deployment
 
-  <CodeBlock lang="yaml" code={MANIFEST_CODE} />
+  <Disclosure title="Полный Deployment-манифест исторического стенда">
+    <CodeBlock lang="yaml" code={MANIFEST_CODE} />
+  </Disclosure>
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={SELECTOR_NOTE} />
@@ -176,7 +182,7 @@ import {
     <Md text={SCALE_NOTE} />
   </Card>
 
-  ### Замер: сколько идёт запуск пода
+  ### Исторический снимок сентября 2026: сколько идёт запуск пода
 
   <Table
     head={STARTUP_MEASURE.head}
@@ -204,7 +210,9 @@ import {
     minWidth={WORKLOADS.minWidth}
   />
 
-  <CodeBlock lang="yaml" code={CRONJOB_CODE} />
+  <Disclosure title="Справка: расписание CronJob">
+    <CodeBlock lang="yaml" code={CRONJOB_CODE} />
+  </Disclosure>
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <Md text={CRONJOB_NOTE} />
@@ -219,13 +227,17 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Сервис и как трафик находит поды"
-  lead="Сервис — не прокси и не балансировщик, а **имя поверх списка адресов**. Список ведёт отдельный контроллер. Под попадает в него, если подходит по меткам и считается готовым."
+  lead="Сервис — не прокси и не балансировщик, а **имя поверх списка адресов**. Список ведёт отдельный контроллер. Подходящие по меткам поды отражаются адресами и условиями; ready определяет обычную готовность к трафику."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={SERVICE_WHY} />
   </Card>
 
   <CodeBlock lang="yaml" code={SERVICE_CODE} />
+
+  <Disclosure title="Адрес есть, трафик запрещён: условия EndpointSlice">
+    <CodeBlock lang="json" code={ENDPOINT_CONDITIONS_CODE} />
+  </Disclosure>
 
   <ServiceDiagram {...SERVICE_DIAGRAM} />
 
@@ -251,7 +263,7 @@ import {
     <Md text={DNS_NOTE} />
   </Card>
 
-  ### Замер: между «под готов» и «запросы пошли»
+  ### Исторический снимок сентября 2026: между «под готов» и «запросы пошли»
 
   <Table
     head={ENDPOINT_MEASURE.head}
@@ -335,7 +347,7 @@ import {
     minWidth={PROBE_KINDS.minWidth}
   />
 
-  ### Замер: readiness решает, идёт ли трафик
+  ### Исторический снимок сентября 2026: readiness решает, идёт ли трафик
 
   <Table
     head={READY_MEASURE.head}
@@ -349,7 +361,7 @@ import {
     <Md text={READY_MEASURE_NOTE} />
   </Card>
 
-  ### Замер: без liveness зависший процесс живёт вечно
+  ### Исторический снимок сентября 2026: без liveness зависший процесс живёт вечно
 
   <Callout size={17} lh={1.55} pad="20px 22px">
     <Md text={LIVENESS_MEASURE_NOTE} />
@@ -405,7 +417,7 @@ import {
 
   <Plain text={PLAIN_ROLLOUT} />
 
-  ### Три прогона в кластере, и два из них отличаются одной строкой
+  ### Три исторических прогона в кластере, и два из них отличаются одной строкой
 
   <Table
     head={ROLLOUT_MEASURE.head}
@@ -541,7 +553,7 @@ import {
     <Md text={OOM_TRAP_NOTE} />
   </Card>
 
-  ### Замер: как выглядит торможение процессора (троттлинг)
+  ### Исторический снимок сентября 2026: как выглядит торможение процессора (троттлинг)
 
   <Table
     head={THROTTLE_MEASURE.head}
@@ -559,7 +571,7 @@ import {
     <Md text={THROTTLE_PRACTICE} />
   </Card>
 
-  ### Замер: как растут паузы между перезапусками (CrashLoopBackOff)
+  ### Исторический снимок сентября 2026: как растут паузы между перезапусками (CrashLoopBackOff)
 
   <Table
     head={CRASHLOOP_MEASURE.head}
@@ -615,6 +627,8 @@ import {
   title="Источники"
   lead="Документация — чтобы проверить формулировку. Исходники контроллера — чтобы увидеть порядок действий, которого в документации нет."
 >
+  <SourceList items={VERIFICATION_SOURCES} />
+
   <CardGrid min={280} gap={14} align="start">
     {SOURCES.map((item) => (
       <Card label={item.t} labelSize={12.5} pad={18} radius={4} gap={9} size={15} lh={1.6} text={item.d} />

@@ -18,13 +18,14 @@ interface Props {
   layers: { k: string; size: string; what: string }[];
   top: { t: string; d: string };
   view: { t: string; rules: string[] };
+  configuration?: { title: string; items: string[] };
 }
 
-const { title, caption, image, layers, top, view } = Astro.props;
+const { title, caption, image, layers, top, view, configuration } = Astro.props;
 const stack = [...layers].reverse();
 ---
 
-<figure class="dld">
+<figure data-render-illustration="docker-layers-diagram" class="dld">
   <div class="t-eyebrow t-eyebrow--panel">{title}</div>
 
   <div class="dld-body">
@@ -34,6 +35,10 @@ const stack = [...layers].reverse();
         <span class="dld-top-d">{top.d}</span>
       </div>
 
+      {configuration && <div class="dld-config">
+        <strong>{configuration.title}</strong>
+        {configuration.items.map((item) => <span set:html={inlineMd(item)} />)}
+      </div>}
       <div class="dld-image">
         <div class="t-label dld-image-k" set:html={inlineMd(image)} />
         {
@@ -102,6 +107,8 @@ const stack = [...layers].reverse();
   .dld-top-d {
     font-size: var(--fs-3);
   }
+
+  .dld-config { display: flex; flex-direction: column; gap: 5px; padding: 12px; border: 1px dashed var(--tone-info-line); border-radius: var(--r2); background: var(--surface-2); color: var(--prose); font-size: var(--fs-3); line-height: 1.5; }
 
   .dld-image {
     display: flex;

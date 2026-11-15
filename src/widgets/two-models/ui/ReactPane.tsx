@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useFlash } from '@/features/count-renders';
 import { onAction } from '../model/bus';
 import { createEditCounter, type EditCounter } from '../model/domEdits';
@@ -18,6 +18,7 @@ import { FILTER_QUERY, NODE_ORDER, TASK_ITEMS, makeItem, type TaskItem } from '.
  * а сайт собирается статически.
  */
 const work = { total: 0, byNode: {} as Record<string, number> };
+const commitListeners = new Set<() => void>();
 
 function report(node: string): void {
   work.total += 1;
@@ -104,6 +105,10 @@ const MemoStatus = memo(Status);
 
 function App({ withMemo }: { withMemo: boolean }) {
   report('App');
+  useLayoutEffect(() => {
+    // Mutations have queued observer delivery before layout effects run. Read after it.
+    queueMicrotask(() => { for (const listener of commitListeners) listener(); });
+  });
   const ref = useFlash<HTMLDivElement>();
 
   const [query, setQuery] = useState('');
@@ -171,6 +176,22 @@ const EMPTY: Shot = { ran: false, work: 0, dom: 0, byNode: [] };
  */
 function Meters({ treeRef }: { treeRef: RefObject<HTMLDivElement | null> }) {
   const [shot, setShot] = useState<Shot>(EMPTY);
+  const awaitingCommit = useRef(false);
+
+  useEffect(() => {
+    const readCommittedWork = () => {
+      if (!awaitingCommit.current) return;
+      awaitingCommit.current = false;
+      setShot({
+        ran: true,
+        work: work.total,
+        dom: counter.current?.read() ?? 0,
+        byNode: NODE_ORDER.map((name) => ({ name, n: work.byNode[name] ?? 0 })),
+      });
+    };
+    commitListeners.add(readCommittedWork);
+    return () => { commitListeners.delete(readCommittedWork); };
+  }, []);
   const counter = useRef<EditCounter | null>(null);
 
   useEffect(() => {
@@ -191,25 +212,14 @@ function Meters({ treeRef }: { treeRef: RefObject<HTMLDivElement | null> }) {
         counter.current?.reset();
 
         if (action === 'reset') {
+          awaitingCommit.current = false;
           setShot(EMPTY);
           return;
         }
 
-        /**
-         * Обнуление происходит здесь, в обработчике события, — то есть заведомо раньше, чем
-         * React начнёт рендерить: обновление из внешнего слушателя планируется микрозадачей.
-         * А снимаются показания в `setTimeout`, потому что к этому моменту гарантированно
-         * прошёл и коммит, и доставка записей наблюдателю за документом: и то, и другое —
-         * микрозадачи.
-         */
-        window.setTimeout(() => {
-          setShot({
-            ran: true,
-            work: work.total,
-            dom: counter.current?.read() ?? 0,
-            byNode: NODE_ORDER.map((name) => ({ name, n: work.byNode[name] ?? 0 })),
-          });
-        }, 0);
+        // An external event may use Scheduler rather than a microtask render.
+        // Read only after App commits and MutationObserver has delivered its records.
+        awaitingCommit.current = true;
       }),
     [],
   );

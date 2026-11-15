@@ -1,5 +1,22 @@
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { MeasuredRow, Scenario } from '@/widgets/vapor-lab/model/types';
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
+
+export const VAPOR_BLOCK_DIAGRAM: ConceptDiagramData = {
+  id: 'vapor-shared-block-effect',
+  title: 'Смена title будит общий эффект, но меняет только заголовок',
+  description: 'Связи взяты из скомпилированного Cart в 3.6.0-rc.9. Title и count читаются одним renderEffect. После изменения title вызываются оба setText; память текстовых узлов отсекает неизменившийся счётчик.',
+  width: 1080, height: 530,
+  nodes: [
+    { id: 'title', x: 10, y: 10, width: 260, height: 220, label: 'title: Корзина → Заказ', detail: 'Новое значение отличается. Зависимый эффект ставится в очередь обновлений.', tone: 'info' },
+    { id: 'count', x: 10, y: 300, width: 260, height: 220, label: 'count: без изменения', detail: 'Общий эффект читал и эту ячейку. Смена title не меняет значение count.', tone: 'neutral' },
+    { id: 'effect', x: 410, y: 155, width: 260, height: 220, label: 'Один renderEffect', detail: 'После очереди выполняется целиком: читает обе ячейки, вызывает setText и проверку класса.', tone: 'warn' },
+    { id: 'heading', x: 810, y: 10, width: 260, height: 220, label: '<h2>: новая строка', detail: 'Кеш $txt не равен «Заказ». Запись nodeValue меняет текст заголовка.', tone: 'ok' },
+    { id: 'paragraph', x: 810, y: 300, width: 260, height: 220, label: '<p>: прежняя строка', detail: 'Текст совпал с $txt, класс тоже прежний. Вызовы помощников были, записей в DOM нет.', tone: 'neutral' },
+  ],
+  edges: [{ from: 'title', to: 'effect' }, { from: 'count', to: 'effect', dashed: true }, { from: 'effect', to: 'heading' }, { from: 'effect', to: 'paragraph' }],
+  note: 'Отсутствие render-функции и VNode не означает «отдельный эффект на каждый узел» или «любая запись сразу меняет DOM». Это разные уровни отсечки работы.',
+};
 
 /**
  * Данные темы «Vapor Mode во Vue».
@@ -631,7 +648,7 @@ export const PLAIN_TEMPLATE =
   'VDOM-вывод — инструкция «собери комнату по кирпичу и сравни с прошлой». Vapor-вывод — фотография готовой комнаты (строка HTML) и список проводов: «этот выключатель — к этой лампочке». Фотографию браузер разбирает один раз, дальше делает с неё копии.';
 
 export const OUTPUT_NOTE =
-  'Обычный вывод — то, что Vue выполняет **при каждом** изменении: вызов render-функции целиком, девять вызовов, создающих VNode (`_createElementVNode`, `_createElementBlock`, `_createCommentVNode`), сравнение с прошлым деревом. Vapor-вывод — то, что выполняется **один раз** при создании компонента: клон шаблона, поиск нужных узлов через `_child`/`_next`, подписка эффектов. Потом работают только эффекты.';
+  'В обычном выводе есть девять вызовов помощников, создающих VNode (`_createElementVNode`, `_createElementBlock`, `_createCommentVNode`). Это места вызова в исходнике, не постоянная цена обновления: число выполнений зависит от ветки и длины списка. На первой записи count++ их девять. Затем Vue сравнивает дерево с прошлым. Vapor создаёт корень компонента из шаблона и сохраняет ссылки на узлы один раз; при обновлении работают эффекты, а списки и условия создают или снимают свои блоки по необходимости.';
 
 export const OUTPUT_FACTS = [
   {
@@ -856,7 +873,7 @@ export const RENAME_STEPS: { k: string; when: string; what: string; cost: string
 ];
 
 export const DEMO_NOTE =
-  'С одной стороны — обычная render-функция `Cart` из раздела [«Один компонент — два вывода»](#s1), исполненная на Vue 3.5.42 этого сайта. С другой — тот же шаблон, скомпилированный мини-vapor из раздела [«Мини-vapor: компилятор и рантайм»](#s4). Каждое действие применяется к обеим сторонам сразу, щуп считает DOM-операции у обеих одинаково, а тронутые узлы подсвечиваются. Настоящий Vapor 3.6 на страницу не загружается; его числа в таблице выше сняты отдельно и на всех этих действиях равны числам правой колонки.';
+  'VDOM-панель исполняет обычную render-функцию `Cart` из раздела [«Один компонент — два вывода»](#s1), исполненная на Vue 3.5.42 этого сайта. Панель мини-vapor исполняет тот же шаблон, скомпилированный мини-vapor из раздела [«Мини-vapor: компилятор и рантайм»](#s4). Каждое действие применяется к обеим сторонам сразу, щуп считает DOM-операции у обеих одинаково, а тронутые узлы подсвечиваются. Настоящий Vapor 3.6 на страницу не загружается; его числа в таблице выше сняты отдельно и на всех этих действиях равны числам учебной реализации.';
 
 // ---------------------------------------------------------------------------
 // Раздел 6 · как включить и смешать
@@ -923,8 +940,12 @@ export const LIMITS = [
     tone: 'warn' as const,
   },
   {
-    t: '⚠️ `<Suspense>` и `@vue:mounted` на элементах',
-    d: 'Не проверялось запуском и не сверялось с первоисточником: так пишут обзоры беты 3.6 (см. [«Источники»](#s10)). `<Suspense>` в дереве из одних Vapor-компонентов не поддержан, события жизненного цикла элемента (`@vue:mounted` и соседние) не работают. Перед тем как полагаться — проверить на своей версии.',
+    t: '`Suspense` проходит через интероп',
+    d: 'В 3.6.0-rc.9 Suspense в Vapor-шаблоне компилируется как VDOM-компонент. С `vaporInteropPlugin` граница показывает fallback, ждёт async setup Vapor-потомка и заменяет fallback готовым содержимым. Это смешанное дерево, а не встроенный чистый Vapor-примитив.',
+  },
+  {
+    t: '`@vue:mounted` на элементе',
+    d: 'В rc.9 компилятор превращает эту запись в обычный DOM-слушатель события `vnode-mounted`. Монтирование элемента не вызывает его: это не хук жизненного цикла Vapor. Для работы после монтирования компонента используйте `onMounted` в setup.',
   },
 ];
 
@@ -1019,28 +1040,23 @@ export const PITFALLS: Pitfall[] = [
 export const SOURCES: Source[] = [
   {
     title: '`runtime-vapor` · `apiTemplate.ts`, `dom/prop.ts`, `renderEffect.ts`',
-    href: 'https://github.com/vuejs/core/tree/main/packages/runtime-vapor/src',
+    href: 'https://github.com/vuejs/core/tree/v3.6.0-rc.9/packages/runtime-vapor/src',
     what: '`template` с разбором через `<template>` и клонированием, `setText`/`setClassName` с памятью на узле, `RenderEffect` поверх `ReactiveEffect`. Здесь читались по `dist/runtime-vapor.esm-bundler.js` 3.6.0-rc.9.',
   },
   {
     title: '`runtime-vapor` · `apiCreateFor.ts`, `apiCreateIf.ts`',
-    href: 'https://github.com/vuejs/core/tree/main/packages/runtime-vapor/src',
+    href: 'https://github.com/vuejs/core/tree/v3.6.0-rc.9/packages/runtime-vapor/src',
     what: 'Списки и условия: ячейки строк, флаг `FAST_REMOVE`, `DynamicFragment` для ветки `v-if`.',
   },
   {
     title: '`compiler-vapor` · `generators/block.ts`, `transform.ts`',
-    href: 'https://github.com/vuejs/core/tree/main/packages/compiler-vapor/src',
+    href: 'https://github.com/vuejs/core/tree/v3.6.0-rc.9/packages/compiler-vapor/src',
     what: '`registerEffect` и `genEffects`: почему все привязки блока оказываются в одном `renderEffect`.',
   },
   {
-    title: 'Release v3.6.0-beta.1 · vuejs/core',
-    href: 'https://github.com/vuejs/core/releases/tag/v3.6.0-beta.1',
-    what: 'Заметки к первой бете с Vapor Mode: как включать, `vaporInteropPlugin`, список неподдержанного. ⚠️ При подготовке темы страница не открывалась — ссылка для сверки пункта с ⚠️ в разделе [«Чего нет в rc.9»](#s7).',
-  },
-  {
-    title: 'Vapor Mode in Practice · certificates.dev',
-    href: 'https://certificates.dev/blog/vapor-mode-in-practice',
-    what: 'Обзор ограничений беты: Options API, `getCurrentInstance`, `globalProperties`, события жизненного цикла элементов. Первые три здесь проверены запуском.',
+    title: 'Vue 3.6.0-rc.9 · Vapor-компоненты и асинхронный setup',
+    href: 'https://github.com/vuejs/core/blob/v3.6.0-rc.9/packages/runtime-vapor/src/component.ts',
+    what: 'Контекст асинхронного компонента, взаимодействие с Suspense и граница VDOM-интеропа. Показ fallback и готового содержимого дополнительно проверены тестом на обеих сборках rc.9.',
   },
 ];
 

@@ -268,7 +268,7 @@ function signature(r: Reader): string {
 export function decodeModule(bytes: ArrayLike<number>): DecodedModule {
   const r = new Reader(bytes);
   const magic = [r.byte(), r.byte(), r.byte(), r.byte()];
-  if (magic.join() !== '0,97,115,109') throw new Error('нет магии \\0asm в начале');
+  if (magic.join() !== '0,97,115,109') throw new Error('нет сигнатуры Wasm (00 61 73 6d) в начале');
   const version = r.byte() | (r.byte() << 8) | (r.byte() << 16) | (r.byte() << 24);
 
   const sections: DecodedSection[] = [];

@@ -6,7 +6,7 @@ order: 4
 kicker: сборка и инструменты
 lead: "Сохранили файл — и через долю секунды страница показывает новый код, не теряя введённого в форму. Это не свойство фреймворка, а договор: dev-сервер идёт от изменённого модуля вверх по тем, кто его импортирует, пока не найдёт модуль, пообещавший принять обновление. Не нашёл — перезагружает страницу целиком."
 summary: "Граф модулей на dev-сервере Vite, поиск границы вверх по импортёрам, сообщения по WebSocket и метка `?t=` в адресе; `accept`, `dispose`, `data` и `invalidate`; что происходит с обычным CSS, CSS-модулями и Vue SFC; React Fast Refresh и почему в продакшен-сборке от всего этого не остаётся ни строки."
-verifiedOn: "Vite 8.3.0 (createServer, без Astro), @vitejs/plugin-vue 6.0.8 и Vue 3.5.42, Chromium 153.0.8010.12 (Playwright 1.63), Node 26.8.2, сентябрь 2026: сообщения по WebSocket, перезапрошенные адреса и состояние страницы сняты стендом на девятнадцати сценариях и закреплены tests/unit/hmr.test.ts; продакшен-сборка — vite build той же фикстуры. React Fast Refresh замером не проверялся: поведение хуков — по документации, обёртка модуля — по исходнику @vitejs/plugin-react 5.2.0"
+verifiedOn: "Vite 8.3.0 (createServer, без Astro), @vitejs/plugin-vue 6.0.8 и Vue 3.5.42, Chromium 153.0.8010.12 (Playwright 1.63), Node 26.8.2, сентябрь 2026: сообщения по WebSocket, перезапрошенные адреса и состояние страницы сняты стендом на девятнадцати сценариях и закреплены tests/unit/hmr.test.ts; продакшен-сборка — vite build той же фикстуры. Совместимость экспортов Fast Refresh проверяет настоящий валидатор @vitejs/plugin-react 5.2.0 в hmr.test.ts; состояние хуков — по документации, обёртка модуля — по исходнику плагина"
 nav:
   - { id: s1, label: Граф и метка в адресе }
   - { id: s2, label: Поиск границы }
@@ -17,6 +17,8 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -34,6 +36,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import HmrBoundary from '@/widgets/hmr-boundary/ui/HmrBoundary.vue';
 import {
+  HMR_DIAGRAM,
   GLOSSARY,
   PLAIN_HMR,
   PIPELINE_CHIPS,
@@ -103,7 +106,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Граф на сервере и метка в адресе"
-  lead="От сохранения файла до новой кнопки на экране — семь шагов, и шесть из них происходят на сервере. Браузер в этой цепочке делает только последнее: импортирует модуль по адресу, который ему назвали, и зовёт колбэк."
+  lead="Сервер следит за файлами и вычисляет, какие модули нужно обновить. В браузере работает клиент Vite: он получает сообщение, вызывает очистку старого экземпляра и импортирует новый. Обновление интерфейса остаётся за кодом границы."
 >
   <Card title="Путь правки" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <FlowChips minWidth={760} chips={PIPELINE_CHIPS} />
@@ -129,13 +132,15 @@ import {
 >
   <Plain text={PLAIN_BOUNDARY} />
 
-  <Card title="Поиск границы — полсотни строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <ConceptDiagram data={HMR_DIAGRAM} />
+
+  <Disclosure title="Алгоритм поиска границы: исходник демо">
     <CodeBlock code={FIND_BOUNDARY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={FIND_BOUNDARY_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   ### Граф фикстуры: где остановится правка
 
@@ -165,7 +170,7 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="`accept`, `dispose`, `invalidate`"
-  lead="Модуль может принять себя или свою зависимость, передать состояние следующему экземпляру и, получив обновление, отказаться от него в пользу импортёров. Всё это — методы `import.meta.hot`, и каждый из них сервер видит в тексте модуля, а не в его поведении."
+  lead="Модуль может принять себя или свою зависимость, передать состояние следующему экземпляру и, получив обновление, отказаться от него в пользу импортёров. Границы `accept` сервер обнаруживает по тексту. Колбэки `dispose` и `accept` выполняет клиент; `invalidate` отправляет новое сообщение с клиента на сервер."
 >
   <Card title="Три формы `accept`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ACCEPT_FORMS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -189,7 +194,7 @@ import {
 
   </CardGrid>
 
-  Все прогоны стенда, включая правку самого `App.js`, — в одной таблице:
+  Правка `utils.js` проверяет принятие зависимости. Правка самого `App.js` проверяет другое обещание — принятие себя:
 
   <Table
     head={['где `accept`', 'правка', 'перезапрошено', 'кнопка «метка:счётчик»']}
@@ -254,9 +259,9 @@ import {
 
   <Plain text={PLAIN_RERENDER} />
 
-  <Card title="Что плагин дописывает в компонент" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Сгенерированный Vue HMR-код: rerender или reload">
     <CodeBlock code={VUE_GENERATED_CODE} size={11} lh={1.65} pad="14px 16px" />
-  </Card>
+  </Disclosure>
 
   <Table
     head={['правка в `Counter.vue`', 'сообщения', 'состояние после правки']}
@@ -274,7 +279,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="React Fast Refresh и продакшен-сборка"
-  lead="Fast Refresh — тот же `accept` на себя в каждом модуле с компонентами плюс проверка, что экспорты остались компонентами. А в продакшен-сборке нет ни клиента, ни WebSocket, ни `import.meta.hot`: код внутри `if (import.meta.hot)` исчезает ещё до минификации."
+  lead="Fast Refresh добавляет `accept` на себя в модули с компонентами и проверяет совместимость экспортов. Экспорт обычного значения допустим, пока оно не изменилось. А в продакшен-сборке нет ни клиента, ни WebSocket, ни `import.meta.hot`: код внутри `if (import.meta.hot)` исчезает ещё до минификации."
 >
   <CardGrid min={280} gap={14} align="start">
     {REACT_FACTS.map((fact) => (

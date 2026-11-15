@@ -224,3 +224,11 @@ describe('зачин и тонкие места', () => {
     expect(js).not.toMatch(/\babstract\b|\bprotected\b|\boverride\b/);
   });
 });
+
+
+describe('практический контракт', () => {
+  it('переход игнорирует устаревший ответ и подтверждает свою попытку', async () => {
+    checkPage(t.PRACTICE_CODE);
+    expect(await execute(t.PRACTICE_CODE)).toEqual(t.PRACTICE_OUT);
+  });
+});

@@ -1,0 +1,50 @@
+---
+interface Props { nodes: string[] }
+const { nodes } = Astro.props;
+const last = nodes.length - 1;
+---
+
+<figure class="epd" data-render-illustration="dom-event-path">
+  <figcaption class="epd-title">Один путь, два прохода и отдельная фаза на цели</figcaption>
+  <p class="epd-note">Путь построен для клика по крестику b в разметке выше. Без Shadow DOM цель остаётся b, а currentTarget меняется с каждым вызванным слушателем.</p>
+  <div class="epd-scroll">
+    <svg class="epd-svg" viewBox="0 0 740 620" role="img" aria-labelledby="epd-title epd-desc">
+      <title id="epd-title">Захват вниз, обработка цели и всплытие вверх</title>
+      <desc id="epd-desc">Захват: window, document, html, body, ul.todos, li, button.del, затем цель b. На b сначала вызываются слушатели захвата, затем остальные. При bubbles true слушатели без capture вызываются на предках в обратном порядке.</desc>
+      <defs>
+        <marker id="epd-arrow-down" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 1 1 L 9 5 L 1 9 Z" /></marker>
+      </defs>
+      <text class="epd-label" x="150" y="27" text-anchor="middle">1 · захват</text>
+      <text class="epd-label" x="590" y="27" text-anchor="middle">3 · всплытие</text>
+      <text class="epd-detail" x="150" y="52" text-anchor="middle">capture: true</text>
+      <text class="epd-detail" x="590" y="52" text-anchor="middle">если bubbles: true</text>
+      <path class="epd-arrow" d="M 170 88 V 474" marker-end="url(#epd-arrow-down)" />
+      <path class="epd-arrow" d="M 570 474 V 88" marker-end="url(#epd-arrow-down)" />
+      {nodes.map((node, i) => <g>
+        {i < last && <path class="epd-tree-edge" d={`M 370 ${122 + i * 56} V ${134 + i * 56}`} />}
+        <rect class={i === last ? 'epd-target' : 'epd-node'} x="260" y={78 + i * 56} width="220" height="44" rx="8" />
+        <text class="epd-node-label" x="370" y={106 + i * 56} text-anchor="middle">{node}</text>
+      </g>)}
+      <path class="epd-arrow" d="M 170 486 V 542 H 260" marker-end="url(#epd-arrow-down)" />
+      <path class="epd-arrow" d="M 480 542 H 570 V 486" marker-end="url(#epd-arrow-down)" />
+      <text class="epd-label" x="370" y="548" text-anchor="middle">2 · цель</text>
+      <text class="epd-detail" x="370" y="591" text-anchor="middle">на b: сначала capture, затем остальные слушатели</text>
+    </svg>
+  </div>
+</figure>
+
+<style>
+.epd { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); background: var(--surface); box-shadow: var(--shadow-card); }
+.epd-title { color: var(--ink); font-size: var(--fs-7); font-weight: 600; line-height: 1.45; }
+.epd-note { margin: 10px 0 0; color: var(--text-muted); font-size: var(--fs-5); line-height: 1.6; }
+.epd-scroll { overflow-x: auto; min-width: 0; margin-top: 16px; }
+.epd-svg { display: block; width: 100%; min-width: 740px; height: auto; fill: none; }
+.epd-label { fill: var(--ink); font-size: var(--fs-6); }
+.epd-detail { fill: var(--text-muted); font-family: var(--mono); font-size: var(--fs-4); }
+.epd-node-label { fill: var(--prose); font-family: var(--mono); font-size: var(--fs-5); }
+.epd-node { fill: var(--surface-2); stroke: var(--border-strong); }
+.epd-target { fill: var(--tone-info-bg); stroke: var(--tone-info-line); }
+.epd-tree-edge { fill: none; stroke: var(--border-strong); }
+.epd-arrow { fill: none; stroke: var(--tone-info-strong); stroke-width: 2; }
+#epd-arrow-down path { fill: var(--tone-info-strong); }
+</style>

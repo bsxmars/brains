@@ -1,7 +1,10 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { EnvFiles, ScanSample } from '@/widgets/env-lab/model/types';
 
 /**
+ * Уточнение 2026-11: показанный render-config.mjs включает запись в stdout;
+ * secrets-config.test.ts запускает этот файл через Node и исполняет выданный config.js.
  * Данные темы «Секреты и конфигурация: что попадает в бандл».
  *
  * Тема написана здесь, 2026-10-01, для направления «Доставка».
@@ -453,7 +456,7 @@ export const ENV_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = [
     d: 'Vite читает файлы только для `import.meta.env`. В `vite.config.js` переменная `DB_PASSWORD` из `.env` не видна: `process.env.DB_PASSWORD` там `undefined`. Нужна в конфиге — вызывают `loadEnv` явно.',
   },
   {
-    t: '`NODE_ENV` из файла переименовывается',
+    t: '`NODE_ENV` из .env меняет поведение сборки, а не mode',
     d: 'Строка `NODE_ENV=development` в `.env` превращается в `VITE_USER_NODE_ENV` — и уезжает в бандл вместе с остальными `VITE_*`. Если оболочка `NODE_ENV` не задала, Vite по этой строке ещё и переключает сборку в `development`: в бандле `DEV: true` и `PROD: false` при `MODE: production`. Другие значения `NODE_ENV` из файла он не берёт, только предупреждает.',
     tone: 'warn',
   },
@@ -472,7 +475,7 @@ export const RUNTIME_TEXT =
   'Значение, вписанное при сборке, заморожено в образе. Тогда образ для stage и образ для prod — **разные образы**, и в prod едет не тот, который проверили. Выход — собирать один раз, а публичную конфигурацию отдавать браузеру при запуске контейнера: файлом `config.js` или `config.json`, который пишется из переменных окружения до старта веб-сервера. Сама идея «один образ на все окружения» разобрана в [«Одном манифесте на много окружений»](/delivery/helm-gitops/#s1); здесь — как устроен файл и чем он опасен.';
 
 export const RENDER_CONFIG_CODE = `// render-config.mjs — запускается при старте контейнера, до веб-сервера.
-// В конфиг попадают только имена из списка: секрет туда случайно не уедет.
+// Имена ограничены списком публичных ключей. Их значения всё равно нужно проверить по смыслу.
 const PUBLIC_KEYS = ['API_URL', 'SENTRY_DSN', 'FEATURE_NEW_CART'];
 
 function renderConfig(env, keys = PUBLIC_KEYS) {
@@ -482,6 +485,9 @@ function renderConfig(env, keys = PUBLIC_KEYS) {
   const json = JSON.stringify(config).replaceAll('<', '\\\\u003c');
   return 'window.__CONFIG__ = ' + json + ';\\n';
 }`;
+
+/** Исполняемый render-config.mjs: тот же helper плюс явная запись в stdout. */
+export const RENDER_CONFIG_ENTRY_CODE = RENDER_CONFIG_CODE + '\nprocess.stdout.write(renderConfig(process.env));\n';
 
 /** Окружение контейнера в примере. `DB_PASSWORD` тоже там — серверу он нужен. */
 export const RUNTIME_ENV: Record<string, string> = {
@@ -504,6 +510,7 @@ export const RUNTIME_HTML = `<!-- index.html: конфиг грузится ра
 const { API_URL } = window.__CONFIG__;`;
 
 export const ENTRYPOINT_CODE = `#!/bin/sh
+set -eu
 # docker-entrypoint.sh: конфиг пишется при каждом старте, образ один на все окружения
 node /app/render-config.mjs > /app/dist/config.js
 exec node /app/server.mjs`;
@@ -1019,4 +1026,61 @@ export const SCAN_STATS_TABLE = {
   cols: 'minmax(190px,1.2fr) minmax(90px,.5fr) repeat(3, minmax(120px,.7fr))',
   kinds: ['prose', 'mono', 'prose', 'prose', 'prose'] as ('prose' | 'mono')[],
   minWidth: 720,
+};
+
+export const PUBLIC_CONFIG_DIAGRAM: ConceptDiagramData = {
+  "id": "secret-expansion-boundary",
+  "title": "Префикс проверяет имя, но не происхождение значения",
+  "description": "В .env секрет может не иметь префикса VITE_. Однако публичная переменная может сослаться на него: подстановка раскроет секрет до фильтрации имён.",
+  "width": 1040,
+  "height": 290,
+  "nodes": [
+    {
+      "id": "0",
+      "x": 0,
+      "y": 30,
+      "width": 260,
+      "height": 230,
+      "label": "DB_PASSWORD",
+      "detail": "Серверное имя без префикса не экспортируется в import.meta.env напрямую.",
+      "tone": "info"
+    },
+    {
+      "id": "1",
+      "x": 390,
+      "y": 30,
+      "width": 260,
+      "height": 230,
+      "label": "VITE_LABEL=${DB_PASSWORD}",
+      "detail": "После подстановки значение уже содержит пароль. По имени оно считается публичным.",
+      "tone": "err"
+    },
+    {
+      "id": "2",
+      "x": 780,
+      "y": 30,
+      "width": 260,
+      "height": 230,
+      "label": "Код браузера",
+      "detail": "Сборщик вписывает значение в бандл. Каждый получатель файла может прочитать его.",
+      "tone": "warn"
+    }
+  ],
+  "edges": [
+    {
+      "from": "0",
+      "to": "1",
+      "labelX": 325,
+      "labelY": 130,
+      "label": "подстановка"
+    },
+    {
+      "from": "1",
+      "to": "2",
+      "labelX": 715,
+      "labelY": 130,
+      "label": "публикация"
+    }
+  ],
+  "note": "Allowlist публичных ключей полезен, но каждый допущенный ключ всё равно требует проверки смысла его значения."
 };

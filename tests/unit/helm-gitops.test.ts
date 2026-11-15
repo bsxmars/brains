@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseAllDocuments } from 'yaml';
@@ -8,8 +12,8 @@ import type { Doc, Env } from '@/widgets/kz-envs/model/types';
 /**
  * Тема «Один манифест на много окружений: Helm, Kustomize и GitOps».
  *
- * Ни kubectl, ни kustomize, ни helm здесь нет и не будет — поэтому проверяется то, что
- * проверить можно без них:
+ * Helm и кластер не используются. Дополнительно к учебной модели в конце файла
+ * работает локальный kubectl kustomize: без сети, API-сервера и kubeconfig. Проверяется:
  *
  *  1. **Модель слияния.** `MODEL_PARTS` — строки из темы: две напечатаны на странице, все
  *     исполняет демо. Через них прогоняются таблицы случаев **из документации** — strategic
@@ -492,5 +496,54 @@ describe('текст темы', () => {
 
   it('тонкие места пронумерованы подряд', () => {
     expect(t.PITFALLS.map((p) => p.n)).toEqual(t.PITFALLS.map((_, i) => String(i + 1).padStart(2, '0')));
+  });
+});
+
+
+/** Локальная сборка встроенным Kustomize; кластер, сеть и kubeconfig не используются. */
+describe('реальный kubectl kustomize: учебная модель и входные файлы', () => {
+  const hasKubectl = (() => {
+    try { execFileSync('kubectl', ['version', '--client=true', '-o', 'json'], { timeout: 3000, stdio: 'pipe' }); return true; }
+    catch { return false; }
+  })();
+  it.skipIf(!hasKubectl)('base/dev/stage/prod сохраняют контейнеры и данные; хеши реально переписывают ссылки', () => {
+    const root = mkdtempSync(join(tmpdir(), 'lesson-kustomize-'));
+    try {
+      for (const [name, code] of Object.entries(t.FILES)) {
+        const path = join(root, name);
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, code);
+      }
+      const normalizeHash = (value: Doc) => JSON.parse(JSON.stringify(value).replace(/web-config-[a-z0-9]+/g, 'web-config-HASH'));
+      for (const env of ['base', ...ENVS] as const) {
+        const path = env === 'base' ? 'base' : `overlays/${env}`;
+        const actual = yamlDocs(execFileSync('kubectl', ['kustomize', join(root, path)], { encoding: 'utf8', timeout: 10_000 }));
+        const expected = kz(env);
+        for (const kind of ['Deployment', 'Service', 'Ingress', 'ConfigMap']) {
+          const got = actual.find((doc) => doc.kind === kind);
+          const want = expected.find((doc) => doc.kind === kind);
+          expect(got, `${env}: ${kind}`).toBeDefined();
+          expect(unordered(normalizeHash(got)), `${env}: ${kind}`).toEqual(unordered(normalizeHash(want)));
+        }
+        const config = actual.find((doc) => doc.kind === 'ConfigMap');
+        const deployment = actual.find((doc) => doc.kind === 'Deployment');
+        expect(deployment.spec.template.spec.containers[0].envFrom[0].configMapRef.name).toBe(config.metadata.name);
+      }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+});
+
+
+describe('GitOps: место контроллера и область ignoreDifferences', () => {
+  it('схема различает контроллер доставки и API целевого кластера', () => {
+    const pull = t.PUSH_PULL_DIAGRAM.lanes[1];
+    expect(pull.nodes.some((node) => node.kind === 'controller')).toBe(true);
+    expect(pull.nodes.filter((node) => node.kind === 'cluster')).toHaveLength(1);
+    expect(pull.nodes.find((node) => node.kind === 'controller')!.text).toContain('отдельном управляющем кластере');
+  });
+  it('пример HPA задаёт исключение сравнения и отдельную настройку применения', () => {
+    const app = yamlDocs(t.ARGO_HPA_SYNC_CODE)[0];
+    expect(app.spec.ignoreDifferences[0]).toEqual({ group: 'apps', kind: 'Deployment', jsonPointers: ['/spec/replicas'] });
+    expect(app.spec.syncPolicy.syncOptions).toContain('RespectIgnoreDifferences=true');
   });
 });

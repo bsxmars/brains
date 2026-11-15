@@ -1,0 +1,41 @@
+---
+import Md from '@/shared/ui/Md.astro';
+---
+
+<figure class="vpd" data-render-illustration="layout-visual-viewport">
+  <figcaption class="vpd-title">Щипок уменьшает видимую область в CSS-координатах</figcaption>
+  <div class="vpd-scroll">
+    <svg class="vpd-svg" viewBox="0 0 740 370" fill="none" role="img" aria-labelledby="vpd-title vpd-desc">
+      <title id="vpd-title">Layout viewport остаётся прежним, visual viewport становится меньше</title>
+      <desc id="vpd-desc">До щипка две области совпадают. После щипка виден увеличенный фрагмент прежней вёрстки: visual viewport лежит внутри неизменившегося layout viewport. Сетка изображает одну и ту же страницу в CSS-координатах. Пропорции условные.</desc>
+      <text x="25" y="28" class="vpd-label">ДО ЩИПКА</text>
+      <text x="405" y="28" class="vpd-label">ПОСЛЕ ЩИПКА</text>
+      {[25,405].map((x) => <g>
+        <rect class="vpd-layout" x={x} y="50" width="300" height="230" rx="12" />
+        {Array.from({ length: 8 }, (_, i) => <line class="vpd-grid-line" x1={x + (i + 1) * 36} x2={x + (i + 1) * 36} y1="50" y2="280" />)}
+        {Array.from({ length: 6 }, (_, i) => <line class="vpd-grid-line" x1={x} x2={x + 300} y1={50 + (i + 1) * 36} y2={50 + (i + 1) * 36} />)}
+        <text x={x} y="315">layout viewport</text>
+      </g>)}
+      <rect class="vpd-visual" x="25" y="50" width="300" height="230" rx="12" />
+      <text x="44" y="180">видно всё окно</text>
+      <rect class="vpd-visual" x="480" y="108" width="150" height="115" rx="8" />
+      <text x="492" y="152">видимый</text>
+      <text x="492" y="180">фрагмент</text>
+      <text x="25" y="348" class="vpd-note">Зелёная рамка — visual viewport. Сетка и размеры вёрстки не меняются.</text>
+    </svg>
+  </div>
+  <Md text="Это вид сверху **в координатах страницы**, а не два скриншота телефона. После щипка браузер показывает меньший фрагмент крупнее; `@media` и `vw` продолжают пользоваться прежней шириной вёрстки. Масштаб страницы через меню браузера работает иначе — он рассмотрен в «clamp() и масштаб страницы»." />
+</figure>
+
+<style>
+  .vpd { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); box-shadow: var(--shadow-card); background: var(--surface); }
+  .vpd-title { font-size: var(--fs-7); line-height: 1.45; color: var(--ink); font-weight: 600; }
+  .vpd-scroll { overflow-x: auto; margin: 16px 0; }
+  .vpd-svg { display: block; width: 100%; min-width: 740px; height: auto; }
+  .vpd-svg text { font-size: var(--fs-5); font-family: var(--mono); fill: var(--prose); }
+  .vpd-svg .vpd-label, .vpd-svg .vpd-note { font-size: var(--fs-3); fill: var(--text-muted); }
+  .vpd-layout { fill: var(--tone-info-bg); stroke: var(--tone-info-line); }
+  .vpd-grid-line { stroke: var(--tone-info-line); }
+  .vpd-visual { fill: none; stroke: var(--tone-ok-strong); stroke-width: 3; }
+  .vpd > :global(.md) { font-size: var(--fs-5); line-height: 1.6; color: var(--text-muted); }
+</style>

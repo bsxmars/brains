@@ -11,9 +11,12 @@ nav:
   - { id: s3, label: Посредник }
   - { id: s4, label: Цепочка обязанностей }
   - { id: s5, label: Тонкие места }
+  - { id: practice, label: Практика }
   - { id: s6, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -25,6 +28,9 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
+  PRACTICE_CODE,
+  PRACTICE_OUT,
+  PRACTICE_DIAGRAM,
   GLOSSARY,
   PLAIN_COUPLING,
   PROBLEM_CODE,
@@ -40,6 +46,7 @@ import {
   TYPED_NOTES,
   ASYNC_CODE,
   ASYNC_NOTE,
+  REJECTION_PROBE_CODE,
   OBSERVER_PLATFORM_NOTE,
   PLAIN_MEDIATOR,
   MEDIATOR_CODE,
@@ -96,7 +103,11 @@ import {
 
   ### Книжная версия
 
+  <Disclosure title="Полная реализация примера">
+
   <CodeBlock lang="ts" code={OBSERVER_CLASSIC_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  </Disclosure>
 
   <CodeBlock code={SELF_DETACH_CODE} size={11} lh={1.7} pad="14px 16px" />
 
@@ -136,6 +147,14 @@ import {
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={ASYNC_NOTE} />
 
+  <Disclosure title="Диагностика отказа слушателя в Node">
+
+  <CodeBlock lang="js" code={REJECTION_PROBE_CODE} />
+
+  Сохранённый файл запускают как `PROBE_MODE=target node probe.mjs` (значения режима: `target`, `default`, `capture`). Режим `target` печатает `uncaughtException` и завершается с ошибкой, `default` — `unhandledRejection` и также падает при стандартных настройках Node. `capture` вызывает установленный обработчик `error`. `uncaughtExceptionMonitor` здесь только наблюдает причину падения; продолжать работу после необработанного исключения этот пример не предлагает.
+
+  </Disclosure>
+
   <Card tone="dim" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={OBSERVER_PLATFORM_NOTE} />
 </Section>
 
@@ -149,7 +168,11 @@ import {
 
   ### Книжная версия
 
+  <Disclosure title="Полная реализация примера">
+
   <CodeBlock lang="ts" code={MEDIATOR_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  </Disclosure>
 
   <Card title="Что здесь стоит заметить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={MEDIATOR_NOTES} size={14.5} />
@@ -178,7 +201,11 @@ import {
 
   ### Книжная версия: звенья-объекты
 
+  <Disclosure title="Полная реализация примера">
+
   <CodeBlock lang="ts" code={CHAIN_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  </Disclosure>
 
   <CodeBlock code={CHAIN_HEAD_CODE} size={11} lh={1.7} pad="14px 16px" />
 
@@ -188,7 +215,11 @@ import {
 
   ### Middleware: массив функций и `next`
 
+  <Disclosure title="Полная реализация примера">
+
   <CodeBlock lang="ts" code={COMPOSE_CODE} size={11} lh={1.7} pad="16px 18px" />
+
+  </Disclosure>
 
   <CodeBlock code={NEXT_BUGS_CODE} size={11} lh={1.7} pad="14px 16px" />
 
@@ -201,6 +232,28 @@ import {
 
 <Section id="s5" eyebrow="Раздел 5" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Кто отвечает за завершение рассылки">
+  Событие сообщает о факте, а вызов сервиса просит получить результат. Между ними есть место для асинхронной рассылки, но её контракт надо определить: кто ждёт обработчиков, прекращает ли ошибка остальных и что считается успешным завершением. `emit` и `dispatchEvent` не дают отправителю такого ожидания автоматически.
+
+  Для необязательных независимых действий — CRM, письмо, аудит — можно запустить слушателей и вернуть все исходы через `allSettled`. Снимок фиксирует участников одной рассылки. Промис перед вызовом слушателя превращает даже синхронный `throw` в индивидуальный отказ: остальные всё равно запускаются. Порядок результатов совпадает с порядком подписчиков, а не с порядком завершения.
+
+  <CodeBlock lang="ts" code={PRACTICE_CODE} />
+  <CodeBlock lang="text" code={PRACTICE_OUT.join('\n')} tone="ok" />
+  <ConceptDiagram data={PRACTICE_DIAGRAM} />
+
+  Сам `notifyAll` здесь успешно возвращает массив, даже если CRM отказала. Вызывающий обязан разобрать результаты. Если хотя бы один слушатель никогда не завершится, ожидание тоже не завершится: тайм-аут и отмена требуют собственного протокола, а не одного `allSettled`. Запуск всех слушателей сразу также не ограничивает параллелизм.
+
+  Если списание денег должно предшествовать выдаче заказа, эти шаги не независимые подписчики. Явный сценарий посредника может дождаться оплаты и только затем продолжить. Это делает порядок и ошибки частью кода, а не неявным свойством порядка регистрации на общей шине. Для надёжной доставки после падения процесса нужны устойчивое хранилище и протокол повторов; шина в памяти их не заменяет.
+
+  ### Проверить контракт до выбора паттерна
+
+  - **Наблюдатель:** получателей несколько, отправителю не нужно знать каждого. Зафиксировать правила изменения подписок, обработку ошибок и владельца отписки. Событие без подписчиков должно быть допустимым или явно обнаруживаться.
+  - **Посредник:** есть сценарий с порядком, зависимостями и решением «что делать дальше». Ему можно знать участников; важно не складывать в один посредник все несвязанные сценарии приложения.
+  - **Цепочка:** каждый шаг обрабатывает запрос или передаёт его дальше. Проверить остановку, возврат результата, распространение отказа и запрет повторного `next()`.
+
+  Не вся связь через шину уменьшает сложность. Если результат одного обработчика нужен другому, скрытая зависимость остаётся, а переход по коду становится труднее. Для состояния, которое новый подписчик должен увидеть сразу, нужен стор или явный запрос текущего значения; одноразовое событие прошлого не воспроизводится само.
 </Section>
 
 <Section

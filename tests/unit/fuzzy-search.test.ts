@@ -621,3 +621,42 @@ describe('SEARCH_TOPICS — снимок сайта', () => {
     expect(readdirSync('src/content/algorithms')).toContain('fuzzy-search');
   });
 });
+
+
+describe('практические границы поиска', () => {
+  it('схема vr различает префикс, одну опечатку и подпоследовательность', () => {
+    const trie = trieApi.createTrie();
+    trieApi.insert(trie, 'vue');
+    expect(trieApi.withPrefix(trie, 'vr').words).toEqual([]);
+    expect(levenshtein('vr', 'vue')).toBe(2);
+    expect(sub.subsequenceScore('vr', 'Vue и React')).not.toBeNull();
+    expect(t.MECHANISM_DIAGRAM.nodes.find((node) => node.id === 'edit')?.detail).toContain('две правки');
+  });
+
+  it('Fuse принимает длинный запрос и совпадение только одного его фрагмента при threshold=0', () => {
+    const printed: unknown[] = [];
+    const run = new Function('Fuse', 'console', t.FUSE_LONG_CODE + '\nreturn longResults;');
+    const result = run(Fuse, { log: (value: unknown) => printed.push(value) }) as { score: number }[];
+    expect(printed).toEqual(t.FUSE_LONG_OUT);
+    expect(result).toHaveLength(2);
+    expect(result[1].score).toBeGreaterThan(0); // порог фрагмента не равен итоговому score
+    expect(t.FUSE_RULE_NOTE).toContain('для запросов не длиннее 32 кодовых единиц');
+  });
+
+  it('каноническая NFC-нормализация применяется к словарю и запросу без снятия диакритики', () => {
+    const printed: unknown[] = [];
+    new Function('Fuse', 'console', t.PRACTICE_CODE)(Fuse, { log: (value: unknown) => printed.push(value) });
+    expect(printed).toEqual(t.PRACTICE_OUT);
+  });
+
+  it('сумма бонусов rank может перевесить цену одной правки', () => {
+    const exact = api.rank({ id: 0, cost: 0, at: Infinity, whole: 0, marks: [] }, {
+      text: 'длинный раздел без иных бонусов', href: '/exact/', kind: 'section', links: 0, topic: 't',
+    });
+    const typo = api.rank({ id: 1, cost: 1, at: 0, whole: 1, marks: [] }, {
+      text: 'x', href: '/typo/', kind: 'topic', links: 100, topic: 't',
+    });
+    expect(typo).toBeGreaterThan(exact);
+    expect(t.RANK_NOTE).toContain('строгий порядок «сначала без опечаток» эта формула не гарантирует');
+  });
+});

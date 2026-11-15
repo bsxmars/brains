@@ -8,6 +8,7 @@ import {
   HYDRATE_ORDER_LOG,
   HYDRATE_ORDER_REACT,
   HYDRATE_ORDER_VUE,
+  HYDRATION_PROPERTY_NOTE,
   LAZY_VUE_CODE,
   LAZY_VUE_LOG,
   MISMATCH_TABLE,
@@ -302,6 +303,49 @@ async function labRun(page: Page, fw: Fw, variant: Variant): Promise<LabResult> 
 const fates = (run: HydrationRun) => Object.fromEntries(run.nodes.map((n) => [n.label, n.fate]));
 
 describe('браузер: демо гидратации — тот же модуль, продакшен-сборка', () => {
+  it('class может остаться серверным, хотя value того же input обновится', async () => {
+    const page = await fresh('production');
+    try {
+      const result = await page.evaluate(async () => {
+        const { React, client, Vue } = (window as unknown as { T: {
+          React: typeof import('react'); client: typeof import('react-dom/client'); Vue: typeof import('vue');
+        } }).T;
+        const out = [];
+        for (const framework of ['react', 'vue']) {
+          const box = document.createElement('div');
+          document.body.append(box);
+          box.innerHTML = '<input class="server" value="server">';
+          const before = box.firstElementChild;
+          let unmount: () => void;
+          if (framework === 'react') {
+            let mounted!: () => void;
+            const ready = new Promise<void>((resolve) => { mounted = resolve; });
+            const Probe = () => {
+              React.useLayoutEffect(mounted, []);
+              return React.createElement('input', { className: 'client', value: 'client', onChange() {} });
+            };
+            const root = client.hydrateRoot(box, React.createElement(Probe));
+            unmount = () => root.unmount();
+            await ready;
+          } else {
+            const app = Vue.createSSRApp({ render: () => Vue.h('input', { class: 'client', value: 'client' }) });
+            app.mount(box);
+            unmount = () => app.unmount();
+          }
+          const field = box.firstElementChild as HTMLInputElement;
+          out.push({ framework, same: field === before, class: field.className,
+            value: field.value, attribute: field.getAttribute('value') });
+          unmount();
+          box.remove();
+        }
+        return out;
+      });
+      expect(result).toEqual(['react', 'vue'].map((framework) => ({ framework, same: true,
+        class: 'server', value: 'client', attribute: 'client' })));
+      expect(HYDRATION_PROPERTY_NOTE).toContain('не правило для всех атрибутов');
+    } finally { await page.close(); }
+  });
+
   const results = {} as Record<`${Fw}:${Variant}`, LabResult>;
 
   beforeAll(async () => {

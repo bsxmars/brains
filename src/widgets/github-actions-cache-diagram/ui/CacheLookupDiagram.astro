@@ -33,7 +33,7 @@ interface Props {
 const { data } = Astro.props;
 ---
 
-<figure class="gacl-frame">
+<figure data-render-illustration="actions-cache" class="gacl-frame">
   <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
 
   <div class="gacl-head" aria-hidden="true">

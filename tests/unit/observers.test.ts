@@ -53,6 +53,9 @@ describe('ORDER_CODE даёт в Chromium журнал ORDER_LOG', () => {
     expect(at('setTimeout из ResizeObserver')).toBeLessThan(at('IntersectionObserver'));
     expect(t.ORDER_LOG.at(-1)).toMatch(/^кадр \+1 · IntersectionObserver$/);
     expect(t.ORDER_NOTE).toContain('даже позже `setTimeout`, поставленного из `ResizeObserver`');
+    // Журнал — наблюдение одного стенда. Отдельный источник задач IO не даёт общего FIFO с таймером.
+    expect(t.FRAME_NOTE).toContain('не обещание общего FIFO');
+    expect(t.ORDER_ROWS.find((row) => row.k === 'IntersectionObserver')!.sees).toContain('не гарантирует, что пиксели были показаны');
   });
 });
 
@@ -191,6 +194,18 @@ describe('IO_CODE совпадает с IntersectionObserver Chromium', () => {
     expect(r.second).toHaveLength(0);
     expect(io.compareFrames(io.computeEntry(a, root, '0px', [0, 1]), io.computeEntry(b, root, '0px', [0, 1]), [0, 1]).fires).toBe(false);
   }, 30_000);
+
+  it('rootMargin 10%: база процентов проверенной реализации отделена от требования спецификации', async () => {
+    const root = { x: 300, y: 250, width: 200, height: 100 };
+    const target = { x: 320, y: 260, width: 20, height: 20 };
+    const [result] = await runIoCases([{ root, rootMargin: '10%', thresholds: [0], a: target, b: target }]);
+    expect(result.first[0].rootBounds).toEqual({ x: 280, y: 240, width: 240, height: 120 });
+    expect(io.expand(root, '10%')).toEqual(result.first[0].rootBounds);
+    // Не выдаём поведение реализаций (вертикаль от высоты) за нормативное (все стороны от ширины).
+    expect(t.IO_MARGIN_NOTE).toContain('240 × 120');
+    expect(t.IO_MARGIN_NOTE).toContain('240 × 140');
+    expect(t.IO_MARGIN_NOTE).toContain('от ширины');
+  });
 
   it('опции и края: округление rootMargin, ошибки, сортировка, чужая ветка, display: none, v2', async () => {
     await blank();
@@ -590,13 +605,59 @@ describe('примеры из раздела «Где что применять�
         );
     const stuck = await run(t.SENTINEL_CODE);
     expect(stuck).toEqual({ loads: 1, height: 120 });
-    const target = / {2}await loadNextPage\(\);[^\n]*\n {2}loading = false;/;
-    expect(t.SENTINEL_CODE).toMatch(target);
-    const fixed = await run(t.SENTINEL_CODE.replace(target, t.SENTINEL_FIX_CODE));
+    const fixed = await run(`${t.SENTINEL_FIX_CODE}\nobserveFeed(document.querySelector('#feed-end'), loadNextPage, () => {});`);
     // сторож уезжает за окно 600 + запас 800
     expect(fixed.height).toBeGreaterThan(1400);
     expect(fixed.height - 120).toBeLessThanOrEqual(1400);
     expect(t.SENTINEL_NOTE).toContain('за 1400px');
     await page.setViewportSize({ width: 1200, height: 900 });
   }, 30_000);
+
+  it('observeFeed: ошибка допускает ручной повтор, конец и dispose запрещают дальнейшие запросы', async () => {
+    await blank();
+    const result = await page.evaluate(async (code) => {
+      const callbacks: ((entries: { isIntersecting: boolean }[]) => Promise<void>)[] = [];
+      const calls: string[] = [];
+      // Проверяем жизненный цикл подписки отдельно от браузерной геометрии предыдущего теста.
+      class Observer {
+        constructor(callback: typeof callbacks[number]) { callbacks.push(callback); }
+        observe() { calls.push('observe'); }
+        unobserve() { calls.push('unobserve'); }
+        disconnect() { calls.push('disconnect'); }
+      }
+      const factory = new Function('IntersectionObserver', `${code}\nreturn observeFeed;`)(Observer);
+      let attempts = 0;
+      const seen: boolean[] = [];
+      const subscription = factory(document.body, async ({ signal }: { signal: AbortSignal }) => {
+        seen.push(signal.aborted);
+        if (++attempts === 1) throw new Error('offline');
+        return false;
+      }, () => calls.push('error'));
+      const hit = [{ isIntersecting: true }];
+      await callbacks[0](hit);
+      await callbacks[0](hit); // ошибка ждёт явного retry
+      const afterError = attempts;
+      subscription.retry();
+      await callbacks[0](hit);
+      await callbacks[0](hit); // false — конец данных
+      subscription.dispose();
+      subscription.retry();
+      await callbacks[0](hit);
+
+      let release!: (value: boolean) => void;
+      let signal!: AbortSignal;
+      const pending = factory(document.body, ({ signal: incoming }: { signal: AbortSignal }) => {
+        signal = incoming;
+        return new Promise<boolean>((resolve) => { release = resolve; });
+      }, () => calls.push('late-error'));
+      const load = callbacks[1](hit);
+      pending.dispose();
+      const observes = calls.filter((call) => call === 'observe').length;
+      release(true); // поздний успех после ухода со страницы
+      await load;
+      return { afterError, attempts, seen, aborted: signal.aborted, observes,
+        afterLate: calls.filter((call) => call === 'observe').length, errors: calls.filter((call) => call === 'error').length };
+    }, t.SENTINEL_FIX_CODE);
+    expect(result).toEqual({ afterError: 1, attempts: 2, seen: [false, false], aborted: true, observes: 3, afterLate: 3, errors: 1 });
+  });
 });

@@ -5,9 +5,9 @@ import type { CycleRun, CycleVariant } from './types';
  *
  * ⚠️ **Почему модули лежат отдельными файлами, а не собираются в `blob:`.** Blob-URL для цикла
  * не годится принципиально: адрес блоба появляется только после того, как блоб создан, а в цикле
- * адрес каждого модуля обязан стоять внутри другого — получается «курица и яйцо». Обойти это
- * можно было бы import map'ом, но он поддерживается не везде и должен стоять до первого модуля
- * документа. Поэтому пара цикла — четыре обычных файла в `public/demo/modules/`, и это честнее:
+ * адрес каждого модуля обязан стоять внутри другого — получается «курица и яйцо». Для цикла
+ * можно ввести голые имена через import map до их первого разрешения, но тогда демо меняло бы
+ * карту имён всего документа. Поэтому пара цикла — четыре обычных файла в `public/demo/modules/`, и это честнее:
  * читатель может открыть их по адресу и увидеть ровно то, что исполнилось. Заодно это
  * показывает главное: **модуль — это URL**, а не текст.
  *
@@ -18,11 +18,6 @@ import type { CycleRun, CycleVariant } from './types';
 const BASE = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/demo/modules/`;
 
 const ENTRY: Record<CycleVariant, string> = { fn: 'a-fn.js', const: 'a-const.js' };
-const FILES: Record<CycleVariant, string[]> = {
-  fn: ['a-fn.js', 'b-fn.js'],
-  const: ['a-const.js', 'b-const.js'],
-};
-
 interface TraceModule {
   trace: string[];
 }
@@ -34,16 +29,6 @@ async function traceModule(): Promise<TraceModule> {
 
 const message = (error: unknown): string =>
   error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-
-/** Текст модуля с сервера: показываем не пересказ примера, а тот файл, который исполнился. */
-async function sourceOf(name: string): Promise<{ name: string; code: string }> {
-  try {
-    const response = await fetch(`${BASE}${name}`);
-    return { name, code: (await response.text()).trimEnd() };
-  } catch {
-    return { name, code: '// не удалось прочитать файл' };
-  }
-}
 
 export async function runCycle(variant: CycleVariant): Promise<CycleRun> {
   const { trace } = await traceModule();
@@ -75,6 +60,5 @@ export async function runCycle(variant: CycleVariant): Promise<CycleRun> {
     error,
     again,
     addedOnSecondTry,
-    sources: await Promise.all(FILES[variant].map(sourceOf)),
   };
 }

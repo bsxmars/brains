@@ -12,7 +12,7 @@ import type { CiApi, GraphApi, ManifestApi } from './types';
  * Ни DOM, ни Vue: чистые функции, чтобы их мог импортировать юнит-тест.
  */
 export function loadGraph(code: string): GraphApi {
-  return new Function(`${code}\nreturn { parseImports, buildGraph, walk, pageChunks, whyIncluded, weigh };`)() as GraphApi;
+  return new Function(`${code}\nreturn { parseImports, buildGraph, walk, pageChunks, whyIncluded, weigh, checkPageBudget };`)() as GraphApi;
 }
 
 export function loadManifest(code: string): ManifestApi {

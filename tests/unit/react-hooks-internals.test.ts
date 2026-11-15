@@ -941,3 +941,19 @@ describe('устройство React 19.3 по его сборке', () => {
     expect(body('dispatchSetStateInternal')).toMatch(/0 === fiber\.lanes &&\s*\(null === alternate \|\| 0 === alternate\.lanes\)/);
   });
 });
+
+
+// Содержательные уточнения закреплены отдельно от числовых сценариев темы.
+it('редакционная граница: Object.is provider в модели и ленивый comparator React', async () => {
+  const t = await import('@/content/frameworks/react-hooks-internals/data');
+  const pkg = createRequire(import.meta.url).resolve('react-dom/package.json');
+  const source = readFileSync(new URL('cjs/react-dom-client.production.js', `file://${pkg}`), 'utf8');
+  const start = source.indexOf('function propagateParentContextChanges(');
+  const body = source.slice(start, source.indexOf('\nfunction ', start + 1));
+  expect(start).toBeGreaterThan(-1);
+  // У установленного React сравнение value находится в ленивом распространении.
+  expect(body).toContain('currentParent.memoizedProps');
+  expect(body).toContain('objectIs(parent.pendingProps.value, currentParent.value)');
+  expect(t.NO_MEMO_NOTE).toContain('учебной `updateProvider`');
+  expect(t.PITFALLS.find((x) => x.d.includes('propagateParentContextChanges'))).toBeDefined();
+});

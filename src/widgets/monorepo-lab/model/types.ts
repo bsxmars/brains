@@ -51,7 +51,7 @@ export interface CacheLogEntry {
 
 export interface CacheApi {
   sha256(text: string): Promise<string>;
-  taskKey(task: { command: string; files: Record<string, string>; depKeys: string[]; env: Record<string, string> }): Promise<string>;
+  taskKey(task: { task: string; command: string; files: Record<string, string>; depKeys: string[]; env: Record<string, string> }): Promise<string>;
   buildPackage(name: string, env: Record<string, string | undefined>): string;
   runWithCache(opts: {
     packages: WsPackage[];

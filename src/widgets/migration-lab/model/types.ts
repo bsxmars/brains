@@ -77,4 +77,5 @@ export type BackfillFn = (
   run: (sql: string, params: number[]) => Promise<number>,
   maxId: number,
   batch?: number,
+  afterBatch?: () => Promise<void>,
 ) => Promise<number[]>;

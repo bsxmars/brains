@@ -6,12 +6,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { FRAME_HOOKS, FRAME_STEPS, OBSERVER_ROWS, PITFALLS, SELF_CHECK } from '@/content/render/render-pipeline/data';
+import { FRAME_HOOKS, FRAME_PHASES, FRAME_STEPS, OBSERVER_ROWS, OBSERVER_STEPS, PITFALLS, SELF_CHECK, UPDATE_STEPS } from '@/content/render/render-pipeline/data';
 
-describe('колбэк IntersectionObserver — задачей после кадра', () => {
+describe('колбэк IntersectionObserver — отдельной задачей', () => {
   it('таблица наблюдателей', () => {
     const io = OBSERVER_ROWS.find((r) => r.k === 'IntersectionObserver')!;
-    expect(io.when).toContain('колбэк — отдельной задачей после кадра');
+    expect(io.when).toContain('колбэк — отдельной задачей вне текущего обновления рендеринга');
   });
 
   it('«Пять точек»: карточка не кладёт колбэк IO внутрь кадра', () => {
@@ -30,7 +30,7 @@ describe('колбэк IntersectionObserver — задачей после кад
     const step = FRAME_STEPS.find((s) => s.phases.includes('observers'))!;
     expect(step.message).toContain('колбэк браузер ставит задачей');
     const q = SELF_CHECK.find((c) => c.question.includes('Три наблюдателя'))!;
-    expect(q.answer).toContain('**после** кадра');
+    expect(q.answer).toContain('**отдельной задачей**');
   });
 });
 
@@ -55,4 +55,35 @@ describe('пассивные слушатели по умолчанию', () => 
     expect(d).toContain('Chrome 56 для touchmove');
     expect(d).toContain('Chrome 73 для wheel');
   });
+});
+
+
+describe('плановый layout предшествует ResizeObserver', () => {
+  // HTML Standard update the rendering: rAF → style/layout + доставка RO в цикле → расчёт IO.
+  it('дорожка и рассказ показывают один порядок', () => {
+    const ids = ['raf', 'style', 'layout', 'observers', 'prepaint', 'paint', 'commit'];
+    const times = ids.map((id) => FRAME_PHASES.find((phase) => phase.id === id)!.at);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+    const steps = ids.map((id) => FRAME_STEPS.findIndex((step) => step.phases.includes(id)));
+    expect(steps.every((step) => step >= 0)).toBe(true);
+    expect(steps).toEqual([...steps].sort((a, b) => a - b));
+    const layout = UPDATE_STEPS.findIndex((step) => step.includes('пересчёт стилей и раскладки'));
+    const ro = UPDATE_STEPS.findIndex((step) => step.startsWith('**`ResizeObserver`**'));
+    expect(layout).toBeGreaterThan(-1);
+    expect(ro).toBeGreaterThan(layout);
+  });
+
+  it('rAF не обещает актуальный layout после произвольной записи', () => {
+    const raf = UPDATE_STEPS.find((step) => step.includes('**коллбэки `requestAnimationFrame`**'))!;
+    expect(raf).toContain('после записи может вызвать layout');
+    expect(raf).not.toContain('и она актуальна');
+  });
+});
+
+
+it('IntersectionObserver не обещает доставку за один кадр', () => {
+  // Queue a task задаёт асинхронность, а не верхнюю границу задержки занятого главного потока.
+  const step = OBSERVER_STEPS.find((item) => item.k === 'IntersectionObserver')!;
+  expect(step.cost).toContain('Верхней границы задержки в один кадр нет');
+  expect(step.cost).not.toContain('с задержкой до кадра');
 });

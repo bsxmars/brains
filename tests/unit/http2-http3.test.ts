@@ -2,7 +2,7 @@ import http2 from 'node:http2';
 import net from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/platform/http2-http3/data';
-import { buildTimeline, hexToBytes, loadH2, loadQuic } from '@/widgets/h2-frame-lab/model/run';
+import { buildTimeline, hexToBytes, loadH2, loadInt, loadQuic } from '@/widgets/h2-frame-lab/model/run';
 import type { HeaderField, StandChunk, TimelineFrame } from '@/widgets/h2-frame-lab/model/types';
 
 /**
@@ -47,6 +47,12 @@ const RFC7541_C = [
 ];
 
 describe('целые HPACK — RFC 7541, C.1, и примеры темы', () => {
+  it('IntLab исполняет только напечатанный код целых, без таблиц и декодера кадров', () => {
+    const integer = loadInt(t.HPACK_INT_CODE);
+    expect(integer.encodeInt(1337, 5)).toEqual([0x1f, 0x9a, 0x0a]);
+    expect(integer.decodeInt([0x1f, 0x9a, 0x0a], 0, 5)).toEqual([1337, 3]);
+  });
+
   it('encodeInt и decodeInt: 10, 1337 (префикс 5), 42 (префикс 8)', () => {
     expect(api.encodeInt(10, 5)).toEqual([0x0a]);
     expect(api.encodeInt(1337, 5)).toEqual([0x1f, 0x9a, 0x0a]);

@@ -4,7 +4,7 @@ heading: "Микрофронтенды и Module Federation: чужой код �
 headingWidth: 26
 order: 5
 kicker: сборка и инструменты
-lead: "Корзину выкатывает одна команда, каталог — другая, а встречаются они впервые в браузере пользователя. Загрузить чужой модуль по адресу просто; трудно договориться, чья копия React на странице работает, — и не уронить всё, когда соседняя команда выкатит новый мажор."
+lead: "Корзину выкатывает одна команда, каталог — другая, а в браузере могут встретиться версии, которые ещё не проверяли вместе. Загрузить чужой модуль по адресу просто; трудно договориться, чья копия React на странице работает, — и не уронить всё, когда соседняя команда выкатит новый мажор."
 summary: "Зачем микрофронтенды и чем за них платят; способы собрать страницу из частей — от пакетов до iframe и import maps; контейнер Module Federation с `init` и `get`; shareScope и выбор общей версии: `singleton`, `requiredVersion`, `strictVersion`, `eager`; почему две копии React ломают рендер; упавший и зависший remote, рассинхрон выкатов и кеш `remoteEntry.js`."
 verifiedOn: "Учебная федерация исполняется демо и tests/unit/module-federation.test.ts, её semver сверен с пакетом semver 7.8.5; две копии модуля — стенд node:http (127.0.0.1:49231 и :49232) в Chromium 153.0.8010.12 (Playwright 1.63) и те же строки в Node 26.8.2; две копии React 19.3.0 — Node 26.8.2, обе сборки. Правила выбора версии и тексты предупреждений сверены с исходником webpack v5.111.1 (lib/sharing); настоящий рантайм не запускался. Сентябрь 2026"
 nav:
@@ -17,6 +17,8 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -33,6 +35,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MfShareScope from '@/widgets/mf-share-scope/ui/MfShareScope.vue';
 import {
+  FEDERATION_DIAGRAM,
   GLOSSARY,
   PLAIN_FEDERATION,
   WHY_FACTS,
@@ -84,16 +87,19 @@ import {
   <Callout size={19} pad="24px 26px">
 
     Module Federation позволяет странице загрузить модуль **из чужой сборки** по адресу —
-    уже во время работы, без пересборки своей. Сама загрузка — обычный `import()`. Вся механика
-    федерации существует ради другого: у host и у remote есть своя копия React, и на странице
-    должна работать **одна**. Две копии одной и той же версии 19.3.0 роняют рендер
-    ошибкой `Cannot read properties of null (reading 'useState')`.
+    уже во время работы, без пересборки host. Контейнер сообщает, как получить модуль,
+    а общий реестр помогает выбрать зависимости. У транспорта есть варианты: webpack может
+    вставить `<script>` для remote, а ESM-контейнер загружается через `import()`. Если компонент
+    вызывает хуки из одной копии React, а рендерер использует другую, рендер падает — даже
+    когда номера версий совпадают.
 
   </Callout>
 
   Микрофронтенды — организационное решение: каждая часть интерфейса принадлежит своей команде
   и выкатывается её конвейером. Технически это значит, что страница собирается из частей,
-  которые никогда не собирались вместе, и договор между ними проверяется только в браузере.
+  которые могут обновляться по отдельности. Типы, контрактные тесты и интеграционный стенд
+  проверяют известные сочетания заранее; браузер всё равно должен пережить сочетание
+  релизов или сетевой отказ, которых на стенде не было.
 
   <Plain text={PLAIN_FEDERATION} />
 
@@ -104,7 +110,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Зачем и чем платят"
-  lead="Микрофронтенды покупают одно — независимый выкат частей интерфейса. Платят за это интеграцией, которая переезжает из CI в браузер, лишними байтами и общим на всех документом."
+  lead="Микрофронтенды покупают одно — независимый выкат частей интерфейса. Платят за это проверкой сочетаний релизов, обработкой отказов в браузере, лишними байтами и общим на всех документом."
 >
   <CardGrid min={280} gap={14} align="start">
     {WHY_FACTS.map((fact) => (
@@ -132,14 +138,17 @@ import {
   title="Контейнер: `init` и `get`"
   lead="Remote при сборке кладёт рядом с чанками контейнер — `remoteEntry.js`. Host загружает его, отдаёт ему общий shareScope через `init` и просит модуль по публичному имени через `get`. В ответ приходит не модуль, а фабрика — функция, которая исполнит модуль, когда её вызовут."
 >
+  <ConceptDiagram data={FEDERATION_DIAGRAM} />
+
   <Card title="Как это выглядит в конфиге webpack" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MF_CONFIG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
-      <Md text="Конфиг говорит две вещи: что remote отдаёт наружу (`exposes`) и какие пакеты сборки готовы делить с соседями (`shared`). Ниже — во что это превращается в браузере, учебным кодом, который исполняет демо этой темы." />
+      <Md text="В `remotes` имя `cart` связано с адресом контейнера. `exposes` задаёт публичные имена, `shared` — кандидатов на совместное использование. Учебный код сохраняет `init`, `get` и выбор версий, но использует ESM-транспорт вместо загрузчика скриптов webpack." />
     </CardNote>
   </Card>
 
+  <Disclosure title="Исходники учебного контейнера и host">
   <CardGrid min={320} gap={16} align="start">
     <Card title="Контейнер remote" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={CONTAINER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
@@ -149,6 +158,7 @@ import {
       <CodeBlock code={HOST_CODE} size={10.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
+  </Disclosure>
 
   <CardGrid min={280} gap={14} align="start">
     {CONTAINER_FACTS.map((fact) => (
@@ -174,21 +184,21 @@ import {
     minWidth={700}
   />
 
-  <Card title="Регистрация и выбор версии" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Исходник регистрации и выбора общей версии">
     <CodeBlock lang="ts" code={SCOPE_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text="Условие в `register` и выбор singleton повторяют рантайм webpack 5.111. Неочевидное место: нестрогий выбор без подходящей версии берёт просто старшую — даже если другая уже загружена. Проверку диапазонов код берёт из блока ниже." />
     </CardNote>
-  </Card>
+  </Disclosure>
 
-  <Card title="semver в объёме, нужном выбору" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+  <Disclosure title="Справка: ограниченная проверка диапазонов semver">
     <CodeBlock lang="ts" code={SEMVER_MIN_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text="Ответы совпадают с пакетом `semver` на диапазонах вида `^`, `~`, `>=` и точной версии; пререлизы и `||` код не разбирает и бросает. Как устроены диапазоны целиком — в [«Пакетных менеджерах», раздел «Semver и диапазоны»](/tooling/package-managers/#s1)." />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   ### Одна история: корзина переходит на React 19
 
@@ -228,9 +238,9 @@ import {
 
   ### Host и два remote
 
-  <Card title="Стенд демо: копия библиотеки и сеть" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+  <Disclosure title="Исходник демо: копия библиотеки и сеть">
     <CodeBlock code={STAND_CODE} size={10.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  </Disclosure>
 
   <MfShareScope
     client:visible
@@ -269,9 +279,9 @@ import {
 
   <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={STAND_NOTE} />
 
-  <Card title="Две копии React одной версии" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+  <Disclosure title="Воспроизводимый пример: React и рендерер из разных копий">
     <CodeBlock code={REACT_TWIN_CODE} size={11} lh={1.65} pad="14px 16px" />
-  </Card>
+  </Disclosure>
 
   <Table
     head={['сборка React 19.3.0', 'исключение', '`console.error`']}

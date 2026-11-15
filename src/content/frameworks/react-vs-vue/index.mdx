@@ -15,6 +15,8 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -33,6 +35,9 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TwoModels from '@/widgets/two-models/ui/TwoModels.astro';
 import WorkChart from '@/widgets/two-models/ui/WorkChart.vue';
 import {
+  MECHANISM_DIAGRAM,
+  DEMO_REACT_SOURCE,
+  DEMO_VUE_SOURCE,
   ACTIONS,
   APP_NOTE,
   BREAKDOWN_NOTE,
@@ -46,6 +51,7 @@ import {
   HANDLER_ROWS,
   INTRO_NOTE,
   MATRIX,
+  MATRIX_DOM_NOTE,
   MEMORY_NOTE,
   MEMORY_ROWS,
   MEMORY_WARN,
@@ -79,6 +85,8 @@ import {
 
 <Section variant="intro" eyebrow="Две модели обновления" lead={INTRO_NOTE}>
   <Glossary items={GLOSSARY} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 </Section>
 
 <Section
@@ -131,6 +139,11 @@ import {
     <Md text={TWO_DEMO_NOTE} />
   </Card>
 
+  <Disclosure title="Исходник одной задачи: React App и Vue App">
+    <CodeBlock lang="tsx" code={DEMO_REACT_SOURCE} />
+    <CodeBlock lang="vue" code={DEMO_VUE_SOURCE} />
+  </Disclosure>
+
   <TwoModels actions={ACTIONS} foot={DEMO_FOOT} />
 
   <Table
@@ -140,6 +153,8 @@ import {
     kinds={MATRIX.kinds}
     minWidth={MATRIX.minWidth}
   />
+
+  <Md text={MATRIX_DOM_NOTE} />
 
   ### Кто именно отработал на «счётчик +1»
 

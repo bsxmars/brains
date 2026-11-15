@@ -273,6 +273,9 @@ describe('полифилы', () => {
       '[1,2,3].at(NaN)', '[1,2,3].at("1")', '[1,2,3].at(Infinity)', '[1,2,3].at(-Infinity)', '[].at(0)',
       'Array.prototype.at.call({ length: 2, 0: "a", 1: "b" }, -1)', 'Array.prototype.at.call("xyz", 1)',
       '[1,2,3].at()', '[,2].at(0)',
+      'Array.prototype.at.call(null, 0)', 'Array.prototype.at.call(undefined, 0)',
+      '[1,2,3].at(0n)', 'Array.prototype.at.call({ length: 2n, 0: "a" }, 0)',
+      '[1,2,3].at({ valueOf: () => 1n })', '[1,2,3].at(Symbol())',
     ];
     const run = (prelude: string) =>
       vm.runInNewContext(`${prelude}\n;(${JSON.stringify(cases)}).map((c) => { try { return String(eval(c)); } catch (e) { return e.name; } })`);
@@ -438,10 +441,40 @@ describe('числа в тексте совпадают с литералами'
     expect(t.SNIPPET_NOTE_ASYNC).toContain(fmt(t.SNIPPETS.asyncEs5.after));
   });
 
-  it('учебная функция — полсотни строк', () => {
-    const lines = t.DECIDE_CODE.split('\n').length;
-    expect(lines).toBeGreaterThanOrEqual(45);
-    expect(lines).toBeLessThanOrEqual(55);
-    expect(mdx).toContain('полсотни строк');
+  it('каноническая функция напечатана до использующего её демо', () => {
+    expect(mdx.indexOf('code={DECIDE_CODE}')).toBeGreaterThan(0);
+    expect(mdx.indexOf('code={DECIDE_CODE}')).toBeLessThan(mdx.indexOf('<TranspileLab'));
+  });
+});
+
+
+describe('два независимых ремонта одного выражения', () => {
+  it('Babel убирает ?. для Safari 13, но вызов at требует полифила при запуске', () => {
+    const transformed = env(t.TWO_REPAIRS_CODE, 'safari 13').code;
+    expect(transformed).not.toContain('?.');
+    expect(transformed).toContain('.at(-1)');
+    const createRealm = () => {
+      const log: unknown[] = [];
+      const context = vm.createContext({ console: { log: (value: unknown) => log.push(value) } });
+      vm.runInContext('delete Array.prototype.at;', context);
+      return { context, log };
+    };
+    const missing = createRealm();
+    // TypeError из другого realm: проверяется имя, а не прототип ошибки процесса Vitest.
+    expect(() => vm.runInContext(transformed, missing.context)).toThrow(/at is not a function/);
+    const filled = createRealm();
+    vm.runInContext(t.POLYFILL_AT_CODE, filled.context);
+    vm.runInContext(transformed, filled.context);
+    expect(filled.log).toEqual([20]);
+    const usage = modules(env(t.TWO_REPAIRS_CODE, 'safari 13', { useBuiltIns: 'usage', corejs: '3.50' }).code);
+    expect(usage).toContain('es.array.at');
+    expect(t.MECHANISM_DIAGRAM.nodes.find((node) => node.id === 'api')?.detail).toContain('es.array.at');
+  });
+
+  it('пустая ветка скрывает отсутствие API', () => {
+    const code = t.TWO_REPAIRS_CODE.replace('[10, 20]', 'null');
+    const context = vm.createContext({ console: { log: (value: unknown) => expect(value).toBeUndefined() } });
+    vm.runInContext('delete Array.prototype.at;', context);
+    expect(() => vm.runInContext(env(code, 'safari 13').code, context)).not.toThrow();
   });
 });

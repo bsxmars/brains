@@ -4,7 +4,7 @@ heading: "Долгие соединения: WebSocket, SSE и WebTransport"
 headingWidth: 22
 order: 4
 kicker: сеть и безопасность
-lead: "HTTP отвечает только на вопросы: сервер не может заговорить первым. Долгое соединение снимает это ограничение — и приносит заботы, которых у запроса-ответа не было. Кто заметит, что связь пропала, как вернуться, не обрушив сервер, куда девается то, что сеть не успевает унести, и почему чужая страница может читать ваш сокет."
+lead: "После завершённого HTTP-ответа серверу нужен новый запрос, чтобы прислать следующую новость. Открытый ответ SSE или двусторонний WebSocket дают канал для следующих сообщений — и приносит заботы, которых у запроса-ответа не было. Кто заметит, что связь пропала, как вернуться, не обрушив сервер, куда девается то, что сеть не успевает унести, и почему чужая страница может читать ваш сокет."
 summary: "Когда нужен WebSocket, а когда хватит SSE; рукопожатие и кадры по байтам; коды закрытия и кто их видит; обратное давление, которого у WebSocket нет; переподключение с джиттером и heartbeat; WebSocket поверх HTTP/2 и WebTransport; угон сокета с чужого сайта."
 verifiedOn: "Свой сервер WebSocket на node:http (Node 26.8.2) — тот самый код темы; клиенты — глобальный WebSocket Node 26 и Chromium 153.0.8010.12 через Playwright 1.63, наличие API и коды при уходе со страницы — ещё Firefox 155 и WebKit 26.6; сентябрь 2026. Два сайта — через --host-resolver-rules, TLS — самоподписанный сертификат. Закреплено tests/unit/realtime.test.ts. Таймауты прокси, WebSocket поверх HTTP/3 и WebTransport на живом сервере не проверялись — это помечено в тексте"
 nav:
@@ -20,13 +20,13 @@ nav:
   - { id: s10, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -97,6 +97,7 @@ import {
   PLAIN_SILENT,
   HERD_STEPS,
   RELATED,
+  LIVENESS_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Сервер, который говорит первым" gap={24}>
@@ -168,6 +169,7 @@ import {
 
   ### Сервер на голом `node:http`
 
+  <Disclosure title="Исходник: server.js — рукопожатие, кадры, ping и закрытие">
   <Card title="server.js — рукопожатие, кадры, ping и закрытие" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SERVER_CODE} size={11} lh={1.65} pad="14px 16px" />
 
@@ -175,6 +177,7 @@ import {
       <Md text={SERVER_NOTE} />
     </CardNote>
   </Card>
+  </Disclosure>
 
   <CardGrid min={280} gap={14} align="start">
     {HANDSHAKE_FACTS.map((fact) => (
@@ -194,9 +197,11 @@ import {
   title="Кадры и маска"
   lead="После рукопожатия по соединению идут кадры: два байта заголовка, если нужно — длина и маска, дальше данные. Короткое сообщение от сервера обходится в два служебных байта, от клиента — в шесть: клиент обязан замаскировать каждый кадр."
 >
+  <Disclosure title="Исходник: frame.js — кадр в обе стороны">
   <Card title="frame.js — кадр в обе стороны" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FRAME_CODE} size={11} lh={1.65} pad="14px 16px" />
   </Card>
+  </Disclosure>
 
   <FrameDiagram diagram={FRAME_DIAGRAM} />
 
@@ -384,6 +389,8 @@ import {
 
   <Plain text={PLAIN_SILENT} />
 
+  <ConceptDiagram data={LIVENESS_DIAGRAM} />
+
   <Table
     head={['способ', 'кто инициирует', 'что даёт']}
     rows={HEARTBEAT_ROWS.map((r) => [r.k, r.who, r.gives])}
@@ -481,15 +488,7 @@ import {
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SECURITY_NOTE} />
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
 
-      **Сокет — это сессия пользователя, открытая для любой страницы.** Браузер приложит куки
-      и покажет ответ кому угодно; единственный, кто может спросить «а кто звонит?», — сервер,
-      и спрашивает он заголовком `Origin`.
-
-    </DarkText>
-  </DarkPanel>
 </Section>
 
 <Section id="s9" eyebrow="Раздел 9" title="Тонкие места">

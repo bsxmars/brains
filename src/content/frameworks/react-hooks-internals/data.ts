@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { HooksScenario } from '@/widgets/mini-hooks/model/types';
 import { STEP_ELEMENT } from '../react-internals/data';
@@ -1194,13 +1195,13 @@ export const QUEUE_LINK =
 
 /** Раздел «Контекст». */
 export const CONTEXT_NOTE =
-  'Смена темы вызывает `App`, пропускает `memo(Toolbar)` — но **со спуском**: `propagateContextChange` дал ему `childLanes`, — и вызывает обоих читателей `Settings`. `LangLabel` читает язык, который не менялся, и всё равно вызван: подписка на контекст — это подписка на всё его значение. `UserBadge` не тронут: у него другой контекст. Постороннее состояние `App` не будит никого из читателей: `useMemo` вернул тот же объект настроек, и `Object.is` в `updateProvider` дал `true`.';
+  'Смена темы вызывает `App`, пропускает `memo(Toolbar)` — но **со спуском**: `propagateContextChange` дал ему `childLanes`, — и вызывает обоих читателей `Settings`. `LangLabel` читает язык, который не менялся, и всё равно вызван: подписка на контекст — это подписка на всё его значение. `UserBadge` не тронут: у него другой контекст. Постороннее состояние `App` не будит никого из читателей: `useMemo` вернул тот же объект настроек, и `Object.is` в учебной `updateProvider` дал `true`.';
 
 export const CONTEXT_LINK =
   'Практические следствия — разделять контексты по частоте изменений и держать `dispatch` отдельно от состояния — разобраны в [«Ре-рендеринге в React», раздел «Дерево»](/frameworks/react-rerender/#s2). Здесь видно, откуда они берутся: в `dependencies` записан контекст целиком, а не поле, которое компонент из него взял.';
 
 export const NO_MEMO_NOTE =
-  'Уберите `useMemo` вокруг `{ theme, lang }` — и постороннее состояние `App` начнёт будить обоих читателей `Settings`: литерал объекта на каждом рендере новый, и `Object.is` в `updateProvider` даёт `false`. Объект или массив в `value` провайдера поэтому держат в `useMemo`.';
+  'Уберите `useMemo` вокруг `{ theme, lang }` — и постороннее состояние `App` начнёт будить обоих читателей `Settings`: литерал объекта на каждом рендере новый, и `Object.is` в учебной `updateProvider` даёт `false`. Объект или массив в `value` провайдера поэтому держат в `useMemo`.';
 
 export const COND_CONTEXT_NOTE =
   'Раз ячейки у `useContext` нет, условный вызов ничего не сдвигает: `mark` получает свою ячейку при любом `on`, и значения верные у обоих. Отладочная сборка React всё же предупреждает — «change in the order of Hooks»: она сверяет имена вызовов, а не ячейки. Если нужно прочитать контекст под условием, для этого есть `use(Theme)`: он в список имён не попадает, и предупреждения нет.';
@@ -1357,7 +1358,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '03',
     t: 'Объект в `value` провайдера без `useMemo` будит всех читателей',
-    d: '`updateProvider` сравнивает значение через `Object.is`. Литерал `{ theme, lang }` на каждом рендере новый, и любой `setState` в компоненте провайдера помечает работой всех, кто читает контекст, — сквозь любой `memo` между ними.',
+    d: 'В мини-версии `updateProvider` сравнивает значение через `Object.is`; в React 19.3 сравнение при ленивом распространении выполняет `propagateParentContextChanges`. Литерал `{ theme, lang }` на каждом рендере новый, и любой `setState` в компоненте провайдера помечает работой всех, кто читает контекст, — сквозь любой `memo` между ними.',
     lang: 'jsx',
     code: `// каждый рендер App — новый объект, все читатели Settings вызваны
 <Settings value={{ theme, lang }}>
@@ -1439,3 +1440,72 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [React изнутри: свой рендерер и хуки](/frameworks/react-internals/) — мини-рендерер с нуля: элемент, файбер, сверка, эффекты; его `createElement` эта тема берёт как есть. [Ре-рендеринг в React](/frameworks/react-rerender/) — то же поведение снаружи: сколько вызовов, где bailout, когда `memo` и `useMemo` окупаются. [React изнутри: конкурентность и lanes](/frameworks/react-concurrent-internals/) — полосы, переходы и прерывание, на которых держится разрыв. [React против Vue](/frameworks/react-vs-vue/) — модель, в которой разрыва нет по построению. [Vue 3 изнутри: своя реактивность](/frameworks/vue-internals/) — подписка, записанная при чтении, но на уровне поля, а не всего значения.';
+
+
+/** Уточнение 2026-11-12: updateProvider назван учебной функцией; сравнение value в установленном React сверяется в propagateParentContextChanges: react-hooks-internals.test.ts. */
+
+/** Причинная схема; это объяснение механизма, не журнал исполнения. */
+export const MECHANISM_DIAGRAM: ConceptDiagramData = {
+  "id": "react-hooks-internals-mechanism",
+  "title": "Контекст проходит сквозь memo",
+  "description": "Изменилось значение Settings, которое читают ThemeLabel и LangLabel. Memo промежуточного компонента не отменяет зависимость его потомков.",
+  "width": 820,
+  "height": 570,
+  "nodes": [
+    {
+      "id": "0",
+      "x": 20,
+      "y": 20,
+      "width": 360,
+      "height": 210,
+      "label": "Provider: новое value",
+      "detail": "Сравнение через Object.is обнаруживает новую ссылку на Settings. Это изменение всего значения контекста.",
+      "tone": "info"
+    },
+    {
+      "id": "1",
+      "x": 440,
+      "y": 20,
+      "width": 360,
+      "height": 210,
+      "label": "Memo(Toolbar)",
+      "detail": "Его функция может быть пропущена, но обход не заканчивается: внизу есть работа читателей контекста.",
+      "tone": "neutral"
+    },
+    {
+      "id": "2",
+      "x": 20,
+      "y": 340,
+      "width": 360,
+      "height": 210,
+      "label": "Другой контекст: UserBadge",
+      "detail": "Изменение Settings само по себе не создаёт работу подписчику User. Обычные причины рендера остаются возможны.",
+      "tone": "warn"
+    },
+    {
+      "id": "3",
+      "x": 440,
+      "y": 340,
+      "width": 360,
+      "height": 210,
+      "label": "Читатели Settings",
+      "detail": "ThemeLabel и LangLabel получают новое значение. useContext не подписывает каждый компонент лишь на прочитанное поле.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "from": "0",
+      "to": "1",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "from": "1",
+      "to": "3",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "note": "В мини-версии работу помечает propagateContextChange. React 19.3 использует также ленивое распространение зависимостей."
+};

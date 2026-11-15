@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { DemoToken, DiSpec } from '@/widgets/di-lab/model/types';
 
@@ -406,7 +407,7 @@ export const INJECTOR_ROWS = [
 ];
 
 export const INJECTOR_NOTE =
-  'Поиск идёт в два этапа. Сначала вверх по дереву элементов — от того, кто просит, к корневому компоненту. Потом, если не нашлось, в окружение, к которому подключено приложение, и дальше по его родителям до `NullInjector`. Чтобы не опрашивать каждый элемент, `NodeInjector` держит у элемента блум-фильтр на 256 бит. Это компактный набор битов: у каждого токена есть номер, и по биту с этим номером сразу видно, что у элемента такого токена точно нет. Тогда элемент пропускается без поиска по списку провайдеров.';
+  'Поиск идёт в два этапа. Сначала вверх по дереву элементов — от того, кто просит, к корневому компоненту. Если не нашлось, поиск продолжается в окружении исходного места запроса и далее по его родителям до `NullInjector`: например, окружение ленивого маршрута может дать свою зависимость до корневого приложения. Чтобы не опрашивать каждый элемент, `NodeInjector` держит у элемента блум-фильтр на 256 бит. Это компактный набор битов: у каждого токена есть номер, и по биту с этим номером сразу видно, что у элемента такого токена точно нет. Тогда элемент пропускается без поиска по списку провайдеров.';
 
 export const PROVIDED_IN_FACTS = [
   {
@@ -1037,3 +1038,113 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [React изнутри: хуки и контекст, раздел «Контекст»](/frameworks/react-hooks-internals/#s5) — стек провайдеров и пометка читателей, собранные своими руками. [Ре-рендеринг в React, раздел «Дерево»](/frameworks/react-rerender/#s2) — почему смена значения провайдера проходит мимо `memo`. [Стейт-менеджеры изнутри](/frameworks/state-managers/) — стор, который раздают через контекст или `app.provide`. [Angular без zone.js](/frameworks/angular-zoneless/) — тот же Angular 21 с другой стороны: кто и когда проверяет шаблоны. [Объектная модель, раздел «Прототипы»](/js/object-model/#s2) — цепочка, по которой ищет `inject` во Vue. [Тест-раннеры изнутри, раздел «Моки и подъём»](/tooling/test-runners/#s3) — подмена модуля там, где DI нет.';
+
+
+/** Предметная схема: границы и условия из сквозного примера темы. */
+export const DI_LOOKUP_DIAGRAM: ConceptDiagramData = {
+  "id": "di-provider-search-start",
+  "title": "Собственный провайдер виден не из каждого места чтения",
+  "description": "Пример из дерева демо: на уровне приложения THEME = «светлая», Board предоставляет «тёмная». CardA — ребёнок Board. Начало поиска меняет ответ даже без замены провайдеров.",
+  "width": 800,
+  "height": 580,
+  "nodes": [
+    {
+      "id": "app",
+      "x": 20,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "Уровень приложения",
+      "detail": "THEME = «светлая». Angular — окружение, Vue — app.provide, React — провайдер над корнем.",
+      "tone": "neutral"
+    },
+    {
+      "id": "card",
+      "x": 400,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "CardA читает THEME",
+      "detail": "У CardA нет своей темы. Во всех трёх показанных режимах результат — «тёмная» от Board.",
+      "tone": "ok"
+    },
+    {
+      "id": "board",
+      "x": 20,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "Board предоставляет тему",
+      "detail": "THEME = «тёмная». Angular: viewProviders; Vue/React: значение для потомков.",
+      "tone": "info"
+    },
+    {
+      "id": "self",
+      "x": 400,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "Сам Board читает THEME",
+      "detail": "Angular видит собственные viewProviders; Vue и React начинают поиск выше текущего компонента.",
+      "tone": "warn"
+    }
+  ],
+  "edges": [
+    {
+      "from": "card",
+      "to": "board",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          550,
+          280
+        ],
+        [
+          170,
+          280
+        ]
+      ],
+      "label": "ищет у предка",
+      "labelX": 550,
+      "labelY": 260
+    },
+    {
+      "from": "self",
+      "to": "board",
+      "fromSide": "left",
+      "toSide": "right",
+      "label": "Angular",
+      "labelY": 430
+    },
+    {
+      "from": "self",
+      "to": "app",
+      "fromSide": "right",
+      "toSide": "right",
+      "via": [
+        [
+          760,
+          455
+        ],
+        [
+          760,
+          315
+        ],
+        [
+          340,
+          315
+        ],
+        [
+          340,
+          125
+        ]
+      ],
+      "label": "Vue / React",
+      "labelX": 610,
+      "labelY": 303,
+      "dashed": true
+    }
+  ],
+  "note": "У Angular optional/self/skipSelf/host изменяют поиск; в схеме запрос без флагов. Запрос сервиса providedIn:root имеет ещё одну границу: зависимости самого сервиса разрешаются от корневого инжектора."
+};

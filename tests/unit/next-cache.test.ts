@@ -193,3 +193,16 @@ describe('числа и утверждения текста — из журна�
     }
   });
 });
+
+
+// Содержательные уточнения закреплены отдельно от числовых сценариев темы.
+it('редакционная граница: четыре кеша не обязательная цепь, use cache не возник в 16', () => {
+  expect(t.LAYERS_NOTE).toContain('не четыре обязательных шага');
+  expect(t.DEMO_CAPTION).toContain('без нового render');
+  expect(t.USE_CACHE_NOTE).toContain('пререндерятся автоматически без директивы');
+  expect(t.USE_CACHE_NOTE).not.toContain('Всё, что не помечено');
+  expect(t.USE_CACHE_NOTE).toContain('существовала и в Next 15');
+  // Источник: nextjs.org/docs/app/api-reference/directives/use-cache → Version History:
+  // v15 experimental, v16 stabilized with Cache Components. Не выводим историю из версии стенда.
+  expect(t.USE_CACHE_NOTE).not.toContain('В 16-й версии появилась');
+});

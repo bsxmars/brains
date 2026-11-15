@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
@@ -35,6 +36,8 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  *   — цепочка, собранная одним выражением `new A().next(new B()).next(new C())`, начинается
  *     с последнего звена: `next()` возвращает переданное, и проверка доступа пропущена;
  *   — `next()`, вызванный дважды, без защиты выполняет хвост цепочки дважды.
+ * Уточнение: rejected Promise слушателя идёт разными каналами у Node EventTarget, EventEmitter и captureRejections; REJECTION_PROBE_CODE запущен тремя процессами Node.
+ * Практика: notifyAll сохраняет результаты всех слушателей, включая синхронный throw; проверены PRACTICE_CODE и порядок результатов.
  */
 
 /* ──────────────────── Вводный раздел · словарь ──────────────────── */
@@ -50,7 +53,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: 'рассылка',
-    d: 'Вызов всех подписчиков по очереди: `notify()` в книге, `dispatchEvent` в DOM, `emit` в Node. Все три — обычный синхронный цикл: строка после вызова выполнится, когда отработали все подписчики.',
+    d: 'Вызов всех подписчиков по очереди: `notify()` в книге, `dispatchEvent` в DOM, `emit` в Node. Обычная рассылка вызывает слушателей синхронно, но не ждёт завершения их промисов. Исключение может оборвать цикл — это зависит от реализации.',
   },
   {
     k: 'отписка',
@@ -353,10 +356,10 @@ await new Promise((r) => setTimeout(r, 20));   // подождать CRM`;
 export const ASYNC_OUT = ['dispatchEvent вернулся', 'лид сохранён'];
 
 export const ASYNC_NOTE =
-  'Рассылка — синхронный цикл, а `async`-слушатель возвращает промис после первого `await`. Ни `dispatchEvent`, ни `emit` этот промис не ждут и не смотрят на него. Отсюда два следствия. Порядок: код после рассылки выполнится раньше, чем слушатель закончит работу. Ошибки: если CRM откажет, промис слушателя станет отклонённым, и его никто не ждёт — это необработанный отказ, а не исключение в `try` вокруг рассылки (тема [«Промис изнутри», раздел «Необработанный отказ»](/js/promise-internals/#s5)). Если отправителю важно дождаться всех — это уже не наблюдатель, а цепочка или `Promise.all` по списку обработчиков.';
+  '`async`-слушатель возвращает промис; его синхронная часть выполняется при вызове, продолжение после `await` — позже. `dispatchEvent` и `emit` не дают отправителю дождаться этого продолжения. Обработка отказа зависит от платформы: DOM не обрабатывает возвращённый промис; обычный Node `EventEmitter` без обработки получит необработанный отказ, а с `captureRejections: true` направит его в обработчик `error` (или специальный обработчик rejection). Node `EventTarget` перехватывает отказ и сообщает его как необработанное исключение в `process.nextTick`: по умолчанию процесс падает. `try` вокруг рассылки эти асинхронные ошибки не поймает. Для ожидания результатов нужен явный асинхронный контракт, например `notifyAll` в разделе [«Кто отвечает за завершение рассылки»](#practice).';
 
 export const OBSERVER_PLATFORM_NOTE =
-  'Наблюдатель встроен в платформу и в другом виде. `IntersectionObserver`, `ResizeObserver` и `MutationObserver` — издатели, которых браузер ведёт сам: в отличие от событий, они копят изменения и отдают их пачкой: `MutationObserver` — микрозадачей, `ResizeObserver` — в кадре, `IntersectionObserver` — задачей после кадра (тема [«Наблюдатели: Intersection, Resize, Mutation»](/render/observers/)). Сигналы и сторы — наблюдатель с памятью: подписчик получает не событие, а новое значение (темы [«Сигналы»](/frameworks/signals/) и [«Стейт-менеджеры изнутри»](/frameworks/state-managers/)). Ещё одна форма — RxJS: подписка на поток значений, где события можно фильтровать и склеивать, как массивы.';
+  'Наблюдатель встроен в платформу и в другом виде. `IntersectionObserver`, `ResizeObserver` и `MutationObserver` — издатели, которых браузер ведёт сам: в отличие от событий, они копят изменения и отдают их пачкой: `MutationObserver` — микрозадачей, `ResizeObserver` — в кадре, `IntersectionObserver` — отдельной задачей (тема [«Наблюдатели: Intersection, Resize, Mutation»](/render/observers/)). Отдельная задача не гарантирует, что кадр уже показан на экране. Сигналы и сторы — наблюдатель с памятью: подписчик получает не событие, а новое значение (темы [«Сигналы»](/frameworks/signals/) и [«Стейт-менеджеры изнутри»](/frameworks/state-managers/)). Ещё одна форма — RxJS: подписка на поток значений, где события можно фильтровать и склеивать, как массивы.';
 
 /* ──────────────────── Раздел 3 · посредник ──────────────────── */
 
@@ -660,7 +663,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '03',
     t: 'Рассылка не ждёт `async`-слушателей',
-    d: '`emit` и `dispatchEvent` возвращаются после первого `await` каждого слушателя. Код после рассылки идёт раньше их окончания, а отказ промиса становится необработанным. Если отправителю нужен результат обработчиков — это не событие, а вызов: `await Promise.all(handlers.map((h) => h(data)))`.',
+    d: '`emit` и `dispatchEvent` не ждут продолжения слушателя после `await`. В DOM возвращённый промис игнорируется; обычный Node `EventEmitter` не перехватывает отказ, `captureRejections` направляет его в механизм `error`, а Node `EventTarget` — в необработанное исключение. Для ожидания всех обработчиков нужен отдельный контракт с определённой политикой отказов.',
     tone: 'warn',
   },
   {
@@ -691,6 +694,16 @@ export const PITFALLS: Pitfall[] = [
 /** ⚠️ Без разметки: `SourceList` печатает `title` и `what` как есть. */
 export const SOURCES: Source[] = [
   {
+    title: 'ECMAScript — Promise.allSettled',
+    href: 'https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-promise.allsettled',
+    what: 'результат для каждого входного значения и сохранение порядка входа независимо от порядка завершения',
+  },
+  {
+    title: 'Intersection Observer — Processing model',
+    href: 'https://w3c.github.io/IntersectionObserver/#processing-model',
+    what: 'накопление записей пересечения и их доставка отдельной задачей, без гарантии, что кадр уже показан экрану',
+  },
+  {
     title: 'Refactoring Guru — поведенческие паттерны',
     href: 'https://refactoring.guru/ru/design-patterns/behavioral-patterns',
     what: 'наблюдатель, посредник и цепочка обязанностей в классической форме, с примерами на TypeScript',
@@ -708,7 +721,7 @@ export const SOURCES: Source[] = [
   {
     title: 'Node.js — Events',
     href: 'https://nodejs.org/api/events.html',
-    what: 'EventEmitter и EventTarget в Node: порядок вызова, событие error, setMaxListeners, отличия EventTarget от браузерного',
+    what: 'EventEmitter и EventTarget в Node: синхронная рассылка, captureRejections, обработка rejected Promise в EventTarget и отличия от DOM',
   },
   {
     title: 'Express — Writing middleware',
@@ -729,3 +742,123 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [События DOM](/render/dom-events/) — встроенный наблюдатель, всплытие как цепочка и синхронная отправка. [Наблюдатели: Intersection, Resize, Mutation](/render/observers/) — наблюдатели, которых ведёт браузер. [Стейт-менеджеры изнутри](/frameworks/state-managers/) — стор как посредник с памятью. [Сигналы](/frameworks/signals/) — наблюдатель, который сам знает своих подписчиков. [Отмена: AbortController и AbortSignal](/js/abort-controller/) — одна отписка на всё. [Колбэки](/js/callbacks/) — подписчик как функция, утечки и реентерантность.';
+
+
+/** Практический пример: та же строка проверяется tsc и исполняется patterns-communication.test.ts. */
+export const PRACTICE_CODE = `type Listener<T> = (value: T) => void | Promise<void>;
+async function notifyAll<T>(listeners: readonly Listener<T>[], value: T) {
+  // Снимок фиксирует участников этой рассылки.
+  const snapshot = [...listeners];
+  return Promise.allSettled(snapshot.map((listener) =>
+    // И синхронный throw, и rejected Promise становятся отдельным результатом.
+    Promise.resolve().then(() => listener(value))));
+}
+const calls: string[] = [];
+const results = await notifyAll<string>([
+  () => { throw new Error('CRM недоступна'); },
+  async (name) => { await Promise.resolve(); calls.push('email: ' + name); },
+  (name) => { calls.push('audit: ' + name); },
+], 'Анна');
+console.log(results.map((result) => result.status).join(', '));
+console.log(calls.join('; '));`;
+export const PRACTICE_OUT = ["rejected, fulfilled, fulfilled", "audit: Анна; email: Анна"];
+export const PRACTICE_DIAGRAM: ConceptDiagramData = {
+  "title": "Один отказ не скрывает результаты остальных",
+  "description": "notifyAll фиксирует снимок подписчиков и ждёт каждый результат. Порядок результатов соответствует подписчикам, а порядок их завершения может отличаться.",
+  "width": 1040,
+  "height": 590,
+  "nodes": [
+    {
+      "id": "start",
+      "x": 390,
+      "y": 10,
+      "width": 260,
+      "height": 230,
+      "label": "notifyAll(Анна)",
+      "detail": "Все слушатели запускаются через промис. Синхронный throw тоже становится rejected.",
+      "tone": "neutral"
+    },
+    {
+      "id": "crm",
+      "x": 10,
+      "y": 350,
+      "width": 260,
+      "height": 230,
+      "label": "CRM: rejected",
+      "detail": "Бросает ошибку. Это результат первого слушателя, а не обрыв запуска остальных.",
+      "tone": "err"
+    },
+    {
+      "id": "email",
+      "x": 390,
+      "y": 350,
+      "width": 260,
+      "height": 230,
+      "label": "Email: fulfilled",
+      "detail": "Завершается после await. Отправитель дождётся завершения.",
+      "tone": "ok"
+    },
+    {
+      "id": "audit",
+      "x": 770,
+      "y": 350,
+      "width": 260,
+      "height": 230,
+      "label": "Audit: fulfilled",
+      "detail": "Записывает раньше email. В массиве результатов остаётся третьим.",
+      "tone": "info"
+    }
+  ],
+  "edges": [
+    {
+      "to": "crm",
+      "fromSide": "left",
+      "toSide": "top",
+      "via": [
+        [
+          140,
+          125
+        ]
+      ],
+      "from": "start"
+    },
+    {
+      "to": "email",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "from": "start"
+    },
+    {
+      "to": "audit",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [
+        [
+          900,
+          125
+        ]
+      ],
+      "from": "start"
+    }
+  ],
+  "note": "allSettled не отменяет слушателей, не задаёт тайм-аут и не откатывает побочные эффекты. Решение о повторе остаётся у вызывающего.",
+  "id": "patterns-communication-boundary"
+};
+
+/** Режимы запускаются отдельными процессами официального Node; monitor не подавляет падение. */
+export const REJECTION_PROBE_CODE = `import { EventEmitter } from 'node:events';
+const mode = process.env.PROBE_MODE ?? 'target'; // target | default | capture
+// Только диагностика: monitor наблюдает падение, но не предотвращает его.
+process.on('uncaughtExceptionMonitor', (_error, origin) => console.log(origin));
+const fail = async () => { throw new Error('listener failed'); };
+if (mode === 'target') {
+  const target = new EventTarget();
+  target.addEventListener('x', fail);
+  target.dispatchEvent(new Event('x'));
+} else {
+  const emitter = new EventEmitter({ captureRejections: mode === 'capture' });
+  emitter.on('x', fail);
+  emitter.on('error', (error) => console.log('error: ' + error.message));
+  emitter.emit('x');
+}
+console.log('рассылка вернулась');`;

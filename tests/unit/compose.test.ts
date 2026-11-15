@@ -302,3 +302,14 @@ describe('вычитка 2026-10-30: утверждения темы проти�
     expect(row?.k).not.toContain('стартует приложение');
   });
 });
+
+
+describe('три разные отметки исторической шкалы', () => {
+  it('старт app не совпадает с healthy, но следует за ним в том же записанном прогоне', () => {
+    const condition = HEALTH_TIMELINE.rows.find((row) => row.k.includes('условие `service_healthy` выполнено'))!;
+    const app = HEALTH_TIMELINE.rows.find((row) => row.k.startsWith('app стартовал'))!;
+    expect(condition.at).toBe(firstAt(HEALTHY.events, 'db', 'healthy'));
+    expect(app.at).toBe(firstAt(HEALTHY.events, 'app', 'start'));
+    expect(app.at).toBeGreaterThan(condition.at!);
+  });
+});

@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { deflateSync } from 'node:zlib';
 import {
   MAX_LATITUDE,
   WebMercatorViewport,
@@ -134,6 +135,15 @@ describe('проекция: MERCATOR_CODE против @math.gl/web-mercator', (
 });
 
 describe('тайлы: TILES_CODE', () => {
+  it('@2x: вчетверо больше RGBA-пикселей не означает вчетверо больше сжатых байтов', () => {
+    const small = Buffer.alloc(256 * 256 * 4, 255);
+    const large = Buffer.alloc(512 * 512 * 4, 255);
+    expect(large.byteLength / small.byteLength).toBe(4);
+    // Даже простейшее сжатие одинакового цвета нарушает обещание точной кратности файла.
+    expect(deflateSync(large).byteLength).not.toBe(deflateSync(small).byteLength * 4);
+    expect(t.TEMPLATE_NOTE).toContain('сжатого PNG');
+  });
+
   it('PYRAMID_ROWS: 4^z тайлов и метры на пиксель', () => {
     for (const r of t.PYRAMID_ROWS) {
       expect(r.tiles).toBe(4 ** r.z);

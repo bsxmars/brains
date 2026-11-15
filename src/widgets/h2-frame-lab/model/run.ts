@@ -10,6 +10,11 @@ import type { DynamicTable, H2Api, QuicApi, StandChunk, TimelineFrame } from './
  *
  * Ни DOM, ни Vue: чистые функции, чтобы их мог импортировать юнит-тест.
  */
+/** The integer probe needs only its printed integer functions, not frames and the full HPACK decoder. */
+export function loadInt(code: string): Pick<H2Api, 'encodeInt' | 'decodeInt'> {
+  return new Function(`${code}\nreturn { encodeInt, decodeInt };`)() as Pick<H2Api, 'encodeInt' | 'decodeInt'>;
+}
+
 export function loadH2(frameCode: string, intCode: string, tableCode: string, decodeCode: string): H2Api {
   return new Function(
     `${frameCode}\n${intCode}\n${tableCode}\n${decodeCode}\n` +

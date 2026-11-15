@@ -12,8 +12,10 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  *
  * ── Стенд ─────────────────────────────────────────────────────────────────────────────────
  * Официальный Node **26.8.2**, macOS **arm64** (Apple M-серии), 8 логических ядер. В Node
- * `SharedArrayBuffer` и `Atomics` доступны без изоляции, поэтому каждый пример исполняется
+ * `SharedArrayBuffer` и `Atomics` доступны без изоляции. Node-примеры исполняются
  * `tests/unit/atomics.test.ts` отдельным процессом — тот же код, что видит читатель.
+ * Браузерный пример обработки изображения проверяется тем же тестом в Chromium
+ * с настоящими Web Workers и HTTP-заголовками COOP/COEP.
  * Каталог проб — `scratchpad/at/` (`race.mjs`, `hoist.mjs`, `mp.mjs`, `wait.mjs`, `mutex.mjs`).
  *
  * Что снято пробами:
@@ -59,7 +61,7 @@ export const GLOSSARY: GlossaryTerm[] = [
 ];
 
 export const PLAIN_SHARED =
-  'Общая память — одна доска в переговорной, на которой пишут несколько человек. Носить ничего не нужно: всё уже на доске. Но если двое одновременно стирают и переписывают одно число, одна из правок пропадёт. А если один пишет ответ, а потом рисует галочку «готово», другой может увидеть галочку раньше ответа. `Atomics` — правила работы у этой доски: кто держит маркер, в каком порядке ставить галочку и как позвать коллегу, не стоя у него над душой.';
+  'Представьте общую таблицу: один сотрудник обновляет данные, другой готовит по ним отчёт. Второму важно дождаться конца обновления, а не прочитать половину старых и половину новых значений. Они договариваются: сначала автор меняет все нужные строки, затем ставит отметку «готово»; читатель ждёт этой отметки и только потом берёт данные. `Atomics` позволяют организовать такой порядок между потоками.';
 
 export const PREREQ_NOTE =
   'Тема опирается на две вещи из соседних тем.';
@@ -92,6 +94,94 @@ export const SAB_FACTS = [
   '**не копируется** при `postMessage`: обе стороны получают доступ к одному и тому же участку памяти;',
   '**никогда не отсоединяется** — память живёт, пока на неё есть хоть одна ссылка;',
   '**растёт только вверх**: `new SharedArrayBuffer(n, { maxByteLength: m })` и дальше `grow`. Уменьшать нельзя: в этот самый момент другой агент может читать конец буфера.',
+];
+
+// ─── Практические сценарии ────────────────────────────────────────────────────────────────
+
+export const USE_CASES = [
+  {
+    title: 'Фоторедактор: обработать изображение несколькими воркерами',
+    text: '**Задача:** несколько воркеров применяют фильтр к одному RGBA-буферу. **Роль Atomics:** `Atomics.add` выдаёт каждому следующий свободный участок и обновляет общий счётчик готовых участков. Пиксели можно менять обычными записями, если участки не пересекаются, а интерфейс читает результат только после завершения работы. При заранее известных участках можно обойтись раздачей отдельных `ArrayBuffer` через перенос — общий буфер не обязателен.',
+  },
+  {
+    title: 'Синтезатор в браузере: передавать подготовленный звук',
+    text: '**Задача:** Worker готовит звуковые сэмплы, а AudioWorklet забирает их из общего кольцевого буфера — массива, который заполняют по кругу. **Роль Atomics:** опубликовать позицию записи и прочитать позицию чтения. Автор не перезаписывает ещё не прочитанные сэмплы, читатель не берёт ещё не опубликованные. В звуковом callback не ждут через `wait`: если данных не хватило, выдают тишину. Такой протокол не гарантирует, что вычислитель будет успевать. [Как работает AudioWorklet](/js/media-audio/#s5).',
+  },
+  {
+    title: 'Node.js: показать прогресс и отменить тяжёлый расчёт',
+    text: '**Задача:** воркеры считают статистику по большому набору данных, а сервер показывает прогресс и принимает отмену. **Роль Atomics:** воркеры прибавляют число готовых порций через `add`; сервер читает прогресс через `load` и ставит флажок отмены через `store`. Воркеры проверяют его между порциями. Это позволяет заметить отмену даже внутри долгого синхронного расчёта, который пока не вернул управление обработчику `message`. Отмена остаётся кооперативной: без проверки флажка расчёт продолжится. [Как устроены воркеры Node](/js/node-processes/).',
+  },
+];
+
+export const CHOOSE_MESSAGES =
+  'Для команды «обработай файл и пришли ответ» обычно достаточно `postMessage`. Большой буфер можно **перенести**, не копируя байты, если отправителю он пока не нужен. Общая память полезна, когда несколько потоков действительно должны обращаться к одним данным, а измерения оправдывают сложность протокола. Само наличие воркера, большого массива или запроса к серверу ещё не причина брать `Atomics`.';
+
+export const IMAGE_SETUP =
+  'Сохраните обработчик в `grayscale-worker.js`, а функцию запуска — в `grayscale.js` рядом с ним. Пример вызова выполняется из ES-модуля страницы, подключённого через `<script type="module">`. Страница работает в защищённом контексте: HTTPS или localhost. Сервер отдаёт её с заголовками `Cross-Origin-Opener-Policy: same-origin` и `Cross-Origin-Embedder-Policy: require-corp`; это включает изоляцию при подходящих ресурсах страницы. На обычной странице этого курса изоляция не включена, поэтому пример предназначен для отдельного приложения. [Зачем нужны COOP и COEP](/platform/security/#s7).';
+
+export const IMAGE_MAIN_CODE = `// grayscale.js — главный поток браузера
+export async function grayscale(rgba, width, workerCount = 2) {
+  if (!crossOriginIsolated) throw new Error('Нужна изоляция COOP/COEP');
+  const height = rgba.length / (width * 4);
+  if (!Number.isInteger(width) || width <= 0 ||
+      !Number.isInteger(height) || height <= 0 ||
+      !Number.isInteger(workerCount) || workerCount <= 0) {
+    throw new RangeError('Нужны целые размеры и число воркеров');
+  }
+  const pixels = new Uint8ClampedArray(new SharedArrayBuffer(rgba.length));
+  pixels.set(rgba);
+  // control[0] — следующая строка; control[1] — число готовых строк.
+  const control = new Int32Array(new SharedArrayBuffer(8));
+  const workers = Array.from({ length: workerCount }, () =>
+    new Worker(new URL('./grayscale-worker.js', import.meta.url), { type: 'module' })
+  );
+  try {
+    await Promise.all(workers.map(worker => new Promise((resolve, reject) => {
+      worker.onmessage = resolve;
+      worker.onerror = reject;
+      worker.postMessage({ pixels: pixels.buffer, control: control.buffer, width, height });
+    })));
+    return { pixels, completedRows: Atomics.load(control, 1) };
+  } finally {
+    workers.forEach(worker => worker.terminate());
+  }
+}`;
+
+export const IMAGE_WORKER_CODE = `// grayscale-worker.js — каждый воркер получает те же буферы
+self.onmessage = ({ data }) => {
+  const pixels = new Uint8ClampedArray(data.pixels);
+  const control = new Int32Array(data.control);
+  while (true) {
+    // add возвращает старое значение: каждый получает свой номер строки.
+    const row = Atomics.add(control, 0, 1);
+    if (row >= data.height) break;
+    const end = (row + 1) * data.width * 4;
+    for (let i = row * data.width * 4; i < end; i += 4) {
+      const gray = Math.round((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3);
+      pixels[i] = pixels[i + 1] = pixels[i + 2] = gray;
+      // Альфа-канал pixels[i + 3] сохраняется.
+    }
+    Atomics.add(control, 1, 1);
+  }
+  self.postMessage('done');
+};`;
+
+export const IMAGE_RUN_CODE = `// Пример вызова из другого модуля страницы
+import { grayscale } from './grayscale.js';
+const rgba = new Uint8ClampedArray([
+  255, 0, 0, 255,   0, 255, 0, 255, // первая строка
+  0, 0, 255, 255,  30, 60, 90, 128, // вторая строка
+]);
+const { pixels, completedRows } = await grayscale(rgba, 2);
+console.log(completedRows);
+console.log([...pixels].join(', '));`;
+
+export const IMAGE_OUT = '2\n85, 85, 85, 255, 85, 85, 85, 255, 85, 85, 85, 255, 60, 60, 60, 128';
+
+export const IMAGE_PROTOCOL = [
+  '**Распределение:** общий номер строки выдаётся одной неделимой прибавкой. Воркеры не обрабатывают одну строку одновременно, поэтому на самих пикселях `Atomics` не нужны.',
+  '**Завершение:** воркер увеличивает счётчик только после записи всей строки. Главный поток в этом примере читает пиксели после сообщений `done` от всех воркеров, а не во время обработки.',
+  '**Граница примера:** усреднение RGB — простой учебный фильтр, не модель восприятия яркости. Два воркера для четырёх пикселей показывают протокол, а не ускорение. На практике используют пул, выдают работу крупными порциями и измеряют, окупается ли параллельность.',
 ];
 
 export const SHARED_CODE = `// main.mjs
@@ -447,6 +537,16 @@ export const SOURCES: Source[] = [
     title: 'MDN — Atomics.waitAsync',
     href: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Atomics/waitAsync',
     what: 'ожидание на главном потоке без блокировки',
+  },
+  {
+    title: 'Chrome for Developers — Audio Worklet Design Pattern',
+    href: 'https://developer.chrome.com/blog/audio-worklet-design-pattern',
+    what: 'общий буфер между Worker и AudioWorklet, позиции чтения/записи и ограничения потока звука',
+  },
+  {
+    title: 'Node.js — Worker Threads',
+    href: 'https://nodejs.org/api/worker_threads.html',
+    what: 'параллельные вычисления, пул воркеров, перенос и совместное использование буферов',
   },
   {
     title: 'Lars T. Hansen — A Taste of JavaScript’s New Parallel Primitives',

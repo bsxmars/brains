@@ -18,6 +18,4 @@ export interface CycleRun {
   again: string;
   /** Пополнился ли журнал на второй попытке. Ноль означает «тело не перевыполнялось». */
   addedOnSecondTry: number;
-  /** Исходники, вычитанные с сервера: на странице показано ровно то, что исполнилось. */
-  sources: { name: string; code: string }[];
 }

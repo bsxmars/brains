@@ -324,3 +324,8 @@ describe('сквозной пример демо', () => {
     expect(s[1].gap.cells.filter((c) => c === null).length + s[1].gap.cells.filter((c) => c !== null).length).toBe(13);
   });
 });
+
+it('схема piece table: undo восстанавливает куски, но не освобождает буфер добавлений', () => {
+  const actual = new Function(`${t.PIECE_CODE}\n${t.PIECE_TRACE_CODE}`)();
+  expect(actual).toEqual({ edited: 'кXот', restored: 'кот', retained: 'X' });
+});

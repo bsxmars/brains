@@ -13,6 +13,7 @@ import {
   CLOSE_CODES_NOTE,
   CLOSE_ROWS,
   CSWSH_ROWS,
+  PLAIN_CSWSH,
   FRAME_CODE,
   FRAME_DEMO_NOTE,
   PITFALLS,
@@ -1022,6 +1023,7 @@ describe('TLS: RFC 8441 и CSWSH на двух настоящих сайтах',
     expect(row('sub.a.test').cookies).toContain('`Strict`');
     expect(row('sub.a.test').open).toContain('прочитала');
     expect(row('b.test').cookies).toBe('только `SameSite=None`');
+    expect(PLAIN_CSWSH).toContain('атрибуты куки и политика браузера');
     expect(row('b.test').guarded).toContain('1006');
   }, 60_000);
 });

@@ -1,0 +1,52 @@
+---
+import { loadSrcset } from '../model/run';
+interface Props { code: string; srcset: string; sizes: string }
+const { code, srcset, sizes } = Astro.props;
+const environment = { vw: 375, dpr: 2 };
+const result = loadSrcset(code).pickCandidate(srcset, sizes, environment);
+const candidates = result.list.slice(0, 2);
+---
+
+<figure class="ssf" data-render-illustration="image-density">
+  <figcaption>Размер места и число пикселей файла — разные величины</figcaption>
+  <p>В модели: место {result.slot.px} CSS px × DPR {environment.dpr} = {result.slot.px * environment.dpr} пикселей по ширине. Два первых кандидата показаны в одинаковом размере; сетка обозначает плотность условно.</p>
+  <div class="ssf-scroll">
+    <svg viewBox="0 0 760 350" role="img" aria-labelledby="ssf-title ssf-desc">
+      <title id="ssf-title">Слот 375 CSS px при DPR 2 и кандидаты 400w и 800w</title>
+      <desc id="ssf-desc">Учебная модель выбирает {result.pick}. У первого кандидата плотность {candidates[0].density.toFixed(2)}, у второго {candidates[1].density.toFixed(2)} пикселя файла на CSS-пиксель. Браузер вправе учитывать и другие условия.</desc>
+      {candidates.map((candidate, index) => {
+        const x = 20 + index * 390;
+        const selected = candidate.url === result.pick;
+        const columns = index ? 16 : 8;
+        return <g>
+          <text class="ssf-name" x={x} y="28">{candidate.url}</text>
+          <rect class="ssf-sky" x={x} y="52" width="330" height="180" rx="12" />
+          <circle class="ssf-sun" cx={x + 260} cy="95" r="22" />
+          <path class="ssf-hill" d={`M ${x} 180 L ${x + 90} 108 L ${x + 190} 185 L ${x + 250} 145 L ${x + 330} 194 V 232 H ${x} Z`} />
+          {Array.from({ length: columns - 1 }, (_, i) => <line class="ssf-grid" x1={x + (i + 1) * 330 / columns} x2={x + (i + 1) * 330 / columns} y1="52" y2="232" />)}
+          {Array.from({ length: columns / 2 - 1 }, (_, i) => <line class="ssf-grid" x1={x} x2={x + 330} y1={52 + (i + 1) * 180 / (columns / 2)} y2={52 + (i + 1) * 180 / (columns / 2)} />)}
+          <text class="ssf-density" x={x} y="264">Плотность: {candidate.density.toFixed(2)}x</text>
+          <rect class={selected ? 'ssf-choice' : 'ssf-reject'} x={x} y="282" width="330" height="44" rx="10" />
+          <text class="ssf-result" x={x + 165} y="311" text-anchor="middle">{selected ? 'Выбран моделью: ≥ 2x' : 'Меньше плотности экрана 2x'}</text>
+        </g>;
+      })}
+    </svg>
+  </div>
+  <p>Это расчёт по исходнику ниже и условиям стенда Chromium 153. Стандарт оставляет окончательный выбор браузеру: кеш, сеть и экономия трафика могут изменить результат.</p>
+</figure>
+
+<style>
+  .ssf { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); background: var(--surface); box-shadow: var(--shadow-card); }
+  .ssf figcaption { font-size: var(--fs-7); font-weight: 600; line-height: 1.45; color: var(--ink); }
+  .ssf p { margin: 12px 0 0; font-size: var(--fs-5); line-height: 1.6; color: var(--text-muted); }
+  .ssf-scroll { overflow-x: auto; margin-top: 16px; }
+  .ssf svg { display: block; width: 100%; min-width: 760px; fill: none; }
+  .ssf-name { fill: var(--ink); font-family: var(--mono); font-size: var(--fs-5); }
+  .ssf-density, .ssf-result { fill: var(--prose); font-size: var(--fs-5); }
+  .ssf-sky { fill: var(--tone-info-bg); stroke: var(--tone-info-line); }
+  .ssf-sun { fill: var(--tone-warn-bg); stroke: var(--tone-warn-line); }
+  .ssf-hill { fill: var(--tone-ok-bg); stroke: var(--tone-ok-line); }
+  .ssf-grid { stroke: var(--border-strong); stroke-width: .6; }
+  .ssf-choice { fill: var(--tone-ok-bg); stroke: var(--tone-ok-line); }
+  .ssf-reject { fill: var(--surface-2); stroke: var(--border-strong); }
+</style>

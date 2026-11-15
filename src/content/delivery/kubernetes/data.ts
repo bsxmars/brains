@@ -1,4 +1,5 @@
-import type { GlossaryTerm, Pitfall, Prereq } from '@/entities/lesson';
+import { endpointRows, type EndpointExample } from '@/widgets/kubernetes-service-diagram/model/endpoints';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { RolloutParams, StrategyPreset } from '@/widgets/rollout-timeline/model/types';
 
 /**
@@ -300,8 +301,8 @@ spec:
       targetPort: 80       # на какой порт пода слать`;
 
 export const SERVICE_STEPS = [
-  'Контроллер EndpointSlice ищет поды, чьи метки совпадают с `selector` сервиса. Больше он ни на что не смотрит.',
-  'Из найденных он берёт готовые — у них условие `Ready` истинно (его выставляет readiness-проба, см. раздел [«Пробы»](#s3)) — и записывает их адреса в EndpointSlice.',
+  'Контроллер EndpointSlice находит подходящие по selector поды и отражает их адреса вместе с условиями ready, serving и terminating.',
+  'Неготовый под может оставаться в EndpointSlice с ready: false. Обычная пересылка сервисного трафика использует готовые адреса; сам факт наличия адреса ещё не разрешает трафик.',
   'kube-proxy (или сетевой плагин CNI) на каждом узле превращает этот список в правила пересылки: пакет, отправленный на адрес сервиса, уходит на один из адресов списка.',
   'Клиент внутри кластера обращается по имени: DNS кластера превращает `http://web` в адрес сервиса.',
 ];
@@ -912,19 +913,19 @@ export const ENDPOINT_MEASURE = {
 };
 
 export const ENDPOINT_NOTE =
-  'Шестьдесят миллисекунд — цена шага, которого обычно нет на схемах. «Под готов» и «на под идут запросы» — **разные события**. Между ними работает отдельный контроллер: он замечает, что под готов, и дописывает его адрес в `EndpointSlice`. На спокойном кластере это десятки миллисекунд, заметить их трудно. На нагруженном — с сотнями подов и занятым API-сервером — этот шаг растягивается. Тогда выкат уже «прошёл», а часть запросов ещё какое-то время идёт в старые поды. Здесь важна не величина, а то, что она повторяется: два прогона дали 63 и 67 мс. Это **постоянная цена механизма**, а не случайный выброс.';
+  'Шестьдесят миллисекунд — цена шага, которого обычно нет на схемах. «Под готов» и «на под идут запросы» — **разные события**. Между ними работает отдельный контроллер: он замечает, что под готов, и обновляет условия его адреса в `EndpointSlice`. На спокойном кластере это десятки миллисекунд, заметить их трудно. На нагруженном — с сотнями подов и занятым API-сервером — этот шаг растягивается. Тогда выкат уже «прошёл», а часть запросов ещё какое-то время идёт в старые поды. Здесь важна не величина, а то, что она повторяется: два прогона дали 63 и 67 мс. Это наблюдавшаяся задержка распространения состояния, а не гарантированная фиксированная цена.';
 
 /** Остановка пода: собрано из прежних `ENDPOINT_PRACTICE` и тонкого места 05. */
 export const TERMINATION_STEPS = [
   'Под помечают на удаление. С этого момента одновременно и **независимо** запускаются две цепочки.',
   'Первая: kubelet на узле выполняет `preStop` (если он задан), а затем посылает главному процессу контейнера `SIGTERM`.',
-  'Вторая: контроллер убирает адрес пода из EndpointSlice, и kube-proxy на **каждом** узле переписывает правила пересылки. Эта цепочка длиннее — в замере из раздела [«Сервис»](#s2) только первый её шаг стоил 60 с лишним миллисекунд на спокойном кластере.',
+  'Вторая: контроллер помечает адрес пода в EndpointSlice как terminating, обычно с ready: false, и kube-proxy на **каждом** узле переписывает правила пересылки. Её порядок относительно SIGTERM не гарантирован. Замер из раздела [«Сервис»](#s2) иллюстрирует распространение готовности, а не длительность удаления.',
   'Пока вторая цепочка не дошла до конца, запросы продолжают приходить в под, который уже завершается. Если процесс к этому моменту закрыл порт — клиент получает отказ.',
   'Через `terminationGracePeriodSeconds` (по умолчанию 30 с, отсчёт — с начала `preStop`) всё, что ещё живо, получает `SIGKILL`.',
 ];
 
 export const TERMINATION_NOTE =
-  'Отсюда два лекарства, и нужны оба. **Пауза в `preStop`** (обычно 5–15 секунд, `sleep` или встроенное действие `sleep`) придерживает `SIGTERM`, пока списки адресов не обновятся на всех узлах: это не перестраховка, другого способа закрыть окно нет. **Обработчик `SIGTERM` в приложении** перестаёт принимать новые соединения и дообслуживает начатые — как его написать и почему Node первым процессом без него сигнала не услышит, разобрано в [разделе «Запуск: первый процесс и сигналы»](/delivery/docker/#s6) темы про Docker. Пауза плюс время на дообслуживание должны уложиться в grace-период, иначе `SIGKILL` оборвёт и то, и другое. В прогоне A этой темы grace-период был 2 с без паузы — отсюда три отказа на завершающихся подах.';
+  'Отсюда два лекарства, и нужны оба. **Пауза в `preStop`** (обычно 5–15 секунд, `sleep` или встроенное действие `sleep`) придерживает `SIGTERM`, пока списки адресов не обновятся на всех узлах: это не перестраховка, это даёт время распространить состояние, но фиксированная пауза не является подтверждением обновления всех узлов. **Обработчик `SIGTERM` в приложении** перестаёт принимать новые соединения и дообслуживает начатые — как его написать и почему для Node первым процессом нужен обработчик корректного завершения, разобрано в [разделе «Запуск: первый процесс и сигналы»](/delivery/docker/#s6) темы про Docker. Пауза плюс время на дообслуживание должны уложиться в grace-период, иначе `SIGKILL` оборвёт и то, и другое. В прогоне A этой темы grace-период был 2 с без паузы — отсюда три отказа на завершающихся подах.';
 
 /* ──────────────────── Раздел 0 · перед началом ──────────────────── */
 
@@ -1086,18 +1087,35 @@ export const RELATED =
  * (`SERVICE_CODE`) и поды Deployment `web` (`MANIFEST_CODE`). Мысль схемы — из `SERVICE_WHY`:
  * сам сервис запросы не пересылает, в пути запроса он только адрес.
  */
+/** Условия API, а не результат запроса к работающему кластеру. */
+export const ENDPOINT_EXAMPLE: EndpointExample[] = [
+  { address: '10.0.0.10', pod: 'web-a', ready: true, serving: true, terminating: false },
+  { address: '10.0.0.11', pod: 'web-b', ready: false, serving: false, terminating: false },
+  { address: '10.0.0.12', pod: 'web-c', ready: false, serving: true, terminating: true },
+];
+
+export const ENDPOINT_CONDITIONS_CODE = JSON.stringify({
+  apiVersion: 'discovery.k8s.io/v1', kind: 'EndpointSlice',
+  metadata: { name: 'web-example', labels: { 'kubernetes.io/service-name': 'web' } },
+  addressType: 'IPv4', ports: [{ name: 'http', protocol: 'TCP', port: 80 }],
+  endpoints: ENDPOINT_EXAMPLE.map(({ address, pod, ready, serving, terminating }) => ({
+    addresses: [address], targetRef: { kind: 'Pod', name: pod },
+    conditions: { ready, serving, terminating },
+  })),
+}, null, 2);
+
 export const SERVICE_DIAGRAM = {
   title: 'Кто ведёт список адресов и кто везёт запрос',
   caption:
-    'Список адресов собирают контроллер и kube-proxy заранее, а запрос идёт мимо них: сервис для него — только адрес, пересылку делают правила на узле.',
+    'EndpointSlice хранит и адрес, и условия. В схеме три адреса остаются в объекте, но для обычного трафика готов только один. Специальные режимы, включая publishNotReadyAddresses и обслуживание завершающихся endpoints, требуют отдельной политики.',
   lanes: [
     {
       k: 'список адресов',
       nodes: [
         { t: 'сервис `web`', s: '`selector: { app: web }`', tone: 'ink' },
-        { t: 'контроллер EndpointSlice', s: 'метки совпали **и** под `Ready`', tone: 'info' },
-        { t: 'EndpointSlice', s: 'адреса только готовых подов', tone: 'info' },
-        { t: 'kube-proxy или CNI', s: 'на **каждом** узле', tone: 'info' },
+        { t: 'контроллер EndpointSlice', s: 'метки → адреса и условия', tone: 'info' },
+        { t: 'EndpointSlice', s: '3 адреса; ready=true только у 1', tone: 'info' },
+        { t: 'kube-proxy или CNI', s: 'готовность → правила пересылки', tone: 'info' },
       ],
     },
     {
@@ -1107,11 +1125,7 @@ export const SERVICE_DIAGRAM = {
         { t: 'DNS кластера', s: 'имя → адрес сервиса', tone: 'dim' },
         { t: 'правила пересылки', s: 'на узле клиента', tone: 'info' },
       ],
-      pods: [
-        { t: 'под `app: web` · `Ready`', ok: true },
-        { t: 'под `app: web` · `Ready`', ok: true },
-        { t: 'под `app: web` · не готов', ok: false },
-      ],
+      pods: endpointRows(ENDPOINT_EXAMPLE),
     },
   ],
 };
@@ -1130,8 +1144,8 @@ export const TERMINATION_DIAGRAM = {
   title: 'Удаление пода: две цепочки наперегонки',
   start: 'под помечен на удаление',
   caption:
-    'Обе цепочки стартуют в один момент; пока вторая не дошла до конца, запросы идут в под — и без паузы в `preStop` они попадают в уже закрытый порт.',
-  foot: 'Паузу, дообслуживание и выход процесса обязан вместить `terminationGracePeriodSeconds` (отсчёт — с начала `preStop`); что живо после него, получает `SIGKILL`.',
+    'Возможная гонка, а не гарантированное расписание: kubelet и распространение условий EndpointSlice идут независимо. Если порт закрыт раньше обновления пути трафика, запрос получает отказ.',
+  foot: 'Фиксированная пауза не доказывает, что все пути трафика обновились. Паузу, дообслуживание и выход процесса обязан вместить `terminationGracePeriodSeconds` (отсчёт — с начала `preStop`); что живо после него, получает `SIGKILL`.',
   variants: [
     {
       k: 'без паузы в `preStop`',
@@ -1147,7 +1161,7 @@ export const TERMINATION_DIAGRAM = {
         {
           k: 'список адресов',
           cells: [
-            { t: 'адрес убирают из EndpointSlice', from: 1, to: 4, tone: 'info' },
+            { t: 'EndpointSlice: terminating=true, ready=false', from: 1, to: 4, tone: 'info' },
             { t: 'kube-proxy переписывает правила на каждом узле', from: 4, to: 7, tone: 'info' },
           ],
         },
@@ -1161,7 +1175,7 @@ export const TERMINATION_DIAGRAM = {
       ],
     },
     {
-      k: 'с паузой в `preStop`',
+      k: 'пауза достаточна в показанном сценарии',
       bad: false,
       lanes: [
         {
@@ -1174,7 +1188,7 @@ export const TERMINATION_DIAGRAM = {
         {
           k: 'список адресов',
           cells: [
-            { t: 'адрес убирают из EndpointSlice', from: 1, to: 4, tone: 'info' },
+            { t: 'EndpointSlice: terminating=true, ready=false', from: 1, to: 4, tone: 'info' },
             { t: 'kube-proxy переписывает правила на каждом узле', from: 4, to: 6, tone: 'info' },
           ],
         },
@@ -1189,3 +1203,8 @@ export const TERMINATION_DIAGRAM = {
     },
   ],
 };
+
+export const VERIFICATION_SOURCES: Source[] = [
+  { title: 'Kubernetes: EndpointSlices — Conditions', href: 'https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/#conditions', what: 'ready, serving, terminating; неготовый адрес может присутствовать в EndpointSlice' },
+  { title: 'Kubernetes: Pod Lifecycle — termination', href: 'https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination', what: 'параллельность завершения kubelet и изменения EndpointSlice; условия завершающегося endpoint' },
+];

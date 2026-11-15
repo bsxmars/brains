@@ -2,7 +2,7 @@
 title: "SSR и гидратация: React и Vue"
 order: 7
 kicker: фреймворки изнутри
-lead: "Сервер присылает готовую разметку, а браузер её оживляет: фреймворк не создаёт узлы заново, а берёт себе те, что уже лежат в документе. React и Vue по-разному поступают, когда разметка сервера и браузера разошлась: React перерисовывает поддерево целиком, Vue исправляет отдельный узел, а расхождение в атрибуте не исправляет ни тот, ни другой."
+lead: "Сервер присылает HTML, и содержимое страницы можно увидеть до запуска компонентов в браузере. Гидратация связывает готовые DOM-узлы с клиентским деревом и обработчиками. Если деревья расходятся, React может пересоздать содержимое границы, а Vue исправляет узлы на месте; поведение зависит от вида расхождения."
 summary: "Что приходит в HTML, какие узлы гидратация забирает и какие выбрасывает, чем React 19 и Vue 3.5 отвечают на несовпадение, стриминг, выборочная и ленивая гидратация."
 verifiedOn: React 19.3 · Vue 3.5.42 · Node 26.8 · Chromium (Playwright 1.63)
 nav:
@@ -17,6 +17,8 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -31,6 +33,8 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SsrLab from '@/widgets/ssr-hydration/ui/SsrLab.vue';
 import {
   CAUSES,
+  HYDRATION_DIAGRAM,
+  HYDRATION_PROPERTY_NOTE,
   COST,
   DEMO_FOOT,
   DEMO_NOTE,
@@ -90,7 +94,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Что отдаёт сервер"
-  lead="Серверный рендер — это тот же код компонентов, выполненный в Node, и результат у него один: **строка HTML**. Никаких обработчиков, состояния или ссылок на узлы в ней нет — только разметка и несколько служебных комментариев."
+  lead="Сервер выполняет компоненты и формирует HTML: в примере renderToString возвращает строку, потоковый API отправляет её частями. Значения состояния могут отразиться в тексте и атрибутах, но замыкания обработчиков и экземпляры компонентов через HTML не переносятся."
 >
   <Plain text={PLAIN_SSR} />
 
@@ -126,6 +130,8 @@ import {
     </Card>
   </CardGrid>
 
+  <Disclosure title="Служебные маркеры в HTML React и Vue">
+
   <Table
     head={MARKERS.head}
     rows={MARKERS.rows}
@@ -135,6 +141,8 @@ import {
   />
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SERVER_SKIP_NOTE} />
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -145,6 +153,10 @@ import {
   lead="Гидратация — это первый рендер, у которого узлы уже есть. Фреймворк проходит своё дерево, на каждом шаге берёт **следующий узел документа** и проверяет, тот ли это узел. Совпал — забирает его и вешает обработчики."
 >
   <Plain text={PLAIN_HYDRATION} />
+
+  <ConceptDiagram data={HYDRATION_DIAGRAM} />
+
+  <Disclosure title="Журнал вызовов во время гидратации">
 
   ### В каком порядке всё вызывается
 
@@ -163,6 +175,8 @@ import {
   <Callout size={17} lh={1.55} pad="20px 22px">
     <Md text={HYDRATE_ORDER_NOTE} />
   </Callout>
+
+  </Disclosure>
 
   ### Демо: сервер отдал — гидратация
 
@@ -231,6 +245,10 @@ import {
     minWidth={MISMATCH_TABLE.minWidth}
   />
 
+  <Md text={HYDRATION_PROPERTY_NOTE} />
+
+  <Disclosure title="Диагностика несовпадений и подавление предупреждений">
+
   ### Что пишут отладочные сборки
 
   <Table
@@ -266,6 +284,8 @@ import {
   />
 
   <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={SILENCE_NOTE} />
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -280,6 +300,8 @@ import {
 
   <CodeBlock code={STREAM_REACT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
+  <Disclosure title="Маркеры и вставка досланного HTML React">
+
   <Card label="первый кусок ответа — дословно" labelSize={12.5} pad={16} radius={4} gap={9}>
     <CodeBlock code={STREAM_REACT_SHELL} tone="ok" size={11.5} lh={1.7} pad="12px 14px" />
   </Card>
@@ -289,6 +311,8 @@ import {
   </Card>
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={STREAM_TO_STRING_NOTE} />
+
+  </Disclosure>
 
   ### Vue: поток по порядку
 
@@ -375,7 +399,6 @@ import {
   id="s8"
   eyebrow="Раздел 8"
   title="Источники"
-  lead="Документация обеих библиотек и исходники там, где тема опирается на чтение кода, а не на прогон."
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

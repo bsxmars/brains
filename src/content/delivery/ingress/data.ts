@@ -584,7 +584,7 @@ export const ROUTE_ORDER = [
 ];
 
 export const ROUTE_ORDER_NOTE =
-  'Сравните с Ingress: там первым идёт **длина** пути, а `Exact` решает только при равной длине. На практике разница всплывает на завершающем слэше: `Prefix /foo/` против `Exact /foo` на запросе `/foo` в Ingress выигрывает префикс (он на символ длиннее), в HTTPRoute — `Exact`. И ещё одно правило, которого у Ingress нет: если к запросу не подошло ни одно правило, HTTPRoute обязан ответить **404** — в Ingress это решает контроллер.';
+  'Ingress отдаёт приоритет самому длинному совпавшему пути, затем Exact при равном совпадении; HTTPRoute явно ставит Exact перед префиксами. Завершающий слэш у Prefix не меняет совпадение. Не следует выводить из лишнего слэша преимущество: спецификация Ingress не описывает вычисление длины такой пары отдельно. Модель ниже нормализует Prefix перед ранжированием; это явная политика учебного кода, а не проверенное поведение всех контроллеров. Для переносимой конфигурации не создавайте спорную пару `/foo` и `/foo/` с разными бэкендами.';
 
 /**
  * Таблица примеров `ReplacePrefixMatch` из справочника Gateway API (`HTTPPathModifier`).
@@ -630,7 +630,7 @@ export const COMPARE = {
     ['Роли', 'один объект на всех: и сертификат, и маршруты', '`GatewayClass` — `Gateway` — `HTTPRoute`, у каждого свой владелец'],
     ['Условия совпадения', 'хост и путь', 'хост, путь, заголовки, параметры запроса, метод'],
     ['Веса, редирект, переписывание', 'аннотации конкретного контроллера', 'поля `weight` и `filters` спецификации'],
-    ['Протоколы', 'HTTP и HTTPS', 'ещё `GRPCRoute` (стабилен с v1.1); `TLSRoute`, `TCPRoute`, `UDPRoute` — в экспериментальном канале'],
+    ['Протоколы', 'HTTP и HTTPS', 'ещё `GRPCRoute` (стабилен с v1.1); `TLSRoute` — Standard с v1.5; `TCPRoute` и `UDPRoute` — Standard с v1.6; проверено на CRD v1.7.0'],
     ['Прицепился ли маршрут', 'не видно: у объекта есть только адрес', 'в `status.parents` — условия `Accepted` и `ResolvedRefs` с причиной отказа'],
     ['Между пространствами имён', 'бэкенд — только из своего пространства', 'можно, но с явным разрешением — `ReferenceGrant` в пространстве бэкенда'],
     ['Развитие', 'API заморожен: новых возможностей не будет', 'развивается; новые возможности сначала появляются в экспериментальном канале'],
@@ -755,18 +755,25 @@ function routeIngress(spec, req) {
     why.push(c('ImplementationSpecific') + ' сравнивает контроллер, модель такие пути пропускает');
   }
 
-  // Совпало несколько — выигрывает самый длинный путь; при равной длине Exact сильнее Prefix.
+  // Prefix не различает завершающий слэш. Учебная политика ранжирует его
+  // по нормализованной длине; это не замер конкретного Ingress-контроллера.
+  const pathLength = (hit) => {
+    let value = hit.value;
+    if (hit.type === 'Prefix') while (value.length > 1 && value.endsWith('/')) value = value.slice(0, -1);
+    return value.length;
+  };
+  // Совпало несколько — длинный путь; при равной нормализованной длине Exact сильнее.
   const hits = checked
     .filter((x) => x.ok === true)
-    .sort((a, b) => b.value.length - a.value.length || (b.type === 'Exact') - (a.type === 'Exact'));
+    .sort((a, b) => pathLength(b) - pathLength(a) || (b.type === 'Exact') - (a.type === 'Exact'));
 
   if (hits.length > 0) {
     const win = hits[0];
     why.push('совпали: ' + hits.map((x) => c(x.value) + ' ' + x.type).join(', '));
     if (hits.length > 1) {
       const next = hits[1];
-      if (next.value.length < win.value.length) why.push('выигрывает самый длинный путь — ' + c(win.value));
-      else if (win.type === 'Exact' && next.type === 'Prefix') why.push('длина равна — ' + c('Exact') + ' сильнее ' + c('Prefix'));
+      if (pathLength(next) < pathLength(win)) why.push('выигрывает самый длинный путь — ' + c(win.value));
+      else if (win.type === 'Exact' && next.type === 'Prefix') why.push('нормализованная длина равна — ' + c('Exact') + ' сильнее ' + c('Prefix'));
       else why.push('пути равны — взят первый по порядку (спецификация здесь молчит)');
     }
     return { kind: 'backend', backend: win.backend, via: win, checked, why };
@@ -1322,7 +1329,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '09',
     t: '`Exact` в Gateway API сильнее более длинного префикса',
-    d: 'В Ingress первым решает длина пути, а `Exact` выигрывает лишь при равной длине. В HTTPRoute `Exact` стоит выше любого `PathPrefix`. Расходятся они на краю — `PathPrefix /foo/` против `Exact /foo` на запросе `/foo`, — и это тот случай, который всплывает после переезда.',
+    d: 'В Ingress первым решает длина пути, а `Exact` выигрывает лишь при равной длине. В HTTPRoute `Exact` стоит выше любого `PathPrefix`. Пара Prefix /foo/ и Exact /foo неоднозначна для переноса: модель нормализует префикс, но не доказывает поведение конкретного контроллера. Дополнительный слэш не стоит использовать как способ управлять приоритетом.',
     tone: 'warn',
   },
   {
@@ -1344,6 +1351,10 @@ export const PITFALLS: Pitfall[] = [
 // ─────────────────────────────────────────────────────────────────────────────────────
 
 export const SOURCES: Source[] = [
+  { title: 'Gateway API v1.6.0: TCPRoute и UDPRoute GA', href: 'https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.0', what: 'TCPRoute и UDPRoute перешли в v1 / Standard; это канал API, не обещание поддержки каждой реализацией' },
+  { title: 'Gateway API v1.5.0: TLSRoute graduated', href: 'https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.0', what: 'TLSRoute v1 перешёл в Standard; v1alpha2 в v1.5 оставался только в Experimental' },
+  { title: 'Gateway API v1.7.0: Standard TLSRoute CRD', href: 'https://github.com/kubernetes-sigs/gateway-api/blob/v1.7.0/config/crd/standard/gateway.networking.k8s.io_tlsroutes.yaml', what: 'Проверенный ноябрём 2026 снимок канала standard; это версия API, а не обещание поддержки каждым контроллером' },
+
   {
     title: 'Kubernetes: Ingress',
     href: 'https://kubernetes.io/docs/concepts/services-networking/ingress/',
@@ -1423,7 +1434,7 @@ export const MATCH_SCENE: string[] = [
 export const MATCH_WALK: { k: string; ingress: string; gateway: string }[] = [
   {
     k: '`/foo`',
-    ingress: 'совпали `Exact /foo` и `Prefix /foo/` (хвостовой слэш у префикса не мешает), и ещё `Prefix /`. Первым решает **длина**: `/foo/` на символ длиннее `/foo` — выигрывает `prefix`',
+    ingress: 'совпали Exact /foo, Prefix /foo/ и Prefix /. В учебной нормализации слэш префикса убран перед сравнением длины: точное правило выигрывает. Контроллер с иной обработкой этой неоднозначной пары требует отдельной проверки',
     gateway: 'совпали те же три. Первым решает **вид**: `Exact` сильнее любого префикса, даже более длинного, — выигрывает `exact`',
   },
   {
@@ -1439,7 +1450,7 @@ export const MATCH_WALK: { k: string; ingress: string; gateway: string }[] = [
 ];
 
 export const MATCH_FOOT =
-  'Расходятся спецификации только на первом запросе — там, где точное правило короче префиксного. Поэтому, переводя правила с Ingress на HTTPRoute, стоит искать пары «`Exact` и префикс со слэшем на конце»: остальное поедет туда же.';
+  'На обычных вложенных путях результаты совпадают. Пара Exact /foo и Prefix /foo/ служит проверкой границы модели: она не доказывает переносимость неоднозначной конфигурации между реализациями. При миграции проверяют фактические маршруты и контроллер, а не только сходство YAML.';
 
 /** Продолжение `PLAIN_PREFIX` — тот же почтальон, два начальника с разными инструкциями. */
 export const PLAIN_MATCH =
@@ -1547,4 +1558,9 @@ export const ROLES_DIAGRAM = {
     },
   ],
   links: ['`gatewayClassName: shared`', '`parentRefs: public`, `sectionName: https`'],
+  checks: [
+    { t: 'Accepted', d: 'Маршрут принят этим родителем; проверяют observedGeneration и причину отказа.' },
+    { t: 'ResolvedRefs', d: 'Ссылки на сервисы и Secret разрешены. Это ещё не проверка ответа приложения.' },
+    { t: 'Programmed у Gateway', d: 'Контроллер сообщил о программировании инфраструктуры. Фактический HTTP-запрос проверяют отдельно.' },
+  ],
 };

@@ -4,11 +4,14 @@ import {
   ADD_HOST_CODE,
   ADD_REFERENCE,
   ADD_WGSL,
+  CHOOSE_ROWS,
+  ENCODE_FACTS,
   GLOSSARY,
   GPU_PRESETS,
   HISTOGRAM_REFERENCE,
   HISTOGRAM_WGSL,
   PITFALLS,
+  PLAIN_MODEL,
   PREREQ,
   RACE_WGSL,
   RELATED,
@@ -237,5 +240,88 @@ describe('гонка без атомиков: подпись не спорит �
     expect(mdx).toContain('сумма по корзинам у вас будет меньше верной — на видеокарте в сотни раз.');
     expect(65_536 / 47_283).toBeLessThan(2);
     expect(65_536 / 364).toBeGreaterThan(100);
+  });
+});
+
+
+describe('подготовка WebGPU не отменяет валидацию команд', () => {
+  it('объяснение не обещает проверку только при создании конвейера', () => {
+    // WebGPU GPUQueue.submit валидирует командные буферы и ресурсы при отправке.
+    const fact = ENCODE_FACTS.find((item) => item.t === 'Какая работа переносится в подготовку')!;
+    expect(fact.d).toContain('проверки остаются при записи команд и при `submit`');
+    expect(fact.d).not.toContain('проверять нечего');
+  });
+});
+
+
+describe('полный пример освобождает собственное устройство', () => {
+  const usages = { STORAGE: 1, COPY_DST: 2, COPY_SRC: 4, MAP_READ: 8 };
+  const compile = (navigator: unknown) => new Function(
+    'navigator', 'GPUBufferUsage', 'GPUShaderStage', 'GPUMapMode', 'ADD_WGSL',
+    `${ADD_HOST_CODE}\nreturn addOnGpu;`,
+  )(navigator, usages, { COMPUTE: 1 }, { READ: 1 }, ADD_WGSL) as (a: Uint32Array, b: Uint32Array) => Promise<Uint32Array | null>;
+
+  it('без API и с пустым входом не пытается создать устройство', async () => {
+    const add = compile({});
+    expect(await add(new Uint32Array([1]), new Uint32Array([2]))).toBeNull();
+    expect(await add(new Uint32Array(), new Uint32Array())).toEqual(new Uint32Array());
+    await expect(add(new Uint32Array([1]), new Uint32Array())).rejects.toBeInstanceOf(RangeError);
+  });
+
+  function fakeDevice(failure?: Error) {
+    let destroyed = false;
+    const range = new Uint32Array([3, 5]);
+    const readback = {
+      async mapAsync() { if (failure) throw failure; },
+      getMappedRange: () => range.buffer,
+      unmap: () => range.fill(0),
+    };
+    const pass = { setPipeline() {}, setBindGroup() {}, dispatchWorkgroups() {}, end() {} };
+    const device = {
+      queue: { writeBuffer() {}, submit() {} },
+      createBuffer: (options: { usage: number }) => options.usage & usages.MAP_READ ? readback : {},
+      createBindGroupLayout: () => ({}),
+      createPipelineLayout: () => ({}),
+      createShaderModule: () => ({}),
+      createComputePipeline: () => ({}),
+      createBindGroup: () => ({}),
+      createCommandEncoder: () => ({ beginComputePass: () => pass, copyBufferToBuffer() {}, finish: () => ({}) }),
+      destroy() { destroyed = true; },
+    };
+    return { navigator: { gpu: { requestAdapter: async () => ({ requestDevice: async () => device }) } }, isDestroyed: () => destroyed };
+  }
+
+  it('отказ mapAsync не оставляет созданное устройство жить', async () => {
+    const failure = new Error('устройство потеряно');
+    const fake = fakeDevice(failure);
+    await expect(compile(fake.navigator)(new Uint32Array([1, 2]), new Uint32Array([2, 3]))).rejects.toBe(failure);
+    expect(fake.isDestroyed()).toBe(true);
+  });
+
+  it('ответ копируется до unmap и сохраняется после очистки', async () => {
+    const fake = fakeDevice();
+    const answer = await compile(fake.navigator)(new Uint32Array([1, 2]), new Uint32Array([2, 3]));
+    expect(answer).toEqual(new Uint32Array([3, 5]));
+    expect(fake.isDestroyed()).toBe(true);
+  });
+});
+
+
+describe('объяснение WebGPU сохраняет валидацию после подготовки', () => {
+  it('аналогия, комментарий и выбор API не обещают единственную проверку', () => {
+    expect(PLAIN_MODEL).toContain('При записи поручений и передаче их на исполнение проверки всё равно остаются');
+    expect(ADD_HOST_CODE).toContain('команды и отправка проверяются отдельно');
+    const choice = CHOOSE_ROWS.rows.find((row) => row[1] === 'WebGPU')!;
+    expect(choice[2]).toContain('при записи и отправке остаются свои проверки');
+    const mdx = readFileSync('src/content/render/webgpu/index.mdx', 'utf8');
+    expect(mdx).not.toContain('всё, на что команды ссылаются, создано и проверено заранее');
+  });
+
+  it('описание учитывает три storage-буфера и отдельный readback', () => {
+    // Три привязки шейдера не включают readback: его использование — MAP_READ | COPY_DST.
+    const mdx = readFileSync('src/content/render/webgpu/index.mdx', 'utf8');
+    expect(mdx).toContain('три storage-буфера');
+    expect(mdx).toContain('Четвёртый буфер —');
+    expect(ADD_HOST_CODE).toContain('const readback = device.createBuffer');
   });
 });

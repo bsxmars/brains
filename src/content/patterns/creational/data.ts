@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
@@ -28,6 +29,8 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  *     их читает, бросает `TypeError`;
  *   — модуль выполняется один раз **на адрес**: `?v=2` даёт второй экземпляр;
  *   — две копии пакета в `node_modules` — два «одиночки»; `Symbol.for` на `globalThis` сводит их.
+ * node:vm-сторож: одинаковый Symbol.for не объединяет значения разных globalThis в одном процессе.
+ * Практика: область запроса не разделяет модель пользователя; один scope кеширует её, следующий читает заново — проверяется PRACTICE_CODE в том же тесте.
  */
 
 /* ──────────────────── Вводный раздел · словарь ──────────────────── */
@@ -559,7 +562,7 @@ export const DUPLICATE_FILES: { path: string; code: string }[] = [
 export class Cache {}
 export const cache = new Map();
 
-const KEY = Symbol.for('cache-lib.shared');      // ключ общий для всего процесса
+const KEY = Symbol.for('cache-lib.shared');      // общий ключ для копий в этом агенте
 export const shared = (globalThis[KEY] ??= new Map());`,
   },
   {
@@ -598,8 +601,8 @@ export const SSR_LEAK_OUT = ['Аня видит профиль Борис / Бо
 
 export const SINGLETON_NOTES: string[] = [
   '**`private constructor` — запрет компилятора, а не движка.** `new MyMap()` в TypeScript — `ts(2673)`, а в `.js` слова `private` нет, и `new` создаёт второй экземпляр. Защищать одиночку от `new` в JS незачем: проще не давать классу выйти из модуля и экспортировать готовый экземпляр.',
-  '**Модуль — одиночка, который язык даёт бесплатно.** `export const policies = new Map()` выполняется один раз, второй `import` получает тот же объект, но `policies.mjs выполнен` напечатано дважды. Модуль кешируется **по адресу**, а `?v=2` — другой адрес, поэтому файл выполнен второй раз и карта новая. Ровно так HMR подменяет модуль: добавляет к адресу метку, и всё состояние модуля начинается с нуля (тема [HMR, раздел «Граф и метка в адресе»](/tooling/hmr/#s1)).',
-  '**Две копии пакета — два одиночки и два класса.** Если пакетный менеджер положил `cache-lib` дважды — потому что `widgets` и `charts` требуют несовместимых версий, — каждая копия выполнится отдельно. Карт две, и `instanceof` между копиями отвечает `false`. Тот же эффект даёт пакет, который загрузили и как ESM, и как CommonJS, — это разобрано в теме [«Публикация пакетов», раздел «ESM и CJS»](/tooling/package-publishing/#s3). Библиотеки, которым нужен один экземпляр на процесс, кладут его в `globalThis` под ключом `Symbol.for(…)`: этот реестр символов общий для всех копий.',
+  '**Модуль — одиночка, который язык даёт бесплатно.** `export const policies = new Map()` выполняется один раз, второй `import` получает тот же объект, но `policies.mjs выполнен` напечатано дважды. Модуль кешируется **по адресу**, а `?v=2` — другой адрес, поэтому файл выполнен второй раз и карта новая. При таком обновлении HMR импортирует новый экземпляр модуля с меткой и повторно исполняет его код. Сохранение состояния возможно, если модуль предусмотрел перенос через dispose и import.meta.hot.data (тема [HMR, раздел «accept, dispose, invalidate»](/tooling/hmr/#s3)).',
+  '**Две копии пакета — два одиночки и два класса.** Если пакетный менеджер положил `cache-lib` дважды — потому что `widgets` и `charts` требуют несовместимых версий, — каждая копия выполнится отдельно. Карт две, и `instanceof` между копиями отвечает `false`. Тот же эффект даёт пакет, который загрузили и как ESM, и как CommonJS, — это разобрано в теме [«Публикация пакетов», раздел «ESM и CJS»](/tooling/package-publishing/#s3). Копии библиотеки внутри одного globalThis могут хранить общий экземпляр под ключом Symbol.for(…). Общий реестр даёт один символ даже разным realm в одном агенте, но их глобальные объекты различаются: node:vm в том же процессе получает отдельное значение по этому ключу. Это дедупликация в пределах одного глобального объекта, а не одиночка на весь процесс; worker тоже имеет своё состояние.',
   '**На сервере «одно на приложение» значит «одно на всех пользователей».** В браузере модуль живёт на одной вкладке одного человека. На сервере с SSR тот же модуль обслуживает все запросы сразу, и переменная модуля, куда запрос положил «текущего пользователя», видна соседнему запросу, пока первый ждёт базу. Аня получает профиль Бориса — без единой ошибки. Состояние запроса передают аргументом, держат в объекте запроса или в `AsyncLocalStorage` (тема [«Асинхронный контекст»](/js/async-context/)).',
 ];
 
@@ -649,6 +652,11 @@ export const PITFALLS: Pitfall[] = [
 /** ⚠️ Без разметки: `SourceList` печатает `title` и `what` как есть. */
 export const SOURCES: Source[] = [
   {
+    title: 'Node — vm: contextified objects',
+    href: 'https://nodejs.org/api/vm.html#what-does-it-mean-to-contextify-an-object',
+    what: 'у контекста собственный глобальный объект; один процесс не означает общий globalThis',
+  },
+  {
     title: 'patterns.dev — Design Patterns',
     href: 'https://www.patterns.dev/vanilla/',
     what: 'паттерны глазами JavaScript: модуль как одиночка, фабричные функции, прототип через Object.create',
@@ -687,3 +695,102 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Объектная модель](/js/object-model/) — прототип, `new` и `#`-поля, на которых держатся фабрика и копирование. [TypeScript на уровне типов, раздел «Классы»](/tooling/typescript/#s7) — что из классов стирается при сборке. [Внедрение зависимостей](/frameworks/dependency-injection/) — одиночки и фабрики, которые создаёт контейнер. [Модули и сборка](/tooling/modules/) — почему модуль выполняется один раз. [Замыкания](/js/closures/) — откуда у фабричной функции приватное состояние.';
+
+
+/** Практический пример: та же строка проверяется tsc и исполняется patterns-creational.test.ts. */
+export const PRACTICE_CODE = `type User = { id: string; name: string };
+type Database = { findUser(id: string): User };
+function createRequestScope(db: Database, userId: string) {
+  let current: User | undefined;
+  return {
+    // Фабрика лениво создаёт одну модель на запрос.
+    user() { return current ??= { ...db.findUser(userId) }; },
+  };
+}
+let reads = 0;
+const db: Database = {
+  findUser(id) { reads++; return { id, name: id === 'a' ? 'Анна' : 'Борис' }; },
+};
+const requestA = createRequestScope(db, 'a');
+const requestB = createRequestScope(db, 'b');
+console.log(requestA.user() === requestA.user()); // одна модель внутри запроса
+requestA.user().name = 'Черновое имя';
+console.log(requestB.user().name);              // другой запрос не затронут
+const nextA = createRequestScope(db, 'a');
+console.log(nextA.user().name);                 // новый запрос, новая модель
+console.log(reads);`;
+export const PRACTICE_OUT = [true, "Борис", "Анна", 3];
+export const PRACTICE_DIAGRAM: ConceptDiagramData = {
+  "title": "Один процесс — две области запроса",
+  "description": "Соединение с базой передаётся обоим запросам. Модель пользователя создаётся и кешируется отдельно в каждой области; новая область не наследует черновые изменения.",
+  "width": 1000,
+  "height": 570,
+  "nodes": [
+    {
+      "id": "db",
+      "x": 370,
+      "y": 10,
+      "width": 260,
+      "height": 230,
+      "label": "Общая зависимость",
+      "detail": "db.findUser(id) читает данные. Фабрика не превращает соединение в состояние пользователя.",
+      "tone": "neutral"
+    },
+    {
+      "id": "a",
+      "x": 20,
+      "y": 330,
+      "width": 260,
+      "height": 230,
+      "label": "Запрос A: userId=a",
+      "detail": "Первый user() создаёт Анну. Второй возвращает тот же объект. Черновое имя живёт здесь.",
+      "tone": "info"
+    },
+    {
+      "id": "b",
+      "x": 720,
+      "y": 330,
+      "width": 260,
+      "height": 230,
+      "label": "Запрос B: userId=b",
+      "detail": "Отдельное замыкание создаёт Бориса. Изменение объекта A не меняет объект B.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "to": "a",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          500,
+          280
+        ],
+        [
+          150,
+          280
+        ]
+      ],
+      "from": "db"
+    },
+    {
+      "to": "b",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          500,
+          280
+        ],
+        [
+          850,
+          280
+        ]
+      ],
+      "from": "db"
+    }
+  ],
+  "note": "В примере три чтения: A, B и новый запрос A. Это область жизни модели, а не гарантия изоляции самой базы.",
+  "id": "patterns-creational-boundary"
+};

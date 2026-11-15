@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { FieldRun, InputScenario } from '@/widgets/input-lab/model/types';
 
@@ -670,7 +671,7 @@ export const IME_FACTS = [
   },
   {
     t: 'Отменить шаг набора нельзя',
-    d: '`beforeinput` у `insertCompositionText` неотменяемый. Фильтр «только цифры» через `preventDefault()` пропустит иероглифы: их нужно убирать после `compositionend`.',
+    d: '`beforeinput` у `insertCompositionText` неотменяемый. Фильтр «только цифры» через `preventDefault()` не остановит эту правку. Пока `isComposing` — `true`, не заменяйте черновой текст; проверяйте итог после `compositionend`.',
   },
   {
     t: 'Enter посреди набора — не отправка',
@@ -940,7 +941,7 @@ export const CE_ROWS = [
 ].map((r) => ({ ...r, html: '`' + r.html + '`' }));
 
 export const CE_NOTE =
-  'Внутри `contenteditable` правка — это изменение дерева DOM, и каждую из них браузер описывает тем же `beforeinput` с `inputType`. Отменить можно любую: и абзац, и жирный. `document.execCommand` — старый способ сделать то же из кода. Его спецификация так и не стала стандартом, MDN помечает его устаревшим, но Chromium 153 его исполняет и шлёт `input` — а `beforeinput` перед ним нет.';
+  'Внутри `contenteditable` правка — это изменение дерева DOM, и каждую из них браузер описывает тем же `beforeinput` с `inputType`. Абзац и форматирование в примерах отменяются. Но `beforeinput` при шаге IME (`insertCompositionText`) неотменяемый, в том числе в `contenteditable`: сначала проверяйте `event.cancelable`. `document.execCommand` — старый способ сделать то же из кода. Его спецификация так и не стала стандартом, MDN помечает его устаревшим, но Chromium 153 его исполняет и шлёт `input` — а `beforeinput` перед ним нет.';
 
 export const NO_FORMAT_CODE = `// Поле комментария: текст и переносы строк, без жирного и курсива.
 editor.addEventListener('beforeinput', (e) => {
@@ -1065,3 +1066,95 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Буфер обмена и перетаскивание](/js/clipboard-dnd/) — `navigator.clipboard`, подмена копируемого в `copy`, картинка из буфера файлом, `ClipboardItem` и свои форматы. [Формы во фреймворках](/frameworks/forms/) — `v-model`, контролируемые поля, IME и каретка в React и Vue. [События DOM](/render/dom-events/) — фазы, `preventDefault`, `isTrusted`. [Дерево доступности, раздел «Имя»](/render/accessibility-tree/#s4) — как подпись поля доходит до скринридера. [Passkeys, раздел «Синхронизация и автозаполнение»](/platform/passkeys/#s5) — `autocomplete="webauthn"`. [Хранилища браузера, раздел «localStorage и sessionStorage»](/platform/browser-storage/#s2) — где хранить черновик поля. [Debounce, throttle и token bucket](/algorithms/rate-limiting/) — один бюджет событий во времени: обёртки и ограничители. [Отмена и повтор](/algorithms/undo-redo/) — две стопки, снимки и обратные правки, группировка и история `<textarea>`.';
+
+
+/** Предметная схема: границы действий и доставки; числа взяты из примеров темы. */
+export const INPUT_EDIT_DIAGRAM: ConceptDiagramData = {
+  "id": "input-edit-boundary",
+  "title": "Отмена стоит перед изменением значения",
+  "description": "Одна обычная вставка «a» в пустое поле: две ветки от beforeinput. Только неотменённая ветка меняет value и создаёт input. IME и автозаполнение идут по другим правилам.",
+  "width": 720,
+  "height": 490,
+  "nodes": [
+    {
+      "id": "before",
+      "x": 20,
+      "y": 70,
+      "width": 300,
+      "height": 150,
+      "label": "beforeinput",
+      "detail": "value ещё пустое; data = «a». У этой правки cancelable = true.",
+      "tone": "info"
+    },
+    {
+      "id": "edit",
+      "x": 400,
+      "y": 70,
+      "width": 300,
+      "height": 150,
+      "label": "Браузер вставляет «a»",
+      "detail": "Меняются value и положение каретки. Это действие, а не ещё один слушатель.",
+      "tone": "ok"
+    },
+    {
+      "id": "cancel",
+      "x": 20,
+      "y": 320,
+      "width": 300,
+      "height": 150,
+      "label": "Правка отменена",
+      "detail": "value осталось пустым. Событие input для этой правки не приходит.",
+      "tone": "warn"
+    },
+    {
+      "id": "after",
+      "x": 400,
+      "y": 320,
+      "width": 300,
+      "height": 150,
+      "label": "input",
+      "detail": "value уже содержит «a». preventDefault не вернёт прежнее значение.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "from": "before",
+      "to": "edit",
+      "label": "пропустить",
+      "labelY": 35,
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [
+        [
+          170,
+          50
+        ],
+        [
+          550,
+          50
+        ]
+      ],
+      "labelX": 360
+    },
+    {
+      "from": "before",
+      "to": "cancel",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "preventDefault()",
+      "labelX": 170,
+      "labelY": 275
+    },
+    {
+      "from": "edit",
+      "to": "after",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "после правки",
+      "labelX": 550,
+      "labelY": 275
+    }
+  ],
+  "note": "Схема относится к обычному вводу символа. Для insertCompositionText cancelable = false; запись el.value из кода вообще не создаёт эту пару событий."
+};

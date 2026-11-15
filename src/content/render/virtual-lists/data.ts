@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { VlMode } from '@/widgets/vlist-lab/model/types';
 
@@ -641,3 +642,118 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Кадр браузера](/render/render-pipeline/#s3) — `contain` и `content-visibility`, принудительная раскладка. [Критический путь и Web Vitals](/render/rendering-crp/#s4) — INP: длинная задача построения списка бьёт по отклику. [Устройство браузера](/js/browser-architecture/#s0) — у DOM своя куча. [Ре-рендеринг в React](/frameworks/react-rerender/#s3) и [Vue 3 изнутри: рендерер и patch](/frameworks/vue-patch-internals/#s4) — ключи, по которым окно переиспользует узлы. [Прокрутка изнутри](/render/scrolling/) — липкие шапки, якорь прокрутки при догрузке сверху, snap и `scroll-padding`. [Пространственные индексы](/algorithms/spatial-index/) — сетка, quadtree и R-tree для попадания курсором и рамки. [Наблюдатели](/render/observers/) — когда срабатывают Intersection-, Resize- и MutationObserver и где браузеры расходятся со спецификацией.';
+
+
+/** Предметная схема: те же объекты и зависимости, что в примере темы. */
+export const WINDOW_PARTS_DIAGRAM: ConceptDiagramData = {
+  "id": "vlist-window-parts",
+  "title": "Полная высота сохраняется, полных строк в DOM нет",
+  "description": "Диапазон [start, end) включает запас вокруг видимой части. Высота перед ним и после него остаётся в DOM пустыми распорками: сумма трёх частей сохраняет полную длину прокрутки.",
+  "width": 840,
+  "height": 480,
+  "nodes": [
+    {
+      "id": "source",
+      "x": 0,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Все данные: count строк",
+      "detail": "Массив приложения содержит и видимые, и далёкие строки.",
+      "tone": "info"
+    },
+    {
+      "id": "range",
+      "x": 300,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "`scrollTop` → диапазон",
+      "detail": "Высота окна и строки определяют start и end; overscan расширяет границы.",
+      "tone": "info"
+    },
+    {
+      "id": "top",
+      "x": 600,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Верхняя распорка",
+      "detail": "`start × rowHeight`: пустое место строк перед окном.",
+      "tone": "neutral"
+    },
+    {
+      "id": "bottom",
+      "x": 0,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "Нижняя распорка",
+      "detail": "`(count − end) × rowHeight`: место строк после окна.",
+      "tone": "neutral"
+    },
+    {
+      "id": "rows",
+      "x": 300,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "Строки в DOM",
+      "detail": "Только индексы от start до end − 1. Поиск браузера видит лишь созданные узлы.",
+      "tone": "ok"
+    },
+    {
+      "id": "total",
+      "x": 600,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "Полоса прокрутки",
+      "detail": "Сумма высот распорок и строк равна `count × rowHeight`.",
+      "tone": "warn"
+    }
+  ],
+  "edges": [
+    {
+      "from": "source",
+      "to": "range"
+    },
+    {
+      "from": "range",
+      "to": "top"
+    },
+    {
+      "from": "range",
+      "to": "rows",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "range",
+      "to": "bottom",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          420,
+          240
+        ],
+        [
+          120,
+          240
+        ]
+      ]
+    },
+    {
+      "from": "rows",
+      "to": "total"
+    },
+    {
+      "from": "top",
+      "to": "total",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "note": "Распорки и строки — три части общей высоты, а не три массива данных. Формулы fixedRange относятся к одинаковой высоте; при разной высоте их заменяют префиксные суммы."
+};

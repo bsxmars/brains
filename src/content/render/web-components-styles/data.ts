@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { BoundaryRow, SdBase, SdRule } from '@/widgets/shadow-lab/model/types';
 
@@ -792,3 +793,107 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Каскад и вычисление стилей](/render/css-cascade/#s1) — полный порядок критериев, в котором граница компонента стоит вторым. [Там же о наследовании](/render/css-cascade/#s3) — `inherit`, `initial`, `unset`, `revert` на обычных элементах. [Переменные и инвалидация](/render/css-cascade/#s5) — почему смена одной переменной на хосте пересчитывает стиль всего поддерева. [SSR и гидратация](/frameworks/ssr-hydration/#s1) — что сервер отдаёт в HTML; декларативный корень — тот же приём для веб-компонентов. [События DOM](/render/dom-events/) — как событие проходит границу теневого дерева: подмена цели и `composed`.';
+
+
+/** Предметная схема: те же объекты и зависимости, что в примере темы. */
+export const SHADOW_PATHS_DIAGRAM: ConceptDiagramData = {
+  "id": "shadow-style-paths",
+  "title": "Три способа попасть к внутреннему элементу",
+  "description": "На сквозной карточке `.body` живёт в теневом дереве, а хост — в документе. Граница скрывает внутренний элемент от обычного селектора страницы, но не от явно открытых путей настройки.",
+  "width": 840,
+  "height": 480,
+  "nodes": [
+    {
+      "id": "selector",
+      "x": 0,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Селектор страницы",
+      "detail": "`.body` ищет узел в документе и не проходит внутрь shadow root.",
+      "tone": "err"
+    },
+    {
+      "id": "host",
+      "x": 300,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Хост `<sd-demo-card>`",
+      "detail": "Доступен странице. Получает наследуемые свойства и `--sd-accent`.",
+      "tone": "info"
+    },
+    {
+      "id": "body",
+      "x": 600,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Внутренний `.body`",
+      "detail": "Его собственный стиль читает `var(--sd-accent, …)`.",
+      "tone": "ok"
+    },
+    {
+      "id": "part",
+      "x": 0,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "`sd-demo-card::part(title)`",
+      "detail": "Явно открытое имя позволяет стилизовать заголовок без знания его класса.",
+      "tone": "info"
+    },
+    {
+      "id": "title",
+      "x": 300,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "`part=\"title\"`",
+      "detail": "Элемент внутри корня объявил доступное снаружи имя.",
+      "tone": "ok"
+    },
+    {
+      "id": "light",
+      "x": 600,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "Светлый DOM в `<slot>`",
+      "detail": "Остаётся частью документа. Обычные селекторы страницы продолжают его находить.",
+      "tone": "neutral"
+    }
+  ],
+  "edges": [
+    {
+      "from": "host",
+      "to": "body"
+    },
+    {
+      "from": "selector",
+      "to": "host",
+      "dashed": true
+    },
+    {
+      "from": "part",
+      "to": "title"
+    },
+    {
+      "from": "host",
+      "to": "light",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          420,
+          230
+        ],
+        [
+          720,
+          230
+        ]
+      ]
+    }
+  ],
+  "note": "Пунктир у обычного селектора означает остановку на границе. Наследование не перебивает внутреннее объявление: оно даёт значение только там, где это допускают правила свойства."
+};

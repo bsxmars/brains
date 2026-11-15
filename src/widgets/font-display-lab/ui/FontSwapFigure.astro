@@ -1,0 +1,60 @@
+---
+interface Row { k: string; pH: string; cta: string; cls: string }
+interface Props { rows: Row[] }
+const { rows } = Astro.props;
+const raw = rows.find((row) => row.k === 'как есть');
+const adjusted = rows.find((row) => row.k === 'ширина и высота');
+if (!raw || !adjusted) throw new Error('FontSwapFigure: нет измерений подмены шрифта');
+const pair = (value: string) => value.split(' → ').map(Number);
+const heights = pair(raw.pH);
+const buttons = pair(raw.cta);
+const states = [
+  { x: 20, name: 'До: запасной шрифт', lines: 7, height: heights[0], button: buttons[0] },
+  { x: 410, name: 'После: веб-шрифт', lines: 6, height: heights[1], button: buttons[1] },
+];
+---
+
+<figure class="fsf" data-render-illustration="font-swap">
+  <figcaption>Файл шрифта меняет геометрию текста</figcaption>
+  <p>В опыте колонка 360 px: после подмены строк стало меньше, и кнопка поднялась на {buttons[0] - buttons[1]} px. На схеме сохранены измеренные высоты и координаты; ширины условны.</p>
+  <div class="fsf-scroll">
+    <svg viewBox="0 0 760 370" role="img" aria-labelledby="fsf-title fsf-desc">
+      <title id="fsf-title">Положение кнопки до и после подмены Georgia на Newsreader</title>
+      <desc id="fsf-desc">Замер Chromium 153: высота абзаца {raw.pH} px, верх кнопки {raw.cta} px, CLS {raw.cls}. Полосы обозначают строки текста; их длины условны.</desc>
+      {states.map((state) => (
+        <g>
+          <text class="fsf-label" x={state.x} y="25">{state.name}</text>
+          <rect class="fsf-page" x={state.x} y="48" width="330" height="270" rx="14" />
+          <rect class="fsf-text" x={state.x + 18} y="72" width="294" height={state.height} rx="6" />
+          {Array.from({ length: state.lines }, (_, i) => (
+            <line class="fsf-line" x1={state.x + 30} x2={state.x + (i === state.lines - 1 ? 190 : 296)}
+              y1={82 + i * (state.height - 20) / (state.lines - 1)} y2={82 + i * (state.height - 20) / (state.lines - 1)} />
+          ))}
+          <rect class="fsf-button" x={state.x + 18} y={48 + state.button} width="140" height="32" rx="8" />
+          <text class="fsf-button-label" x={state.x + 88} y={70 + state.button} text-anchor="middle">Продолжить</text>
+          <text class="fsf-value" x={state.x} y="348">Верх кнопки: {state.button} px</text>
+        </g>
+      ))}
+      <path class="fsf-guide" d={`M 190 ${48 + buttons[0]} H 744 M 580 ${48 + buttons[1]} H 744`} />
+      <path class="fsf-arrow" d={`M 738 ${48 + buttons[0]} V ${48 + buttons[1]} l -5 8 m 5 -8 l 5 8`} />
+    </svg>
+  </div>
+  <p>После подгонки ширины и высоты запасного шрифта в этом же опыте: абзац {adjusted.pH} px, кнопка {adjusted.cta} px, CLS {adjusted.cls}. Для другого текста и размера подгонку проверяют снова.</p>
+</figure>
+
+<style>
+  .fsf { margin: 0; padding: 20px; min-width: 0; border-radius: var(--r3); background: var(--surface); box-shadow: var(--shadow-card); }
+  .fsf figcaption { font-size: var(--fs-7); font-weight: 600; line-height: 1.45; color: var(--ink); }
+  .fsf p { margin: 12px 0 0; font-size: var(--fs-5); line-height: 1.6; color: var(--text-muted); }
+  .fsf-scroll { overflow-x: auto; margin-top: 16px; }
+  .fsf svg { display: block; width: 100%; min-width: 760px; fill: none; }
+  .fsf-label { fill: var(--ink); font-size: var(--fs-6); }
+  .fsf-value { fill: var(--text-muted); font-size: var(--fs-5); font-family: var(--mono); }
+  .fsf-page { fill: var(--surface-2); stroke: var(--border-strong); }
+  .fsf-text { fill: var(--tone-info-bg); stroke: var(--tone-info-line); }
+  .fsf-line { stroke: var(--tone-info-strong); stroke-width: 3; stroke-linecap: round; }
+  .fsf-button { fill: var(--ink); }
+  .fsf-button-label { fill: var(--on-ink); font-size: var(--fs-4); }
+  .fsf-guide { stroke: var(--dim); stroke-dasharray: 5 5; }
+  .fsf-arrow { stroke: var(--tone-err-strong); stroke-width: 2; }
+</style>

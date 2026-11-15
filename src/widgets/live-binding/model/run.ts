@@ -1,3 +1,4 @@
+import { LIVE_COUNTER as COUNTER, LIVE_READER as READER } from '@/content/tooling/modules/data';
 /**
  * Живая привязка против снимка значения — на настоящих модулях, собранных в `blob:`.
  *
@@ -23,8 +24,6 @@ export interface Readings {
 export interface LiveRun {
   before: Readings;
   after: Readings;
-  /** Исходники обоих модулей — ровно те строки, что уехали в блоб. */
-  sources: { name: string; code: string }[];
 }
 
 /**
@@ -32,29 +31,7 @@ export interface LiveRun {
  * через `data:`-URL в Node. Один текст на демо и на тест — значит, страница не может начать
  * обещать не то, что исполняется.
  */
-export const COUNTER = `export let count = 0;
-
-export function inc() {
-  count += 1;
-}
-
-// В объект кладётся ЗНАЧЕНИЕ примитива на момент исполнения тела — связь сюда не тянется.
-export default { count };`;
-
-export const READER = (url: string) => `import def, { count, inc } from '${url}';
-import * as ns from '${url}';
-
-// Деструктуризация читает значение СЕЙЧАС и отпускает связь навсегда.
-const { count: destructured } = ns;
-
-const readings = () => ({ binding: count, destructured, viaNs: ns.count, viaDefault: def.count });
-
-export const before = readings();
-export const bump = () => { inc(); return readings(); };`;
-
-/** Адрес блоба подставлен в текст листинга заглушкой: читателю нужен смысл, а не UUID. */
-const PLACEHOLDER = './counter.js';
-
+export { LIVE_COUNTER as COUNTER, LIVE_READER as READER } from '@/content/tooling/modules/data';
 function blobUrl(code: string): string {
   return URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
 }
@@ -73,10 +50,6 @@ export async function runLiveBinding(): Promise<LiveRun> {
     return {
       before: mod.before,
       after: mod.bump(),
-      sources: [
-        { name: 'counter.js', code: COUNTER },
-        { name: 'reader.js', code: READER(PLACEHOLDER) },
-      ],
     };
   } finally {
     // Блоб держит память документа, пока его не отозвали. Модули уже загружены — адрес больше

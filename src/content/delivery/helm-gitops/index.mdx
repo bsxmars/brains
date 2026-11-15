@@ -2,9 +2,9 @@
 title: "Один манифест на много окружений: Helm, Kustomize и GitOps"
 order: 8
 kicker: доставка
-lead: "У dev, stage и prod одинаковые манифесты с разными числами и строками. **Kustomize** накладывает на базу патчи, **Helm** заполняет шаблоны значениями, и у обоих есть место, где интуиция промахивается: список из файла окружения может заменить базовый целиком. **GitOps** забирает применение у конвейера: кластер сам тянет из Git то, что там записано, и держит это состояние, а откат становится `git revert`."
+lead: "У dev, stage и prod одинаковые манифесты с разными числами и строками. **Kustomize** накладывает на базу патчи, **Helm** заполняет шаблоны значениями, и у обоих есть место, где интуиция промахивается: список из файла окружения может заменить базовый целиком. **GitOps** забирает применение у конвейера: контроллер читает Git то, что там записано, и держит это состояние, а откат становится `git revert`."
 summary: "Окружения как данные и один образ на все; Kustomize — база и слои, images, namePrefix, commonLabels, генератор ConfigMap и хеш в имени; strategic merge против JSON 6902 и ловушка замены списка; Helm — чарт, шаблоны, values и их порядок, релиз, история, откат и хуки; GitOps — Argo CD и Flux, дрейф и self-heal, pull против push; секреты в Git — Sealed Secrets и SOPS."
-verifiedOn: "Слияние патчей, порядок values, синтаксис --set и поведение шаблонов — учебной моделью темы; её сверяет тест на таблицах случаев из документации Kubernetes, kustomize, Helm и RFC 6902/7386. kubectl, kustomize и helm не запускались, кластера не было: Argo CD, Flux, хранение релизов, хуки, Sealed Secrets и SOPS — по документации, сентябрь 2026, и помечены в тексте"
+verifiedOn: "Слияние патчей, порядок values, синтаксис --set и поведение шаблонов — учебной моделью темы; её сверяет тест на таблицах случаев из документации Kubernetes, kustomize, Helm и RFC 6902/7386. Реальный kubectl 1.30.5 со встроенным Kustomize сверяет base/dev/stage/prod без подключения к кластеру; Helm не запускался, кластера не было: Argo CD, Flux, хранение релизов, хуки, Sealed Secrets и SOPS — по документации, сентябрь 2026, и помечены в тексте"
 nav:
   - { id: s1, label: Три окружения }
   - { id: s2, label: Kustomize }
@@ -19,6 +19,7 @@ nav:
   - { id: s11, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,13 +36,13 @@ import KzEnvs from '@/widgets/kz-envs/ui/KzEnvs.vue';
 import PushPullDiagram from '@/widgets/helm-gitops-push-pull-diagram/ui/PushPullDiagram.astro';
 import {
   ARGO_CODE,
+  ARGO_HPA_SYNC_CODE,
   ARGO_FACTS,
   CHART_TREE,
   COMMANDS,
   COMPARE,
   COMPARE_NOTE,
   DEMO_CAPTION,
-  DEMO_NOTE,
   DEMO_WHY,
   DEV_PATCH_NOTE,
   ENV_NOTE,
@@ -114,7 +115,7 @@ import {
   PUSH_PULL_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
+<Section variant="intro" eyebrow="Механика и границы" lead={INTRO_NOTE}>
   <Plain text={PLAIN_TWO_WAYS} />
 
   <Glossary items={GLOSSARY} />
@@ -258,7 +259,9 @@ import {
 
   ### Как ложится патч: функция
 
-  <CodeBlock code={MERGE_CODE} />
+  <Disclosure title="Полная учебная реализация слияния патчей">
+    <CodeBlock code={MERGE_CODE} />
+  </Disclosure>
 
   ### Таблица случаев из документации
 
@@ -459,9 +462,9 @@ import {
     <Md text={DEMO_WHY} />
   </Card>
 
-  <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
-    <Md text={DEMO_NOTE} />
-  </Card>
+  <Disclosure title="Оставшиеся входные файлы stage: канонический источник демо">
+    {Object.entries(FILES).filter(([name]) => !["base/deployment.yaml", "base/ingress.yaml", "base/kustomization.yaml", "base/service.yaml", "chart/Chart.yaml", "chart/templates/configmap.yaml", "chart/templates/deployment.yaml", "chart/templates/ingress.yaml", "chart/templates/service.yaml", "chart/values.yaml", "overlays/dev/app.yaml", "overlays/dev/host.yaml", "overlays/dev/kustomization.yaml", "overlays/prod/app.yaml", "overlays/prod/kustomization.yaml", "values-dev.yaml", "values-prod.yaml", "values-stage.yaml"].includes(name)).map(([name, code]) => <Card title={name}><CodeBlock lang={name.endsWith('.yaml') || name.endsWith('.yml') ? 'yaml' : 'text'} code={code} /></Card>)}
+  </Disclosure>
 
   <KzEnvs client:visible parts={MODEL_PARTS} files={FILES} commands={COMMANDS} caption={DEMO_CAPTION} />
 </Section>
@@ -469,8 +472,8 @@ import {
 <Section
   id="s8"
   eyebrow="Раздел 8"
-  title="GitOps: кластер сам тянет из Git"
-  lead="Конвейер больше не ходит в кластер: он собирает образ и делает коммит. Применяет контроллер внутри кластера, и он же держит кластер таким, как записано."
+  title="GitOps: контроллер читает Git"
+  lead="Конвейер больше не ходит в кластер: он собирает образ и делает коммит. Контроллер сравнивает желаемое состояние с фактическим; применение и исправление дрейфа включаются политикой."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={GITOPS_WHY} />
@@ -530,6 +533,11 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="HPA и Argo CD: исключение при сравнении и при применении">
+    <CodeBlock lang="yaml" code={ARGO_HPA_SYNC_CODE} />
+    <Md text="Это фрагмент Application. ignoreDifferences исключает поле из сравнения; sync-option дополнительно сохраняет его при применении уже существующего объекта. При первом создании живого объекта ещё нет, и манифест применяется как есть." />
+  </Disclosure>
+
   ### Flux
 
   <CodeBlock lang="yaml" code={FLUX_CODE} />
@@ -553,7 +561,7 @@ import {
   id="s9"
   eyebrow="Раздел 9"
   title="Секреты в Git"
-  lead="Secret как есть в Git класть нельзя: base64 — не шифр. Кладут шифр, а ключ от него есть только у кластера."
+  lead="Secret как есть в Git класть нельзя: base64 — не шифр. Кладут шифр, а ключи или права на внешнее хранилище держат отдельно."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={SECRET_WHY} />

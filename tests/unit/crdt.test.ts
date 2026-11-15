@@ -512,3 +512,11 @@ describe('Yjs', () => {
     expect(typeof Y.createAbsolutePositionFromRelativePosition).toBe('function');
   });
 });
+
+it('практика: Yjs переносит offline-правки без повторов, но не обеспечивает лимит бронирований', () => {
+  const output: unknown[] = [];
+  new Function('Y', 'console', t.PRACTICE_CODE)(Y, { log: (value: unknown) => output.push(value) });
+  expect(output).toEqual(t.PRACTICE_OUT);
+  expect(output.slice(0, 2)).toEqual(['Наш План!', 'Наш План!']);
+  expect(output.slice(2)).toEqual([2, 2]);
+});

@@ -2,7 +2,7 @@
 title: "React изнутри: конкурентность и lanes"
 order: 5
 kicker: фреймворки изнутри
-lead: "Переход, который не мешает вводу, заглушка Suspense и отложенное значение снаружи выглядят как три разные возможности, но работают на одном механизме. У каждого обновления есть полоса — один бит в числе. Рендер берёт одну полосу за раз, и более срочная полоса выбрасывает начатое дерево. Мини-версия этого механизма собрана по шагам и сверена тестом с React 19.3."
+lead: "Переход, который не мешает вводу, заглушка Suspense и отложенное значение снаружи выглядят как три разные возможности, но работают на одном механизме. У каждого обновления есть полоса — один бит в числе. React выбирает набор полос для рендера; более срочная работа может потребовать перезапуска начатого дерева. Мини-версия этого механизма собрана по шагам и сверена тестом с React 19.3."
 summary: "Конкурентный React своими руками: полосы как битовые маски, планировщик с квантом, прерывание и перезапуск рендера, переходы как «пометить полосой», Suspense через брошенный промис и просрочка голодающих полос."
 verifiedOn: React 19.3 · Node 26.8
 nav:
@@ -18,6 +18,8 @@ nav:
   - { id: s10, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -30,6 +32,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniLanes from '@/widgets/mini-lanes/ui/MiniLanes.vue';
 import {
+  MECHANISM_DIAGRAM,
   ASYNC_NOTE,
   CLOCK_NOTE,
   CONTINUATION_NOTE,
@@ -154,9 +157,12 @@ import {
 >
   <Plain text={PLAIN_SCHEDULER} />
 
+  <Disclosure title="Контракт учебного host: часы и публикация">
   <Card title="Хост мини-версии" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={HOST_SHAPE} />
   </Card>
+
+  </Disclosure>
 
   <Card title="Шаг 2 · `scheduleCallback`, `shouldYield`, `flushWork`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_SCHEDULER} />
@@ -202,8 +208,10 @@ import {
 
   <Plain text={PLAIN_RESTART} />
 
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
+
   <Card title="Клик посреди перехода — лог обоих рендереров" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
-    <CodeBlock code={INTERRUPT_SHOWN} tone="ok" />
+    <CodeBlock lang="text" code={INTERRUPT_SHOWN} tone="ok" />
 
     <Md text={INTERRUPT_NOTE} />
   </Card>
@@ -235,7 +243,7 @@ import {
   <Card title="Два обновления одного состояния в разных полосах" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={SCENARIO_REBASE} />
 
-    <CodeBlock code={REBASE_LOG.join('\n')} tone="ok" />
+    <CodeBlock lang="text" code={REBASE_LOG.join('\n')} tone="ok" />
 
     <Md text={REBASE_NOTE} />
   </Card>
@@ -256,12 +264,12 @@ import {
 
   <CardGrid min={280} gap={14} align="start">
     <Card title="`useTransition` — два `setState` в двух полосах" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={PENDING_LOG.join('\n')} tone="ok" />
+      <CodeBlock lang="text" code={PENDING_LOG.join('\n')} tone="ok" />
 
       <Md text={PENDING_NOTE} />
     </Card>
     <Card title="`useDeferredValue` — полоса, заказанная из рендера" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={DEFERRED_LOG.join('\n')} tone="ok" />
+      <CodeBlock lang="text" code={DEFERRED_LOG.join('\n')} tone="ok" />
 
       <Md text={DEFERRED_NOTE} />
     </Card>
@@ -333,7 +341,7 @@ import {
   />
 
   <Card title="Пачка срочных полос: мини-версия против React" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
-    <CodeBlock code={`мини-версия:  ${SYNC_BATCH_LOG.mini.join(' → ')}\nReact 19.3:   ${SYNC_BATCH_LOG.react.join(' → ')}`} tone="ok" />
+    <CodeBlock lang="text" code={`мини-версия:  ${SYNC_BATCH_LOG.mini.join(' → ')}\nReact 19.3:   ${SYNC_BATCH_LOG.react.join(' → ')}`} tone="ok" />
 
     <Md text={SYNC_BATCH_NOTE} />
   </Card>

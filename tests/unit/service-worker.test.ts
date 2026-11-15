@@ -257,6 +257,18 @@ describe('SW_CODE в поддельном воркере', () => {
     expect(await w.caches.keys()).toEqual(t.STAND.keys.v2Active);
   });
 
+  it('activate не удаляет кеш другого приложения в том же origin', async () => {
+    const w = makeWorld('v1');
+    await boot(t.SW_CODE, w).dispatch('install');
+    await w.caches.open('another-app');
+    w.files['/report.v2.js'] = "export default 'отчёт v2';";
+    const v2 = boot(variant({ v: 'v2' }), w);
+    await v2.dispatch('install');
+    await v2.dispatch('activate');
+    expect(await w.caches.keys()).toEqual(['another-app', 'static-v2']);
+    expect(t.ACTIVATE_NOTE).toContain('Cache Storage общий для origin');
+  });
+
   it('404 в PRECACHE — промис waitUntil отклонён, кеш не записан', async () => {
     const w = makeWorld('v2');
     await expect(boot(variant({ v: 'v2', missing: true }), w).dispatch('install')).rejects.toThrow('/missing.js → 404');

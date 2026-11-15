@@ -1,10 +1,17 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { chromium } from 'playwright';
+import { withBrowser } from '../helpers/with-browser';
 import {
   CAS_CODE,
+  IMAGE_MAIN_CODE,
+  IMAGE_WORKER_CODE,
+  IMAGE_RUN_CODE,
+  IMAGE_OUT,
   LITMUS_MAIN_CODE,
   LITMUS_WORKER_CODE,
   MUTEX_CODE,
@@ -44,6 +51,69 @@ function run(name: string, code: string): string[] {
     .trim()
     .split('\n');
 }
+
+describe('практика: общий RGBA-буфер в браузере', () => {
+  it('напечатанные модули работают в Web Workers; разные размеры и число воркеров сохраняют все строки и альфу', async () => {
+    const scripts: Record<string, string> = {
+      '/grayscale.js': IMAGE_MAIN_CODE,
+      '/grayscale-worker.js': IMAGE_WORKER_CODE,
+      '/run.js': IMAGE_RUN_CODE,
+    };
+    const server = createServer((req, res) => {
+      const path = req.url ?? '/';
+      if (path !== '/plain') {
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+      }
+      res.setHeader('Content-Type', scripts[path] ? 'text/javascript' : 'text/html');
+      res.end(scripts[path] ?? '<!doctype html><title>Atomics image fixture</title>');
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Нет порта HTTP-стенда');
+    const origin = `http://127.0.0.1:${address.port}`;
+    try {
+      await withBrowser(chromium, { headless: true }, async (browser) => {
+        const page = await browser.newPage();
+        const lines: string[] = [];
+        page.on('console', (message) => { if (message.type() === 'log') lines.push(message.text()); });
+        await page.goto(origin);
+        expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
+        // Строка сохраняет нативный import: Vite переписывает import внутри TS-callback.
+        await page.evaluate('import("/run.js")');
+        expect(lines.join('\n')).toBe(IMAGE_OUT);
+
+        for (const workerCount of [1, 2, 4]) {
+          const width = 7;
+          const height = 33;
+          const input = Array.from({ length: width * height * 4 }, (_, i) => (i * 37 + 19) % 256);
+          const expected = [...input];
+          for (let i = 0; i < input.length; i += 4) {
+            const gray = Math.round((input[i] + input[i + 1] + input[i + 2]) / 3);
+            expected[i] = expected[i + 1] = expected[i + 2] = gray;
+          }
+          const actual = await page.evaluate(async ({ url, input, width, workerCount }) => {
+            const { grayscale } = await new Function('url', 'return import(url)')(url);
+            const result = await grayscale(new Uint8ClampedArray(input), width, workerCount);
+            return { pixels: Array.from(result.pixels), completedRows: result.completedRows };
+          }, { url: `${origin}/grayscale.js`, input, width, workerCount });
+          expect(actual).toEqual({ pixels: expected, completedRows: height });
+        }
+
+        await page.goto(`${origin}/plain`);
+        expect(await page.evaluate(() => crossOriginIsolated)).toBe(false);
+        const error = await page.evaluate(async (url) => {
+          const { grayscale } = await new Function('url', 'return import(url)')(url);
+          try { await grayscale(new Uint8ClampedArray(4), 1); }
+          catch (error) { return (error as Error).message; }
+        }, `${origin}/grayscale.js`);
+        expect(error).toBe('Нужна изоляция COOP/COEP');
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+});
 
 describe('раздел «Первый общий счётчик»', () => {
   it('++ из четырёх воркеров не больше 4 000 000, Atomics.add — ровно 4 000 000', () => {

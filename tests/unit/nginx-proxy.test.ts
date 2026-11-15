@@ -1,4 +1,12 @@
 import { gzipSync } from 'node:zlib';
+import { execFile, execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+import { waitForServer } from '../helpers/wait-for-server';
 import { describe, expect, it } from 'vitest';
 import * as t from '@/content/delivery/nginx-proxy/data';
 import { loadLocationApi, loadServerApi } from '@/widgets/nginx-lab/model/run';
@@ -11,13 +19,95 @@ import { loadLocationApi, loadServerApi } from '@/widgets/nginx-lab/model/run';
  * 1.30.0 в Docker (как снято — шапка `data.ts`). На каждый адрес модель обязана назвать ту же
  * location, тот же путь у бэкенда и тот же редирект; на каждый `Host` — тот же server.
  *
- * Сам nginx тест не запускает: в окружении тестов Docker не гарантирован. Если поведение
- * nginx сменится, стенд нужно переснять и обновить журналы — тогда модель проверится заново.
+ * Старые журналы не выдаются за переснятые. Дополнительный короткий HTTP-стенд проверяет
+ * границы buffering/read_timeout на локальном образе nginx, если Docker доступен.
  */
 
 const loc = loadLocationApi(t.LOCATION_CODE, t.PROXY_CODE);
 const srv = loadServerApi(t.SERVER_CODE);
 const locs = loc.parseLocations(t.LOC_CONF);
+
+const docker = promisify(execFile);
+const IMAGE = 'nginx:1.30.0-alpine-slim';
+const HAS_NGINX = (() => {
+  try {
+    execFileSync('docker', ['image', 'inspect', IMAGE], { stdio: 'pipe', timeout: 3000 });
+    execFileSync('docker', ['info', '--format', '{{.ServerVersion}}'], { stdio: 'pipe', timeout: 3000 });
+    return true;
+  } catch { return false; }
+})();
+
+it.skipIf(!HAS_NGINX)('nginx: buffering on передаёт данные до конца ответа; таймаут после заголовков оставляет 200 с оборванным телом', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'nginx-boundaries-'));
+  const name = `lesson-nginx-${randomUUID()}`;
+  const pending = new Set<http.ServerResponse>();
+  let release: (() => void) | undefined;
+  const backend = http.createServer((req, res) => {
+    pending.add(res);
+    res.on('close', () => pending.delete(res));
+    if (req.url === '/buffered') {
+      res.write('x'.repeat(128 * 1024));
+      release = () => res.end('finished');
+    } else if (req.url === '/partial') {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.write('started');
+    } // /headers намеренно молчит до таймаута прокси.
+  });
+  await new Promise<void>((resolve) => backend.listen(0, '0.0.0.0', resolve));
+  const backendPort = (backend.address() as { port: number }).port;
+  writeFileSync(join(dir, 'nginx.conf'), `events {}\nhttp {
+    access_log off;
+    server { listen 8080;
+      location = /ready { return 204; }
+      location / { proxy_pass http://app:${backendPort}; proxy_read_timeout 250ms;
+        proxy_buffering on; proxy_buffers 4 4k; proxy_buffer_size 4k;
+        proxy_busy_buffers_size 8k; proxy_max_temp_file_size 0;
+      }
+      location /partial { proxy_pass http://app:${backendPort};
+        proxy_read_timeout 250ms; proxy_buffering off;
+      }
+    }
+  }`);
+  try {
+    await docker('docker', ['run', '--pull=never', '-d', '--name', name,
+      '--add-host', 'app:host-gateway', '-p', '127.0.0.1::8080',
+      '-v', `${dir}/nginx.conf:/etc/nginx/nginx.conf:ro`, IMAGE]);
+    const { stdout } = await docker('docker', ['inspect', name, '--format', '{{(index (index .NetworkSettings.Ports "8080/tcp") 0).HostPort}}']);
+    const port = Number(stdout.trim());
+    await waitForServer(`http://127.0.0.1:${port}/ready`, { attempts: 10 });
+    const read = (path: string, onData?: () => void) => new Promise<{ status: number; body: string; complete: boolean }>((resolve, reject) => {
+      const req = http.get({ host: '127.0.0.1', port, path, agent: false }, (res) => {
+        let body = '';
+        res.on('data', (chunk) => { body += chunk; onData?.(); });
+        const done = () => resolve({ status: res.statusCode ?? 0, body, complete: res.complete });
+        res.on('end', done);
+        res.on('aborted', done);
+        res.on('error', (error) => { if (res.complete) reject(error); });
+      });
+      req.setTimeout(5000, () => req.destroy(new Error('HTTP-стенд nginx завис')));
+      req.on('error', reject);
+    });
+    // Backend завершится только после первого чтения клиента. Если прокси собирает
+    // весь ответ прежде отправки, этот обмен не сможет успешно завершиться.
+    const buffered = await read('/buffered', () => {
+      const finish = release;
+      release = undefined;
+      finish?.();
+    });
+    expect(buffered).toEqual({ status: 200, body: 'x'.repeat(128 * 1024) + 'finished', complete: true });
+    const beforeHeaders = await read('/headers');
+    expect(beforeHeaders.status).toBe(504);
+    const afterHeaders = await read('/partial');
+    expect(afterHeaders).toEqual({ status: 200, body: 'started', complete: false });
+    expect(t.TIMEOUT_NOTE).toContain('заменить статус на 504 поздно');
+  } finally {
+    await docker('docker', ['rm', '-f', name]).catch(() => undefined);
+    for (const response of pending) response.destroy();
+    backend.closeAllConnections();
+    await new Promise<void>((resolve) => backend.close(() => resolve()));
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 describe('разбор конфига', () => {
   it('десять location в том же порядке, что на стенде', () => {

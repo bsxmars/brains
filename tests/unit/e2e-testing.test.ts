@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { chromium } from 'playwright';
+import { withBrowser } from '../helpers/with-browser';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { transform } from 'esbuild';
@@ -187,4 +189,40 @@ describe('строки спецификаций — валидный модул�
     const r = await transform(t[k], { loader: 'js', format: 'esm' });
     expect(r.code).toContain('@playwright/test');
   });
+});
+
+it('настоящий ввод, force и DOM-события имеют разные границы', async () => {
+  await withBrowser(chromium, {}, async (browser) => {
+    const page = await browser.newPage();
+    const clicks = () => page.evaluate(() => (window as unknown as { clicks: { id: string; trusted: boolean }[] }).clicks);
+    await page.setContent(t.BYPASS_HTML);
+    await expect(page.locator('#buy').click({ timeout: 200 })).rejects.toMatchObject({ name: 'TimeoutError' });
+    await page.locator('#buy').click({ force: true });
+    expect(await clicks()).toEqual([{ id: 'cover', trusted: true }]);
+
+    await page.setContent(t.BYPASS_HTML);
+    await page.locator('#buy').dispatchEvent('click');
+    expect(await clicks()).toEqual([{ id: 'buy', trusted: false }]);
+
+    await page.setContent(t.BYPASS_HTML);
+    await page.locator('#cover').evaluate((el) => el.remove());
+    await page.locator('#buy').evaluate((el: HTMLButtonElement) => { el.disabled = true; el.click(); });
+    expect(await clicks()).toEqual([]);
+    await page.locator('#buy').dispatchEvent('click');
+    expect(await clicks()).toEqual([{ id: 'buy', trusted: false }]);
+
+    await page.setContent(t.BYPASS_HTML);
+    await page.locator('#cover').evaluate((el) => el.remove());
+    await page.locator('#buy').evaluate((el: HTMLButtonElement) => { el.style.display = 'none'; });
+    await expect(page.locator('#buy').click({ force: true, timeout: 300 })).rejects.toThrow();
+    await page.locator('#buy').evaluate((el: HTMLButtonElement) => { el.style.display = ''; el.style.opacity = '0'; });
+    await page.locator('#buy').click();
+    expect(await clicks()).toEqual([{ id: 'buy', trusted: true }]);
+  });
+});
+
+it('двадцать повторов повышают шанс, но не гарантируют обнаружение гонки', () => {
+  // Даже при независимых запусках с p=1/20 вероятность ни разу не увидеть сбой положительна.
+  expect((1 - 1 / 20) ** 20).toBeGreaterThan(0.35);
+  expect(t.RETRY_FACTS.find((row) => row.t.includes('repeat-each'))?.d).toContain('не гарантируют');
 });

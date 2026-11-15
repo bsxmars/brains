@@ -96,11 +96,27 @@ const normVitest = (c: string) =>
 const normJest = (c: string) =>
   c.split('\n').slice(1).join('\n').split('//# sourceMappingURL')[0].replace(/\n{3,}/g, '\n\n').trim();
 
-const FIXTURES: Record<string, string> = Object.fromEntries(t.SCENARIOS.map((s) => [s.id, s.code]));
+const FALSY_VALUES = [
+  { name: 'null', code: 'null' }, { name: 'undefined', code: 'undefined' },
+  { name: 'false', code: 'false' }, { name: 'zero', code: '0' }, { name: 'empty', code: "''" },
+] as const;
+const FALSY_PHASES = ['body', 'beforeAll', 'beforeEach', 'afterEach', 'afterAll'] as const;
+const FALSY_FIXTURES = Object.fromEntries(FALSY_VALUES.flatMap((value) => FALSY_PHASES.map((phase) => {
+  const id = `falsy-${phase}-${value.name}`;
+  const throwing = `log('throw'); throw ${value.code};`;
+  const fixture = phase === 'body'
+    ? `test('case', () => { ${throwing} });`
+    : `${phase}(() => { ${throwing} });
+       ${phase}(() => log('second hook'));
+       test('case', () => log('body'));`;
+  return [id, fixture];
+})));
+const FIXTURES: Record<string, string> = { ...Object.fromEntries(t.SCENARIOS.map((s) => [s.id, s.code])), ...FALSY_FIXTURES };
 
 const got = {} as {
   real: Record<string, Record<RunnerName, { log: string[]; results: { name: string; state: TestState }[] }>>;
   allFailsVitestFailed: boolean;
+  falsyAfterAllFileFailed: Record<RunnerName, boolean[]>;
   list: Record<RunnerName, string[]>;
   helpersError: string;
   iso: { counter: number; global: boolean; env: boolean; proto: boolean; sameProcess: boolean }[];
@@ -115,15 +131,16 @@ const got = {} as {
 };
 
 beforeAll(async () => {
-  // 1. Фикстуры хуков: шесть файлов в одном проекте на раннер, отчёт JSON.
+  // 1. Фикстуры хуков и falsy-отказов — один проект на раннер, последовательно в одном воркере.
   got.real = {};
+  got.falsyAfterAllFileFailed = { vitest: [], jest: [] };
   for (const kind of KINDS) {
     const files: Record<string, string> = {};
     const dirName = `hooks-${kind}`;
     for (const [id, code] of Object.entries(FIXTURES)) files[`${id}.test.js`] = head(kind, join(ROOT, dirName, `${id}.log`)) + code + '\n';
     const dir = project(dirName, kind, files);
     const json = join(dir, 'report.json');
-    await runner(kind, dir, kind === 'vitest' ? ['--globals', '--reporter=json', `--outputFile=${json}`] : ['--json', `--outputFile=${json}`]);
+    await runner(kind, dir, kind === 'vitest' ? ['--globals', '--maxWorkers=1', '--reporter=json', `--outputFile=${json}`] : ['--maxWorkers=1', '--json', `--outputFile=${json}`]);
     const rep = JSON.parse(readFileSync(json, 'utf8')) as {
       testResults: { name: string; status: string; assertionResults: { title: string; status: string }[] }[];
     };
@@ -138,6 +155,7 @@ beforeAll(async () => {
         })),
       };
       if (kind === 'vitest' && id === 'all-fails') got.allFailsVitestFailed = file.status === 'failed';
+      if (id.startsWith('falsy-afterAll-')) got.falsyAfterAllFileFailed[kind].push(file.status === 'failed');
     }
   }
 
@@ -166,7 +184,7 @@ beforeAll(async () => {
   for (const [i, row] of t.ISO_ROWS.entries()) {
     const kind = row.runner;
     const logF = join(ROOT, `iso${i}.log`);
-    const rec = `const record = (...a) => appendFileSync(${JSON.stringify(logF)}, [...a.map(String), process.pid].join(' ') + '\\n');\n`;
+    const rec = `const logFile = ${JSON.stringify(logF)};\n${t.ISOLATION_RECORDER_CODE}\n`;
     const body = (n: string) => head(kind, '/dev/null') + rec + (kind === 'vitest' ? toEsm(t.isoTest(n)) : t.isoTest(n));
     const dir = project(`iso${i}`, kind, {
       'counter.js': kind === 'vitest' ? 'let n = 0;\nexport const inc = () => ++n;\n' : t.COUNTER_CODE + '\n',
@@ -175,6 +193,8 @@ beforeAll(async () => {
     });
     await runner(kind, dir, kind === 'vitest' ? ['--globals', ...row.flags] : row.flags);
     const lines = readLog(logF).map((l) => l.split(' '));
+    // Общий файл журнала содержит записи ОБОИХ файлов даже при отдельных JS-реестрах.
+    expect(lines.map((line) => line[0]).sort()).toEqual(['a1', 'a2', 'b1', 'b2']);
     const first = lines[0][0][0];
     const second = lines.find((l) => l[0][0] !== first)!;
     got.iso.push({
@@ -306,6 +326,30 @@ describe('RUNNER_CODE против настоящих vitest и jest', () => {
     }
   });
 
+  it('falsy-отказы в теле и хуках не превращаются в успех; afterAll ограничен итогом файла', async () => {
+    for (const value of FALSY_VALUES) for (const phase of FALSY_PHASES) for (const kind of KINDS) {
+      const id = `falsy-${phase}-${value.name}`;
+      const model = await play(api, FALSY_FIXTURES[id], kind);
+      const actual = got.real[id][kind];
+      expect(model.log, `${id} ${kind}: хуки после отказа`).toEqual(actual.log);
+      expect(model.results.map(({ name, state }) => ({ name, state })), `${id} ${kind}`).toEqual(actual.results);
+      if (phase !== 'afterAll') {
+        const expected = phase === 'beforeAll' && kind === 'vitest' ? 'skip' : 'fail';
+        expect(model.results[0].state, `${id} ${kind}`).toBe(expected);
+        if (expected === 'fail') {
+          const raw = new Function(`return ${value.code};`)();
+          expect(model.results[0].error).toBe(String(raw)); // 0/false/пустая строка не теряются.
+        }
+      } else {
+        expect(model.results[0].state).toBe('pass');
+      }
+    }
+    for (const kind of KINDS) expect(got.falsyAfterAllFileFailed[kind]).toEqual(FALSY_VALUES.map(() => true));
+    // После afterAll реальный файл провален, хотя тест прошёл. API модели хранит только статусы тестов.
+    expect(t.RUNNER_NOTE).toContain('не итог файла');
+    expect(t.RUNNER_NOTE).toContain('Ошибка `afterAll`');
+  });
+
   it('у раннеров разные журналы ровно на тех фикстурах, где заявлены различия', () => {
     const differs = (id: string) => JSON.stringify(t.REAL[id].vitest) !== JSON.stringify(t.REAL[id].jest);
     expect(t.SCENARIOS.map((s) => [s.id, differs(s.id)])).toEqual([
@@ -337,7 +381,7 @@ describe('RUNNER_CODE против настоящих vitest и jest', () => {
 describe('изоляция', () => {
   it('ISO_ROWS — то, что сейчас видит первый тест второго файла', () => {
     expect(got.iso).toEqual(t.ISO_ROWS.map(({ counter, global, env, proto, sameProcess }) => ({ counter, global, env, proto, sameProcess })));
-    // Вывод в тексте: по умолчанию между файлами не течёт ничего.
+    // Таблица относится к этим JS-меткам; файловая система проверена общим журналом выше.
     expect(t.ISO_ROWS[0]).toMatchObject({ counter: 1, global: false, env: false, proto: false, sameProcess: false });
     expect(t.ISO_ROWS.find((r) => r.runner === 'jest')).toMatchObject({ counter: 1, global: false, env: false, sameProcess: true });
   });
@@ -537,6 +581,36 @@ describe('фейковые таймеры', () => {
     }
   });
 
+  it('интервал с периодом 0 повторяется до clearInterval, а timeout 0 исполняется один раз', () => {
+    const run = (c: Pick<Clock, 'setTimeout' | 'setInterval' | 'clearInterval' | 'now' | 'advance' | 'count'>) => {
+      const log: string[] = [];
+      c.setTimeout(() => log.push('timeout'), 0);
+      let n = 0;
+      const id = c.setInterval(() => {
+        log.push(`interval ${++n}@${c.now()}`);
+        if (n === 3) c.clearInterval(id);
+      }, 0);
+      c.advance(0);
+      return { log, pending: c.count() };
+    };
+    const want = { log: ['timeout', 'interval 1@0', 'interval 2@0', 'interval 3@0'], pending: 0 };
+    expect(run(sinonClock())).toEqual(want);
+    expect(run(createClock(0))).toEqual(want);
+  });
+
+  it('вечный interval 0 ограничен предохранителем runAll и advance', () => {
+    const lib = FakeTimers.createClock(0, 7);
+    const model = createClock(0);
+    lib.setInterval(() => {}, 0);
+    model.setInterval(() => {}, 0);
+    expect(() => lib.runAll()).toThrow('Aborting after running 7 timers');
+    expect(() => model.runAll(7)).toThrow('Aborting after running 7 timers');
+    expect([model.now(), model.count()]).toEqual([lib.now, lib.countTimers()]);
+    // advance() модели тоже обязан остановиться: zero-interval не меняет виртуальное время.
+    expect(() => model.advance(0)).toThrow('Aborting after running 10000 timers');
+    expect(model.count()).toBe(1);
+  });
+
   it('createClock совпадает с @sinonjs/fake-timers на трёхстах случайных расписаниях', () => {
     let bad = 0;
     for (let seed = 1; seed <= 300; seed++) {
@@ -558,7 +632,7 @@ describe('фейковые таймеры', () => {
             if (o.nest >= 0) c.setTimeout(() => log.push(`${k}n@${c.now()}`), o.nest);
             if (o.interval && ++fired > 6) c.clearInterval(ids[k]);
           };
-          ids[k] = o.interval ? c.setInterval(cb, o.ms || 5) : c.setTimeout(cb, o.ms);
+          ids[k] = o.interval ? c.setInterval(cb, o.ms) : c.setTimeout(cb, o.ms);
           if (k % 3 === 2) c.advance(o.adv);
         });
         c.advance(200);

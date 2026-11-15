@@ -239,3 +239,19 @@ describe('GitLab CI: раннеры, конвейеры MR, выкат, матр
     for (const k of Object.keys(inc.inputs)) expect(spec.spec.inputs).toHaveProperty(k);
   });
 });
+
+
+describe('EndpointSlice: адрес и готовность — разные данные API', () => {
+  it('неготовый и завершающийся endpoints остаются в том же объекте', () => {
+    const source = one(k8s.ENDPOINT_CONDITIONS_CODE);
+    expect(source.apiVersion).toBe('discovery.k8s.io/v1');
+    expect(source.endpoints).toHaveLength(3);
+    expect(source.endpoints.filter((endpoint: Doc) => endpoint.conditions.ready)).toHaveLength(1);
+    const terminating = source.endpoints.find((endpoint: Doc) => endpoint.conditions.terminating);
+    expect(terminating.conditions).toEqual({ ready: false, serving: true, terminating: true });
+    const rows = k8s.SERVICE_DIAGRAM.lanes.find((lane) => lane.pods)!.pods!;
+    expect(rows).toHaveLength(source.endpoints.length);
+    expect(rows.filter((row) => row.ok)).toHaveLength(1);
+    expect(rows.filter((row) => !row.ok).every((row) => row.reason.includes('в EndpointSlice'))).toBe(true);
+  });
+});

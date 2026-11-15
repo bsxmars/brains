@@ -17,6 +17,8 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import MinimumDiagram from '@/widgets/flex-minimum-diagram/ui/MinimumDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -34,6 +36,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FlexLab from '@/widgets/flex-lab/ui/FlexLab.vue';
 import PlaceGrid from '@/widgets/flex-lab/ui/PlaceGrid.vue';
 import {
+  MINIMUM_SCENES,
   GLOSSARY,
   PLAIN_LAYOUT,
   INTRINSIC_CODE,
@@ -84,12 +87,6 @@ import {
 
   </Callout>
 
-  Когда вы пишете `display: flex`, браузер не подбирает ширины «на глаз». На шаге layout
-  он идёт по алгоритму: спрашивает у каждого элемента его размеры, складывает их, сравнивает
-  с шириной контейнера и раздаёт разницу. Иногда для этого нужно несколько проходов. Если знать эти шаги,
-  переполнение и «неравные равные» колонки можно предсказать заранее, а не подбирать
-  `min-width: 0` наугад.
-
   <Plain text={PLAIN_LAYOUT} />
 
   <Glossary items={GLOSSARY} />
@@ -133,6 +130,8 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Учебная функция распределения свободного места">
+
   <Card title="Раздача по спецификации" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FLEX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -140,6 +139,8 @@ import {
       <Md text={FLEX_CODE_NOTE} />
     </CardNote>
   </Card>
+
+  </Disclosure>
 
   ### Рост: расчёт и замер в Chromium
 
@@ -192,6 +193,8 @@ import {
     minWidth={680}
   />
 
+  <MinimumDiagram scenes={MINIMUM_SCENES} />
+
   ### Откуда минимум
 
   <CardGrid min={300} gap={16} align="start">
@@ -225,13 +228,17 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Grid: треки и `fr`"
-  lead="Грид сначала считает треки — колонки и строки, — а потом ставит элементы в клетки. `fr` — доля места, которое осталось после колонок в пикселях и промежутков. У `1fr` есть нижняя граница, и это снова min-content содержимого."
+  lead="Грид определяет размещение элементов по трекам — колонкам и строкам — и рассчитывает их размеры с учётом содержимого. `fr` — доля места, которое осталось после колонок в пикселях и промежутков. У `1fr` есть нижняя граница, и это снова min-content содержимого."
 >
   <Plain text={PLAIN_FR} />
+
+  <Disclosure title="Как вычисляется размер доли fr">
 
   <Card title="Размер одной доли" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 
   <Table
     head={['сетка', 'как получилось', 'Chromium, px']}
@@ -267,6 +274,8 @@ import {
   title="Авторасстановка: куда встанет элемент"
   lead="Элементы без явной позиции грид расставляет сам. Он идёт по строкам слева направо и ставит каждый элемент в первое место, куда тот помещается. Курсор при этом движется только вперёд: дыры позади остаются пустыми, пока не попросить `dense`."
 >
+  <Disclosure title="Исходник авторасстановки и CSS сетки">
+
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сетка и элементы" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock lang="css" code={PLACE_CSS} size={11.5} lh={1.65} pad="14px 16px" />
@@ -276,6 +285,8 @@ import {
       <CodeBlock code={PLACE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
+
+  </Disclosure>
 
   <PlaceGrid code={PLACE_CODE} columns={PLACE_COLUMNS} spans={PLACE_SPANS} names={PLACE_NAMES} />
 
@@ -287,8 +298,8 @@ import {
     <DarkText size={18} lh={1.55} tone="prose">
 
       Когда раскладка ведёт себя странно, сначала узнайте минимум содержимого. У флекс-элемента
-      это `min-width: auto`, у колонки `1fr` — `minmax(auto, 1fr)`, и в обоих случаях там
-      min-content. Пока минимумы влезают, flex и grid делят место по долям. Когда не влезают,
+      проверьте `min-width: auto`, у колонки `1fr` — нижнюю границу `auto`. В простых текстовых
+      примерах она может удерживать min-content. Пока минимумы влезают, flex и grid делят место по долям. Когда не влезают,
       доли уже не работают: ширину определяет самое длинное слово.
 
     </DarkText>

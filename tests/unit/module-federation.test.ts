@@ -299,3 +299,30 @@ describe('ссылка на import maps согласована с «Модуля
   });
 });
 
+
+
+describe('границы учебного контейнера и первого потребления', () => {
+  it('eager-регистрация не фиксирует singleton: loaded меняет только consume', () => {
+    const scope: MfScope = {};
+    const world = { copies: [] as MfCopy[], log: [] as MfLogEntry[] };
+    const own = F.bundleLibrary(world.copies, 'react', '18.3.1', 'host');
+    const remote = F.bundleLibrary(world.copies, 'react', '19.1.0', 'cart');
+    F.register(scope, 'react', '18.3.1', 'host', true, own);
+    expect(scope.react['18.3.1'].loaded).toBe(false);
+    F.register(scope, 'react', '19.1.0', 'cart', false, remote);
+    const chosen = F.consume(scope, 'react', { singleton: true, requiredVersion: '^18.3.0' }, own, 'host', world.log);
+    expect(chosen.version).toBe('19.1.0');
+    expect(scope.react['18.3.1'].loaded).toBe(false);
+    expect(scope.react['19.1.0'].loaded).toBe(true);
+  });
+
+  it('повторный init того же scope допустим, другого — ошибка', async () => {
+    const world = { copies: [] as MfCopy[], log: [] as MfLogEntry[] };
+    const remote = buildApps(DEMO_DEFAULT).remotes[0];
+    const container = await F.fakeNetwork(world)(remote) as { init(scope: MfScope): void };
+    const scope: MfScope = {};
+    container.init(scope);
+    expect(() => container.init(scope)).not.toThrow();
+    expect(() => container.init({})).toThrow('already been initialized with a different share scope');
+  });
+});

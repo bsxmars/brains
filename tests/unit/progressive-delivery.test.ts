@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 // `yaml` приходит в проект транзитивно — тем же путём, что в `ingress.test.ts` и `helm-gitops.test.ts`.
 import { parseAllDocuments } from 'yaml';
@@ -513,5 +513,32 @@ describe('текст держит только то, что проверено',
       expect(dir, href).toBeDefined();
       expect(existsSync(new URL(`../../src/content/${dir}/${slug}/index.mdx`, import.meta.url)), href).toBe(true);
     }
+  });
+});
+
+
+describe('границы учебного анализа и окна отката', () => {
+  it('источник синтетических запросов опубликован до демо, а повторные проверки не объявлены гарантией 95%', () => {
+    const mdx = readFileSync('src/content/delivery/progressive-delivery/index.mdx', 'utf8');
+    expect(mdx.indexOf('code={SIM_CODE}')).toBeGreaterThan(0);
+    expect(mdx.indexOf('code={SIM_CODE}')).toBeLessThan(mdx.indexOf('<PdCanary'));
+    expect(t.ANALYSIS_LIMITS).toContain('последовательности решений');
+    expect(t.ANALYSIS_LIMITS).toContain('неопределённость');
+  });
+  it('ошибки сравниваются с точечной оценкой базы: её размер выше минимума не меняет предел', () => {
+    const canary = { n: 1000, errors: 5, lat: [] };
+    const smallBase = { n: 200, errors: 1, lat: [] };
+    const largeBase = { n: 20000, errors: 100, lat: [] };
+    const small = M.judgeErrors(smallBase, canary);
+    const large = M.judgeErrors(largeBase, canary);
+    expect(small.limit).toBe(large.limit);
+    expect(small.verdict).toBe(large.verdict);
+  });
+  it('третье состояние схемы возвращает трафик в blue, но явно сохраняет текущую схему БД', () => {
+    const rollback = t.BG_DIAGRAM.states[2];
+    expect(rollback.routes[0].to).toBe('blue');
+    expect(rollback.copies.blue.load).toContain('текущую схему');
+    expect(rollback.copies.green.load).toContain('не откатилась');
+    expect(t.BUNDLE_DIAGRAM.panes[1].store.files).toContain('старые чанки динамических import()');
   });
 });

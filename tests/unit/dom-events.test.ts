@@ -87,6 +87,7 @@ describe('утверждения текста закрыты журналами'
     expect(rows.map((r) => r.id)).toEqual(['L1', 'L3', 'L5', 'L7', 'L10', 'L9', 'L8', 'L6', 'L4', 'L2']);
     expect(rows[4]).toMatchObject({ id: 'L10', node: 'b', phase: '2 — цель', capture: '`capture: true`' });
     expect(t.STAND_LOGS.phases.log[0]).toContain('| b button.del li ul.todos body html document window');
+    expect(t.EVENT_PATH_NODES).toEqual(['window', 'document', 'html', 'body', 'ul.todos', 'li', 'button.del', 'b']);
     expect(t.PATH_STEPS[0].d).toContain('`b → button.del → li → ul.todos → body → html → document → window`');
   });
 

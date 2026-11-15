@@ -10,18 +10,15 @@ import { computed, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
-import { loadH2 } from '../model/run';
+import { loadInt } from '../model/run';
 
 const props = defineProps<{
-  frameCode: string;
   intCode: string;
-  tableCode: string;
-  decodeCode: string;
   /** Подпись под демо. Строчная разметка. */
   caption: string;
 }>();
 
-const api = loadH2(props.frameCode, props.intCode, props.tableCode, props.decodeCode);
+const api = loadInt(props.intCode);
 
 const prefix = ref('5');
 const prefixOptions = ['4', '5', '6', '7', '8'].map((v) => ({ value: v, label: `${v} бит` }));

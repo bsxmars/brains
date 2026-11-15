@@ -4,7 +4,7 @@ heading: "TLS и сертификаты: рукопожатие, цепочка 
 headingWidth: 24
 order: 18
 kicker: доставка
-lead: "Замок в адресной строке — это три проверки за один круг до сервера: сервер доказал, что у него ключ от сертификата; сертификат подписан тем, кому клиент доверяет; имя в нём совпало с адресом. Как это выглядит по сообщениям, почему без промежуточного сертификата «работает в браузере, но не в Node» и как Let’s Encrypt выдаёт сертификат без участия человека."
+lead: "При проверенном HTTPS клиент шифрует соединение и проверяет, что сервер владеет ключом сертификата для нужного имени. Доверие к издателю, имя сайта и срок действия — разные условия: успешная проверка одного не заменяет остальные. Выпуск и продление сертификата можно автоматизировать через ACME."
 summary: "Рукопожатие TLS 1.3 по сообщениям с длинами: ClientHello с SNI, ALPN и гибридным X25519MLKEM768, ServerHello, Certificate, CertificateVerify, Finished; ключи и keylog; билеты, возобновление и повтор 0-RTT; учебный УЦ, построение цепочки, обязательный промежуточный и AIA в Chromium; учебная проверка цепочки против tls.connect — порядок ошибок, SAN и звёздочка, CN в Node; ACME — аккаунт, заказ, http-01, dns-01, tls-alpn-01, CSR, ARI и сроки 200 → 100 → 47 дней; OCSP и CRLite, HSTS и preload, mTLS."
 verifiedOn: "OpenSSL 3.6.4, Node 24.11.0 (OpenSSL 3.5.4) и 26.8.2 (OpenSSL 3.6.4), Chromium 153.0.8010.12 (Playwright 1.63), октябрь 2026: свой УЦ из трёх уровней и сломанные листья; рукопожатие снято openssl s_client -trace против node:tls, ClientHello Chromium — openssl s_server -trace; 0-RTT и повтор — openssl s_server с защитой и без; учебная проверка цепочки сверена tests/unit/tls-certificates.test.ts со 150 решениями tls.connect и с живыми прогонами; ACME-вычисления — с векторами RFC 7638 и RFC 9773. Шаги ACME, сроки CA/B Forum и Let’s Encrypt, отзыв в браузерах и HSTS preload — по документации"
 nav:
@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -36,6 +38,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TlsLab from '@/widgets/tls-lab/ui/TlsLab.vue';
 import {
   GLOSSARY,
+  TRUST_CHAIN_DIAGRAM,
   PLAIN_TLS,
   HANDSHAKE_LEAD,
   HANDSHAKE_CHIPS,
@@ -97,7 +100,7 @@ import {
 
   </Callout>
 
-  Почти все поломки HTTPS в проде — не в шифровании, а во второй половине. Сервер отдал
+  При настройке HTTPS часто приходится разбирать ошибки сертификатов. Сервер отдал
   сертификат без промежуточного. Сертификат просрочился, потому что продление молча
   упало месяц назад. Имя в адресе не совпало с тем, на которое сертификат выдан. Чтобы
   разбирать такие ошибки, нужно знать, что именно проверяет клиент и в каком порядке.
@@ -184,11 +187,13 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Цепочка доверия"
-  lead="Сертификат сайта подписан не корнем, а промежуточным УЦ; промежуточный — корнем; корень лежит у клиента. Клиент идёт по подписям снизу вверх, пока не упрётся в то, чему доверяет сам. Чтобы посмотреть на это изнутри, нужен свой УЦ — он делается тремя командами OpenSSL."
+  lead="Сертификат сайта подписан не корнем, а промежуточным УЦ; промежуточный — корнем; корень лежит у клиента. Клиент идёт по подписям снизу вверх, пока не упрётся в то, чему доверяет сам. Для наблюдения этих проверок выпустим учебную цепочку с собственным УЦ."
 >
-  <Card title="Учебный УЦ: корень → промежуточный → shop.test" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock lang="sql" code={MAKE_CA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  <ConceptDiagram data={TRUST_CHAIN_DIAGRAM} />
+
+  <Disclosure title="Выпустить учебную цепочку сертификатов через OpenSSL">
+    <CodeBlock lang="bash" code={MAKE_CA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  </Disclosure>
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Что внутри shop.pem" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -211,13 +216,13 @@ import {
 
   ### Проверка цепочки
 
-  <Card title="verifyChain — шаги в порядке OpenSSL" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Код учебной проверки цепочки и её ограничения">
     <CodeBlock code={VERIFY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={VERIFY_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   ### Сломайте цепочку
 
@@ -344,8 +349,7 @@ import {
 
       **Сертификат — не файл, который однажды положили на сервер, а процесс.** Сервер
       отдаёт полную цепочку, продление идёт само и раньше срока, а снаружи кто-то смотрит
-      на `notAfter` и на ответ `openssl s_client` — без браузера, который чинит цепочку
-      за вас.
+      на `notAfter` и на ответ `openssl s_client` — без расчёта на то, что браузер догрузит пропущенный промежуточный сертификат.
 
     </DarkText>
   </DarkPanel>

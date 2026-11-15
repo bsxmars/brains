@@ -15,7 +15,7 @@
 <summary><b>Карта</b> — знать, что это существует</summary>
 
 - Каждая среда включает свой набор условий; Node из совпавшего условия не возвращается, TypeScript — возвращается → «раздел Условия».
-- Формат по расширению и `type`; `require` в Node 24 грузит ESM без `await` наверху; двойной пакет даёт два экземпляра состояния → «раздел ESM и CJS».
+- Формат по расширению и `type`, без `type` возможно распознавание синтаксиса; `require` в Node 24 грузит ESM без `await` наверху; двойной пакет даёт два экземпляра состояния → «раздел ESM и CJS».
 - `types` первым; `.d.mts`/`.d.cts` для двух форматов; маскарад типов ловит attw → «раздел Типы».
 - `files` — белый список; `.npmignore` заменяет `.gitignore` целиком → «раздел Тарбол».
 - Правка карты и условий — тоже API; появление `exports` — мажор → «раздел Что ломает версию».
@@ -38,7 +38,7 @@
 - Node: `node`, `import`/`require`, `module-sync`; TS `bundler` — без `node` → «раздел Условия».
 - `ERR_REQUIRE_ASYNC_MODULE`; `require(esm)` без флага с 20.19 и 22.12 → «раздел ESM и CJS».
 - attw: `FalseCJS`, `FalseESM`, `FallbackCondition`, `CJSResolvesToESM` → «раздел Типы».
-- `npm pack --dry-run`; всегда в архиве `package.json`, `README`, `LICENSE` → «раздел Тарбол».
+- `npm pack --dry-run` не публикует, но может запустить lifecycle-скрипты; всегда в архиве `package.json`, `README`, `LICENSE` → «раздел Тарбол».
 
 </details>
 

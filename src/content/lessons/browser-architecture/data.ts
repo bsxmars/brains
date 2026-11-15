@@ -17,6 +17,10 @@ import type { ThreadInfo } from '@/widgets/renderer-threads/model/types';
  * - rAF-замер считает callbacks, а не предъявленные экраном кадры. ThreadProbe model/run.ts;
  * - wait проверяется на общей памяти, не на обычном ArrayBuffer. Native CanBlock + worker control;
  * - DOM_HEAP_ROWS — исторический замер Chrome 153, не размер DOM-узла и не диагноз утечки.
+ * Углубление 2026-11-14: Chromium navigation/commit отделены от загрузки и рисования;
+ * HTML-следствия (старый Document во время pending, redirect и ответ 204) проверяются
+ * одним NAVIGATION_PROBE_HTML в Chromium/Firefox/WebKit, browser-process-model.spec.ts.
+ * Процессы и PID этим тестом не наблюдаются. Диагностика разделяет свидетельство и вывод.
  * Старые SELF_CHECK сохранены как снятый со страницы материал; ответы также уточнены.
  */
 
@@ -287,6 +291,12 @@ export const DOM_HEAP_ROWS: string[][] = [
 
 /** Источники темы: документация реализации отдельно, спецификация отдельно. */
 export const SOURCES: Source[] = [
+  { title: 'Chromium — Life of a Navigation', href: 'https://chromium.googlesource.com/chromium/src/+/main/docs/navigation.md', what: 'ответ, redirect, выбор renderer, commit и последующая загрузка; не фиксированная схема процессов' },
+  { title: 'Chromium — Navigation Concepts', href: 'https://chromium.googlesource.com/chromium/src/+/main/docs/navigation_concepts.md', what: 'same-document/cross-document, Browser/Renderer initiation, pending/visible/committed URL' },
+  { title: 'HTML — Navigation and session history', href: 'https://html.spec.whatwg.org/multipage/browsing-the-web.html', what: 'активный Document и переходы без его замены, в том числе 204/205 и скачивание' },
+  { title: 'Chrome DevTools — Performance features reference', href: 'https://developer.chrome.com/docs/devtools/performance/reference', what: 'дорожки main thread, вызовы, задачи и выбор участка профиля для проверки гипотезы' },
+  { title: 'Chrome DevTools — Fix memory problems', href: 'https://developer.chrome.com/docs/devtools/memory-problems', what: 'память процесса, live JS heap, detached DOM и снимки путей удержания' },
+  { title: 'Chrome DevTools — Network features reference', href: 'https://developer.chrome.com/docs/devtools/network/reference', what: 'фреймы, цепочки запросов, Timing и граница выводов по сетевому журналу' },
   { title: 'HTML Standard · Event loops', href: 'https://html.spec.whatwg.org/multipage/webappapis.html#event-loops', what: 'У каждого агента свой цикл; несколько window event loops разрешено совместно планировать на одном implementation thread.' },
   { title: 'Chromium · Network Service', href: 'https://chromium.googlesource.com/chromium/src/+/main/services/network/README.md', what: 'Отдельный сервис, его доверенные и ограниченные интерфейсы, CORS/ORB и варианты размещения внутри или вне Browser.' },
   { title: 'Chromium · URLLoader', href: 'https://chromium.googlesource.com/chromium/src/+/main/services/network/url_loader.md', what: 'Путь запроса через URLLoaderFactory и разграничение полномочий, без обязательной пересылки каждого сообщения процессом Browser.' },
@@ -626,3 +636,85 @@ export const PROCESS_ARCHITECTURE_DIAGRAM: ConceptDiagramData = {
   ],
   note: 'Это модель ролей, не полный граф IPC и не замер процессов. Сервисы могут размещаться иначе; права песочницы зависят от ОС. Browser не единственный процесс, обращающийся к ОС.',
 };
+
+/** Навигация описывает роли Chromium, не фиксированный набор PID. */
+export const NAVIGATION_DIAGRAM: ConceptDiagramData = {
+  id: 'browser-navigation-commit',
+  title: 'Запрос уже идёт, а текущий документ ещё прежний',
+  description: 'Обычная междокументная HTTPS-навигация Chromium. Browser координирует переход; итоговый ответ определяет, будет ли новый документ и где его можно разместить.',
+  width: 980, height: 620,
+  nodes: [
+    { id: 'browser', x: 0, y: 0, width: 260, height: 240, label: 'Browser: начать переход', detail: 'Адрес из интерфейса или запрос от Renderer. Проверки навигации и решение, можно ли покинуть текущий документ.', tone: 'info' },
+    { id: 'network', x: 360, y: 0, width: 260, height: 240, label: 'Загрузка документа', detail: 'Для обычного HTTP — сетевой стек и Network Service. Ответ может прийти из кеша; Service Worker способен перехватить загрузку.', tone: 'neutral' },
+    { id: 'response', x: 720, y: 0, width: 260, height: 240, label: 'Итоговый ответ', detail: 'Статус, URL после перенаправлений, тип содержимого и политики ответа. Не каждый успешный ответ создаёт Document.', tone: 'warn' },
+    { id: 'old', x: 0, y: 380, width: 260, height: 240, label: 'Прежний Document', detail: 'При ожидании ответа ещё активен: его DOM и JS не заменены. Ответ 204 оставит этот документ на месте.', tone: 'ok' },
+    { id: 'commit', x: 360, y: 380, width: 260, height: 240, label: 'Commit: принят новый Document', detail: 'Renderer создаёт документ и подтверждает Browser переход. Догрузка HTML, скриптов и изображений может продолжаться.', tone: 'ok' },
+    { id: 'renderer', x: 720, y: 380, width: 260, height: 240, label: 'Подходящий Renderer', detail: 'Выбор учитывает итоговый origin, политики и модель процессов. Новый Document не обещает новый PID.', tone: 'info' },
+  ],
+  edges: [
+    { from: 'browser', to: 'network' },
+    { from: 'network', to: 'response' },
+    { from: 'response', to: 'network', fromSide: 'left', toSide: 'bottom', via: [[670, 120], [670, 285], [490, 285]], label: '3xx → новый URL', labelX: 595, labelY: 270 },
+    { from: 'browser', to: 'old', fromSide: 'bottom', toSide: 'top', dashed: true, label: 'ждёт ответ', labelX: 130, labelY: 320 },
+    { from: 'response', to: 'renderer', fromSide: 'bottom', toSide: 'top', label: 'будет документ', labelX: 850, labelY: 320 },
+    { from: 'renderer', to: 'commit', fromSide: 'left', toSide: 'right' },
+    { from: 'old', to: 'commit', dashed: true, label: 'замена', labelX: 310, labelY: 485 },
+  ],
+  note: 'Browser может готовить процесс заранее; схема показывает зависимости решений, а не обязательный порядок создания процессов. Same-document переходы и активация bfcache идут другим путём.',
+};
+
+export const NAVIGATION_STEPS: string[] = [
+  '**Намерение перейти.** Ввод URL начинается в Browser; ссылка или location — в Renderer. Browser координирует навигацию выбранного фрейма. Если переход требует beforeunload-проверки, отказ пользователя может его остановить.',
+  '**Получение ответа.** Для сетевого HTTP-запроса работают загрузчик и Network Service. Запрос не равен новому TCP-соединению: соединение или ответ могут быть переиспользованы. Кеш и Service Worker также могут убрать обращение к серверу.',
+  '**Разбор результата.** Серверный redirect меняет адрес следующего запроса в той же навигации. Ответ с документом, скачивание и 204 требуют разных действий; один код 200 ещё не означает, что вкладка уже переключилась.',
+  '**Выбор размещения и commit.** Итоговый origin и политики ответа должны подходить выбранному Renderer. Browser передаёт ему ответ, получает подтверждение создания документа и обновляет состояние навигации. Это не обещание нового процесса.',
+];
+
+/** Страница для браузерного контрпримера: те же байты напечатаны в теме и загружаются тестом. */
+export const NAVIGATION_PROBE_HTML = `<!doctype html>
+<meta charset="utf-8">
+<title>Текущий документ</title>
+<button id="count">0</button>
+<a id="go" href="/start">Переход с задержкой и redirect</a>
+<a id="empty" href="/empty">Ответ 204</a>
+<script>
+  window.navigationProbe = { token: crypto.randomUUID(), clicks: 0 };
+  document.querySelector('#count').addEventListener('click', () => {
+    navigationProbe.clicks++;
+    document.querySelector('#count').textContent = String(navigationProbe.clicks);
+    console.log('navigation-probe:' + JSON.stringify(navigationProbe));
+  });
+</script>`;
+
+export const NAVIGATION_OUTCOMES = [
+  { action: 'Начали /start, ответ ещё удерживается сервером', document: 'Прежний token; счётчик на прежней странице увеличивается', means: 'Намерение перейти и начало запроса не заменили активный Document.' },
+  { action: '/start → 302 → документ другого origin', document: 'Открылся итоговый документ; прежнего navigationProbe в нём нет', means: 'Промежуточный HTTP-redirect не стал отображаемым документом. Наблюдение не показывает PID.' },
+  { action: '/empty → 204 No Content', document: 'Прежний URL документа, token и работающий счётчик', means: 'Успешный сетевой ответ может завершиться без замены документа.' },
+];
+
+export const DIAGNOSTIC_CASES = [
+  {
+    symptom: 'Вкладка не отвечает на ввод, интерфейс браузера работает',
+    hypothesis: 'Главный поток документа занят работой, а не ожиданием сети.',
+    instrument: 'Сопоставить задачу и PID в диспетчере Chrome. В Performance записать воспроизведение и открыть Main: длинный JS-вызов, style/layout или другая работа видны на дорожке.',
+    limit: 'Высокая CPU-нагрузка сама не называет функцию; низкая не доказывает исправность — код может ждать сеть, IPC или внешнее событие. Для вычисления в worker проверяют его дорожку.',
+  },
+  {
+    symptom: 'Завис один iframe, остальная страница жива',
+    hypothesis: 'Проблема ограничена документом фрейма или его загрузкой.',
+    instrument: 'Выбрать нужный frame/контекст в DevTools и его запросы в Network. В process-internals и диспетчере сверить, выделен ли ему отдельный Renderer; в профиле искать работу именно этого контекста.',
+    limit: 'Отдельный PID подтверждает размещение, но не причину зависания. Отсутствие ответа postMessage не отличает занятой поток от ошибки обработчика, навигации или закрытого окна.',
+  },
+  {
+    symptom: 'RSS растёт, куча JS почти не меняется',
+    hypothesis: 'Память растёт вне измеряемой кучи V8 либо JS удерживает внешний объект.',
+    instrument: 'Повторить один сценарий, сравнить память процесса по одному PID и live JS heap после GC. В Memory искать удержанные DOM-деревья и пути ссылок; сопоставить число DOM-узлов и рост после повторов.',
+    limit: 'Высокий RSS не доказывает утечку и не указывает владельца байтов. В нём могут остаться кеши и страницы распределителя; heap snapshot показывает объекты и ссылки, а не весь RSS.',
+  },
+  {
+    symptom: 'Расчёт в одной вкладке тормозит другую',
+    hypothesis: 'Документы делят исполнитель либо конкурируют за общий ресурс машины.',
+    instrument: 'Сначала сравнить PID и активность задач. Затем записать тот же сценарий для обеих вкладок; сопоставить занятый main thread, worker и нагрузку системы. Связь opener проверять отдельно от совпадения origin.',
+    limit: 'Общий PID не доказывает общего агента или причину задержки. Разные PID не устраняют конкуренцию за CPU, GPU, память и сеть. Одно совпадение задержек ещё не устанавливает причину.',
+  },
+];

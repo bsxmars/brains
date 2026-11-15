@@ -84,6 +84,8 @@ import {
   HOSTS_CODE,
   HOSTS_NOTE,
   SPA_SCENE,
+  HASH_REQUEST_CODE,
+  HASH_REQUEST_OUT,
   SPA_VARIANTS,
   PLAIN_SPA_VARIANTS,
   DEPLOY_SCENE,
@@ -92,7 +94,7 @@ import {
   ROUTE_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем отдельная тема" gap={24}>
+<Section variant="intro" eyebrow="Адрес превращается в файл" gap={24}>
   <Callout size={19} pad="24px 26px">
 
     «Положить файлы на хостинг» кажется задачей, в которой нечего разбирать. Так и есть —
@@ -291,9 +293,13 @@ import {
 
   <Plain text={PLAIN_SPA} />
 
-  ### Один адрес `/profile/42` — четыре сайта
+  ### Профиль по пути и профиль после #
 
   {SPA_SCENE.map((t) => <Md text={t} />)}
+
+  <CodeBlock code={HASH_REQUEST_CODE} />
+
+  <CodeBlock lang="text" tone="ok" code={HASH_REQUEST_OUT.join('\n')} />
 
   <RouteDiagram data={ROUTE_DIAGRAM} />
 
@@ -460,6 +466,10 @@ import {
     cols="minmax(180px,.9fr) minmax(240px,1.3fr) minmax(250px,1.6fr)"
     minWidth={700}
   />
+
+  В настройках Pages источником публикации должен быть GitHub Actions. `on` задаёт
+  запуск по push в main и вручную; build получает право чтения, а право публикации и
+  OIDC-токен выдаются только deploy.
 
   <CodeBlock lang="yaml" code={WORKFLOW_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 

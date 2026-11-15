@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { CacheMode, CacheRun, FilterPreset, WsPackage } from '@/widgets/monorepo-lab/model/types';
 
@@ -574,11 +575,13 @@ export const KEY_PARTS: { k: string; d: string }[] = [
   { k: 'файлы пакета', d: 'содержимое каждого исходника. Turborepo по умолчанию берёт файлы под контролем git, Nx — все файлы проекта' },
   { k: 'ключи зависимостей', d: 'ключ задачи `ui` входит в ключ `web`. Поменялся `utils` — поменялся ключ `ui`, а за ним и `web`, хотя файлы `web` те же' },
   { k: 'внешние версии', d: 'что lock-файл записал для этого пакета. Turborepo смотрит на часть lock-файла, относящуюся к пакету' },
-  { k: 'команда и настройки', d: 'сама команда, её аргументы, описание задачи в конфиге' },
+  { k: 'задача, команда и настройки', d: 'идентичность пакета и задачи, сама команда, её аргументы, описание задачи в конфиге. Одинаковые исходники двух пакетов не обязаны давать один результат' },
   { k: 'переменные окружения', d: '**только перечисленные**. Turborepo — ключи `env` и `globalEnv`, Nx — `{ "env": "API_URL" }` во входах задачи' },
 ];
 
 /**
+ * Исправление 2026-11: ключ включает имя задачи; контрпример двух пакетов с одинаковыми
+ * исходниками закреплён в monorepo.test.ts.
  * Учебный кеш задач. `crypto.subtle` есть и в браузере, и в Node — один и тот же код считает
  * в демо и в тесте. Turborepo и Nx устроены сложнее (хешируют иначе, хранят файлы `outputs`
  * и логи), но **что входит в ключ** — то же самое; это и проверяется.
@@ -590,13 +593,13 @@ export const CACHE_CODE = `async function sha256(text) {
 }
 
 // Ключ — хеш всего, от чего зависит результат задачи.
-async function taskKey({ command, files, depKeys, env }) {
+async function taskKey({ task, command, files, depKeys, env }) {
   const fileHashes = [];
   for (const path of Object.keys(files).sort()) {
     fileHashes.push(path + ':' + (await sha256(files[path])));
   }
   const envPart = Object.keys(env).sort().map((k) => k + '=' + env[k]);
-  return sha256(JSON.stringify({ command, files: fileHashes, deps: [...depKeys].sort(), env: envPart }));
+  return sha256(JSON.stringify({ task, command, files: fileHashes, deps: [...depKeys].sort(), env: envPart }));
 }
 
 // Сборка-заглушка: web вшивает адрес API в бандл, как это делает Vite с import.meta.env.
@@ -616,6 +619,7 @@ async function runWithCache({ packages, levels, files, cache, env, declared, str
       const keyEnv = {};
       for (const k of declared) if (k in env) keyEnv[k] = env[k];
       const key = await taskKey({
+        task: name + '#build',
         command: 'build',
         files: files[name],
         depKeys: pkg.deps.map((d) => keys[d]),
@@ -808,3 +812,35 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Пакетные менеджеры, раздел «Разрешение дерева и подъём»](/tooling/package-managers/#s2) — подъём, фантомы и копии на одном проекте; [раздел «pnpm и Yarn PnP»](/tooling/package-managers/#s5) там же — хранилище и скрытые ссылки pnpm. [Модули и сборка, раздел «CommonJS против ESM и цена их стыковки»](/tooling/modules/#s3) — поиск пакета вверх по `node_modules` и две копии одной библиотеки. [GitHub Actions, раздел «Кеш и почему он промахивается»](/delivery/github-actions/#s5) — кеш в CI по хешу файлов. [GitLab CI, раздел «`rules` и `only`»](/delivery/gitlab-ci/#s5) — запуск джоба по изменённым файлам. [Микрофронтенды и Module Federation](/tooling/module-federation/#s1) — когда одного репозитория мало. [Git изнутри](/tooling/git-internals/) — объекты, ветки как файлы, слияние и rebase. [Публикация npm-пакета](/tooling/package-publishing/) — поле `exports` по шагам, двойной пакет, типы и что уезжает в тарбол.';
+
+export const GRAPH_DIAGRAM: ConceptDiagramData = {
+  id: 'monorepo-two-traversals', title: 'Граф читают к зависимостям и к потребителям',
+  description: 'Стрелка показывает зависимость: web использует ui, ui использует utils. Перед сборкой web нужны его зависимости. После правки utils нужны все потребители, прямо или через цепочку.',
+  width: 920, height: 310,
+  nodes: [
+    { id: 'web', x: 0, y: 50, width: 260, height: 220, label: '`@shop/web`', detail: 'Собирать после ui. Правка ui или utils может изменить результат web.', tone: 'info' },
+    { id: 'ui', x: 330, y: 50, width: 260, height: 220, label: '`@shop/ui`', detail: 'Собирать после utils. После правки ui выбираются ui и web.', tone: 'neutral' },
+    { id: 'utils', x: 660, y: 50, width: 260, height: 220, label: '`@shop/utils`', detail: 'Не ждёт соседей. Его правка затрагивает всю показанную цепочку.', tone: 'warn' },
+  ],
+  edges: [
+    { from: 'web', to: 'ui', label: 'нужен', labelX: 295, labelY: 145 },
+    { from: 'ui', to: 'utils', label: 'нужен', labelX: 625, labelY: 145 },
+  ],
+  note: 'При планировании web обход идёт к зависимостям: web → ui → utils, а запускаются они в обратном порядке. После правки utils поиск затронутого идёт к потребителям: utils → ui → web. В полном примере есть ещё api и admin.',
+};
+
+export const CACHE_DIAGRAM: ConceptDiagramData = {
+  id: 'monorepo-cache-contract', title: 'Кешу доступен только заявленный вход',
+  description: 'Стейджинг и продакшен различаются API_URL. Если сборка читает эту переменную, а ключ её не учитывает, два разных результата получают один адрес в кеше.',
+  width: 920, height: 280,
+  nodes: [
+    { id: 'inputs', x: 0, y: 30, width: 260, height: 220, label: 'Входы сборки', detail: 'Исходники, задача, ключи зависимостей и API_URL. Любое различие может менять бандл.', tone: 'info' },
+    { id: 'key', x: 330, y: 30, width: 260, height: 220, label: 'Вычисленный ключ', detail: 'API_URL забыли объявить: смена адреса не меняет хеш.', tone: 'err' },
+    { id: 'hit', x: 660, y: 30, width: 260, height: 220, label: 'Попадание в кеш', detail: 'Сборка не запускается. Прод получает сохранённый бандл со стейджинговым адресом.', tone: 'warn' },
+  ],
+  edges: [
+    { from: 'inputs', to: 'key', label: 'хеш', labelX: 295, labelY: 125 },
+    { from: 'key', to: 'hit', label: 'поиск', labelX: 625, labelY: 125 },
+  ],
+  note: 'Очистка кеша меняет только первый результат. Исправление — объявить весь значимый вход или закрыть задаче доступ к незаявленному окружению.',
+};

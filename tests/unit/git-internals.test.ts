@@ -188,6 +188,18 @@ describe.skipIf(!HAS_GIT)('GIT_CODE против git', () => {
     ok(dir, 'git init -q --object-format=sha256');
     const sha256 = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
     expect(api.hashObject('blob', 'hello\n', sha256).hash).toBe(ok(dir, "printf 'hello\\n' | git hash-object --stdin"));
+    // Заголовок общий, но tree содержит двоичные имена blob: 32 байта вместо 20.
+    writeFileSync(join(dir, 'a.txt'), 'hello\n');
+    ok(dir, 'git add a.txt');
+    const tree = ok(dir, 'git write-tree');
+    expect(Number(ok(dir, 'git cat-file -s ' + tree))).toBe(Buffer.byteLength('100644 a.txt\0') + 32);
+    const d1 = join(root, 's1-tree');
+    mkdirSync(d1);
+    ok(d1, 'git init -q');
+    writeFileSync(join(d1, 'a.txt'), 'hello\n');
+    ok(d1, 'git add a.txt');
+    const tree1 = ok(d1, 'git write-tree');
+    expect(Number(ok(d1, 'git cat-file -s ' + tree1))).toBe(Buffer.byteLength('100644 a.txt\0') + 20);
   });
 });
 
@@ -475,5 +487,19 @@ describe('словарь', () => {
     expect(obj).not.toMatch(/подписанн/);
     expect(t.TAG_SHELL).not.toContain('BEGIN PGP');
     expect(t.TAG_NOTE).toContain('если она есть');
+  });
+});
+
+describe.skipIf(!HAS_GIT)('недостижимый loose-объект удаляется и без git gc', () => {
+  it('git prune --expire=now убирает объект, на который не указывают ссылки и индекс', () => {
+    const dir = join(root, 'prune-only');
+    mkdirSync(dir);
+    ok(dir, 'git init -q');
+    const oid = ok(dir, "printf 'orphan\\n' | git hash-object -w --stdin");
+    expect(ok(dir, 'git cat-file -t ' + oid)).toBe('blob');
+    ok(dir, 'git prune --expire=now');
+    expect(sh(dir, 'git cat-file -t ' + oid).code).not.toBe(0);
+    const mdx = readFileSync('src/content/tooling/git-internals/index.mdx', 'utf8');
+    expect(mdx).toContain('git prune'); // gc — составное обслуживание, не единственный способ удаления.
   });
 });

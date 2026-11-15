@@ -65,3 +65,36 @@ describe('«Устройство браузера»: вычитка 2026-10-30',
     expect(MDX).toContain('на 0.1 МБ, а процесс вырос на 178 МБ');
   });
 });
+
+
+describe('углубление навигации и практической диагностики', () => {
+  it('старые якоря сохранены, новые разделы имеют собственные semantic id', () => {
+    for (const id of ['s0', 's1', 's2', 's3', 's4', 's5', 'navigation', 'practice']) {
+      expect(MDX).toContain(`id="${id}"`);
+      expect(MDX).toContain(`id: ${id},`);
+    }
+    expect(MDX.indexOf('id="navigation"')).toBeLessThan(MDX.indexOf('id="s3"'));
+    expect(MDX.indexOf('id="practice"')).toBeLessThan(MDX.indexOf('id="s5"'));
+  });
+  it('схема описывает выбор renderer и старый документ, а не предсказанный PID', () => {
+    const nodes = t.NAVIGATION_DIAGRAM.nodes;
+    expect(nodes.find((node) => node.id === 'renderer')?.detail).toContain('не обещает новый PID');
+    expect(nodes.find((node) => node.id === 'old')?.detail).toContain('204');
+    expect(t.NAVIGATION_DIAGRAM.note).toContain('bfcache');
+    expect(MDX).toContain('не первый показанный кадр');
+    expect(MDX).toContain('Firefox и WebKit могут реализовать');
+  });
+  it('практический совет называет гипотезу, инструмент и границу вывода', () => {
+    expect(t.DIAGNOSTIC_CASES).toHaveLength(4);
+    const blocked = t.DIAGNOSTIC_CASES.find((item) => item.symptom.includes('не отвечает'))!;
+    expect(blocked.instrument).toContain('Performance');
+    expect(blocked.limit).toContain('ждать сеть, IPC');
+    const frame = t.DIAGNOSTIC_CASES.find((item) => item.symptom.includes('iframe'))!;
+    expect(frame.limit).toContain('postMessage');
+    const memory = t.DIAGNOSTIC_CASES.find((item) => item.symptom.includes('RSS'))!;
+    expect(memory.limit).toContain('не доказывает утечку');
+    expect(memory.instrument).toContain('после GC');
+    const shared = t.DIAGNOSTIC_CASES.find((item) => item.symptom.includes('другую'))!;
+    expect(shared.limit).toContain('не доказывает общего агента');
+  });
+});

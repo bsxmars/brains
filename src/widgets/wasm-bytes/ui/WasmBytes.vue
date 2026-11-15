@@ -64,11 +64,11 @@ function cells(from: number, headEnd: number, to: number): Cell[] {
 const rows: Row[] = [
   {
     key: 'magic',
-    label: 'магия и версия',
+    label: 'сигнатура и версия',
     note: '8 Б',
     tone: 'ink',
     cells: cells(0, 0, 8),
-    items: ['00 61 73 6d — «\\0asm»', `версия ${decoded.version}, четыре байта little-endian`],
+    items: ['00 61 73 6d — сигнатура Wasm: нулевой байт и буквы asm', `01 00 00 00 — версия бинарного формата ${decoded.version}; сначала младший байт`],
     code: [],
   },
   ...decoded.sections.map((s, i) => ({

@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AxCase, AxScene, ChromeVerdict } from '@/widgets/ax-tree-lab/model/types';
 
@@ -160,7 +161,7 @@ export const TREE_NOTE =
 
 /** Подпись под демо. */
 export const DEMO_CAPTION =
-  'Дерево считают функции темы прямо в вашем браузере: сцена вставлена в скрытый `iframe`, а `axTree`, `accName` и `tabOrder` работают с настоящим DOM и вычисленными стилями. Строка «Chromium 153» под деревом — то, что для той же разметки выдал настоящий Chromium в наших проверках через протокол отладки CDP: роль и имя каждого элемента и порядок нажатий Tab.';
+  'Это учебное дерево, а не чтение системного дерева доступности. Его считают функции темы прямо в вашем браузере: сцена вставлена в скрытый `iframe`, а `axTree`, `accName` и `tabOrder` работают с настоящим DOM и вычисленными стилями. Строка «Chromium 153» под деревом — то, что для той же разметки выдал настоящий Chromium в наших проверках через протокол отладки CDP: роль и имя каждого элемента и порядок нажатий Tab.';
 
 export const TREE_FACTS: { t: string; d: string; tone?: 'warn' }[] = [
   {
@@ -350,7 +351,7 @@ export const PLAIN_NAME =
 
 export const NAME_STEPS: { step: string; what: string; tone?: 'warn' }[] = [
   { step: '2A', what: 'Скрытый узел имени не даёт — если до него не дошли по `aria-labelledby`.' },
-  { step: '2B', what: '`aria-labelledby`: тексты узлов по списку `id`, через пробел. Ссылки внутри них уже не раскрываются.' },
+  { step: '2B', what: '`aria-labelledby`: тексты узлов по списку `id`, через пробел. Если итог пуст, поиск продолжается. Ссылки внутри них уже не раскрываются.' },
   { step: '2C', what: 'Поле внутри подписи даёт своё значение. В учебную функцию не входит.', tone: 'warn' },
   { step: '2D', what: '`aria-label`, если в нём есть что-то кроме пробелов.' },
   { step: '2E', what: 'Родной способ HTML: `<label>` у поля, `alt` у картинки, `<legend>` у группы, `<caption>` у таблицы, `value` у кнопки-`input`.' },
@@ -375,7 +376,8 @@ function nameStep(el, mode = 'top', showHidden = false) {
       .map((id) => id && root.getElementById(id)).filter(Boolean);
     if (refs.length) {
       const parts = refs.map((r) => nameStep(r, 'ref', isHidden(r))[0].trim());
-      return [parts.join(' '), 'aria-labelledby'];
+      const text = parts.join(' ');
+      if (text.trim()) return [text, 'aria-labelledby']; // пустая подпись не перекрывает запасную
     }
   }
 
@@ -447,7 +449,7 @@ function accName(el) {
 }`;
 
 export const NAME_NOTE =
-  'Учебная функция покрывает не весь алгоритм: только роли и элементы из раздела [«Роль»](#s3), без шага 2C, без текста из CSS (`::before`, `::after`) и без `aria-describedby`. Мы прогнали её и Chromium 153 на 88 фикстурах — маленьких фрагментах разметки. Роль, имя и шаг, на котором имя нашлось, совпали везде, кроме одного случая с `::before`.';
+  'Учебная функция покрывает не весь алгоритм: только роли и элементы из раздела [«Роль»](#s3), без шага 2C, без текста из CSS (`::before`, `::after`) и без `aria-describedby`. Мы прогнали её и Chromium 153 на 88 фикстурах — маленьких фрагментах разметки. Роль, имя и шаг, на котором имя нашлось, совпали везде, кроме одного случая с `::before`. Отдельная регрессия проверяет пустую ссылку `aria-labelledby`: как и в Chromium 153, поиск продолжается с `aria-label`.';
 
 /** Фикстуры для таблицы имён: id из `CASES`. Имя и шаг — из литерала Chromium. */
 export const NAME_PICKS: { id: string; note: string }[] = [
@@ -476,7 +478,7 @@ export const NAME_PICKS: { id: string; note: string }[] = [
 export const NAME_FACTS: { t: string; d: string; tone?: 'warn' | 'err' }[] = [
   {
     t: '`aria-label` заглушает видимый текст',
-    d: 'Кнопка «×» с `aria-label="Закрыть"` звучит как «Закрыть». Это хорошо для скринридера, но человек, который управляет голосом, скажет «нажми крестик» — и ничего не произойдёт. Правило WCAG 2.5.3: видимая подпись должна входить в имя. «Каталог» с именем «Каталог товаров» — можно; «Купить» с именем «Оформить» — нельзя.',
+    d: 'Если на кнопке написано «Купить», а `aria-label` задаёт «Оформить», пользователь голосового управления видит одну команду, а система получает другую. WCAG 2.5.3 требует включать видимую текстовую подпись в доступное имя: «Купить товар» подходит, «Оформить» — нет. Символ «×» как значок закрытия — другой случай: ему как раз нужно осмысленное имя «Закрыть», а не произнесённый знак умножения.',
     tone: 'warn',
   },
   {
@@ -650,11 +652,11 @@ export const DIVERGE_ROWS: { k: string; chrome: string; pw: string; spec: string
   { k: '`<figure>` с `<figcaption>`', chrome: '`figure`, имя пустое', pw: '`figure "Продажи за год"`', spec: 'HTML-AAM: имя из `figcaption`' },
   { k: '`<button>` внутри `inert`', chrome: 'нет в дереве', pw: '`button "Купить"`', spec: 'HTML: инертное недоступно технологиям доступа' },
   { k: '`<div aria-label="Подсказка">`', chrome: '`generic "Подсказка"`', pw: 'только текст', spec: 'ARIA 1.2: имя у `generic` запрещено' },
-  { k: '`<header>` внутри `<article>`', chrome: '`sectionheader`', pw: 'узла нет', spec: 'HTML-AAM: не `banner`, а `generic`; `sectionheader` — роль из черновика ARIA 1.3' },
+  { k: '`<header>` внутри `<article>`', chrome: '`sectionheader`', pw: 'узла нет', spec: 'HTML-AAM, редакция 26.10.2026: `sectionheader`; без имени и фокуса узел разрешено не экспонировать' },
 ];
 
 export const DIVERGE_NOTE =
-  'У дерева доступности нет одного эталонного ответа: его считает каждый браузер, и каждый инструмент проверки считает заново по-своему. `getByRole` и `ariaSnapshot` в Playwright проверяют то, что насчитал Playwright, а не браузер. Обычно ответы совпадают, но в краевых случаях из таблицы — нет.';
+  'Нормативные правила задают спецификации, но их реализации в браузерах и инструментах могут расходиться. Снимок Playwright и дерево платформы — разные наблюдения; ни один из них не равен записи того, что произнёс конкретный скринридер. `getByRole` и `ariaSnapshot` в Playwright проверяют то, что насчитал Playwright, а не браузер. Обычно ответы совпадают, но в краевых случаях из таблицы — нет.';
 
 /** axe-core 4.13.0 на сценах демо (правила уровня страницы отброшены). Тест повторяет в happy-dom. */
 export const AXE_SCENES: Record<string, string[]> = {
@@ -1001,7 +1003,7 @@ export const SOURCES: Source[] = [
   {
     title: 'HTML Accessibility API Mappings (HTML-AAM)',
     href: 'https://www.w3.org/TR/html-aam-1.0/',
-    what: 'неявные роли элементов HTML и то, как HTML даёт им имена (`label`, `alt`, `legend`, `caption`, `title`, `placeholder`)',
+    what: 'неявные роли элементов HTML, включая sectionheader у вложенного header в редакции 26.10.2026; имена из label, alt, legend, caption, title и placeholder',
   },
   {
     title: 'WAI-ARIA 1.2',
@@ -1052,3 +1054,22 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [События DOM, раздел «Действие по умолчанию»](/render/dom-events/#s4) — откуда берётся клик по кнопке с клавиатуры. [Длинные списки, раздел «Доступность и поиск»](/render/virtual-lists/#s5) — `aria-setsize`, фокус в виртуальном списке. [Стили веб-компонентов, раздел «Граница»](/render/web-components-styles/#s1) — что не пересекает теневую границу. [Каскад и вычисление стилей, раздел «Наследование»](/render/css-cascade/#s3) — почему `visibility` наследуется, а `display` нет. [Контекст наложения](/render/stacking/) — порядок отрисовки, почему не помогает `z-index: 9999` и верхний слой.';
+
+
+export const SEMANTICS_DIAGRAM: ConceptDiagramData = {
+  id: 'ax-role-and-behaviour',
+  title: 'Пиксели, семантика и клавиатура — три разных результата',
+  description: 'Два элемента карточки из исходника выше имеют разное поведение. Родной button даёт семантику и клавиатуру; div с onclick оставляет текст и реакцию на мышь.',
+  width: 900, height: 370,
+  nodes: [
+    { id: 'button', x: 10, y: 15, width: 350, height: 145, label: '`button` с иконкой', detail: '`aria-label="В избранное"`; иконка aria-hidden', tone: 'info' },
+    { id: 'ax-button', x: 520, y: 15, width: 370, height: 145, label: 'button · «В избранное»', detail: 'Tab находит кнопку; Enter и пробел активируют её', tone: 'ok' },
+    { id: 'div', x: 10, y: 215, width: 350, height: 145, label: '`div onclick` · «Купить»', detail: 'Обработчик click сам по себе не задаёт роль', tone: 'warn' },
+    { id: 'ax-text', x: 520, y: 215, width: 370, height: 145, label: 'Текст «Купить»', detail: 'Нет роли кнопки; Tab и клавиши активации не добавились', tone: 'err' },
+  ],
+  edges: [
+    { from: 'button', to: 'ax-button', label: 'браузер' },
+    { from: 'div', to: 'ax-text', label: 'браузер' },
+  ],
+  note: 'Роль в дереве и клавиатурное поведение проверяются отдельно. role="button" исправляет семантику div, но не добавляет ему обработку клавиш.',
+};

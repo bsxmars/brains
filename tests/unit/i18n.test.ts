@@ -483,6 +483,60 @@ describe('vue-i18n 11', () => {
       expect(i18n.global.availableLocales.sort()).toEqual(['en', 'uk']);
     });
 
+    it('словарь устанавливается в каждый экземпляр i18n, даже если модуль словаря уже загружен', async () => {
+      const mod = (await import(/* @vite-ignore */ pathToFileURL(join(dir, 'lazy.mjs')).href)) as { setLocale: (i: unknown, l: string) => Promise<boolean> };
+      const make = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en: { hello: 'Hello, {name}!' } } });
+      const first = make();
+      const second = make();
+      await mod.setLocale(first, 'ru');
+      await mod.setLocale(second, 'ru');
+      expect(first.global.t('hello', { name: 'Аня' })).toBe('Привет, Аня!');
+      expect(second.global.t('hello', { name: 'Боря' })).toBe('Привет, Боря!');
+      await expect(mod.setLocale(second, 'constructor')).rejects.toThrow(RangeError);
+      expect(second.global.locale.value).toBe('ru');
+    });
+
+    it('поздний словарь не отменяет более новый выбор; повтор делит запрос, ошибка допускает retry', async () => {
+      // Подменяем только import-границу: вся логика подписки и фиксации локали — из строки темы.
+      const gates = new Map<string, { resolve: (value: { default: object }) => void; reject: (error: Error) => void }>();
+      const counts: Record<string, number> = { ru: 0, uk: 0 };
+      const delayed = (locale: string) => () => {
+        counts[locale]++;
+        return new Promise((resolve, reject) => gates.set(locale, { resolve, reject }));
+      };
+      let code = t.VI_LAZY_CODE;
+      for (const locale of ['ru', 'uk']) {
+        const literal = `() => import('./locales/${locale}.js')`;
+        expect(code).toContain(literal);
+        code = code.replace(literal, locale === 'ru' ? 'loadRu' : 'loadUk');
+      }
+      const setLocale = new Function('loadRu', 'loadUk', `${code.replace('export async function', 'async function')}\nreturn setLocale;`)(delayed('ru'), delayed('uk')) as (i: unknown, l: string) => Promise<boolean>;
+      const i18n = createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en: { hello: 'Hello!' } } });
+      const early = setLocale(i18n, 'ru');
+      const repeated = setLocale(i18n, 'ru');
+      const latest = setLocale(i18n, 'uk');
+      gates.get('uk')!.resolve({ default: { hello: 'Привіт!' } });
+      expect(await latest).toBe(true);
+      gates.get('ru')!.resolve({ default: { hello: 'Привет!' } });
+      expect(await early).toBe(false);
+      expect(await repeated).toBe(false);
+      expect(counts).toEqual({ ru: 1, uk: 1 });
+      expect(i18n.global.locale.value).toBe('uk');
+      expect(document.documentElement.lang).toBe('uk');
+
+      const fresh = createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en: {} } });
+      const failure = setLocale(fresh, 'ru');
+      const rejected = expect(failure).rejects.toThrow('offline');
+      gates.get('ru')!.reject(new Error('offline'));
+      await rejected;
+      expect(fresh.global.locale.value).toBe('en');
+      const retry = setLocale(fresh, 'ru');
+      gates.get('ru')!.resolve({ default: { hello: 'Привет!' } });
+      expect(await retry).toBe(true);
+      expect(fresh.global.t('hello')).toBe('Привет!');
+      expect(counts.ru).toBe(3);
+    });
+
     it('esbuild со splitting выносит каждый словарь в свой чанк', async () => {
       const r = await build({ entryPoints: [join(dir, 'lazy.mjs')], bundle: true, splitting: true, format: 'esm', outdir: join(dir, 'out'), write: false, logLevel: 'silent' });
       const files = r.outputFiles.map((f) => f.path.slice(join(dir, 'out').length + 1)).sort();

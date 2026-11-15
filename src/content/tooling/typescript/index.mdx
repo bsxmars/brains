@@ -17,6 +17,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,9 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import VarianceDiagram from '@/widgets/typescript-variance-diagram/ui/VarianceDiagram.astro';
 import {
+  COMPILE_BOUNDARY_CODE,
+  STATE_NARROW_CODE,
+  ERASURE_SIZE_EXAMPLES,
   ANNOTATION_CODE,
   AUGMENT_CODE,
   DIAG_ROWS,
@@ -115,7 +120,6 @@ import {
   VALIDATOR_CODE,
   VARIANCE_DIAGRAM,
   VARIANCE_ROWS,
-  VERIFIED,
   GLOSSARY,
   PLAIN_DISTRIBUTION,
   PLAIN_INFER,
@@ -158,27 +162,23 @@ import {
   LEGACY_EMIT,
   LEGACY_NOTE,
   RELATED,
+  MECHANISM_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Язык, у которого нет рантайма" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Типы живут только внутри компилятора и исчезают при сборке: в бандл, в движок, в память
-    от них не попадает **ни байта**. Никакая ошибка типов не уронит продакшен — но и никакой
-    тип не спасёт от кривого JSON.
+    Аннотации и вычисления типов исчезают при сборке: движок исполняет JavaScript.
+    `interface User` описывает допустимые данные для компилятора, но не проверяет ответ
+    сервера. Если поле `name` оказалось числом, вызов `name.toUpperCase()` упадёт при запуске.
 
   </Callout>
 
-  Отсюда и главная путаница. Типы читают как подписи к переменным, а это **отдельный язык
-  программирования**. В нём есть свой `if`, своё сопоставление с образцом, свой цикл и своя
-  рекурсия. На нём можно выразить любое вычисление, но в нём нет арифметики и нет переменных,
-  которые можно менять. Всё, что называют «магией типов», написано на этом языке. А то, что
-  называют «сломанным выводом типов», обычно происходит на стыке с соседними механизмами —
-  о них раздел [«Тип как вычисление»](#s1).
-
-  Исключение из «исчезают при сборке» — четыре конструкции TypeScript, которые только
-  выглядят как типы, а на деле порождают код: `enum`, `namespace` со значением,
-  параметр-свойство и `const enum`. Они разобраны в разделе [«Тип как вычисление»](#s1), в подразделе о стирании.
+  Компилятор выводит типы из значений, вычисляет новые типы и проверяет присваивания.
+  Эти действия влияют на диагностику и подсказки редактора. В JavaScript остаются только
+  значения и явно написанные проверки. `enum`, `namespace` со значением и параметры-свойства
+  добавляют код, а `const enum` подставляет значения: это конструкции TypeScript для выполнения,
+  а не аннотации типов.
 
   <Glossary items={GLOSSARY} />
 </Section>
@@ -189,7 +189,17 @@ import {
   title="Тип как вычисление"
   lead="«Вывод типов сломался» звучит как мистика по одной причине: под одними словами прячутся три разных механизма. Они срабатывают в разное время и по разным правилам, а ошибка почти всегда появляется на стыке двух из них."
 >
-  <CodeBlock lang="tsx" code={MECHANISMS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={COMPILE_BOUNDARY_CODE} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
+
+  `JSON.parse` возвращает `any`: значение проходит в параметр `User`, хотя внутри число.
+  Валидация схемой превращает обещание типа в исполняемую проверку; разница разобрана
+  в подразделе «Схема вместо предиката» раздела [«Вариантность»](#s6).
+
+  <Disclosure title="Три механизма компилятора на одном исходнике">
+    <CodeBlock lang="text" code={MECHANISMS_CODE} />
+  </Disclosure>
 
   ### Вывод из значений: откуда берётся тип, которого никто не писал
 
@@ -262,11 +272,11 @@ import {
 
   ### Стирание — и то, что его переживает
 
-  Три механизма выше целиком живут внутри компилятора. Четвёртый на схеме обещает «чистый
-  JS», но у этого обещания есть граница: **стираются типы, а не весь синтаксис TypeScript**.
+  Вывод, вычисление типов и проверка присваиваний не добавляют проверок при запуске.
+  Но **стираются типы, а не весь синтаксис TypeScript**.
   Четыре конструкции переживают компиляцию и попадают в бандл как обычный код.
 
-  <CodeBlock lang="ts" code={ERASURE_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="text" code={ERASURE_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Table
     head={['конструкция', 'что осталось в `.js`', '`erasableSyntaxOnly`', '`node файл.ts`']}
@@ -297,6 +307,11 @@ import {
 
     </CardNote>
   </Card>
+
+  <Disclosure title="Исходники сравнения enum и строкового объединения">
+    <CodeBlock lang="ts" code={ERASURE_SIZE_EXAMPLES.enum} />
+    <CodeBlock lang="ts" code={ERASURE_SIZE_EXAMPLES.union} />
+  </Disclosure>
 
   ### `.d.ts` без проверки типов: `isolatedDeclarations`
 
@@ -365,15 +380,14 @@ import {
     <NumberedList items={UNTYPED_NOTES} size={14.5} />
   </Card>
 
-  <Plain text={PLAIN_HKT} />
-
-  <Card tone="info" title="Где слияние работает как инструмент: типы высшего порядка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock lang="tsx" code={HKT_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+  <Disclosure title="Где слияние работает как инструмент: типы высшего порядка">
+    <Plain text={PLAIN_HKT} />
+    <CodeBlock lang="ts" code={HKT_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="info">
       <Md text={HKT_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 </Section>
 
 <Section
@@ -406,6 +420,10 @@ import {
   <Card title="Что здесь работает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={STATE_NOTES} size={14.5} />
   </Card>
+
+  <Disclosure title="Что сохраняет связь с меткой после деструктуризации">
+    <CodeBlock lang="ts" code={STATE_NARROW_CODE} />
+  </Disclosure>
 
   ### Свой предикат: `x is T` и `asserts`
 
@@ -485,8 +503,8 @@ import {
 
   </CardGrid>
 
-  <Card title="Как распознать `any`" titleSize={18} pad={22} gap={14}>
-    <CodeBlock lang="tsx" code={IS_ANY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <Disclosure title="Как распознать `any`">
+    <CodeBlock lang="ts" code={IS_ANY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="prose">
 
@@ -495,21 +513,21 @@ import {
       сигнатуры функции. Все четыре строки результата проверены компилятором.
 
     </CardNote>
-  </Card>
+  </Disclosure>
 
-  <Card tone="ok" title="Как проверить, что тип получился тем, что написано в комментарии" titleSize={18} pad={22} gap={14}>
-    <CodeBlock lang="tsx" code={EQ_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <Disclosure title="Как проверить, что тип получился тем, что написано в комментарии">
+    <CodeBlock lang="ts" code={EQ_CODE} size={11} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="ok">
       <Md text={EQ_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
-  <Card title="То же готовым инструментом: `expect-type` и `tsd`" titleSize={18} pad={22} gap={14}>
+  <Disclosure title="То же готовым инструментом: `expect-type` и `tsd`">
     <CodeBlock lang="ts" code={TYPE_TESTS_CODE} size={11} lh={1.7} pad="14px 16px" />
 
     <NumberedList items={TYPE_TESTS_NOTES} size={14.5} />
-  </Card>
+  </Disclosure>
 
   <Plain text={PLAIN_INFER} />
 
@@ -533,7 +551,7 @@ import {
 
   <CardGrid min={320} gap={16} align="start">
     <Card title="Одно имя в двух местах: результат зависит от того, вход это или выход" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="tsx" code={INFER_POSITION_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={INFER_POSITION_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="prose">
 
@@ -546,7 +564,7 @@ import {
     </Card>
 
     <Card tone="warn" title="`UnionToIntersection` — и почему он работает" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="tsx" code={U2I_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={U2I_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
       <NumberedList items={U2I_STEPS} size={14.5} />
     </Card>
@@ -554,18 +572,20 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="`infer … extends` с 4.7" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="tsx" code={INFER_EXTENDS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={INFER_EXTENDS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="prose">
 
-        Второе применение интереснее первого: это **единственный штатный способ** превратить
-        строку `'42'` в число `42` на уровне типов. До 4.7 число приходилось собирать кортежем.
+        Во втором примере строка `'42'` становится числовым литералом `42`. Ограничение
+        `infer … extends number` появилось в 4.7, а вывод самого литерала — в **4.8**.
+        Компилятор проверяет обратную печать: `'1.0'` даёт широкий `number`,
+        потому что число `1` печатается как `'1'`.
 
       </CardNote>
     </Card>
 
     <Card tone="err" title="Две ловушки сопоставления" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="tsx" code={OVERLOAD_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={OVERLOAD_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="err">
 
@@ -605,7 +625,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="ok" title="Не «породить множество», а «проверить строку»" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="tsx" code={VALIDATOR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={VALIDATOR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Четыре типа, встроенные в компилятор" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -626,7 +646,7 @@ import {
 >
   <Plain text={PLAIN_HOMOMORPHIC} />
 
-  <CodeBlock lang="tsx" code={MAPPED_BASICS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={MAPPED_BASICS_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
   <Card title="Что сохраняет гомоморфный (сохраняющий форму) маппинг" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
     <Table
@@ -648,7 +668,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Тождественное `as K` — и массива больше нет" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="css" code={AS_KILLS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={AS_KILLS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="err">
 
@@ -673,7 +693,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="`as` в маппинге: переименовать ключ и удалить его" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="tsx" code={REMAP_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={REMAP_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="prose">
 
@@ -697,7 +717,7 @@ import {
   </CardGrid>
 
   <Card title="`Simplify` — зачем библиотеки пишут тип, который ничего не меняет" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
-    <CodeBlock lang="css" code={SIMPLIFY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="ts" code={SIMPLIFY_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <NumberedList items={SIMPLIFY_NOTES} size={15} />
 
@@ -715,14 +735,14 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Рекурсия и её пределы"
-  lead="Здесь язык типов упирается в ограничения компилятора, и у них есть конкретные числа. Хорошая новость: чтобы тип, падающий на пятидесяти шагах, заработал на тысяче, его достаточно переписать по шаблону, а не придумывать заново."
+  lead="Здесь язык типов упирается в ограничения компилятора, и у них есть конкретные числа. Хвостовая форма снимает один предел глубины, но не устраняет стоимость широких объединений и роста результата."
 >
-  <CodeBlock lang="tsx" code={TUPLE_MATH_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={TUPLE_MATH_CODE} size={11.5} lh={1.7} pad="16px 18px" />
 
   <Plain text={PLAIN_TAIL} />
 
   <Card title="Две формы рекурсии" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
-    <CodeBlock lang="tsx" code={TAIL_FORMS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="ts" code={TAIL_FORMS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     С TS 4.5 компилятор узнаёт вторую форму и выполняет её **обычным циклом**: ему не нужно
     помнить незаконченные вызовы. Вот что это даёт в числах — прогон `tsc --noEmit`
@@ -748,7 +768,7 @@ import {
 
   <CardGrid min={320} gap={16} align="start">
     <Card tone="ok" title="Одна и та же задача в двух формах" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="tsx" code={REPEAT_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={REPEAT_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="ok">
 
@@ -761,7 +781,7 @@ import {
     </Card>
 
     <Card tone="err" title="Рекурсия по объекту опаснее: он может ссылаться на себя" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="css" code={DEPTH_GUARD_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={DEPTH_GUARD_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="err">
 
@@ -799,7 +819,7 @@ import {
   </Card>
 
   <Card tone="err" title="«Очевидный» `DeepPartial` ломает три вещи сразу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock lang="tsx" code={NAIVE_DEEP_PARTIAL_CODE} size={11} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="ts" code={NAIVE_DEEP_PARTIAL_CODE} size={11} lh={1.7} pad="14px 16px" />
 
     <CardGrid min={260} gap={12}>
       {NAIVE_BREAKAGE.map((item) => (
@@ -811,7 +831,7 @@ import {
   </Card>
 
   <Card tone="ok" title="Рабочая версия перечисляет исключения до маппинга" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock lang="css" code={DEEP_PARTIAL_CODE} size={11} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="ts" code={DEEP_PARTIAL_CODE} size={11} lh={1.7} pad="14px 16px" />
 
     <CheckList items={DEEP_PARTIAL_NOTES} tone="ok" size={14.5} />
 
@@ -836,7 +856,7 @@ import {
     </Card>
 
     <Card tone="ok" title="То же ограничение, проверенное по кускам" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="tsx" code={FAST_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="ts" code={FAST_CODE} size={10.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
@@ -857,9 +877,9 @@ import {
     </CardNote>
   </Card>
 
-  <Card title="От «медленно» до строки — по шагам" titleSize={18} pad={22} gap={14}>
+  <Disclosure title="От «медленно» до строки — по шагам">
     <NumberedList items={TRACE_STEPS} size={15} />
-  </Card>
+  </Disclosure>
 </Section>
 
 <Section
@@ -932,7 +952,7 @@ import {
   </Card>
 
   <Card title="Аннотации `in` / `out` с 4.7" titleSize={18} pad={22} gap={14}>
-    <CodeBlock lang="tsx" code={ANNOTATION_CODE} size={11} lh={1.7} pad="16px 18px" />
+    <CodeBlock lang="ts" code={ANNOTATION_CODE} size={11} lh={1.7} pad="16px 18px" />
 
     <NumberedList items={ANNOTATION_NOTES} size={15} />
   </Card>
@@ -981,7 +1001,7 @@ import {
   а тип отдаёт компилятору.
 
   <Card title="Схема без библиотек: двадцать строк" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock lang="tsx" code={SCHEMA_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="ts" code={SCHEMA_CODE} size={10.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   <Card tone="ok" title="То же на zod" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -1045,7 +1065,7 @@ import {
 
   <Plain text={PLAIN_MIXIN} />
 
-  <CodeBlock lang="tsx" code={MIXIN_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={MIXIN_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Как это типизировано" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={MIXIN_NOTES} size={14.5} />
@@ -1053,7 +1073,7 @@ import {
 
   ### Декоратор с типами
 
-  <CodeBlock lang="tsx" code={DECORATOR_CODE} size={11} lh={1.7} pad="16px 18px" />
+  <CodeBlock lang="ts" code={DECORATOR_CODE} size={11} lh={1.7} pad="16px 18px" />
 
   <Card title="Что проверяет компилятор" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={DECORATOR_NOTES} size={14.5} />
@@ -1068,7 +1088,7 @@ import {
     minWidth={600}
   />
 
-  <Card tone="warn" title="Типы, которые доезжают до выполнения: `emitDecoratorMetadata`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Типы, которые доезжают до выполнения: `emitDecoratorMetadata`">
     <CodeBlock lang="ts" code={LEGACY_DECORATOR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
     <Md text="Что из этого записал компилятор:" />
@@ -1078,29 +1098,13 @@ import {
     <CardNote tone="warn">
       <Md text={LEGACY_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 </Section>
 
 <Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
 
-  <Card title="Что из этого закрыто компилятором" titleSize={18} pad={22} gap={14}>
-    <Table
-      head={['утверждение', 'что сделал компилятор', 'диагностика']}
-      rows={VERIFIED.map((v) => [v.k, v.v, v.code])}
-      kinds={['prose', 'prose', 'mono']}
-      cols="minmax(260px,1.5fr) minmax(190px,1fr) minmax(130px,.6fr)"
-      minWidth={700}
-    />
 
-    <CardNote tone="prose">
-
-      Каждая строка — отдельный файл, прогнанный как `tsc --noEmit` со `strict` на TypeScript
-      6.0.3. «Ошибки нет» здесь такой же результат, как код ошибки: важно и где компилятор
-      падает, и где он молчит.
-
-    </CardNote>
-  </Card>
 </Section>
 
 <Section

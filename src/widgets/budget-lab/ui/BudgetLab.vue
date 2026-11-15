@@ -55,7 +55,10 @@ const parent = computed(() => api.walk(graph, page.value.entries, withDynamic.va
 const files = computed(() => api.pageChunks(graph, page.value.entries, withDynamic.value));
 const total = computed(() => api.weigh(files.value, size));
 const budget = computed(() => budgetKb.value * 1024);
-const over = computed(() => total.value > budget.value);
+const rawBudget = computed(() => api.checkPageBudget(graph, page.value.entries, (f) => props.chunks[f].bytes, page.value.budgetKb));
+const modelRawBudget = computed(() => api.checkPageBudget(graph, page.value.entries, (f) => props.chunks[f].bytes, budgetKb.value));
+const sameRule = computed(() => measure.value === 'bytes' && scope.value === 'static');
+const over = computed(() => sameRule.value ? modelRawBudget.value.over : total.value > budget.value);
 
 const nbsp = ' ';
 function fmt(n: number): string {
@@ -105,24 +108,25 @@ const importers = computed(() =>
 
 const verdict = computed(() => {
   const unit = measure.value === 'bytes' ? 'сырыми байтами' : 'по gzip';
-  const head = `**${kb(total.value)} КБ** ${unit} из ${budgetKb.value} — ${files.value.length} файлов`;
+  const head = `**${kb(total.value)} КБ** ${unit} при пороге модели ${budgetKb.value} КБ — ${files.value.length} файлов`;
   const diff = Math.abs(budget.value - total.value);
   return over.value ? `${head}. Порог превышен на ${kb(diff)} КБ.` : `${head}. Запас ${kb(diff)} КБ.`;
 });
 
 const budgetNote = computed(
-  () => `Порог страницы в weight.spec — \`${page.value.budgetName}\`, ${page.value.budgetKb} КБ сырыми байтами.`,
+  () => `Порог страницы в weight.spec — \`${page.value.budgetName}\`, ${page.value.budgetKb} КБ сырыми байтами. На снимке статическое замыкание даёт ${rawBudget.value.roundedKb} КБ после округления: ${rawBudget.value.over ? 'выше порога' : 'в бюджете'}. Для gzip и динамических веток нужен собственный порог; переключение не переводит сырой лимит в сжатый.`,
 );
 
 const selectedInfo = computed(() => {
   const c = props.chunks[selected.value];
-  const shared = c.pages > 1 ? `Этот же файл получают **${c.pages}** страниц сайта.` : 'Других страниц с этим файлом нет.';
+  const shared = c.pages > 1 ? `В снимке этот файл входит в статический граф **${c.pages}** страниц.` : 'В снимке других статических потребителей нет.';
   return `\`${selected.value}\`: ${fmt(c.bytes)} Б сырыми, ${fmt(c.gzip)} Б gzip, ${fmt(c.br)} Б Brotli. ${shared}`;
 });
 
 const importersNote = computed(() => {
   const n = importers.value.length;
-  if (n === 0) return 'Это вход: на него ссылается HTML страницы.';
+  if (page.value.entries.includes(selected.value)) return 'Это вход: HTML ссылается на него напрямую. Удаления импортов из других чанков недостаточно, пока вход остаётся в HTML.';
+  if (n === 0) return 'В выбранном графе импортёров нет.';
   if (n === 1) return `Импортёр один — \`${importers.value[0]}\`. Убрать этот импорт — и файл уйдёт со страницы.`;
   return `Импортёров ${n}: ${importers.value.map((f) => `\`${f}\``).join(', ')}. Цепочка выше — самая короткая; чтобы файл ушёл со страницы, разорвать нужно все пути.`;
 });
@@ -146,8 +150,8 @@ function pick(file: string) {
           <SegmentedControl v-model="scope" class="l-pills" label="Импорты" :options="scopeOptions" />
         </div>
         <label class="bl-range">
-          <span class="bl-label">порог = {{ budgetKb }} КБ</span>
-          <input v-model.number="budgetKb" type="range" min="50" max="450" step="5" :aria-valuetext="`порог ${budgetKb} КБ`" />
+          <span class="bl-label">порог модели = {{ budgetKb }} КБ</span>
+          <input v-model.number="budgetKb" type="range" min="50" max="450" step="5" :aria-valuetext="`порог модели ${budgetKb} КБ`" />
         </label>
       </div>
     </template>

@@ -1,5 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { chromium } from '@playwright/test';
+import { withBrowser } from '../helpers/with-browser';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
@@ -12,8 +16,7 @@ import type { TxScenario } from '@/widgets/tx-lab/model/types';
  * Тема «Хранилища браузера».
  *
  * `TX_MODEL_CODE` — учебная модель жизни транзакции IndexedDB, строкой из темы: напечатана
- * на странице и исполняется демо. Здесь её журнал сверяется на каждом сценарии с двумя
- * настоящими реализациями: с `fake-indexeddb` 6.2.5 (через ту же обвязку `TX_HARNESS_CODE`, что
+ * на странице и исполняется демо. Здесь её журнал сверяется на каждом сценарии с `fake-indexeddb` 6.2.5 (через ту же обвязку `TX_HARNESS_CODE`, что
  * исполнял стенд) и с журналами Chromium 153, снятыми стендом (`STAND.tx`). Отдельно проверено,
  * что сценарии различают модели: модель, где `await` готового промиса считается новой задачей,
  * или где обработчик запроса не возвращает активность, на них краснеет.
@@ -21,7 +24,8 @@ import type { TxScenario } from '@/widgets/tx-lab/model/types';
  * Код версий и индексов (`OLD_TAB_CODE`, `NEW_TAB_CODE`, `INDEX_CODE`) исполняется
  * в `fake-indexeddb` и сверяется с журналами Chromium. `LS_TYPES_CODE` — в отдельном процессе
  * Node с `--experimental-webstorage`: в процессе vitest `localStorage` нет. Числа из текста
- * сверяются с литералами стенда. Браузерный прогон не повторяется.
+ * сверяются с литералами стенда. Девять сценариев повторяются в Chromium через тот же harness; отдельный контрпример
+ * держит очередь запросов живой и проверяет отсутствие активности из таймера.
  */
 
 const model = loadModel(t.TX_MODEL_CODE);
@@ -241,4 +245,61 @@ describe('Cache API и OPFS', () => {
     expect(t.STAND.opfsMain[0]).toBe('createSyncAccessHandle: undefined');
     expect(t.STAND.opfsMain[1]).toBe('файл: "hello"');
   });
+});
+
+
+describe('реальная IndexedDB в Chromium', () => {
+  it('все девять журналов и незавершённая неактивная транзакция совпадают с объяснением', async () => {
+    const server = createServer((request, response) => {
+      if (request.url === '/slow') {
+        setTimeout(() => response.end('ok'), 150);
+      } else {
+        response.setHeader('Content-Type', 'text/html');
+        response.end('<!doctype html><title>IndexedDB fixture</title>');
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
+    try {
+      await withBrowser(chromium, {}, async (browser) => {
+        const page = await browser.newPage();
+        await page.goto(url);
+        for (const scenario of t.DEMO_SCENARIOS) {
+          const log = await page.evaluate(async ({ harness, scenario }) => {
+            const run = new Function(`${harness}\nreturn runTx;`)();
+            return run(indexedDB, scenario, (url: string) => fetch(url));
+          }, { harness: t.TX_HARNESS_CODE, scenario });
+          expect(log, `Chromium: ${scenario.id}`).toEqual(scenario.chromium);
+        }
+        const cacheErrors = await page.evaluate(async () => {
+          const cache = await caches.open('storage-regression');
+          const errors: string[] = [];
+          for (const response of [new Response('partial', { status: 206 }), new Response('vary', { headers: { Vary: '*' } })]) {
+            try { await cache.put('/cached-response', response); }
+            catch (error) { errors.push((error as Error).name); }
+          }
+          await caches.delete('storage-regression');
+          return errors;
+        });
+        expect(cacheErrors).toEqual(['TypeError', 'TypeError']);
+        expect(t.CACHE_FACTS[1].d).toContain('отсутствие статуса 206');
+        const inactiveLog = await page.evaluate(async (code) => {
+          const log: string[] = [];
+          const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+          await new AsyncFunction('indexedDB', 'log', code)(indexedDB, (line: string) => log.push(line));
+          return log;
+        }, t.TX_INACTIVE_CODE);
+        expect(inactiveLog).toEqual([
+          'complete до таймера: false',
+          'внешний put: TransactionInactiveError',
+          'в базе: 1',
+        ]);
+        // Жизнь сохраняется ожидающим запросом, право добавить запрос даёт active-момент.
+        expect(t.TX_RULES[2].d).toContain('О завершении сообщает complete');
+        expect(t.PERSIST_FACTS[2].d).toContain('единственной рабочей копией');
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }, 30_000);
 });

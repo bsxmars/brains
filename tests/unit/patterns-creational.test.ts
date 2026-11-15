@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { createContext, runInContext } from 'node:vm';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import * as t from '@/content/patterns/creational/data';
@@ -143,6 +144,25 @@ describe('раздел 4 · прототип', () => {
 });
 
 describe('раздел 5 · одиночка', () => {
+  it('Symbol.for даёт один символ в двух vm realms, но globalThis хранит разные экземпляры', () => {
+    const a = createContext({});
+    const b = createContext({});
+    const key = "Symbol.for('lesson.singleton.scope-probe')";
+    const install = `globalThis[${key}] ??= new Map()`;
+    expect(runInContext(key, a)).toBe(runInContext(key, b));
+    expect(runInContext(key, a)).toBe(Symbol.for('lesson.singleton.scope-probe'));
+    const first = runInContext(install, a) as Map<string, string>;
+    const second = runInContext(install, b) as Map<string, string>;
+    expect(runInContext(install, a)).toBe(first);
+    expect(first).not.toBe(second);
+    first.set('owner', 'A');
+    second.set('owner', 'B');
+    expect(runInContext(`globalThis[${key}].get('owner')`, a)).toBe('A');
+    expect(runInContext(`globalThis[${key}].get('owner')`, b)).toBe('B');
+    // Общий ключ в реестре символов не превращает разные глобальные объекты в один.
+    expect(t.SINGLETON_NOTES.find((note) => note.includes('Symbol.for'))).toContain('одного globalThis');
+  });
+
   it('private constructor — ts(2673), а в .js второй экземпляр создаётся', async () => {
     checkPage(t.SINGLETON_CLASS_CODE);
     expect(await execute(t.SINGLETON_CLASS_CODE, COMPILE_ONLY)).toEqual(t.SINGLETON_CLASS_OUT);
@@ -151,6 +171,10 @@ describe('раздел 5 · одиночка', () => {
   it('модуль выполняется один раз на адрес: `?v=2` — второй экземпляр', () => {
     const files = Object.fromEntries(t.MODULE_FILES.map((f) => [f.path, f.code]));
     expect(runNode(files, 'main.mjs')).toEqual(t.MODULE_OUT);
+    // Новый экземпляр исполняет код снова, но HMR может перенести состояние между экземплярами.
+    // Настоящий механизм dispose/hot.data отдельно исполняют существующие hmr.test.ts.
+    expect(t.SINGLETON_NOTES[1]).toContain('dispose и import.meta.hot.data');
+    expect(t.SINGLETON_NOTES[1]).not.toContain('всё состояние модуля начинается с нуля');
   });
 
   it('две копии пакета — две карты и два класса, Symbol.for сводит в одну', () => {
@@ -194,5 +218,13 @@ describe('тонкие места', () => {
       compilerOptions: { target: ts.ScriptTarget.ES2022 },
     }).outputText;
     expect(js).not.toMatch(/\babstract\b|\bprivate\b/);
+  });
+});
+
+
+describe('практический контракт', () => {
+  it('область запроса кеширует пользователя локально и не разделяет черновые изменения', async () => {
+    checkPage(t.PRACTICE_CODE);
+    expect(await execute(t.PRACTICE_CODE)).toEqual(t.PRACTICE_OUT);
   });
 });

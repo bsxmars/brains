@@ -2,7 +2,7 @@
 title: Расширения браузера и изолированные миры
 order: 10
 kicker: браузер и рендеринг
-lead: "Расширение исполняет свой код на вашей странице: в её процессе, с её DOM, на её главном потоке. Но переменные и прототипы у него свои — это изолированный мир. Что через его границу проходит, а что нет, решает, чем расширение может помешать сайту."
+lead: "Контент-скрипт расширения Chromium исполняется на вашей странице: в её процессе, с её DOM, на её главном потоке. Но переменные и прототипы у него свои — это изолированный мир. Что через его границу проходит, а что нет, решает, чем расширение может помешать сайту."
 summary: "Из чего состоит расширение Manifest V3, что видит контент-скрипт и чего не видит, чем опасен world: 'MAIN', почему фон теряет переменные, почему CSP страницы не действует на расширение и как сайту заметить чужие узлы."
 verifiedOn: "Chromium 153.0.8010.12 (Chrome for Testing из Playwright 1.63, headless), учебное расширение MV3, загруженное распакованным, и два локальных сервера на node:http, сентябрь 2026. Сон фона снят без DevTools — Chrome запущен процессом. Порог в 30 секунд, лимиты declarativeNetRequest, externally_connectable и поведение Firefox взяты из документации и стендом не проверялись."
 nav:
@@ -16,6 +16,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
@@ -30,6 +32,8 @@ import ExtWorlds from '@/widgets/ext-worlds/ui/ExtWorlds.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import {
+  WORLDS_DIAGRAM,
+  STATE_NOTE,
   GLOSSARY,
   INTRO_NOTE,
   PLAIN_WORLD,
@@ -84,6 +88,8 @@ import {
   title="Из чего состоит расширение Manifest V3"
   lead="В DOM вашей страницы висит чужой `<div>`, которого сервер не присылал. Его вставил контент-скрипт — та часть расширения, что исполняется внутри чужой страницы. Само расширение — папка файлов с `manifest.json` в корне. Манифест перечисляет части, и у каждой части своё место: одни исполняются в процессе расширения, другие — внутри чужой страницы."
 >
+  <Disclosure title="Манифест и моменты запуска контент-скриптов">
+
   <Card title="Манифест учебного расширения" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
 
     Все проверки в теме сделаны на учебном расширении с таким манифестом (здесь он сокращён).
@@ -107,6 +113,8 @@ import {
     </CardNote>
   </Card>
 
+  </Disclosure>
+
   <Table
     head={['часть', 'где исполняется', 'что может']}
     rows={PARTS}
@@ -123,6 +131,8 @@ import {
   lead="Контент-скрипт исполняется в том же документе, но в отдельном контексте движка: у него свой `window`, свой `Array.prototype`, свой `fetch`. Общими остаются узлы DOM, их атрибуты и события."
 >
   <Plain text={PLAIN_WORLD} />
+
+  <ConceptDiagram data={WORLDS_DIAGRAM} />
 
   <ExtWorlds
     head={WORLD_HEAD}
@@ -234,6 +244,7 @@ import {
   <Card pad={20} gap={12} size={15.5} lh={1.6}>
     <Md text={SLEEP_NOTE} />
     <CodeBlock code={STATE_CODE} size={11.5} />
+    <Md text={STATE_NOTE} />
   </Card>
 
   ### CSP расширения: `eval` запрещён везде, где исполняется код расширения
@@ -248,6 +259,8 @@ import {
     шаблонами. Исключение одно — `wasm-unsafe-eval` для WebAssembly.
 
   </Card>
+
+  <Disclosure title="Как процессы расширения считали на стенде">
 
   ### Где живёт каждая часть
 
@@ -266,6 +279,8 @@ import {
       <Md text="Как браузер раздаёт процессы и почему расширения в них живут отдельно от страниц — в [«Устройстве браузера»](/js/browser-architecture/#s2), раздел [«Каталог процессов»](/js/browser-architecture/#s2)." />
     </CardNote>
   </Card>
+  </Disclosure>
+
 </Section>
 
 <Section

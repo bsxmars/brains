@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -34,6 +36,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ExportsLab from '@/widgets/exports-lab/ui/ExportsLab.vue';
 import {
   GLOSSARY,
+  PACKAGE_DIAGRAM,
   PLAIN_EXPORTS,
   PRICE_PKG_JSON,
   RESOLVE_STEPS,
@@ -111,6 +114,8 @@ import {
   title="Поле `exports`: как Node выбирает файл"
   lead="Спецификатор `price-kit/plugins/card` Node делит на имя пакета и подпуть `./plugins/card`, находит `package.json` пакета и спрашивает его карту. Алгоритм записан в документации Node по шагам и помещается в сотню строк кода."
 >
+  <ConceptDiagram data={PACKAGE_DIAGRAM} />
+
   <Card title="Сквозной пример: package.json пакета price-kit" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="json" code={PRICE_PKG_JSON} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
@@ -123,8 +128,17 @@ import {
   </CardGrid>
 
   <Card title="Резолвер `exports` по алгоритму Node" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={RESOLVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходник учебного резолвера exports">
+
+      <CodeBlock code={RESOLVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
+
+  Выбор цели ещё не загружает файл. `exports` может успешно вернуть путь к отсутствующему
+  `dist/index.mjs`: ошибка появится на следующем шаге. И наоборот, наличие файла в архиве
+  не делает его публичным подпутём, если карта его не открывает. `exports` ограничивает
+  обычные импорты по имени пакета, но не служит защитой от чтения файла по абсолютному пути.
 
   ### Что ответил Node на price-kit
 
@@ -208,7 +222,7 @@ import {
 
   <Md text={FORMAT_NOTE} />
 
-  ### `require` и ESM в Node 24
+  ### Синхронный `require` и ESM
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="CommonJS подключает ESM" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -281,7 +295,11 @@ import {
     </Card>
 
     <Card title="traceResolution, режим ESM" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="text" code={TYPES_LAST_TRACE} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="Полный журнал разрешения типов">
+
+        <CodeBlock lang="text" code={TYPES_LAST_TRACE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      </Disclosure>
     </Card>
   </CardGrid>
 
@@ -292,6 +310,11 @@ import {
     cols="minmax(130px,.7fr) minmax(170px,1fr) minmax(170px,1fr) minmax(170px,1fr)"
     minWidth={680}
   />
+
+  Типы описывают контракт выбранного файла, а не заменяют его загрузку. Если TypeScript
+  проверил ESM-объявление, а Node фактически получил CJS с другим набором экспортов,
+  успешная компиляция ещё не подтверждает работоспособность импорта. Для двух реализаций
+  проверяют обе ветви, включая декларации именно их форматов.
 
   ### Маскарад: типы от другого формата
 
@@ -315,7 +338,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Что уедет в тарбол"
-  lead="Публикуется не папка, а архив. Что в него войдёт, решают поле `files`, файл `.npmignore` и — неожиданно — `.gitignore`. Посмотреть заранее можно без публикации: `npm pack --dry-run` печатает список файлов и ничего никуда не отправляет."
+  lead="Публикуется не папка, а архив. Что в него войдёт, решают поле `files`, файл `.npmignore` и — неожиданно — `.gitignore`. Посмотреть заранее можно без публикации: `npm pack --dry-run` печатает список файлов и не отправляет пакет в реестр. При этом lifecycle-скрипты вроде `prepack` могут изменить локальные файлы; `--ignore-scripts` проверяет состав архива без их запуска."
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Проект" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

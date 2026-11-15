@@ -11,15 +11,16 @@ import { defineConfig } from 'vitest/config';
  * Новый тест, который запускает браузер, процесс или меряет время, — сюда.
  */
 const HEAVY = [
-  'abort-controller', 'async-context', 'atomics', 'callbacks', 'canvas', 'cdn-cache', 'collections',
-  'continuous-profiling', 'cost-invariants', 'csp', 'db-migrations',
-  'deflate', 'errors', 'fuzzy-search', 'git-internals', 'http2-http3', 'iframe', 'images', 'indexes',
-  'memory-gc', 'memory-profiling', 'message-channel', 'node-event-loop', 'node-memory',
-  'node-order', 'node-processes', 'numbers', 'observers',
-  'package-publishing', 'promise-behaviour', 'rate-limiting', 'realtime', 'regex', 'responsive', 'router',
-  'schedulers', 'scrolling', 'spatial-index', 'ssr-hydration', 'supply-chain', 'suspense-errors',
-  'svelte-runes', 'text-input', 'time-dates', 'tls-certificates', 'transactions', 'undo-redo',
-  'unicode-intl', 'uploads', 'v8-engine', 'v8-engine-traces', 'v8-engine-wasm', 'v8-strings', 'wasm-threads',
+  'abort-controller', 'async-context', 'atomics', 'bundler-internals', 'browser-storage', 'callbacks', 'canvas', 'cdn-cache', 'collections',
+  'continuous-profiling', 'cost-invariants', 'csp', 'css-tooling', 'db-migrations',
+  'deflate', 'diff', 'dns', 'docker-mechanisms', 'e2e-testing', 'errors', 'eviction', 'forms', 'fuzzy-search', 'git-internals', 'helm-gitops', 'http2-http3', 'iframe', 'images', 'indexes', 'infrastructure-as-code',
+  'load-balancing', 'memory-gc', 'memory-profiling', 'message-channel', 'module-federation', 'modules', 'modules-node-resolve', 'nginx-proxy', 'node-event-loop', 'node-memory',
+  'node-order', 'node-processes', 'numbers', 'observers', 'observability',
+  'patterns-creational', 'patterns-wrappers', 'patterns-trees', 'patterns-behavior', 'patterns-communication',
+  'package-managers', 'package-publishing', 'performance-budgets', 'promise-behaviour', 'queues', 'rate-limiting', 'realtime', 'redis-cache', 'regex', 'responsive', 'router',
+  'schedulers', 'scrolling', 'secrets-config', 'serverless-edge', 'source-maps', 'spatial-index', 'ssr-hydration', 'supply-chain', 'suspense-errors',
+  'svelte-runes', 'test-runners', 'text-buffers', 'text-input', 'time-dates', 'tls-certificates', 'transpilation', 'ts-type-level', 'transactions', 'undo-redo',
+  'unicode-intl', 'uploads', 'xs-leaks', 'v8-engine', 'v8-engine-traces', 'v8-engine-wasm', 'v8-strings', 'wasm-threads',
 ].map((name) => `tests/unit/${name}.test.ts`);
 
 /**

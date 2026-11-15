@@ -12,7 +12,7 @@ export interface MfState {
   singleton: boolean;
   /** `auto` — не задавать `strictVersion`, пусть сработает умолчание. */
   strict: 'auto' | 'on' | 'off';
-  /** `eager` у host. */
+  /** `eager` у host; стенд также потребляет host до загрузки remote. */
   eager: boolean;
 }
 

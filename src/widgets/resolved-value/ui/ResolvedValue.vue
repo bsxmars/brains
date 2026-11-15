@@ -109,7 +109,7 @@ const FOOTER_NOTE =
           <span class="cell cell--name">{{ item.name }}</span>
           <span class="cell cell--decl">{{ item.declared }}</span>
           <span class="cell cell--value">{{ values[item.name] ?? '…' }}</span>
-          <span class="cell cell--stage">{{ item.stage === 'used' ? 'used · после лейаута' : 'computed' }}</span>
+          <span class="cell cell--stage">{{ item.stage === 'used' ? 'used' : 'computed' }}</span>
         </div>
       </div>
 

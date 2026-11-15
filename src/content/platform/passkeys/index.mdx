@@ -4,9 +4,9 @@ heading: "Passkeys и WebAuthn: вход без пароля"
 headingWidth: 24
 order: 12
 kicker: сеть и безопасность
-lead: "Пароль — общий секрет: его знают и пользователь, и сервер, а значит, его можно выманить, подсмотреть или унести из базы. Passkey — пара ключей: закрытый не покидает устройство, сервер хранит только открытый, а вход — это подпись под свежим числом от сервера. Что лежит в ответах `create` и `get`, как сервер их проверяет и почему поддельный сайт не может получить подпись для настоящего."
+lead: "Пароль — общий секрет: его знают и пользователь, и сервер, а значит, его можно выманить, подсмотреть или унести из базы. Passkey — учётные данные с парой ключей: сайт получает открытый ключ, а закрытым управляет аутентификатор или менеджер ключей. При входе устройство подписывает свежий challenge и данные сайта; закрытый ключ в ответ входа не попадает. Что лежит в ответах `create` и `get`, как сервер их проверяет и почему поддельный сайт не может получить подпись для настоящего."
 summary: "Пара ключей вместо общего секрета; регистрация `navigator.credentials.create` и вход `get`; `clientDataJSON` и `authenticatorData` по байтам — rpIdHash, флаги UP/UV/BE/BS, счётчик; подпись над `authenticatorData ‖ SHA-256(clientDataJSON)` и проверка ES256 на `crypto.subtle`; почему не работает фишинг; синхронизируемые ключи и вход из автозаполнения. Ответы получены в Chromium с виртуальным аутентификатором и сверены с `@simplewebauthn/server`."
-verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63.0) с виртуальным аутентификатором CDP, Node 24.11.0, @simplewebauthn/server 14.0.3, октябрь 2026: регистрация, два входа, вход с другого порта, поддельный домен, повтор и conditional UI сняты стендом на своём сервере node:http; функции темы сверены tests/unit/passkeys.test.ts с @simplewebauthn/server и node:crypto. Поведение облачных менеджеров ключей и UI автозаполнения — по спецификации WebAuthn Level 3 и документации"
+verifiedOn: "Функции повторно проверены 12 ноября 2026 на Node 26.8.2. Исходный снимок стенда: Chromium 153.0.8010.12 (Playwright 1.63.0) с виртуальным аутентификатором CDP, Node 24.11.0, @simplewebauthn/server 14.0.3, октябрь 2026: регистрация, два входа, вход с другого порта, поддельный домен, повтор и conditional UI сняты стендом на своём сервере node:http; функции темы сверены tests/unit/passkeys.test.ts с @simplewebauthn/server и node:crypto. Поведение облачных менеджеров ключей и UI автозаполнения — по спецификации WebAuthn Level 3 и документации"
 nav:
   - { id: s1, label: Ключ вместо пароля }
   - { id: s2, label: Регистрация }
@@ -17,6 +17,8 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -34,6 +36,8 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import PasskeyLab from '@/widgets/passkey-lab/ui/PasskeyLab.vue';
 import {
+  PASSKEY_SIGNATURE_DIAGRAM,
+  VERIFY_SCOPE_NOTE,
   GLOSSARY,
   PLAIN_PASSKEY,
   KEY_VS_PASSWORD,
@@ -49,7 +53,6 @@ import {
   AUTHDATA_CODE,
   AUTHDATA_NOTE,
   STORED_ROWS,
-  SIGNED_CHIPS,
   SIGNED_NOTE,
   VERIFY_CODE,
   DER_NOTE,
@@ -77,7 +80,7 @@ import {
   <Callout size={19} pad="24px 26px">
 
     При входе по паролю секрет знают двое — человек и сервер, — и его можно выманить.
-    В passkey **общего секрета нет**: закрытый ключ остаётся в устройстве, сервер хранит
+    В passkey **общего секрета нет**: закрытый ключ не передаётся сайту, сервер хранит
     открытый, а вход — это подпись под случайным числом от сервера. И браузер сам вписывает
     в подписанные данные адрес страницы, на которой всё происходит.
 
@@ -98,7 +101,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Ключ вместо пароля"
-  lead="Для каждого сайта устройство создаёт свою пару ключей. Открытый уходит на сервер при регистрации, закрытый не уходит никуда. При входе сервер присылает случайные байты, устройство их подписывает, сервер проверяет подпись открытым ключом."
+  lead="Для каждого сайта устройство создаёт свою пару ключей. Открытый уходит на сервер при регистрации. Закрытый остаётся под управлением аутентификатора; для синхронизируемого ключа менеджер может переносить его копии между устройствами. При входе сервер присылает случайные байты, устройство их подписывает, сервер проверяет подпись открытым ключом."
 >
   <Table
     head={['', 'пароль', 'passkey']}
@@ -184,6 +187,8 @@ import {
     minWidth={600}
   />
 
+  <Disclosure title="Исходник разбора байтов и ограниченного подмножества CBOR">
+
   <Card title="Разбор authenticatorData" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={AUTHDATA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -192,10 +197,12 @@ import {
     </CardNote>
   </Card>
 
+  </Disclosure>
+
   ### Что сервер запоминает
 
   Сервер проверяет ответ — те же `type`, `challenge`, `origin` и `rpIdHash`, что и при входе, —
-  и сохраняет запись о ключе. Пароля в ней нет, и ничего, что работало бы как пароль.
+  и сохраняет запись о ключе. Challenge должен относиться к этой операции и приниматься один раз; при регистрации дополнительно проверяются формат аттестации и допустимость алгоритма. Пароля в записи нет.
 
   <Table
     head={['поле', 'в нашем примере', 'зачем']}
@@ -210,23 +217,27 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Вход: `get` и подпись"
-  lead="При входе сервер снова выдаёт challenge, браузер снова собирает `clientDataJSON`, а аутентификатор возвращает 37 байт `authenticatorData` и подпись. Новых ключей нет, флаг AT выключен. Вся проверка — сверить поля и проверить одну подпись ES256."
+  lead="При входе сервер снова выдаёт challenge, браузер снова собирает `clientDataJSON`, а аутентификатор возвращает `authenticatorData` и подпись. В нашем ответе это 37 байт без расширений; новые ключи не создаются, флаг AT выключен. Сервер сверяет поля с ожидаемыми и проверяет ES256-подпись сохранённым ключом."
 >
-  <Card title="Что подписано" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
-    <FlowChips minWidth={760} chips={SIGNED_CHIPS} />
+  <ConceptDiagram data={PASSKEY_SIGNATURE_DIAGRAM} />
 
-    <Md text={SIGNED_NOTE} />
-  </Card>
+  <Md text={SIGNED_NOTE} />
+
+  <Disclosure title="Исходник учебной проверки ES256 и fmt: none">
 
   <Card title="Проверка регистрации и входа" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VERIFY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="warn" title="Формат подписи" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DER_NOTE} />
 
     <Card tone="info" title="Счётчик подписей" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={COUNTER_NOTE} />
   </CardGrid>
+
+  <Md text={VERIFY_SCOPE_NOTE} />
 
   ### Проверка ответа
 
@@ -268,7 +279,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Синхронизация и вход из автозаполнения"
-  lead="Ранние ключи WebAuthn жили в одном устройстве: потерял USB-ключ — потерял и вход. Passkeys обычно синхронизируются через менеджер паролей: iCloud Keychain, Google Password Manager, 1Password. Сервер узнаёт об этом по двум флагам."
+  lead="Ранние ключи WebAuthn жили в одном устройстве: потерял USB-ключ — потерял и вход. Passkeys обычно синхронизируются через менеджер паролей: iCloud Keychain, Google Password Manager, 1Password. Два флага сообщают, разрешено ли резервирование ключа и есть ли сейчас резервная копия; устройства и облачного провайдера они не перечисляют."
 >
   <Plain text={PLAIN_SYNC} />
 

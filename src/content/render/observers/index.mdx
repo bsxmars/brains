@@ -4,7 +4,7 @@ heading: "Наблюдатели: Intersection, Resize, Mutation — когда 
 headingWidth: 24
 order: 23
 kicker: браузер и рендеринг
-lead: "Три API с одинаковым словом в имени живут в трёх разных местах цикла событий. `MutationObserver` — микрозадача ещё до кадра, `ResizeObserver` — внутри кадра после раскладки, `IntersectionObserver` — отдельная задача уже после кадра. От этого места зависит, какие размеры видит колбэк, почему первая запись приходит сразу, откуда берётся `ResizeObserver loop completed` и почему видимая цель бывает «не пересекается»."
+lead: "Три API с одинаковым словом в имени живут в трёх разных местах цикла событий. `MutationObserver` доставляет записи микрозадачей, `ResizeObserver` — после раскладки внутри обновления рендеринга. `IntersectionObserver` вычисляет пересечения при обновлении, а вызывает колбэк отдельной задачей. От этого места зависит, какие размеры видит колбэк, почему начальная запись приходит и для невидимой цели, откуда берётся `ResizeObserver loop completed` и почему видимая цель бывает «не пересекается»."
 summary: "Порядок наблюдателей относительно задач, микрозадач и `rAF`, снятый в Chromium; IntersectionObserver: `root`, `rootMargin`, пороги, `intersectionRatio`, первый вызов и `isIntersecting` ниже первого порога, v2 кратко; ResizeObserver: три коробки, `transform`, цикл по глубине и ошибка; MutationObserver: виды записей, `subtree`, `oldValue`, `takeRecords`, почему стили не видны; ленивая загрузка, лента со сторожем, `@container` против ResizeObserver."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026; порог и isIntersecting — ещё Firefox 155.0 и WebKit 26.6. Порядок вызовов, записи MutationObserver и примеры кода снимаются заново в tests/unit/observers.test.ts; модель IntersectionObserver сверена с Chromium на сетке случайных геометрий, модель кругов ResizeObserver — на случайных деревьях"
 nav:
@@ -17,6 +17,8 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import ObserverLab from '@/widgets/observer-lab/ui/ObserverLab.vue';
 import {
   GLOSSARY,
+  OBSERVER_DELIVERY_DIAGRAM,
   PLAIN_OBSERVER,
   ORDER_HTML,
   ORDER_CODE,
@@ -46,6 +49,7 @@ import {
   IO_USAGE_CODE,
   IO_OPTION_ROWS,
   PLAIN_ROOT_MARGIN,
+  IO_MARGIN_NOTE,
   IO_CODE,
   PLAIN_RATIO,
   IO_ROOT,
@@ -93,16 +97,18 @@ import {
 <Section variant="intro" eyebrow="Три датчика" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Наблюдатель не ускоряет работу. Он переносит её в определённое место кадра, и это
-    место задаёт спецификация: микрозадача, шаг кадра после раскладки или задача после
-    кадра. От места зависит, какие данные видит колбэк и когда его правки попадут на экран.
+    Запись наблюдателя и вызов его колбэка — разные события. Изменение DOM создаёт записи
+    MutationObserver сразу; размеры ResizeObserver узнаёт после раскладки; пересечения
+    IntersectionObserver вычисляются при обновлении рендеринга и доставляются позже задачей.
+    Чтение записи не равнозначно новому измерению геометрии.
 
   </Callout>
 
   До наблюдателей размер и видимость узнавали сами: в обработчиках `scroll` и `resize`
   читали `getBoundingClientRect()`, а за изменениями DOM следили устаревшими событиями
   мутаций, которые срабатывали на каждую вставку по отдельности. Наблюдатель вместо этого
-  вызывает колбэк один раз и передаёт пачку записей — в момент, когда браузер уже знает ответ.
+  передаёт накопленные записи пачкой. В одной пачке может быть несколько целей или изменений,
+  а один и тот же наблюдатель может сработать несколько раз.
 
   <Plain text={PLAIN_OBSERVER} />
 
@@ -115,13 +121,21 @@ import {
   title="Место в кадре"
   lead="Чтобы увидеть порядок, всё запускают из одной задачи: меняют размер блока, сдвигают цель в окно и заодно ставят микрозадачу, таймер и `requestAnimationFrame`. Каждый колбэк пишет в журнал номер кадра."
 >
+<Disclosure title="Разметка эксперимента порядка вызовов">
+
   <Card title="Разметка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock lang="html" code={ORDER_HTML} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
+</Disclosure>
+
+<Disclosure title="Исходник эксперимента порядка вызовов">
+
   <Card title="Эксперимент" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={ORDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+</Disclosure>
 
   <Card title="Журнал в Chromium 153" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="text" code={ORDER_LOG.join('\n')} size={11.5} lh={1.65} pad="14px 16px" />
@@ -130,6 +144,8 @@ import {
       <Md text={ORDER_NOTE} />
     </CardNote>
   </Card>
+
+  <ConceptDiagram data={OBSERVER_DELIVERY_DIAGRAM} />
 
   <Table
     head={['наблюдатель', 'когда зовётся', 'что видит колбэк']}
@@ -140,7 +156,7 @@ import {
     minWidth={720}
   />
 
-  ### Колбэк после кадра
+  ### Расчёт пересечения и доставка записи
 
   <Plain text={PLAIN_TASK_AFTER} />
 
@@ -167,13 +183,19 @@ import {
 
   <Plain text={PLAIN_ROOT_MARGIN} />
 
+  <Md text={IO_MARGIN_NOTE} />
+
   ### Как считается запись
 
   <Plain text={PLAIN_RATIO} />
 
+<Disclosure title="Как модель вычисляет запись IntersectionObserver">
+
   <Card title="Запись IntersectionObserver" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={IO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+</Disclosure>
 
   Шесть геометрий, на которых интуиция чаще всего промахивается. Корень везде один:
   прямоугольник {IO_ROOT.width}×{IO_ROOT.height} в левом верхнем углу.
@@ -222,7 +244,7 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Размеры и глубина"
-  lead="ResizeObserver сообщает размер коробки после раскладки. Размер в записи уже посчитан — читать его бесплатно. Платить приходится, если в ответ на размер поменять другой размер: тогда раскладка считается ещё раз, и браузер решает, успеет ли новый круг в этот кадр."
+  lead="ResizeObserver сообщает размер коробки после раскладки. Размер в записи уже посчитан: чтение записи не требует новой раскладки. Платить приходится, если в ответ на размер поменять другой размер: тогда раскладка считается ещё раз, и браузер решает, успеет ли новый круг в этот кадр."
 >
   <Card title="Как его заводят" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={RO_USAGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -257,9 +279,13 @@ import {
     <NumberedList items={RO_LOOP_STEPS.map((s) => `**${s.k}.** ${s.d}`)} />
   </Card>
 
+<Disclosure title="Исходник учебной модели кругов ResizeObserver">
+
   <Card title="Один кадр ResizeObserver" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RO_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+</Disclosure>
 
   <ObserverLab
     client:visible
@@ -356,12 +382,16 @@ import {
       <CodeBlock code={SENTINEL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
-    <Card tone="ok" title="Поправка после загрузки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <Card tone="ok" title="Повтор, ошибка, конец данных и очистка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={SENTINEL_FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
   </CardGrid>
 
   <Md text={SENTINEL_NOTE} />
+
+  Создайте подписку через `observeFeed(sentinel, loadNextPage, showError)`. Кнопка повтора
+  вызывает её `retry()`, а очистка компонента — `dispose()`. Загрузчик получает `signal` и
+  возвращает `false`, когда сервер сообщил о конце данных.
 
   <Md text={VIRTUAL_NOTE} />
 
@@ -381,10 +411,10 @@ import {
   <DarkPanel eyebrow="Что из этого следует">
     <DarkText size={18} lh={1.55} tone="prose">
 
-      Выбирая наблюдатель, вы выбираете момент, когда сработает колбэк. MutationObserver — сразу после правки,
-      до кадра и без размеров. ResizeObserver — внутри кадра, с готовыми размерами и правом
-      ещё раз поменять раскладку, но только вглубь. IntersectionObserver — после кадра,
-      ступеньками порогов. Если ответ на событие можно выразить в CSS, наблюдатель не нужен
+      MutationObserver сообщает о правках дерева микрозадачей и сам не измеряет размеры.
+      ResizeObserver доставляет готовые размеры внутри обновления рендеринга; новые
+      уведомления в том же обновлении ограничены правилом глубины. IntersectionObserver
+      доставляет снимок пересечений отдельной задачей, а не на каждое движение. Если ответ на событие можно выразить в CSS, наблюдатель не нужен
       вовсе.
 
     </DarkText>

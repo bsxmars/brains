@@ -4,7 +4,7 @@ heading: "Шрифты и текст: от загрузки до пикселе�
 headingWidth: 22
 order: 12
 kicker: браузер и рендеринг
-lead: "Заголовок сначала пустой, потом появляется — и кнопка под ним прыгает вниз. Причина в том, как браузер грузит шрифт: он качает файл позже, чем кажется, по `font-display` решает, что показать в ожидании, и раскладывает текст заново, когда файл приходит. Как это устроено по шагам и как сделать, чтобы подмена ничего не двигала."
+lead: "Заголовок сначала пустой, потом появляется — и кнопка под ним прыгает вниз. Причина в том, как браузер грузит шрифт: он качает файл позже, чем кажется, по `font-display` решает, что показать в ожидании, и раскладывает текст заново, когда файл приходит. Подгонка запасного шрифта уменьшает сдвиг, но её нужно проверять на настоящем тексте."
 summary: "Когда браузер начинает качать шрифт, периоды блокировки и подмены и пять значений `font-display`, FOIT и FOUT, сдвиг при подмене и подгонка запасного шрифта `size-adjust` / `ascent-override` / `descent-override`, подмножества и `unicode-range`, `preload` с `crossorigin`, `document.fonts`, шейпинг: кернинг, лигатуры и `measureText`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: запросы, фазы font-display, сдвиги и ширины сняты стендом со своим сервером и задержкой шрифта; функции темы сверены с замерами в tests/unit/fonts-text.test.ts"
 nav:
@@ -19,11 +19,13 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import Illustration from '@/shared/ui/Illustration.astro';
+import glyphRasterization from '@/assets/render/glyph-rasterization.png';
+import FontSwapFigure from '@/widgets/font-display-lab/ui/FontSwapFigure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -34,6 +36,8 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FontDisplayLab from '@/widgets/font-display-lab/ui/FontDisplayLab.vue';
 import {
   GLOSSARY,
+  FONT_DISPLAY_SCOPE,
+  FONT_MATCHING_NOTE,
   PLAIN_FONTS,
   LAZY_CODE,
   PLAIN_LAZY,
@@ -72,6 +76,7 @@ import {
   DOM_ROWS,
   SHAPING_NOTE,
   SHAPING_FACTS,
+  GLYPH_ILLUSTRATION,
   PITFALLS,
   SOURCES,
   RELATED,
@@ -85,11 +90,6 @@ import {
     у нового шрифта другие ширины букв и другая высота строки, и всё, что ниже, может уехать.
 
   </Callout>
-
-  Текст на странице проходит длинный путь. Браузер должен узнать, какой шрифт нужен, скачать
-  файл, решить, что показывать до его прихода, разрезать строку на глифы и посчитать её
-  ширину. Каждый шаг виден читателю: пустым заголовком, сменой шрифта на глазах, прыжком
-  кнопки под пальцем. И почти каждый можно настроить, если знать, как он устроен.
 
   <Plain text={PLAIN_FONTS} />
 
@@ -117,11 +117,11 @@ import {
 
   <Md text={LAZY_NOTE} />
 
-  ### Шрифт выбирается для каждой буквы
+  ### Семейство выбирается по покрытию текста
 
-  Браузер не выбирает из списка `font-family` один шрифт на весь текст. Он проходит список
-  для каждого символа отдельно и берёт первый шрифт, в котором этот символ есть. Вот кто
-  рисует фразу «{COURSE_SENTENCE}» с тем же списком шрифтов и теми же файлами, что у этого сайта:
+  <Md text={FONT_MATCHING_NOTE} />
+
+  Вот кто рисует фразу «{COURSE_SENTENCE}» с тем же списком шрифтов и теми же файлами, что у этого сайта:
 
   <Table
     head={['шрифт', 'глифов', 'что нарисовал']}
@@ -139,9 +139,11 @@ import {
   eyebrow="Раздел 2 · демо"
   eyebrowTone="demo"
   title="font-display: что видно, пока шрифт едет"
-  lead="Когда загрузка шрифта началась, браузер отсчитывает время. Сначала идёт период блокировки: текста не видно. Потом период подмены: виден запасной шрифт, и пришедший файл его заменит. После этого подмены уже не будет. `font-display` задаёт длину первых двух периодов."
+  lead="Когда браузер впервые пытается использовать веб-шрифт, он запускает таймер. Сначала идёт период блокировки: текста не видно. Потом период подмены: виден запасной шрифт, и пришедший файл его заменит. После этого подмены уже не будет. `font-display` задаёт длину первых двух периодов."
 >
   <Plain text={PLAIN_DISPLAY} />
+
+  <Md text={FONT_DISPLAY_SCOPE} />
 
   <Table
     head={['значение', 'блокировка', 'подмена', 'когда брать']}
@@ -155,11 +157,13 @@ import {
   FOUT. `block` выбирает первое, `swap` — второе. `fallback` и `optional` ограничивают
   время: шрифт, который пришёл позже, на эту страницу уже не подставят.
 
-  <Card title="Модель: что видно в момент t" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={FONT_DISPLAY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
-
   ### Модель и замер Chromium на одной шкале времени
+
+  <Disclosure title="Исходник модели периодов font-display">
+
+    <CodeBlock code={FONT_DISPLAY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+  </Disclosure>
 
   <FontDisplayLab client:visible code={FONT_DISPLAY_CODE} runs={STAND_RUNS} text={DEMO_TEXT} caption={DEMO_CAPTION} />
 
@@ -177,6 +181,12 @@ import {
   title="Сдвиг при подмене и как его погасить"
   lead="Колонка текста 360px, `font-display: swap`, шрифт приходит через 800 мс. Под абзацем — кнопка. Строки после подмены другие, и кнопка уезжает: это сдвиг, который попадает в CLS."
 >
+  <FontSwapFigure rows={CLS_ROWS} />
+
+  <Md text={CLS_NOTE} />
+
+  <Disclosure title="Все варианты замера сдвига">
+
   <Table
     head={['вариант', 'что добавлено', 'высота абзаца, px', 'верх кнопки, px', 'CLS']}
     rows={CLS_ROWS.map((r) => [r.k, r.css, r.pH, r.cta, r.cls])}
@@ -186,7 +196,7 @@ import {
     minWidth={720}
   />
 
-  <Md text={CLS_NOTE} />
+  </Disclosure>
 
   ### Запасной шрифт по мерке
 
@@ -221,9 +231,11 @@ import {
 
   <CodeBlock lang="css" code={SUBSET_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-  <Card title="Какие файлы скачать" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Учебный разбор unicode-range">
+
     <CodeBlock code={RANGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+
+  </Disclosure>
 
   <Table
     head={['текст абзаца', 'скачано', 'почему']}
@@ -279,7 +291,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Ширина строки: почему не сумма букв"
-  lead="Шрифт пришёл — теперь строку надо измерить. Кажется, что ширина слова равна сумме ширин его букв. Для большинства шрифтов это не так, и разница — несколько процентов длины."
+  lead="Ширина текста зависит от соседства букв: пары сдвигаются, несколько символов могут превратиться в один глиф. Поэтому сумму измерений отдельных букв нельзя использовать вместо измерения строки целиком."
 >
   <Plain text={PLAIN_SHAPING} />
 
@@ -310,17 +322,15 @@ import {
 
   </CardGrid>
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
+  ### От глифа к пикселям
 
-      Шрифт участвует в раскладке, а не только в отрисовке. Пока файла нет, строки
-      разложены по метрикам запасного шрифта; когда файл придёт, их разложат заново. Поэтому шрифт первого
-      экрана называют в `preload` с `crossorigin`, `font-display` выбирают под то, сколько
-      готовы ждать, а запасной шрифт подгоняют по метрикам — тогда подмена меняет буквы,
-      но не двигает ничего вокруг.
+  Шейпинг выбирает глифы и их положения. Для контурного глифа растеризатор получает
+  изображение в пиксельной сетке. При сглаживании оттенками серого граничные клетки
+  получают промежуточные значения: диагональ не обязана состоять только из чёрного и белого.
 
-    </DarkText>
-  </DarkPanel>
+  <Illustration id="glyph-rasterization" image={glyphRasterization} {...GLYPH_ILLUSTRATION} />
+
+
 </Section>
 
 <Section id="s7" eyebrow="Раздел 7" title="Тонкие места">

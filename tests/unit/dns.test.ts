@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { runInNewContext } from 'node:vm';
 import pkt from 'dns-packet';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/delivery/dns/data';
@@ -31,6 +32,32 @@ const raw = pkt as unknown as {
 };
 const answer = loadAnswer(t.AUTH_CODE);
 const createResolver = loadResolver(t.RESOLVER_CODE);
+
+describe('ограничение циклических CNAME', () => {
+  it('авторитетный ответ не зацикливается на a→a и a→b→a', () => {
+    for (const targets of [['a.shop.test'], ['b.shop.test', 'a.shop.test']]) {
+      const names = targets.length === 1 ? ['a.shop.test'] : ['a.shop.test', 'b.shop.test'];
+      const zones = [{ origin: 'shop.test', records: names.map((name, i) => ({ name, ttl: 60, type: 'CNAME', data: targets[i] })) }];
+      const result = runInNewContext(`${t.AUTH_CODE}\nanswer(zones, 'a.shop.test', 'A')`, { zones }, { timeout: 100 });
+      expect(result.rcode).toBe('SERVFAIL');
+      expect(result.answers).toHaveLength(0);
+    }
+  });
+
+  it('резолвер ограничивает цикл внутри одного NOERROR-ответа', async () => {
+    // Отдельный процесс с пределом времени: возвращение старого бесконечного цикла
+    // не должно подвешивать весь vitest-worker.
+    const script = `${t.RESOLVER_CODE}\n
+const response = { aa: true, rcode: 'NOERROR', authorities: [], additionals: [], answers: [
+  { name: 'a.test', type: 'CNAME', ttl: 60, data: 'b.test' },
+  { name: 'b.test', type: 'CNAME', ttl: 60, data: 'a.test' },
+] };
+const resolver = createResolver({ roots: ['192.0.2.1'], now: () => 0, send: async () => response });
+console.log(JSON.stringify(await resolver.resolve('a.test', 'A')));`;
+    const { stdout } = await run(process.execPath, ['--input-type=module', '-e', script], { timeout: 2000 });
+    expect(JSON.parse(stdout)).toEqual({ rcode: 'SERVFAIL', answers: [] });
+  });
+});
 
 // ─── Кодировщик стенда: пакет со сжатием имён ─────────────────────────────────────────────
 

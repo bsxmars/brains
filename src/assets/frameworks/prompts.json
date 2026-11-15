@@ -1,0 +1,10 @@
+{
+  "tool": "image_gen.imagegen",
+  "date": "2026-11-12",
+  "assets": [
+    {
+      "file": "render-draft-commit.png",
+      "prompt": "Use case: scientific-educational.\nAsset type: conceptual illustration for a Russian lesson about React render and commit; all labels are separate accessible HTML.\nPrimary request: show the distinction between preparing a draft UI and publishing the resulting UI, in three equally sized panels on pure white, wide 3:2 composition.\nPanel one: one polished front-facing browser page with a dark header, two violet cards, and a neutral footer; this is the current visible interface.\nPanel two: the same current browser page still intact in the background, while a clearly separate unfinished draft of a new card arrangement sits on a faint blueprint sheet in the foreground. Draft cards have dashed outlines and one half-complete placeholder. The published page must remain unchanged. Visually separate draft work from the live page.\nPanel three: the completed new card arrangement is now on the polished browser page; the blueprint is neatly set aside. The new arrangement matches the draft from panel two. A small understated arrow between the second and third panels suggests publication once ready.\nStyle: restrained editorial technical illustration, nearly orthographic with only very shallow depth, spacious and clear, pure white #FFFFFF, dark ink #17151F, violet #7C3AED, pale lavender #F5F1FF, muted neutral gray. No humans, no office props, no GPU chips, no gears, no decorative objects.\nNo text, code, letters, numbers, logos or watermark. Do not depict half-published DOM or visible page changes while the draft is incomplete. This is an analogy for render preparation versus commit, not a literal two-browser or two-DOM implementation."
+    }
+  ]
+}

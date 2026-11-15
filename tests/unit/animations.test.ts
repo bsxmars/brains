@@ -334,3 +334,12 @@ describe('текст не разошёлся со стендом', () => {
     }
   });
 });
+
+
+it('схема не требует отдельного слоя для всякой композитной анимации', () => {
+  // Наблюдаемый контрпример уже есть в STAND: фон композитен, собственного слоя нет.
+  expect(t.prop('background-color').compositeFailed).toBe(0);
+  expect(layers.ownLayer({ animations: [css({ 'background-color': ['red', 'blue'] })] }).layer).toBe(false);
+  expect(t.ANIMATION_SPLIT_DIAGRAM.note).toContain('разные наблюдения');
+  expect(t.PITFALLS.find((p) => p.n === '03')!.t).not.toContain('только в Chromium');
+});

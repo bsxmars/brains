@@ -12,7 +12,7 @@ import type { HighlighterCore } from 'shiki/core';
 import { THEME_OPTIONS, tokensToLines } from './highlight-theme';
 
 /** Языки листингов в демо. `text` — не код (журнал, вывод): печатается одним цветом. */
-export type IslandLang = 'js' | 'ts' | 'html' | 'css' | 'json' | 'graphql' | 'sql' | 'yaml' | 'hcl' | 'wgsl' | 'text';
+export type IslandLang = 'js' | 'ts' | 'html' | 'css' | 'json' | 'graphql' | 'sql' | 'yaml' | 'toml' | 'hcl' | 'glsl' | 'wgsl' | 'text';
 type Grammar = Exclude<IslandLang, 'text'>;
 
 let core: Promise<HighlighterCore> | undefined;
@@ -29,7 +29,9 @@ const GRAMMAR = {
   graphql: () => import('virtual:lean-grammar/graphql'),
   sql: () => import('shiki/langs/sql.mjs'),
   yaml: () => import('shiki/langs/yaml.mjs'),
+  toml: () => import('shiki/langs/toml.mjs'),
   hcl: () => import('shiki/langs/hcl.mjs'),
+  glsl: () => import('shiki/langs/glsl.mjs'),
   wgsl: () => import('shiki/langs/wgsl.mjs'),
 } satisfies Record<Grammar, () => Promise<unknown>>;
 

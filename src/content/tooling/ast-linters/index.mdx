@@ -19,6 +19,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -94,28 +96,32 @@ import {
   CODEMOD_ALIAS_NOTE,
   APPROACH_ROWS,
   PRETTIER_NOTE,
-  PRETTIER_OBJECT_IN,
-  PRETTIER_OBJECT_OUT,
-  FORMAT_RULES_NOTE,
   PITFALLS,
   SOURCES,
   RELATED,
+  MECHANISM_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Код как дерево" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Линтер не читает файл строка за строкой. Он один раз превращает текст в дерево,
-    один раз обходит его и на каждом узле зовёт правила, которые на этот тип узла подписались.
-    Всё, что правило знает о коде, — это узел, его соседи и место узла в тексте.
+    Линтер не читает файл строка за строкой. Он на каждом проходе разбирает текст в дерево,
+    обходит его и на узлах зовёт правила, которые на них подписались.
+    Правило получает узел, может прочитать исходный текст и запросить области видимости.
 
   </Callout>
 
   Найти `==` поиском по тексту легко. Но поиск найдёт его и в строке `'a == b'`, и
   в комментарии, и не отличит сравнение, которое можно исправить молча, от того, которое
   нельзя. Дерево эти вопросы снимает: там `==` — оператор конкретного узла-сравнения,
-  у которого есть левая и правая части, и у каждой известен тип. На этом устроены
-  ESLint, Babel, codemod и Prettier — разница только в том, что они делают с деревом потом.
+  у которого есть левая и правая части: литерал, идентификатор или другое выражение.
+  Это **вид узла**, а не тип значения JavaScript: узел `Identifier` сам по себе не говорит,
+  лежит ли в переменной строка или число. Для типов TypeScript правилам нужен отдельный
+  доступ к результату проверки компилятора.
+
+  Дерево используют и Babel, и codemod, и Prettier: узлы позволяют найти нужную
+  конструкцию независимо от пробелов и переносов. Дальше задачи расходятся — сообщить
+  о проблеме, заменить конструкцию или напечатать всю программу заново.
 
   <Plain text={PLAIN_AST} />
 
@@ -126,7 +132,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="От текста к дереву"
-  lead="Пример на всю тему — функция скидки по промокоду. В ней неиспользуемая переменная и два сравнения, где строка стоит слева от `==`. Парсер сначала режет текст на токены, потом собирает из них дерево."
+  lead="Парсер отделяет операторы от строк и комментариев и собирает вложенность выражений. Функция скидки даёт два настоящих сравнения: одно проверяет typeof, второе — значение промокода."
 >
   <Card title="Сквозной пример: discount.js" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={DISCOUNT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -164,7 +170,8 @@ import {
   ### Четыре парсера одного сайта
 
   Сам ESLint ничего не разбирает: он берёт дерево у парсера, который назначен файлу в конфиге.
-  Правило получает ESTree от любого из них — поэтому `no-unused-vars` работает и в `.vue`.
+  Совместимые узлы ESTree позволяют переиспользовать синтаксические правила. Дополнительные
+  узлы TypeScript и шаблон Vue требуют поддержки парсера, сервисов или специальных правил.
 
   <Table
     head={['парсер', 'файлы на этом сайте', 'что делает']}
@@ -183,13 +190,13 @@ import {
 >
   <Plain text={PLAIN_TRAVERSE} />
 
-  <Card title="Обход — двадцать строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Обход — двадцать строк">
     <CodeBlock code={WALK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={WALK_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Условие `if` сквозного примера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -221,9 +228,6 @@ import {
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SELECTOR_NOTE} />
   </CardGrid>
 
-  ### Шаг за шагом
-
-  <AstLab client:visible walkCode={WALK_CODE} rulesCode={RULES_CODE} lintCode={LINT_CODE} examples={DEMO_EXAMPLES} caption={DEMO_CAPTION} />
 </Section>
 
 <Section
@@ -246,13 +250,13 @@ import {
 
   ### Неиспользуемое — это переменная без чтений
 
-  <Card title="Учебный no-unused-vars" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Учебный no-unused-vars">
     <CodeBlock code={UNUSED_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={UNUSED_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   <Table
     head={['код', 'no-unused-vars', 'findUnused']}
@@ -274,9 +278,9 @@ import {
   title="Своё правило"
   lead="Правило ESLint — объект с паспортом и функцией `create`, которая возвращает обработчики для обхода. Два учебных правила ниже — про сравнения: одно требует `===`, другое запрещает «йода-условия» вроде `'SALE' == code`, где литерал стоит слева. Оба умеют исправлять."
 >
-  <Card title="noLooseEq и yoda" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="noLooseEq и yoda">
     <CodeBlock code={RULES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  </Disclosure>
 
   <CardGrid min={260} gap={14} align="start">
     {RULE_PARTS.map((part) => (
@@ -312,13 +316,19 @@ import {
 >
   <Plain text={PLAIN_FIX} />
 
-  <Card title="verify, applyFixes, verifyAndFix" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="verify, applyFixes, verifyAndFix">
     <CodeBlock code={LINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={LINT_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
+
+  ### Обход и исправления одного дерева
+
+  <AstLab client:visible walkCode={WALK_CODE} rulesCode={RULES_CODE} lintCode={LINT_CODE} examples={DEMO_EXAMPLES} caption={DEMO_CAPTION} />
 
   ### Три прохода сквозного примера
 
@@ -434,17 +444,9 @@ import {
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PRETTIER_NOTE} />
   </CardGrid>
 
-  <CardGrid min={300} gap={16} align="start">
-    <Card title="Вход: перенос после скобки и без него" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PRETTIER_OBJECT_IN} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-
-    <Card title="Вывод Prettier" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={PRETTIER_OBJECT_OUT} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-  </CardGrid>
-
-  <Md text={FORMAT_RULES_NOTE} />
+  Переносы при повторной печати следуют из Doc и желаемой ширины. Почему раскрытый
+  объект может остаться раскрытым после удаления поля, разобрано в теме
+  [«Форматтер изнутри»](/tooling/formatter/#s4).
 
   <DarkPanel eyebrow="Что из этого следует">
     <DarkText size={18} lh={1.55} tone="prose">

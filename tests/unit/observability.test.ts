@@ -541,3 +541,22 @@ describe('вычитка: интервал экспорта метрик', () =>
     expect(mdx).toContain('по умолчанию раз в минуту');
   });
 });
+
+
+describe('дерево причинности не задаёт порядок завершения', () => {
+  it('SDK экспортирует родителя до ребёнка, если родитель закончен раньше', async () => {
+    const out = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(out)] });
+    const tracer = provider.getTracer('parent-before-child');
+    const parent = tracer.startSpan('parent');
+    const child = tracer.startSpan('child', {}, trace.setSpan(ROOT_CONTEXT, parent));
+    parent.end();
+    child.end();
+    await provider.forceFlush();
+    const spans = out.getFinishedSpans();
+    expect(spans.map((s) => s.name)).toEqual(['parent', 'child']);
+    expect(spans[1].parentSpanContext?.spanId).toBe(spans[0].spanContext().spanId);
+    expect(t.EXPORT_ORDER_NOTE).toContain('родитель может закончиться раньше');
+    await provider.shutdown();
+  });
+});

@@ -37,6 +37,7 @@
  */
 
 /** Словарь: термины, которые тема употребляет раньше, чем объясняет. */
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 export const GLOSSARY: GlossaryTerm[] = [
@@ -98,14 +99,14 @@ export const PREREQ: Prereq[] = [
   {
     t: 'Жизненный цикл Service Worker',
     d: 'Сервис-воркер просыпается на событие и засыпает при простое, а глобальные переменные между пробуждениями не живут. Фон расширения MV3 — такой же воркер, со своими сроками.',
-    href: '/platform/network/#s5',
-    hrefLabel: 'Сеть и кеширование, раздел «Service Worker»',
+    href: '/render/service-worker/',
+    hrefLabel: 'Service Worker изнутри',
     tone: 'ok' as const,
   },
 ];
 
 export const INTRO_NOTE =
-  'У одного пользователя гидратация падает на лишнем узле, запросы уходят дважды, а в профайлере висит чужая работа — у остальных всё в порядке. Чаще всего это расширение браузера: его код исполняется прямо в вашей вкладке, и повтор в окне без расширений ошибку убирает.';
+  'У одного пользователя гидратация падает на лишнем узле, запросы уходят дважды, а в профайлере висит чужая работа — у остальных всё в порядке. Одной из причин может быть расширение: его контент-скрипт исполняется прямо во вкладке. Сравнение с чистым профилем помогает отделить его влияние от кода сайта.';
 
 export const PLAIN_WORLD =
   'Двое читают один и тот же бумажный документ — это DOM: если один подчеркнёт строку, другой это увидит. Но блокноты у них свои — это глобальные переменные, — и словари свои — это прототипы. Кто-то подменил в своём словаре значение слова «push» — второй по-прежнему читает по своему словарю.';
@@ -335,11 +336,21 @@ let seen = 0;
 chrome.runtime.onMessage.addListener(() => { seen++; });
 
 // так — переживает перезапуск воркера (но не браузера)
+// В одном воркере обновления идут по очереди: read + write не атомарны.
+let writes = Promise.resolve();
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  chrome.storage.session.get('seen').then(({ seen = 0 }) =>
-    chrome.storage.session.set({ seen: seen + 1 }).then(() => reply(seen + 1)));
+  const update = writes.then(async () => {
+    const { seen = 0 } = await chrome.storage.session.get('seen');
+    await chrome.storage.session.set({ seen: seen + 1 });
+    return seen + 1;
+  });
+  writes = update.catch(() => {}); // отказ не ломает обработку следующих сообщений
+  update.then(reply, () => reply({ error: 'Не удалось сохранить счётчик' }));
   return true;   // ответ будет асинхронным — канал не закрывать
 });`;
+
+export const STATE_NOTE =
+  'Хранилище переживает остановку воркера, а очередь `writes` нужна для одновременных сообщений: без неё два обработчика могут прочитать одно значение и затереть прибавление друг друга. Очередь действует внутри одного воркера; другие части расширения не должны одновременно менять этот же ключ.';
 
 /** Страница с CSP, на которой проверяли контент-скрипт. */
 export const CSP_HEADER = `Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-abc';
@@ -627,3 +638,23 @@ export const DNR_WAYS: { k: string; how: string; cost: string }[] = [
 
 /* ⚠️ Здесь стояла врезка PLAIN_DNR_WAYS «Та же проходная, три режима…» — повтор PLAIN_DNR через два блока.
    Её единственная новая мысль (неблокирующий `webRequest` — камера над входом) перенесена в PLAIN_DNR. Снята 2026-10-01. */
+
+
+export const WORLDS_DIAGRAM: ConceptDiagramData = {
+  id: 'extension-shared-dom',
+  title: 'Один DOM — два набора JavaScript-объектов',
+  description: 'Скрипт страницы и изолированный контент-скрипт обращаются к одним узлам DOM через разные JS-обёртки. Фон общается с контент-скриптом сообщениями браузера.',
+  width: 900, height: 410,
+  nodes: [
+    { id: 'page', x: 10, y: 15, width: 250, height: 160, label: 'Мир страницы · MAIN', detail: 'Свой window, прототипы и свойства обёрток', tone: 'info' },
+    { id: 'dom', x: 330, y: 15, width: 240, height: 160, label: 'Общие узлы DOM', detail: 'Текст, атрибуты и структура документа', tone: 'ok' },
+    { id: 'isolated', x: 640, y: 15, width: 250, height: 160, label: 'Изолированный мир', detail: 'Другой window и другой Array.prototype', tone: 'warn' },
+    { id: 'background', x: 640, y: 260, width: 250, height: 140, label: 'Фон расширения', detail: 'Нет DOM страницы; свои права и хранилище', tone: 'neutral' },
+  ],
+  edges: [
+    { from: 'page', to: 'dom' },
+    { from: 'isolated', to: 'dom', fromSide: 'left', toSide: 'right' },
+    { from: 'isolated', to: 'background', fromSide: 'bottom', toSide: 'top', label: 'runtime', labelX: 810, labelY: 220 },
+  ],
+  note: 'Атрибут data-* виден обоим мирам; произвольное JS-свойство document.body.pageExpando остаётся в мире, где его записали. Схема относится к расширению Chromium MV3.',
+};

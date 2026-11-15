@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { compileSemver } from '@/widgets/pm-lab/model/semver';
-import { formatEntry, layoutNpm, layoutPnpm } from '@/widgets/pm-lab/model/layout';
+import { loadLayout } from '@/widgets/pm-lab/model/layout';
 import {
   CI_ROWS,
   INTEGRITY_CODE,
@@ -17,6 +17,7 @@ import {
   REQUIRE_RUNS,
   SCENARIOS,
   SEMVER_CODE,
+  LAYOUT_MODEL_CODE,
   TREE_RUNS,
 } from '@/content/tooling/package-managers/data';
 
@@ -38,6 +39,8 @@ import {
  * 3. **integrity.** Тарбол `c@2.1.0` собирается здесь заново `npm pack` (он детерминирован),
  *    его хеш считает `INTEGRITY_CODE` из темы и сверяет с lock-файлом, который тема печатает.
  */
+
+const { formatEntry, layoutNpm, layoutPnpm } = loadLayout(LAYOUT_MODEL_CODE);
 
 const semver = createRequire(createRequire(import.meta.url).resolve('astro/package.json'))('semver') as {
   SEMVER_SPEC_VERSION: string;
@@ -262,7 +265,7 @@ describe('lock-файл и integrity', () => {
 });
 
 describe('живой пример: двойники semver в этом проекте', () => {
-  it('число копий semver@7 и версия в корне совпадают с package-lock.json сайта', async () => {
+  it('повторные вложенные копии semver@7 и версия в корне совпадают с package-lock.json сайта', async () => {
     const { PROJECT_DUPES } = await import('@/content/tooling/package-managers/data');
     const lock = JSON.parse(readFileSync('package-lock.json', 'utf8')) as { packages: Record<string, { version?: string }> };
     const copies = Object.entries(lock.packages).filter(([k]) => k.endsWith('node_modules/semver'));
@@ -270,8 +273,31 @@ describe('живой пример: двойники semver в этом прое�
     const nested = copies.filter(([k, v]) => k !== 'node_modules/semver' && v.version === '7.8.5');
     expect(root).toBe('6.3.1');
     expect(PROJECT_DUPES).toContain('`semver@6.3.1` занял корень');
-    const words: Record<number, string> = { 9: 'девять', 10: 'десять', 11: 'одиннадцать', 12: 'двенадцать', 13: 'тринадцать', 14: 'четырнадцать' };
-    expect(PROJECT_DUPES).toContain(`лежит на диске ${words[nested.length]} раз`);
+    // Число копий меняется после npm install; предмет — наличие повторных вложений.
+    expect(nested.length).toBeGreaterThan(1);
+    expect(PROJECT_DUPES).toContain('лежит во многих вложенных папках');
   });
 });
 
+
+
+describe('peer ограничен окружением потребителя', () => {
+  it('один plug получает два контекста host, если потребители используют разные версии', () => {
+    const registry = {
+      app1: { '1.0.0': { deps: { host: '^1', plug: '*' } } },
+      app2: { '1.0.0': { deps: { host: '^2', plug: '*' } } },
+      host: { '1.0.0': {}, '2.0.0': {} },
+      plug: { '1.0.0': { peers: { host: '*' } } },
+    };
+    const result = layoutPnpm(registry, { app1: '*', app2: '*' }, S);
+    expect(result.error).toBeUndefined();
+    const contexts = result.entries.filter((e) => e.version && e.path.endsWith('/plug'));
+    expect(contexts.map((e) => e.path).sort()).toEqual([
+      'node_modules/.pnpm/plug@1.0.0_host@1.0.0/node_modules/plug',
+      'node_modules/.pnpm/plug@1.0.0_host@2.0.0/node_modules/plug',
+    ]);
+    // Peer не задаёт один экземпляр host на весь репозиторий: контекстов здесь два.
+    const mdx = readFileSync('src/content/tooling/package-managers/index.mdx', 'utf8');
+    expect(mdx).toContain('у разных приложений могут быть разные экземпляры');
+  });
+});

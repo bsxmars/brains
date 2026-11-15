@@ -14,6 +14,8 @@ import {
   STEP_PUSH,
   STEP_SIGNAL,
   INTRO_NOTE,
+  GLOSSARY,
+  TC39_EFFECT_NOTE,
 } from '@/content/frameworks/signals/data';
 import { API_NAMES, DomLab, GraphLab, loadSignals, patchCode } from '@/widgets/mini-signals';
 import type { GraphScenario, GraphStep, SignalsApi, TraceEntry } from '@/widgets/mini-signals';
@@ -276,6 +278,8 @@ n.set(1); dispose(); n.set(2)`,
 
   for (const [name, make] of PUSH_PULL.filter(([n]) => !n.startsWith('Vue'))) {
     it(`${name}: внутри пакета computed уже свежий (тонкое место 04)`, () => {
+      // batch не изолирует чтения: он откладывает только эффекты.
+      expect(GLOSSARY.find((term) => term.k === 'Пакет (`batch`)')?.d).toContain('Явное чтение внутри пакета');
       expect(
         exec(
           make(),
@@ -293,6 +297,12 @@ batch(() => {
 });
 
 describe('намеренные отличия — закреплены явно', () => {
+  it('Watcher описан как уведомление после пометки, без обещания исполнения эффектов', () => {
+    // Нормативная граница в README tc39/proposal-signals: notify after graph coloring.
+    // Сетевых запросов в тесте нет; это сторож повторного появления старого объяснения.
+    expect(TC39_EFFECT_NOTE).toContain('после пометки графа');
+    expect(TC39_EFFECT_NOTE).not.toContain('граф ещё не согласован');
+  });
   it('у @vue/reactivity нет публичного startBatch/endBatch', () => {
     for (const build of ['production', 'development'] as const) {
       const V = VUE[build].api as unknown as Record<string, unknown>;

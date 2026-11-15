@@ -36,6 +36,12 @@ const gen = loadShapes(t.SHAPES_CODE);
 const { seed, cell, cap, maxDepth } = t.SETUP;
 const Q = t.QUERIES;
 
+type Circle = Shape & { cx: number; cy: number; radius: number; z: number };
+const picking = new Function(`${t.PICK_CODE}\nreturn { circles, pickCircle };`)() as {
+  circles: Circle[];
+  pickCircle(index: { search(box: Box): Circle[] }, x: number, y: number): Circle | null;
+};
+
 const LAYOUT: Record<string, Layout> = { равномерно: 'uniform', сгустки: 'clusters' };
 const sortNum = (a: number[]) => [...a].sort((x, y) => x - y);
 
@@ -45,6 +51,31 @@ function flat(shapes: Shape[], nodeSize = 16) {
   f.finish();
   return f;
 }
+
+describe('практика: MBR, точная форма и z-order — один PICK_CODE для rbush и flatbush', () => {
+  it('угол MBR не выбирает круг; центр выбирает верхний слой; окружность включает касание', () => {
+    for (const circles of [picking.circles, [...picking.circles].reverse()]) {
+      const rb = new RBush<Circle>().load(circles);
+      const fb = flat(circles);
+      const adapted = { search: (box: Box) => fb.search(box.minX, box.minY, box.maxX, box.maxY).map((i) => circles[i]) };
+      for (const index of [rb, adapted]) {
+        expect(index.search({ minX: 9, minY: 9, maxX: 9, maxY: 9 }).map((item) => item.id)).toEqual([1]);
+        expect(picking.pickCircle(index, 9, 9)).toBeNull();
+        expect(picking.pickCircle(index, 0, 0)?.id).toBe(2);
+        expect(picking.pickCircle(index, 10, 0)?.id).toBe(1);
+        expect(picking.pickCircle(index, 10.001, 0)).toBeNull();
+      }
+    }
+  });
+
+  it('равный слой разрешается правилом id, а не порядком выдачи индекса', () => {
+    const circles = [...picking.circles, { ...picking.circles[1], id: 3 }];
+    for (const items of [circles, [...circles].reverse()]) {
+      const rb = new RBush<Circle>().load(items);
+      expect(picking.pickCircle(rb, 0, 0)?.id).toBe(3);
+    }
+  });
+});
 
 /** Узлы, которые открывает `flatbush.search`: повтор его обхода со счётчиком (без быстрого сбора «целиком внутри»). */
 function flatVisits(f: Flatbush, b: Box) {

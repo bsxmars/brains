@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AnimLab from '@/widgets/anim-lab/ui/AnimLab.vue';
 import LayerLab from '@/widgets/anim-lab/ui/LayerLab.vue';
 import {
+  ANIMATION_SPLIT_DIAGRAM,
   STAND,
   GLOSSARY,
   PLAIN_COMPOSITED,
@@ -83,17 +86,18 @@ import {
 
     Цена анимации зависит от того, кто считает её кадры. Если браузер отдал анимацию
     **композитору** — отдельному потоку, который собирает кадр из готовых картинок, — главному
-    потоку на каждом кадре делать нечего: ни стиля, ни раскладки, ни отрисовки. Остальные
-    анимации каждый кадр заново проходят эти шаги на главном потоке и стоят, пока он занят.
+    потоку не нужно заново готовить для неё стиль, раскладку и отрисовку на каждом кадре.
+    Анимации на главном потоке стоят, пока он занят. Их цена зависит от свойства:
+    тень может требовать отрисовку без раскладки, а `left` — ещё и пересчёт геометрии.
 
   </Callout>
 
   Когда вы пишете `animation: move 1s`, браузер решает, может ли он посчитать всю анимацию
   без вашего потока. Для этого должны сойтись три вещи: траектория известна заранее,
-  все анимируемые свойства из короткого списка, у элемента есть слой — отдельная картинка,
-  которую композитор может двигать.
-  Сошлись — анимация уходит на композитор. Нет — каждый кадр её считает главный поток,
-  тот же, где выполняется ваш JavaScript.
+  меняющиеся свойства и сам эффект поддерживаются движком, подготовлено нужное композитное
+  состояние. Собственный слой элемента — отдельный вопрос: в измерениях Chromium цвет фона
+  анимировался на композиторе без такого слоя. Итог проверяют по поведению и трассировке,
+  а не по одному CSS-свойству.
 
   <Plain text={PLAIN_COMPOSITED} />
 
@@ -106,6 +110,15 @@ import {
   title="Цена свойства: что происходит на каждом кадре"
   lead="Одна и та же анимация длиной в секунду, девятнадцать свойств по очереди. Протокол отладчика Chromium считает, сколько раз за эту секунду браузер пересчитал стили и раскладку, а трассировка — сколько раз рисовал и почему отказался отдать анимацию композитору."
 >
+  <CardGrid min={280} gap={14} align="start">
+    {PROP_FACTS.map((fact) => (
+      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
+    ))}
+
+  </CardGrid>
+
+  <Disclosure title="Все девятнадцать свойств: счётчики и трассировка Chromium 153">
+
   <Table
     head={['свойство', 'на композиторе', 'стиль за 1 с', 'раскладка за 1 с', 'отрисовка (Paint)']}
     rows={PROP_ROWS}
@@ -118,13 +131,6 @@ import {
 
   <Md text={PROP_NOTE} />
 
-  <CardGrid min={280} gap={14} align="start">
-    {PROP_FACTS.map((fact) => (
-      <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={fact.d} />
-    ))}
-
-  </CardGrid>
-
   ### Почему композитор отказал
 
   <Table
@@ -136,6 +142,8 @@ import {
   />
 
   <Card tone="info" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={FAIL_NOTE} />
+  </Disclosure>
+
 </Section>
 
 <Section
@@ -145,6 +153,8 @@ import {
   title="Решение принимается на всю анимацию"
   lead="Браузер отдаёт композитору анимацию целиком или не отдаёт вовсе: одно неподходящее свойство в `@keyframes` оставляет на главном потоке и все остальные. Поэтому важно не только, какие свойства вы анимируете, но и как разложили их по анимациям."
 >
+  <ConceptDiagram data={ANIMATION_SPLIT_DIAGRAM} />
+
   <Table
     head={['что написано', 'при занятом потоке', 'почему']}
     rows={MIX_ROWS}
@@ -155,6 +165,8 @@ import {
 
   ### Функция: какие шаги кадра запускает анимация
 
+  <Disclosure title="Исходник учебного плана кадра">
+
   <Card title="`framePlan`: какие шаги кадра запускают анимации элемента" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FRAME_PLAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -162,6 +174,8 @@ import {
       <Md text={FRAME_PLAN_NOTE} />
     </CardNote>
   </Card>
+
+  </Disclosure>
 
   ### Что делает кадр для каждой анимации
 
@@ -256,6 +270,8 @@ import {
 
   <Md text={EXPLOSION_NOTE} />
 
+  <Disclosure title="Исходник модели слоёв: правила для случаев стенда">
+
   <Card title="`ownLayer` и `countLayers`: получит ли элемент слой" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LAYER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -263,6 +279,8 @@ import {
       <Md text={LAYER_CODE_NOTE} />
     </CardNote>
   </Card>
+
+  </Disclosure>
 
   ### Сколько слоёв получит страница
 

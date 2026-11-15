@@ -7,6 +7,7 @@ import { build } from 'esbuild';
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/platform/csp/data';
+import { CSP_MECHANICS, DEBUG_SIGNS, EXPOSE_CODE } from '@/content/platform/security/data';
 import { loadCheck } from '@/widgets/csp-lab/model/run';
 
 /**
@@ -115,6 +116,64 @@ async function visit(path: string, headers: Record<string, string>, body: string
 
 const csp = (v: string | null): Record<string, string> => (v ? { 'content-security-policy': v } : {});
 
+describe('границы CSP и CORS из обзорной темы безопасности', () => {
+  it('CSP оставляет запись протокола Network, не отправляя запрещённую загрузку', async () => {
+    const ctx = await browser.newContext();
+    try {
+      let targetRequests = 0;
+      await ctx.route('https://guard.test/**', (route) => {
+        if (route.request().url().endsWith('/blocked.png')) targetRequests++;
+        return route.fulfill({ contentType: 'text/html', body: '<meta http-equiv="Content-Security-Policy" content="img-src &#39;none&#39;">' });
+      });
+      const page = await ctx.newPage();
+      const cdp = await ctx.newCDPSession(page);
+      await cdp.send('Network.enable');
+      const requested = new Map<string, string>();
+      cdp.on('Network.requestWillBeSent', (event) => requested.set(event.requestId, event.request.url));
+      const failure = new Promise<{ requestId: string; blockedReason?: string }>((resolve) => {
+        cdp.on('Network.loadingFailed', (event) => { if (event.blockedReason === 'csp') resolve(event); });
+      });
+      await page.goto('https://guard.test/');
+      expect(await page.evaluate(() => new Promise<string>((resolve) => {
+        const image = new Image();
+        image.onload = () => resolve('load');
+        image.onerror = () => resolve('error');
+        image.src = '/blocked.png';
+        document.body.append(image);
+      }))).toBe('error');
+      const blocked = await failure;
+      expect(requested.get(blocked.requestId)).toBe('https://guard.test/blocked.png');
+      expect(targetRequests).toBe(0);
+      expect(DEBUG_SIGNS.join(' ')).toContain('(blocked:csp)');
+      expect(CSP_MECHANICS.map((item) => item.d).join(' ')).toContain('blockedReason=csp');
+    } finally { await ctx.close(); }
+  });
+
+  it('Expose-Headers wildcard раскрывает ответный Authorization без credentials, Set-Cookie скрыт всегда', async () => {
+    const ctx = await browser.newContext();
+    try {
+      await ctx.route('https://expose.test/**', (route) => route.fulfill({ contentType: 'text/html', body: 'страница' }));
+      await ctx.route('https://api-expose.test/**', (route) => route.fulfill({
+        headers: {
+          'Access-Control-Allow-Origin': 'https://expose.test', 'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Expose-Headers': route.request().url().endsWith('/explicit') ? 'Authorization, X-Total-Count' : '*',
+          Authorization: 'Bearer response-token', 'X-Total-Count': '7', 'Set-Cookie': 'session=secret; Secure; SameSite=None',
+        }, body: 'ok',
+      }));
+      const page = await ctx.newPage();
+      await page.goto('https://expose.test/');
+      const read = (credentials: 'omit' | 'include', path = '/') => page.evaluate(async ({ credentials, path }) => {
+        const response = await fetch('https://api-expose.test' + path, { credentials });
+        return ['Authorization', 'X-Total-Count', 'Set-Cookie'].map((name) => response.headers.get(name));
+      }, { credentials, path });
+      expect(await read('omit')).toEqual(['Bearer response-token', '7', null]);
+      expect(await read('include')).toEqual([null, null, null]);
+      expect(await read('include', '/explicit')).toEqual(['Bearer response-token', '7', null]);
+      expect(EXPOSE_CODE).toContain('wildcard раскрывает и ответный Authorization');
+    } finally { await ctx.close(); }
+  });
+});
+
 // ─── Хеши ─────────────────────────────────────────────────────────────────────────────────
 
 describe('хеши в теме — SHA-256 настоящих текстов', () => {
@@ -152,6 +211,15 @@ describe('CSP_CHECK_CODE против журнала Chromium (литерал MA
         expect(got, `${row.id} × ${p.id}`).toBe(row.ran.includes(p.id));
       }
     }
+  });
+
+  it('модель отделена от браузера, а внешний драйвер — от bootstrap страницы', () => {
+    const strictOnly = t.MATRIX.find((row) => row.id === 'sd-only')!;
+    expect(strictOnly.ran).toContain('dyn-cdn');
+    expect(strictOnly.ran).not.toContain('inline');
+    // Динамическая проба стартует из CDP, а не из запрещённого инлайна страницы.
+    expect(t.CHECK_NOTE).toContain('внешний драйвер Playwright');
+    expect(t.DEMO_CAPTION).toContain('не новая страница');
   });
 
   it('пресеты демо есть в журнале', () => {
@@ -392,6 +460,18 @@ probe(() => { document.createElement('a').href = 'javascript:void 0'; });`;
     expect(t.TT_POLICY_CODE).toContain('// &lt;img src=x onerror=alert(1)&gt;');
     expect(v.errors).toEqual(["TypeError: Failed to set the 'innerHTML' property on 'Element': This document requires 'TrustedHTML' assignment."]);
     await v.close();
+  });
+
+  it('TrustedHTML не очищает строку без функции очистки приложения', async () => {
+    const code = `const policy = trustedTypes.createPolicy('app', { createHTML: s => s });
+const el = document.createElement('div');
+el.innerHTML = policy.createHTML('<img src=x onerror=alert(1)>');
+window.__rawHTML = el.innerHTML;`;
+    const v = await visit('/tt/pass-through', csp("require-trusted-types-for 'script'; trusted-types app"), `<!doctype html><script>${code}</script>`);
+    try {
+      expect(await v.page.evaluate(() => (window as unknown as { __rawHTML: string }).__rawHTML)).toContain('onerror="alert(1)"');
+      expect(t.TRUSTED_HTML_DIAGRAM.note).toContain('не очищает ввод');
+    } finally { await v.close(); }
   });
 
   it('имена политик: TT_NAMES_ROWS', async () => {

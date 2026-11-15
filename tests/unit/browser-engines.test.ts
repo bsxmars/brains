@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DETECT_CODE, ENGINE_SNAPSHOT, PITFALLS, TIMER_NOTE, TIMER_ROWS } from '@/content/render/browser-engines/data';
+import { DETECT_CODE, ENGINE_SNAPSHOT, PITFALLS, TIMER_NOTE, TIMER_ROWS, IOS_NOTE, WHO_ROWS, SOURCES, DATE_NOTE, GLOSSARY } from '@/content/render/browser-engines/data';
 import { PROBES } from '@/widgets/engine-probe/model/probes';
 
 /**
@@ -57,5 +57,31 @@ describe('шаг таймера: текст и таблица', () => {
     const steps = TIMER_ROWS.rows[0].slice(1).map((cell) => parseFloat(cell));
     expect(Math.max(...steps) / Math.min(...steps)).toBeCloseTo(10);
     expect(TIMER_NOTE).toContain('в десять раз на обычной странице');
+  });
+});
+
+
+describe('границы переносимости', () => {
+  it('требование WebKit не объявлено безусловным для любого iPhone', () => {
+    // Apple разрешает альтернативные движки по отдельному допуску, включая Японию.
+    expect(IOS_NOTE).toContain('допуск');
+    expect(IOS_NOTE).toContain('Японии');
+    expect(WHO_ROWS.rows.flat().join(' ')).not.toContain('**любой** браузер на iPhone');
+    expect(SOURCES.some((s) => s.href === 'https://developer.apple.com/support/alternative-browser-engines-jp/')).toBe(true);
+  });
+
+  it('Baseline учитывает платформы, а не только семейство движка', () => {
+    const baseline = GLOSSARY.find((term) => term.k === 'Baseline')!.d;
+    expect(baseline).toContain('Android');
+    expect(baseline).toContain('iOS');
+  });
+
+  it('Date.parse понимает и обязательный обратный вывод Date с нулевыми миллисекундами', () => {
+    // ECMA-262 Date.parse: toString/toUTCString — дополнительные обязательные случаи.
+    const date = new Date('2026-10-01T10:00:00Z');
+    for (const text of [date.toISOString(), date.toString(), date.toUTCString()]) {
+      expect(Date.parse(text)).toBe(date.valueOf());
+    }
+    expect(DATE_NOTE).toContain('toUTCString()');
   });
 });

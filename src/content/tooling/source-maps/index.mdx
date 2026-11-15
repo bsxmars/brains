@@ -17,13 +17,13 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import PositionFigure from '@/widgets/source-map-lab/ui/PositionFigure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -37,6 +37,10 @@ import {
   GLOSSARY,
   PLAIN_SOURCEMAP,
   CART_TS,
+  PRICE_TS,
+  GREET_TS,
+  GREET_JS,
+  GREET_MAP,
   CART_JS,
   MAP_PRINT_CODE,
   MAP_FIELDS,
@@ -47,6 +51,10 @@ import {
   VLQ_NOTE,
   SEGMENT_STEPS,
   SEGMENT_NOTE,
+  LOOKUP_NOTE,
+  SOURCE_POSITION_COLUMN,
+  SOURCE_POSITION_COPY,
+  CART_MAP,
   DEMO_EXAMPLES,
   DEMO_CAPTION,
   LOOKUP_CODE,
@@ -82,8 +90,7 @@ import {
 
   Сборка ломает всё, по чему человек ориентируется в коде. Два файла склеиваются в один,
   типы стираются, `checkout` становится `i`, а двадцать строк — одной. Строка и колонка
-  из стека ошибки после этого указывают в бандл, где читать нечего. Карта — единственное,
-  что связывает эту позицию с вашим файлом.
+  из стека ошибки после этого указывают в бандл, где читать нечего. Карта связывает эту позицию с исходником, пока соответствует именно загруженному бандлу.
 
   <Plain text={PLAIN_SOURCEMAP} />
 
@@ -106,6 +113,10 @@ import {
     </Card>
   </CardGrid>
 
+  <Disclosure title="Второй исходный модуль: price.ts">
+    <CodeBlock lang="ts" code={PRICE_TS} />
+  </Disclosure>
+
   <Card title="Карта: cart.js.map" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="json" code={MAP_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
@@ -122,7 +133,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Ссылка на карту" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={FIND_MAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={FIND_MAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FIND_MAP_NOTE} />
@@ -133,10 +144,11 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="`mappings`: строки, сегменты, VLQ"
-  lead="Строка `mappings` повторяет форму бандла: `;` — переход на следующую строку бандла, `,` — следующий сегмент в той же строке. Каждый сегмент — четыре или пять чисел, записанных буквами, и каждое из них — не позиция, а сдвиг от предыдущего сегмента."
+  lead="Строка `mappings` повторяет форму бандла: `;` — переход на следующую строку бандла, `,` — следующий сегмент в той же строке. Сегмент содержит одно, четыре или пять чисел: одно число отмечает участок без исходника. Числа кодируют сдвиги, причём колонка бандла начинает отсчёт заново на каждой строке."
 >
   <Plain text={PLAIN_VLQ} />
 
+  <Disclosure title="Исходник: Разбор `mappings` — сорок строк">
   <Card title="Разбор `mappings` — сорок строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VLQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -144,8 +156,15 @@ import {
       <Md text={VLQ_NOTE} />
     </CardNote>
   </Card>
+  </Disclosure>
 
   ### Один сегмент по буквам
+
+  <Disclosure title="Исходники короткого примера greet">
+    <CodeBlock lang="ts" code={GREET_TS} />
+    <CodeBlock code={GREET_JS} />
+    <CodeBlock lang="json" code={JSON.stringify(GREET_MAP, null, 2)} />
+  </Disclosure>
 
   Маленький пример: esbuild перевёл две строки TypeScript в JavaScript без сжатия.
   Пятый сегмент первой строки записан как `SAAiB`.
@@ -160,9 +179,7 @@ import {
 
   <Md text={SEGMENT_NOTE} />
 
-  ### Сегмент за сегментом
 
-  <SourceMapLab client:visible vlqCode={VLQ_CODE} lookupCode={LOOKUP_CODE} examples={DEMO_EXAMPLES} caption={DEMO_CAPTION} />
 </Section>
 
 <Section
@@ -173,9 +190,17 @@ import {
 >
   <Plain text={PLAIN_LOOKUP} />
 
+  <PositionFigure map={CART_MAP} generated={CART_JS} column={SOURCE_POSITION_COLUMN} vlqCode={VLQ_CODE} lookupCode={LOOKUP_CODE} copy={SOURCE_POSITION_COPY} />
+
   <Card title="Поиск позиции" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={LOOKUP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  <Md text={LOOKUP_NOTE} />
+
+  ### Позиция в коде и соответствующий сегмент
+
+  <SourceMapLab client:visible vlqCode={VLQ_CODE} lookupCode={LOOKUP_CODE} examples={DEMO_EXAMPLES} caption={DEMO_CAPTION} />
 
   ### Тот же стек — без карты и с картой
 
@@ -231,9 +256,11 @@ import {
   <Plain text={PLAIN_COMPOSE} />
 
   <CardGrid min={300} gap={16} align="start">
-    <Card title="Склеить после сборки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <Disclosure title="Исходник: Склеить после сборки">
+  <Card title="Склеить после сборки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={COMPOSE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
+  </Disclosure>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={COMPOSE_NOTE} />
   </CardGrid>
@@ -254,7 +281,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Карты в продакшене"
-  lead="Выбор не между «с картой» и «без», а о том, кому её показывать. Пользователю карта не нужна и браузером не скачивается, сервису ошибок нужна обязательно, а любопытному в DevTools — вопрос того, насколько закрыт ваш код."
+  lead="Публикация карты и её использование — разные решения. Обычная загрузка скрипта не загружает карту автоматически; отладчик или сервис ошибок обращается к ней отдельно. sourcesContent может раскрыть исходники, даже если они не попали в исполняемый бандл."
 >
   <Table
     head={['режим', 'как устроено', 'кто увидит исходники']}
@@ -274,15 +301,7 @@ import {
 
   <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={PROD_NOTE} />
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
 
-      **Карта — это не настройка отладки, а часть релиза.** Её собирают тем же шагом, что
-      и бандл, склеивают через все инструменты цепочки и кладут туда, где её найдёт тот, кому
-      нужен стек: DevTools разработчика или сервис ошибок, но не каждый посетитель сайта.
-
-    </DarkText>
-  </DarkPanel>
 </Section>
 
 <Section id="s6" eyebrow="Раздел 6" title="Тонкие места">

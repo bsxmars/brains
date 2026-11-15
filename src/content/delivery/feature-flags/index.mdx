@@ -18,6 +18,7 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -32,9 +33,11 @@ import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
+import FlagDecisionDiagram from '@/widgets/flag-lab/ui/FlagDecisionDiagram.astro';
 import FlagLab from '@/widgets/flag-lab/ui/FlagLab.vue';
 import {
   GLOSSARY,
+  DECISION_CASES,
   PLAIN_FLAG,
   FUNCTION_WHY,
   PLAIN_CONTEXT,
@@ -128,9 +131,11 @@ import {
     <NumberedList items={ORDER_STEPS} size={15.5} />
   </Card>
 
-  <Card title="Вычислитель флага — семьдесят строк" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Полный вычислитель: хеш, правила и выбор варианта">
     <CodeBlock code={FLAG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  </Disclosure>
+
+  <FlagDecisionDiagram flagCode={FLAG_CODE} flagsCode={FLAGS_CODE} coinCode={COIN_CODE} cases={DECISION_CASES} />
 
   ### Ответы на разные контексты
 
@@ -230,9 +235,9 @@ import {
 
   <Plain text={PLAIN_PROVIDER} />
 
-  <Card title="Провайдер поверх evaluate" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Адаптер учебного evaluate к OpenFeature">
     <CodeBlock code={PROVIDER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  </Disclosure>
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Вызов с хуками" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -341,13 +346,18 @@ import {
   </Card>
 
   <CodeBlock code={DEBT_CODE} />
+
+  «Выкатили новый код» не значит «старый код исчез». Для браузера это ещё открытые
+  вкладки и сохранённые бандлы; для мобильного клиента — поддерживаемые старые версии.
+  Настройку держат до конца этого окна либо заранее выбирают безопасный fallback.
+
 </Section>
 
 <Section
   id="s6"
   eyebrow="Раздел 6"
   title="Флаг или канарейка"
-  lead="Оба показывают новое части пользователей и оба делят людей хешем. Но канарейка делит версии, а флаг — ветки кода внутри одной версии."
+  lead="Канарейка распределяет запросы между версиями; флаг выбирает поведение внутри версии. Попадание одного пользователя всегда в одну канарейку требует отдельной липкости и не следует из веса 5%."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={VS_WHY} />
@@ -368,7 +378,8 @@ import {
 
       **Флаг — функция от контекста, и вся его надёжность — в том, что она чистая.** Тот же
       ключ флага, тот же порядок вариантов, та же формула и тот же `targetingKey` дают тот же
-      ответ где угодно. Меняется любое из четырёх — пользователи перемешиваются.
+      ответ где угодно. Изменение ключа, порядка вариантов или алгоритма может перемешать группу.
+      Стабильный ответ требует ещё и одинаковой версии настройки в обоих местах вычисления.
 
     </DarkText>
   </DarkPanel>

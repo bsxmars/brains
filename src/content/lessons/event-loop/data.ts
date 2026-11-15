@@ -366,7 +366,7 @@ export const MICRO_ROWS: { k: string; v: string; ok: boolean | 'ahead' }[] = [
   { k: 'продолжение после await', v: 'да: `await` — короткая запись той же реакции', ok: true },
   { k: 'queueMicrotask(fn)', v: 'да: ставит функцию в очередь напрямую, без промиса', ok: true },
   { k: 'MutationObserver', v: 'да: колбэк вызывается сразу после текущего кода, до следующей задачи', ok: true },
-  { k: 'IntersectionObserver / ResizeObserver', v: '**нет**: `ResizeObserver` вызывается на шаге отрисовки, после расчёта раскладки; `IntersectionObserver` там только считает пересечения, а колбэк приходит отдельной задачей после кадра', ok: false },
+  { k: 'IntersectionObserver / ResizeObserver', v: '**нет**: `ResizeObserver` вызывается на шаге отрисовки, после расчёта раскладки; `IntersectionObserver` там только считает пересечения, а колбэк приходит отдельной задачей; это не гарантирует, что кадр уже показан на экране', ok: false },
   { k: 'requestAnimationFrame', v: '**нет**: колбэк кадра, вызывается перед отрисовкой', ok: false },
   {
     k: 'В Node: process.nextTick',
@@ -608,6 +608,11 @@ export const IDLE_FACTS = [
  * «Таймеры» (кламп) и в разделе «Агенты» (нарезка работы).
  */
 export const SOURCES: Source[] = [
+  {
+    title: 'Intersection Observer · Processing model',
+    href: 'https://w3c.github.io/IntersectionObserver/#processing-model',
+    what: 'Расчёт пересечений при обновлении рендеринга и доставка записей отдельной задачей; колбэк не служит подтверждением показа пикселей.',
+  },
   {
     title: 'HTML Standard · 8.1.7 Event loops',
     href: 'https://html.spec.whatwg.org/multipage/webappapis.html#event-loops',

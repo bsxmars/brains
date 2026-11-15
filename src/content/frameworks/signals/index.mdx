@@ -2,7 +2,7 @@
 title: "Сигналы: третья модель реактивности"
 order: 8
 kicker: фреймворки изнутри
-lead: "Сигнал — значение, которое помнит, кто его читал. При записи сигнал только помечает зависимые вычисления как устаревшие, а пересчитываются они, когда их прочитают. Поэтому вычисление не видит смесь старых и новых данных, а то, что никто не читает, не считается вовсе. Мини-реализация работает прямо на странице и сверена тестом с `@vue/reactivity` 3.5 и alien-signals."
+lead: "Цена изменилась — итог нужно пересчитать, а несвязанный текст трогать незачем. Сигнал помнит свои чтения и направляет обновление по этим связям. Производные значения в push-pull модели пересчитываются при чтении; эффекты запускаются после пометки графа."
 summary: "`signal`, `computed`, `effect` и `batch` на push-pull, глитч наивного push на ромбе и рендер без виртуального DOM — мини-реализация в демо, сверенная тестом с Vue 3.5 и alien-signals; что предлагает TC39."
 verifiedOn: Vue 3.5.42 · alien-signals 3.2.1 · Node 26.8.2
 nav:
@@ -25,6 +25,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -42,7 +44,7 @@ import {
   TC39_NOTE, TC39_HEAD, TC39_ROWS, TC39_EFFECT_NOTE,
   REAL_HEAD, REAL_ROWS, REAL_NOTE,
   PITFALLS, SOURCES, RELATED,
-  DIAMOND_PULL_STEPS,
+  DIAMOND_PULL_STEPS, DIAMOND_DIAGRAM,
 } from './data';
 
 <Section
@@ -107,9 +109,15 @@ import {
 >
   <Plain text={PLAIN_GLITCH} />
 
+  <ConceptDiagram data={DIAMOND_DIAGRAM} />
+
   ### Наивный push
 
-  <CodeBlock code={NAIVE_SIGNALS_CODE} />
+  <Disclosure title="Исходник наивной push-реализации">
+
+    <CodeBlock code={NAIVE_SIGNALS_CODE} />
+
+  </Disclosure>
 
   <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={NAIVE_NOTE} />
 
@@ -197,7 +205,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Предложение TC39: сигналы в языке, эффекты — во фреймворке"
-  lead="`Signal.State`, `Signal.Computed` и `Signal.subtle.Watcher` — те же сигнал, производный сигнал и пометка, только встроенные в язык."
+  lead="Предложение TC39 разделяет граф зависимостей и выполнение побочных действий. `Signal.State` хранит значение, `Signal.Computed` вычисляет производное, `Signal.subtle.Watcher` сообщает об устаревании. Это проект API, а не уже встроенная возможность языка."
 >
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={TC39_NOTE} />
 

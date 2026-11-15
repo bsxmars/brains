@@ -1,0 +1,11 @@
+{
+  "tool": "image_gen.imagegen",
+  "date": "2026-11-13",
+  "images": [
+    {
+      "file": "test-isolation-shared-resources.png",
+      "use_case": "scientific-educational",
+      "prompt": "Use case: scientific-educational. Asset type: wide conceptual illustration for a Russian engineering lesson about automated test isolation. Primary request: show two independent test workspaces with separate in-memory notebooks but shared external resources. Scene: on a white canvas, two clean small workbenches side by side, each with its own distinct violet notebook and little abstract module tiles arranged on its tabletop; the tiles and notebook are not exchanged between desks. Behind and between the workbenches, a single shared external file cabinet and a small neutral network hub are visibly connected by two thin lines, one from each desk, showing that both use the same outside resources. The cabinet must be outside both desk zones, no lock icon, no separation walls, no claim of security sandbox or two OS processes. Style: restrained isometric editorial illustration, crisp paper-and-vector shapes with subtle soft depth and shadows, large clear silhouettes, generous whitespace. Palette: white #FFFFFF, ink #191622, violet #7C3AED, pale violet #F5F0FF, cool neutral grays, a small amber accent on the shared cabinet. Composition: wide around 2.5:1, balanced two desks lower left/right and shared resources centered above them; lines visibly link each desk to common cabinet/hub. No people, no text, letters, numbers, code, captions, logos, watermark, shields or decorative locks. All exact labels will be real HTML outside the bitmap. This is a visual metaphor for module isolation versus shared filesystem/network, not a literal operating-system diagram."
+    }
+  ]
+}

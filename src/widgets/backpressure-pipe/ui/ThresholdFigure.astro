@@ -1,0 +1,36 @@
+---
+interface Props { copy: { title: string; empty: string; full: string; over: string; note: string }; rows: { queued: number; desired: number | null }[]; highWaterMark: number; }
+const { rows, highWaterMark, copy } = Astro.props;
+const stages = rows.filter((row) => row.queued === 0 || row.queued >= highWaterMark);
+---
+<figure class="bpt" data-render-illustration="stream-hwm-threshold">
+  <figcaption>{copy.title}</figcaption>
+  <div class="bpt-scroll" role="region" tabindex="0" aria-label="Порог очереди и дополнительный чанк">
+    <ol class="bpt-stages">
+      {stages.map((stage) => <li data-over={stage.queued > highWaterMark ? '' : undefined}>
+        <div class="bpt-queue" role="img" aria-label={`В очереди ${stage.queued} чанков, порог ${highWaterMark}`}>
+          {Array.from({ length: highWaterMark + 1 }, (_, i) => <span data-filled={i < stage.queued ? '' : undefined}>{i < stage.queued ? 'чанк' : '·'}</span>)}
+          <div class="bpt-threshold" style={`--threshold-slot:${highWaterMark}`}>HWM {highWaterMark}</div>
+        </div>
+        <code>desiredSize = {stage.desired}</code>
+        <p>{stage.queued === 0 ? copy.empty : stage.queued === highWaterMark ? copy.full : copy.over}</p>
+      </li>)}
+    </ol>
+  </div>
+  <p class="bpt-note">{copy.note}</p>
+</figure>
+<style>
+  .bpt { margin: 0; padding: 22px; border-radius: var(--r3); background: var(--surface); box-shadow: var(--shadow-card); }
+  .bpt figcaption { color: var(--ink); font-size: var(--fs-7); font-weight: 600; line-height: 1.45; }
+  .bpt-scroll { overflow-x: auto; margin-top: 22px; }
+  .bpt-stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; min-width: 740px; padding: 0; margin: 0; list-style: none; }
+  .bpt-stages li { min-width: 0; padding-top: 28px; }
+  .bpt-queue { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; position: relative; }
+  .bpt-queue > span { padding: 16px 4px; border: 1px dashed var(--border-strong); border-radius: var(--r1); color: var(--dim); font: var(--fs-3) var(--mono); text-align: center; }
+  .bpt-queue > span[data-filled] { border-style: solid; border-color: var(--tone-info-line); background: var(--tone-info-bg); color: var(--tone-info-strong); }
+  .bpt-threshold { position: absolute; top: -26px; bottom: -4px; left: calc(100% * var(--threshold-slot) / 3); padding-left: 5px; border-left: 2px solid var(--tone-warn-strong); color: var(--tone-warn-strong); font: var(--fs-2) var(--mono); white-space: nowrap; }
+  .bpt [data-over] .bpt-queue > span:last-of-type { background: var(--tone-err-bg); border-color: var(--tone-err-line); color: var(--tone-err-strong); }
+  .bpt code { display: block; margin-top: 18px; color: var(--ink); font-size: var(--fs-4); }
+  .bpt li p, .bpt-note { color: var(--prose); font-size: var(--fs-5); line-height: 1.6; }
+  .bpt-note { color: var(--text-muted); margin-bottom: 0; }
+</style>

@@ -20,6 +20,8 @@ nav:
   - { id: s10, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import EventPathDiagram from '@/widgets/dom-event-path-diagram/ui/EventPathDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -36,6 +38,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import EventPathLab from '@/widgets/event-path-lab/ui/EventPathLab.vue';
 import {
+  EVENT_PATH_NODES,
   GLOSSARY,
   PLAIN_EVENT,
   FIXTURE_HTML,
@@ -43,7 +46,6 @@ import {
   SHADOW_CODE,
   FIXTURE_NOTE,
   PLAIN_PATH,
-  PATH_STEPS,
   PHASE_ROWS,
   ORDER_FACTS,
   DISPATCH_CODE,
@@ -87,9 +89,8 @@ import {
 <Section variant="intro" eyebrow="Путь события" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Событие не доставляется прямо в элемент. Браузер прокладывает путь от окна до самого
-    глубокого узла под курсором и проходит его дважды: вниз — **захват**, обратно вверх —
-    **всплытие**. Каждый узел на пути может выслушать событие, остановить его или отменить то,
+    У всплывающего клика есть цель и путь через её предков. Сначала слушателей вызывают
+    сверху вниз — **захват**, затем на цели и обратно вверх — **всплытие**. Каждый узел на пути может выслушать событие, остановить его или отменить то,
     что браузер собирался сделать после.
 
   </Callout>
@@ -125,12 +126,7 @@ import {
 
   <Plain text={PLAIN_PATH} />
 
-  <CardGrid min={240} gap={14} align="start">
-    {PATH_STEPS.map((step) => (
-      <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
-    ))}
-
-  </CardGrid>
+  <EventPathDiagram nodes={EVENT_PATH_NODES} />
 
   ### Кто и в каком порядке
 
@@ -161,6 +157,8 @@ import {
   title="Алгоритм отправки в коде"
   lead="Алгоритм отправки в спецификации DOM занимает несколько страниц, но его ядро помещается в одну функцию. В модели узлы — простые объекты, а порядок вызовов тот же, что у браузера: путь, захват, цель, всплытие, уборка."
 >
+  <Disclosure title="Исходник учебной dispatch и её ограничения">
+
   <Card title="Учебная `dispatch`" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={DISPATCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -169,11 +167,15 @@ import {
     </CardNote>
   </Card>
 
+  </Disclosure>
+
   ### Отправка по шагам
 
   <EventPathLab client:visible dispatchCode={DISPATCH_CODE} fixture={{ html: FIXTURE_HTML, shadowHtml: SHADOW_HTML }} scenarios={SCENARIOS} caption={DEMO_CAPTION} />
 
-  ### Где тестовое окружение расходится с браузером
+  <Disclosure title="Где тестовое окружение расходится с браузером">
+
+  ### Сравнение с happy-dom
 
   Модульные тесты интерфейса часто гоняют в happy-dom или jsdom — DOM, написанном на JS для
   Node. Те же тринадцать сценариев в happy-dom дали тот же журнал в семи случаях из тринадцати.
@@ -187,6 +189,8 @@ import {
   />
 
   <Md text={HAPPY_NOTE} />
+  </Disclosure>
+
 </Section>
 
 <Section
@@ -226,7 +230,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Действие по умолчанию"
-  lead="Браузер делает свою работу после того, как событие обошло весь путь: переходит по ссылке, отправляет форму, ставит галочку. `preventDefault()` во время отправки ставит флаг, и браузер этот шаг пропускает."
+  lead="Событие и действие браузера — разные вещи. `preventDefault()` ставит флаг отмены у отменяемого события, но не останавливает его путь. Момент действия зависит от элемента: переход по ссылке идёт после слушателей, а флажок переключается до них и откатывается при отмене."
 >
   <Table
     head={['элемент', 'когда выполняется действие']}
@@ -321,7 +325,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сообщения консоли Chromium" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={`// passive: true\n${PASSIVE_CONSOLE.explicit}\n\n// пассивность по умолчанию\n${PASSIVE_CONSOLE.defaultWheel}`} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="text" code={`// passive: true\n${PASSIVE_CONSOLE.explicit}\n\n// пассивность по умолчанию\n${PASSIVE_CONSOLE.defaultWheel}`} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="Как отменить на самом деле" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>

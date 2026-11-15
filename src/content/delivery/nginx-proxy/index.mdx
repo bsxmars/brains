@@ -19,6 +19,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import NginxLab from '@/widgets/nginx-lab/ui/NginxLab.vue';
 import {
   GLOSSARY,
+  REQUEST_PATH_DIAGRAM,
   PLAIN_PROXY,
   PLAIN_SERVER,
   SERVER_CONF,
@@ -107,10 +110,10 @@ import {
 
   </Callout>
 
-  Перед приложением на Node, Go или Python почти всегда стоит nginx. Он раздаёт статику,
-  держит TLS, делит адреса между сервисами и кеширует ответы. Конфиг у него короткий
-  и выглядит очевидным — пока запрос `/images/logo.png` не уходит не туда, а бэкенд не
-  получает `//users` вместо `/users`.
+  Обратный прокси отделяет внешний адрес приложения от его внутренних сервисов. nginx
+  может завершать TLS, раздавать статику и направлять `/api/` к отдельному бэкенду.
+  При отладке важно восстановить путь конкретного запроса: какой `server` и `location`
+  были выбраны и какой URI в итоге получил обработчик.
 
   <Plain text={PLAIN_PROXY} />
 
@@ -121,7 +124,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Какой server ответит"
-  lead="На одном nginx обычно живёт несколько сайтов. Какой из них обслужит запрос, решают две вещи: порт, на который пришло соединение, и имя сайта из заголовка `Host`. Если имя не подошло ни к одному сайту, запрос всё равно кто-то обслужит — и это самое неочевидное место."
+  lead="На одном nginx обычно живёт несколько сайтов. Какой из них обслужит запрос, определяют адрес и порт слушателя, затем имя из запроса. В примерах это `Host` обычного HTTP; при HTTPS часть настроек и сертификат выбираются раньше, по SNI. Если имя не подошло ни к одному сайту, запрос всё равно кто-то обслужит — и это самое неочевидное место."
 >
   <Plain text={PLAIN_SERVER} />
 
@@ -150,9 +153,9 @@ import {
 
   <Card tone="warn" pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={SERVER_NOTE} />
 
-  <Card title="Выбор server — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SERVER_CODE} size={11} lh={1.65} pad="14px 16px" />
-  </Card>
+  <Disclosure title="Выбор server — модель">
+    <CodeBlock code={SERVER_CODE} />
+  </Disclosure>
 
   <Md text={SERVER_INGRESS_NOTE} />
 </Section>
@@ -162,7 +165,7 @@ import {
   eyebrow="Раздел 2 · демо"
   eyebrowTone="demo"
   title="Какая location ответит"
-  lead="Внутри server запрос обслуживает ровно одна location. nginx выбирает её не сверху вниз, как читается конфиг, а в пять шагов, и порядок строк в файле важен только для регулярок."
+  lead="Для плоского набора location nginx ищет точное совпадение, затем самый длинный префикс и подходящую регулярку. Модель ниже ограничена таким конфигом. Вложенные location и внутренние перенаправления требуют дополнительных шагов; try_files может запустить выбор заново."
 >
   <Plain text={PLAIN_LOCATION} />
 
@@ -191,9 +194,13 @@ import {
 
   ### Модель и демо
 
-  <Card title="Выбор location — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={LOCATION_CODE} size={11} lh={1.65} pad="14px 16px" />
-  </Card>
+  <Disclosure title="Выбор location — модель">
+    <CodeBlock code={LOCATION_CODE} />
+  </Disclosure>
+
+  <Disclosure title="Как модель вычисляет путь к бэкенду">
+    <CodeBlock code={PROXY_CODE} />
+  </Disclosure>
 
   <NginxLab
     client:visible
@@ -225,9 +232,7 @@ import {
 
   </CardGrid>
 
-  <Card title="Путь к бэкенду — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PROXY_CODE} size={11} lh={1.65} pad="14px 16px" />
-  </Card>
+  <ConceptDiagram data={REQUEST_PATH_DIAGRAM} />
 
   ### Нормализация: что nginx делает с путём
 
@@ -312,7 +317,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Буферизация и таймауты"
-  lead="По умолчанию nginx читает ответ бэкенда в свои буферы и только потом отдаёт клиенту. Для обычных ответов это хорошо: бэкенд освобождается, пока медленный клиент тянет данные. Для потока событий — опасно: события могут прийти пачкой в конце."
+  lead="При включённой буферизации nginx читает ответ в свои буферы и параллельно передаёт клиенту. Ждать весь ответ он не обязан. При этом небольшие порции могут объединяться, поэтому для SSE важно явно настроить потоковый режим."
 >
   <Plain text={PLAIN_BUFFERING} />
 

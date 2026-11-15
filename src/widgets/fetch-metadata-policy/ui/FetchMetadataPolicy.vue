@@ -108,7 +108,7 @@ const decision = computed(() => (policy.value ? policy.value(request.value) : nu
 
 /** Запрос так, как его увидит сервер. */
 const wire = computed(() => {
-  const lines = [`${method.value} ${path.value} HTTP/1.1`, 'Host: a.test', 'Cookie: session=…'];
+  const lines = [`${method.value} ${path.value} HTTP/1.1`, 'Host: a.test'];
   for (const [name, value] of Object.entries(request.value.headers)) {
     if (value !== undefined) lines.push(`${name.replace(/(^|-)([a-z])/g, (_, d: string, c: string) => d + c.toUpperCase())}: ${value}`);
   }
@@ -187,9 +187,9 @@ function touch() {
 
     <template #footer>
       <div class="fmp-note">
-        Решение принимает функция <code>isolationPolicy</code> из кода над демо — та же строка
-        исполняется тестом темы и стояла перед тестовым сервером. В сеть демо не ходит: запрос
-        собран здесь и передан функции как объект.
+        Это расчёт серверного решения для заданных заголовков, метода и пути. Cookie и политику
+        браузера он не моделирует. Запрос в сеть не отправляется; значения переключателей
+        могут образовывать сочетания, которых настоящий браузер не создаёт.
       </div>
     </template>
   </DemoFrame>

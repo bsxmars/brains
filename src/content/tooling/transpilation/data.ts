@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { CompatTable, CustomRange, FeatureRow, TranspilePreset } from '@/widgets/transpile-lab/model/types';
 
@@ -42,6 +43,8 @@ import type { CompatTable, CustomRange, FeatureRow, TranspilePreset } from '@/wi
  * Подмена `structuredClone` полифилом снята и в Node 24.11.0, и в Chromium 153 (скриптом
  * через Playwright на странице `about:blank`); в тесте — только Node.
  *
+ * Учебный `at` исправлен: строгий this и отказ на null/undefined, ToNumber через унарный +
+ * вместо Number для отказа на BigInt. Проверяется против встроенного метода в чистом vm realm.
  * Всё перечисленное пересобирается `tests/unit/transpilation.test.ts`: литералы сверяются
  * с тем, что Babel, esbuild, tsc и browserslist выдают сейчас, а `DECIDE_CODE` — с решением
  * самого preset-env на двух десятках запросов.
@@ -179,9 +182,12 @@ export const POLYFILL_AT_CODE = `if (!Array.prototype.at) {
     // как у встроенных методов: не видно в for…in, можно заменить
     enumerable: false, writable: true, configurable: true,
     value: function at(index) {
+      'use strict'; // иначе call(null) подставил бы глобальный объект
+      if (this == null) throw new TypeError('at requires an object');
       const o = Object(this);
-      const len = Math.min(Math.max(Math.trunc(Number(o.length)) || 0, 0), 2 ** 53 - 1);
-      let k = Math.trunc(Number(index)) || 0;   // NaN и -0 → 0
+      // Унарный + повторяет ToNumber: BigInt и Symbol отвергаются, Number(1n) — нет.
+      const len = Math.min(Math.max(Math.trunc(+o.length) || 0, 0), 2 ** 53 - 1);
+      let k = Math.trunc(+index) || 0;   // NaN и -0 → 0
       if (k < 0) k += len;                      // -1 → последний
       return k < 0 || k >= len ? undefined : o[k];
     },
@@ -194,7 +200,7 @@ Array.prototype.at = function (i) { return this[i < 0 ? this.length + i : i]; };
 for (const key in ['a', 'b']) console.log(key);   // 0, 1, at`;
 
 export const POLYFILL_NOTE =
-  'Полифил — обычный JavaScript, выполненный **до** вашего кода. Проверка «а есть ли уже» обязательна: на новом движке родная функция быстрее и точнее. core-js идёт дальше и проверяет не только «есть ли», но и «правильно ли работает» — и заменяет родную, если она расходится с его тестами. К чему это приводит, видно на `structuredClone` в разделе про полифилы.';
+  'Полифил — обычный JavaScript, выполненный **до** вашего кода. У учебного `at` есть строгий `this` и проверка на `null`/`undefined`: `Object(null)` сам по себе не бросил бы исключение. Унарный `+` для индекса и длины отвергает BigInt, как встроенный метод, а `Number(1n)` молча превратил бы его в число. Пример показывает алгоритм на современном синтаксисе; для старого браузера этот код и `Math.trunc` тоже потребовали бы подготовки. Проверка «а есть ли уже» обязательна: на новом движке родная функция быстрее и точнее. core-js идёт дальше и проверяет не только «есть ли», но и «правильно ли работает» — и заменяет родную, если она расходится с его тестами. К чему это приводит, видно на `structuredClone` в разделе про полифилы.';
 
 // ─── Раздел 2. От запроса к плагинам ───────────────────────────────────────────────────────
 
@@ -292,7 +298,7 @@ export const DEBUG_NOTE =
   'Опция `debug` печатает цели и каждый включённый плагин с причиной: `{ safari < 14.1 }` — «включён, потому что Safari 13 старше 14.1». Это та же пара «цель — версия из таблицы», которую возвращает `blockers`. Имена `proposal-…` — старые имена тех же плагинов `transform-…`: так их по традиции печатает `debug`.';
 
 export const DEMO_CAPTION =
-  'Решение «переписать», «дописать» или «оставить» считает `DECIDE_CODE` выше по двум таблицам — той же строкой, что напечатана на странице. Код после Babel и байты сняты стендом для каждого запроса; для своей цели Babel в браузере не запускается, поэтому показано только решение.';
+  'Одна старая цель включает преобразование для всего файла. У синтаксиса и API разные таблицы: optional chaining может остаться без изменений, а вызов встроенной функции потребует полифила. Для произвольной цели вычисляется выбор по таблицам; JavaScript после Babel и его вес показаны для готовых запросов.';
 
 // ─── Раздел 3. Во что превращается синтаксис ───────────────────────────────────────────────
 
@@ -523,6 +529,11 @@ export const PITFALLS: Pitfall[] = [
 ];
 
 export const SOURCES: Source[] = [
+  {
+    title: 'ECMAScript — Array.prototype.at',
+    href: 'https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.at',
+    what: 'ToObject, LengthOfArrayLike, ToIntegerOrInfinity: null/undefined и BigInt не превращаются в допустимые входы',
+  },
   {
     title: 'Babel — `@babel/preset-env`',
     href: 'https://babeljs.io/docs/babel-preset-env',
@@ -1182,3 +1193,30 @@ ${BUGFIX.plain}
 
 // chrome 80, bugfixes: true
 ${BUGFIX.bugfixes}`;
+
+/** Один браузер может требовать два независимых ремонта одного выражения. */
+export const MECHANISM_DIAGRAM: ConceptDiagramData = {
+  id: 'transpilation-two-repairs',
+  title: 'Понизить синтаксис и добавить API — два отдельных решения',
+  description: 'Для Safari 13 выражение items?.at(-1) требует и преобразования optional chaining, и реализации Array.prototype.at. Успех первого решения не обеспечивает второе.',
+  width: 980, height: 620,
+  nodes: [
+    { id: 'source', x: 0, y: 170, width: 260, height: 240, label: 'items?.at(-1)', detail: 'Один исходник обращается к новому синтаксису ?. и к новому методу at.', tone: 'info' },
+    { id: 'syntax', x: 360, y: 0, width: 260, height: 240, label: 'Преобразование Babel', detail: 'Убирает ?. из файла, сохраняя проверку на null и undefined.', tone: 'ok' },
+    { id: 'api', x: 360, y: 380, width: 260, height: 240, label: 'Импорт core-js', detail: 'usage добавляет модуль es.array.at для выбранных целей.', tone: 'warn' },
+    { id: 'parse', x: 720, y: 0, width: 260, height: 240, label: 'Файл разбирается', detail: 'В результирующем коде вызов .at(-1) всё ещё существует. Преобразование не создало метод.', tone: 'ok' },
+    { id: 'call', x: 720, y: 380, width: 260, height: 240, label: 'Метод вызывается', detail: 'Полифил должен выполниться до вызова. Без него на массиве возникнет TypeError.', tone: 'warn' },
+  ],
+  edges: [
+    { from: 'source', to: 'syntax', via: [[310, 290], [310, 120]], label: 'синтаксис', labelX: 310, labelY: 90 },
+    { from: 'source', to: 'api', via: [[310, 290], [310, 500]], label: 'API', labelX: 310, labelY: 550 },
+    { from: 'syntax', to: 'parse' },
+    { from: 'api', to: 'call' },
+    { from: 'parse', to: 'call', fromSide: 'bottom', toSide: 'top', label: 'запуск', labelX: 850, labelY: 315 },
+  ],
+  note: 'Список целей один, но таблицы разные: @babel/compat-data для преобразований и core-js-compat для полифилов. target сам по себе не устанавливает недостающие API.',
+};
+
+/** Реальный Babel и выполнение в realm без at проверяются в transpilation.test.ts. */
+export const TWO_REPAIRS_CODE = `const items = [10, 20];
+console.log(items?.at(-1));`;

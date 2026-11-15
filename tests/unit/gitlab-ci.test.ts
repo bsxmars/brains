@@ -10,6 +10,8 @@ import {
   RULE_CONTEXTS,
   RULES_FACTS,
   VAR_STEPS,
+  VARIABLE_SCOPE_NOTE,
+  STAGE_DIAGRAM,
 } from '@/content/delivery/gitlab-ci/data';
 import { decide, evalExpr, matchesGlob, ruleMatches, valueOf } from '@/widgets/rules-builder/model/rules';
 import { resolveVar, shadowed, strength, VAR_ORDER } from '@/widgets/rules-builder/model/vars';
@@ -224,16 +226,18 @@ describe('правила демо остаются вычислимыми', () =
 
 describe('приоритет переменных', () => {
   it('порядок слоёв — от слабого к сильному', () => {
-    expect(VAR_ORDER).toEqual(['predefined', 'global', 'job', 'rules', 'dotenv', 'project', 'manual']);
+    expect(VAR_ORDER).toEqual(['predefined', 'deployment', 'global', 'workflowRules', 'job', 'rules', 'dotenv', 'instance', 'group', 'project', 'manual', 'manualJob', 'policy']);
   });
 
-  it('лид раздела «Переменные» называет столько слоёв, сколько в списке приоритетов', () => {
-    // Было «в шести местах», а в списке «Порядок целиком» и в VAR_ORDER — семь слоёв.
-    expect(VAR_STEPS).toHaveLength(VAR_ORDER.length);
-    expect(VAR_ORDER).toHaveLength(7);
+  it('семь источников старого стенда не выдаются за полный список GitLab', () => {
+    expect(VAR_STEPS).toHaveLength(7);
+    expect(VAR_ORDER.length).toBeGreaterThan(VAR_STEPS.length);
+    expect(VARIABLE_SCOPE_NOTE).toContain('не полный список GitLab');
+    expect(VARIABLE_SCOPE_NOTE).toContain('instance и group');
     const mdx = readFileSync(new URL('../../src/content/delivery/gitlab-ci/index.mdx', import.meta.url), 'utf8');
     const lead = mdx.match(/title="Переменные и их приоритеты"\s+lead="([^"]*)"/)![1];
-    expect(lead).toContain('в семи местах — слоях');
+    expect(lead).toContain('учебного стенда');
+    expect(mdx).not.toContain('Порядок целиком');
   });
 
   /** Снято прогоном: `variables:` джоба перебивает корневые, а правило — джоба. */
@@ -367,5 +371,24 @@ describe('rules:changes: база сравнения у настоящего Git
     expect(t).not.toMatch(/смотрит на всю ветку/);
     expect(t).toMatch(/прошл\S* push/);
     expect(t).toContain('compare_to');
+  });
+});
+
+
+describe('полный документированный порядок и его границы', () => {
+  it('проект сильнее группы, ручной джоб сильнее pipeline variables, применимая policy сильнее обоих', () => {
+    const sources = ['predefined', 'global', 'workflowRules', 'job', 'rules', 'dotenv', 'instance', 'group', 'project', 'manual', 'manualJob', 'policy'] as const;
+    for (let i = 1; i < sources.length; i++) {
+      const layers = [{ source: sources[i - 1], value: 'weak' }, { source: sources[i], value: 'strong' }];
+      expect(resolveVar(layers)?.value, sources[i]).toBe('strong');
+      expect(resolveVar(layers.toReversed())?.value, sources[i]).toBe('strong');
+    }
+  });
+
+  it('альтернатива на шкале — тот же test:unit без ожидания чужой стадии, а не новый замер', () => {
+    const direct = byNeeds(GRAPH_JOBS, GRAPH_STAGES).jobs.find((job) => job.name === 'test:unit')!;
+    expect(STAGE_DIAGRAM.alternative.from).toBe(direct.start / 1000);
+    expect(STAGE_DIAGRAM.alternative.to).toBe(direct.end / 1000);
+    expect(STAGE_DIAGRAM.alternative.label).toContain('расчёт');
   });
 });

@@ -20,6 +20,8 @@ nav:
   - { id: s10, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -36,6 +38,8 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import AxTreeLab from '@/widgets/ax-tree-lab/ui/AxTreeLab.vue';
 import {
+  SEMANTICS_DIAGRAM,
+  SCENE_HTML,
   GLOSSARY,
   PLAIN_AXTREE,
   TREE_CODE,
@@ -108,6 +112,12 @@ import {
   title="Второе дерево: роль, имя, состояние"
   lead="Узел дерева доступности отвечает на три вопроса: что это (роль), как это назвать (имя) и в каком оно сейчас положении (состояния). Браузер строит его параллельно DOM: скрытые элементы выбрасывает, обёртки без смысла (`div` и `span` без роли и имени) пропускает, а их детей поднимает на их место. Остальным элементам он вычисляет роль и имя по правилам из спецификаций."
 >
+  <CodeBlock lang="html" code={SCENE_HTML.card} />
+
+  <ConceptDiagram data={SEMANTICS_DIAGRAM} />
+
+  <Disclosure title="Исходник учебного обхода дерева и его ограничения">
+
   <Card title="Как из DOM получается дерево доступности" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -116,7 +126,9 @@ import {
     </CardNote>
   </Card>
 
-  ### Дерево и порядок Tab на пяти сценах
+  </Disclosure>
+
+  ### Учебное дерево и порядок Tab на пяти сценах
 
   <AxTreeLab
     client:visible
@@ -137,7 +149,7 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Что попадает в дерево"
-  lead="Узел выпадает из дерева вместе со всем поддеревом, если его не рисуют (`display: none`, `hidden`), если он невидим (`visibility: hidden`), выключен (`inert`) или явно убран для технологий доступа (`aria-hidden`). Прозрачность, размер в один пиксель и вынос за край экрана узел не прячут."
+  lead="`display: none`, `inert` и `aria-hidden` скрывают поддерево от технологий доступа. `visibility: hidden` скрывает сам элемент и наследуется, но потомок может вернуть себе `visibility: visible`. Прозрачность, размер в один пиксель и вынос за экран сами по себе семантику не убирают; исключение из дерева также не всегда совпадает с исключением из Tab."
 >
   <Plain text={PLAIN_HIDDEN} />
 
@@ -196,7 +208,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Доступное имя: какой источник главнее"
-  lead="Имя вычисляется по алгоритму из спецификации accname 1.2. Браузер проверяет источники по очереди и берёт первый, где нашлась непустая строка; остальные он уже не смотрит. Поэтому `aria-label` перекрывает видимый текст, а ссылка на несуществующий `id` не вызывает ошибки: браузер просто переходит к следующему источнику."
+  lead="Имя вычисляется по алгоритму из спецификации accname 1.2. Браузер проверяет источники по правилам приоритета. Непустая подпись по `aria-labelledby` перекрывает `aria-label`, а тот — текст кнопки. Если указанный `id` не существует или подпись по ссылкам пуста, поиск продолжается без ошибки."
 >
   <Plain text={PLAIN_NAME} />
 
@@ -209,6 +221,8 @@ import {
     minWidth={460}
   />
 
+  <Disclosure title="Исходник подмножества вычисления доступного имени">
+
   <Card title="Вычисление имени — подмножество accname 1.2" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="jsx" code={NAME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -216,6 +230,8 @@ import {
       <Md text={NAME_NOTE} />
     </CardNote>
   </Card>
+
+  </Disclosure>
 
   ### Какие имена выдал Chromium
 
@@ -320,7 +336,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Живые регионы: как сказать о том, что изменилось"
-  lead="Скринридер читает то место, где сейчас человек. Сообщение «Товар в корзине» в углу экрана он не заметит, если его об этом не попросить. Атрибут `aria-live` и роли `status` и `alert` превращают узел в живой регион: изменения в нём объявляются сами."
+  lead="Скринридер читает то место, где сейчас человек. Сообщение «Товар в корзине» в углу экрана он не заметит, если его об этом не попросить. Атрибут `aria-live` и роли `status` и `alert` помечают узел для объявления изменений. Что и когда будет произнесено, зависит от сочетания браузера и программы экранного доступа; таблица показывает свойства региона, а не запись речи."
 >
   <Plain text={PLAIN_LIVE} />
 

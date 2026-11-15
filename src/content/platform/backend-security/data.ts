@@ -1,8 +1,11 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 import type { DnsChoice, EgressCase } from '@/widgets/bs-egress-check/model/types';
 import type { FieldCase } from '@/widgets/bs-field-allowlist/model/types';
 
 /**
+ * Уточнение 2026-11-12: Пустой ответ DNS завершается EGRESS_BLOCKED, а не обращением к answers[0] — регрессионный тест guardLookup. HTML-контексты различаются с SQL-параметрами и argv: OWASP DOM XSS Cheat Sheet; тест ESCAPE_CODE сохраняет javascript: как строку.
+ *
  * Данные темы «Безопасность бэкенда глазами фронтенда».
  *
  * Тема написана здесь. До неё предмет висел строкой «Безопасность бэкенда: SSRF, IDOR, инъекции,
@@ -64,7 +67,7 @@ import type { FieldCase } from '@/widgets/bs-field-allowlist/model/types';
 /* ──────────────────── Вводный раздел ──────────────────── */
 
 export const INTRO_THESIS =
-  'Сервер не знает, какие кнопки показал интерфейс. Он видит запрос — метод, адрес, заголовки и тело, — и любой из них может прийти не из вашего фронта, а из `curl`. Поэтому каждая проверка, которая защищает данные, живёт в обработчике: **кто спрашивает, его ли это объект, какие поля ему можно менять и куда сервер пойдёт по его просьбе.**';
+  'Сервер не знает, какие кнопки показал интерфейс. Он видит запрос — метод, адрес, заголовки и тело, — и любой из них может прийти не из вашего фронта, а из `curl`. Поэтому проверки живут на серверном пути исполнения запроса: **кто спрашивает, его ли это объект, какие поля ему можно менять и куда сервер пойдёт по его просьбе.**';
 
 export const PLAIN_SERVER =
   'Фронт — это витрина и бланки заказа. Сервер — склад. Покупатель может заполнить бланк от руки, вписать чужой номер заказа и лишнюю графу «скидка 100%». Склад, который верит бланку, потому что «на витрине такой графы не было», отгрузит что угодно.';
@@ -316,7 +319,7 @@ function literalIp(host) {
   return /^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test(host) ? host : null;
 }
 
-// 2. Адрес. Разрешён только глобальный; всё остальное — с причиной.
+// 2. Адрес. Учебная политика специальных диапазонов; не полный реестр IANA.
 const V4_BLOCKED = [
   ['0.0.0.0', 8, '«эта сеть»: 0.0.0.0 ведёт на саму машину'],
   ['10.0.0.0', 8, 'частная сеть'],
@@ -420,6 +423,7 @@ function guardLookup(lookup) {
   return (hostname, options, callback) => {
     lookup(hostname, { ...options, all: true }, (err, answers) => {
       if (err) return callback(err);
+      if (answers.length === 0) return callback(blocked('DNS не вернул адресов'));
       const bad = answers.find((a) => addressProblem(a.address));
       if (bad) return callback(blocked(\`\${hostname} → \${bad.address}: \${addressProblem(bad.address)}\`));
       if (options.all) return callback(null, answers);
@@ -1045,3 +1049,103 @@ export const SOURCES: SourceGroup[] = [
 
 export const RELATED =
   'Смежное на сайте: [Безопасность фронтенда](/platform/security/) — браузерная половина: источник, [CORS](/platform/security/#s2), [XSS и CSP](/platform/security/#s4), [CSRF](/platform/security/#s5), [куки и JWT](/platform/security/#s6). [Пакетные менеджеры](/tooling/package-managers/#s6) — скрипты установки, порог возраста версии и `npm audit`. [Модули и сборка](/tooling/modules/#s6) — как значение переменной окружения оказывается строкой в бандле. [Объектная модель](/js/object-model/#s2) — прототипы и prototype pollution.';
+
+export const EGRESS_BOUNDARY_DIAGRAM: ConceptDiagramData = {
+  "id": "backend-egress-socket",
+  "title": "Проверка должна разрешить тот адрес, с которым соединяется сокет",
+  "description": "Имя может пройти список разрешённых, а DNS вернуть внутренний IP. Редирект запускает проверку нового адреса.",
+  "width": 1060,
+  "height": 660,
+  "nodes": [
+    {
+      "id": "url",
+      "x": 20,
+      "y": 20,
+      "width": 260,
+      "height": 250,
+      "label": "URL пользователя",
+      "detail": "Парсер выделяет схему, порт и хост. Проверяется допустимый адрес назначения.",
+      "tone": "info"
+    },
+    {
+      "id": "dns",
+      "x": 400,
+      "y": 20,
+      "width": 260,
+      "height": 250,
+      "label": "DNS при соединении",
+      "detail": "guardLookup проверяет адреса из того же ответа DNS, который получит клиент соединения.",
+      "tone": "warn"
+    },
+    {
+      "id": "socket",
+      "x": 780,
+      "y": 20,
+      "width": 260,
+      "height": 250,
+      "label": "Сокет к проверенному IP",
+      "detail": "Частный или служебный адрес останавливает соединение до отправки запроса.",
+      "tone": "ok"
+    },
+    {
+      "id": "redirect",
+      "x": 780,
+      "y": 390,
+      "width": 260,
+      "height": 250,
+      "label": "Ответ с Location",
+      "detail": "Удалённый сервер предлагает новый адрес. Разрешение на первый хост не распространяется на него.",
+      "tone": "warn"
+    },
+    {
+      "id": "again",
+      "x": 400,
+      "y": 390,
+      "width": 260,
+      "height": 250,
+      "label": "Новый круг проверки",
+      "detail": "Относительный Location разрешается относительно старого URL; новый URL проверяется заново.",
+      "tone": "info"
+    }
+  ],
+  "edges": [
+    {
+      "from": "url",
+      "to": "dns"
+    },
+    {
+      "from": "dns",
+      "to": "socket"
+    },
+    {
+      "from": "socket",
+      "to": "redirect",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "redirect",
+      "to": "again",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "from": "again",
+      "to": "url",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "via": [
+        [
+          530,
+          320
+        ],
+        [
+          150,
+          320
+        ]
+      ],
+      "dashed": true
+    }
+  ],
+  "note": "Учебная политика адресов не заменяет сетевые ограничения исходящего трафика. Проверка строки отдельно от фактического соединения оставляет окно DNS rebinding."
+};

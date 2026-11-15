@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import Redis from 'ioredis';
+import { QueryClient } from '@tanstack/query-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/data/redis-cache/data';
 import * as nginx from '@/content/delivery/nginx-proxy/data';
@@ -64,6 +65,45 @@ function replayOnMini(log: string[]): string[] {
 }
 
 describe('гонки: модель шаг в шаг совпадает с журналом Redis', () => {
+  it('invalidateQueries помечает данные TanStack устаревшими, но сохраняет саму копию', async () => {
+    const client = new QueryClient();
+    try {
+      client.setQueryData(['user', 1], { name: 'Анна' });
+      await client.invalidateQueries({ queryKey: ['user', 1], refetchType: 'none' });
+      expect(client.getQueryData(['user', 1])).toEqual({ name: 'Анна' });
+      expect(client.getQueryState(['user', 1])?.isInvalidated).toBe(true);
+      expect(t.CLIENT_SIDE_NOTE).toContain('не DEL');
+    } finally { client.clear(); }
+  });
+
+  it('аренда ограничивает заполнение кеша, но два промаха всё равно читают базу', async () => {
+    const sc: RaceScenario = {
+      id: 'lease-herd-boundary', label: 'два промаха', group: 'fix', replica: false,
+      clients: { A: ['readUserLease', 1, 'A'], B: ['readUserLease', 1, 'B'] },
+      order: 'AB AB AB A', note: '', verdict: '',
+    };
+    const r = await runRace(model, sc, t.ROWS);
+    expect(r.log.filter((line) => line.includes('db.read(1)'))).toHaveLength(2);
+    expect(r.log.filter((line) => line.includes('SET lease:1'))).toEqual([
+      'A: SET lease:1 A NX PX 5000 → OK', 'B: SET lease:1 B NX PX 5000 → (nil)',
+    ]);
+    expect(t.FIX_ROWS.find((row) => row.k.includes('аренда'))!.cost).toContain('толпу сам по себе не гасит');
+  });
+
+  it('после TTL барьер версии исчезает, старое значение получает новый полный срок', () => {
+    const clock = { now: 0 };
+    const cache = model.createRedis(() => clock.now);
+    expect(cache.call('FCALL', 'set_if_newer', 1, 'user:1', 2, 'Мария', 1)).toBe(1);
+    expect(cache.call('FCALL', 'set_if_newer', 1, 'user:1', 1, 'Анна', 300)).toBe(0);
+    clock.now = 1001;
+    expect(cache.call('FCALL', 'set_if_newer', 1, 'user:1', 1, 'Анна', 300)).toBe(1);
+    clock.now = 300001; // уже больше исходного TTL старого значения от момента COMMIT в 0
+    expect(cache.call('GET', 'user:1')).toBe('1:Анна');
+    clock.now = 301001;
+    expect(cache.call('GET', 'user:1')).toBeNull();
+    expect(t.TTL_NOTE).toContain('одной записи от её SET');
+  });
+
   for (const sc of t.RACE_SCENARIOS) {
     it(sc.id, async () => {
       const r = await runRace(model, sc, t.ROWS);
@@ -336,6 +376,18 @@ describe.runIf('port' in live)(LIVE_TITLE, () => {
   it('версия Redis', async () => {
     expect((await r.info('server')).match(/redis_version:(\S+)/)?.[1]).toBe(t.STAND_VERSION);
     expect(await r.config('GET', 'maxmemory-samples')).toEqual(['maxmemory-samples', String(t.REDIS_DEFAULTS.samples)]);
+  });
+
+  it('барьер версии исчезает при истечении: тот же Lua вновь принимает старую версию', async () => {
+    await r.flushall();
+    expect(await r.call('FCALL', 'set_if_newer', 1, 'user:1', '2', 'Мария', '300')).toBe(1);
+    expect(await r.call('FCALL', 'set_if_newer', 1, 'user:1', '1', 'Анна', '300')).toBe(0);
+    await r.pexpire('user:1', 1);
+    for (let poll = 0; poll < 100 && await r.exists('user:1'); poll++) await sleep(2);
+    expect(await r.exists('user:1')).toBe(0);
+    expect(await r.call('FCALL', 'set_if_newer', 1, 'user:1', '1', 'Анна', '300')).toBe(1);
+    expect(await r.get('user:1')).toBe('1:Анна');
+    expect(await r.ttl('user:1')).toBeGreaterThan(290);
   });
 
   it('STAND_RACE: семь гонок', async () => {

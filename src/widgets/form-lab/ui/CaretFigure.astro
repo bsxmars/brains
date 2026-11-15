@@ -1,0 +1,60 @@
+---
+interface Row { id: string; start: string; typed: string; value: string; caret: number }
+interface Props { rows: Row[]; position: number }
+const { rows, position } = Astro.props;
+const plain = rows.find((row) => row.id === 'react-upper');
+const fixed = rows.find((row) => row.id === 'react-fix');
+if (!plain || !fixed) throw new Error('CaretFigure: нет сценариев преобразования регистра');
+const typed = plain.start.slice(0, position) + plain.typed + plain.start.slice(position);
+const stages = [
+  { label: 'До ввода', text: plain.start, caret: position },
+  { label: 'Браузер вставил символ', text: typed, caret: position + plain.typed.length },
+];
+const outcomes = [
+  { label: 'Записали верхний регистр', row: plain, tone: 'err' },
+  { label: 'Затем восстановили каретку', row: fixed, tone: 'ok' },
+];
+---
+
+<figure class="cf" data-render-illustration="form-caret-write">
+  <figcaption>Текст преобразован одинаково; положение каретки различается</figcaption>
+  <div class="cf-scroll">
+    <div class="cf-content">
+      <div class="cf-stages">
+        {stages.map((stage) => <div class="cf-stage">
+          <p class="cf-label">{stage.label}</p>
+          <div class="cf-field" role="img" aria-label={`${stage.text}, каретка после символа ${stage.caret}`}>
+            <span>{stage.text.slice(0, stage.caret)}</span><span class="cf-caret" aria-hidden="true" /><span>{stage.text.slice(stage.caret)}</span>
+          </div>
+        </div>)}
+      </div>
+      <div class="cf-outcomes">
+        {outcomes.map(({ label, row, tone }) => <div class="cf-stage" data-tone={tone}>
+          <p class="cf-label">{label}</p>
+          <div class="cf-field" role="img" aria-label={`${row.value}, каретка после символа ${row.caret}`}>
+            <span>{row.value.slice(0, row.caret)}</span><span class="cf-caret" aria-hidden="true" /><span>{row.value.slice(row.caret)}</span>
+          </div>
+          <p class="cf-position">selectionStart = {row.caret}</p>
+        </div>)}
+      </div>
+    </div>
+  </div>
+  <p class="cf-note">Схема использует те же строки и позиции, что таблица замера Chromium ниже. Вертикальная черта — каретка, а не символ значения поля.</p>
+</figure>
+
+<style>
+  .cf { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); background: var(--surface); box-shadow: var(--shadow-card); }
+  .cf figcaption { font-size: var(--fs-7); line-height: 1.45; font-weight: 600; color: var(--ink); }
+  .cf-scroll { overflow-x: auto; margin-top: 16px; }
+  .cf-content { min-width: 650px; }
+  .cf-stages, .cf-outcomes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .cf-outcomes { margin-top: 20px; }
+  .cf-stage { padding: 18px; border-radius: var(--r2); background: var(--surface-2); }
+  .cf-stage[data-tone='err'] { background: var(--tone-err-bg); }
+  .cf-stage[data-tone='ok'] { background: var(--tone-ok-bg); }
+  .cf-label { margin: 0 0 12px; font-size: var(--fs-5); line-height: 1.5; color: var(--prose); }
+  .cf-field { display: flex; align-items: center; min-height: 36px; padding: 10px 14px; border: 1px solid var(--border-strong); border-radius: var(--r1); background: var(--surface); color: var(--ink); font-family: var(--mono); font-size: var(--fs-7); white-space: pre; }
+  .cf-caret { height: 1.2em; border-left: 2px solid var(--tone-info-strong); }
+  .cf-position, .cf-note { margin: 12px 0 0; font-size: var(--fs-4); line-height: 1.6; color: var(--text-muted); }
+  .cf-position { font-family: var(--mono); }
+</style>

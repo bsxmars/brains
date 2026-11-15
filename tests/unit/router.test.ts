@@ -308,6 +308,28 @@ describe('guards: учебный роутер против vue-router во Vue',
     expect(router.currentRoute.value.fullPath).toBe('/');
   });
 
+  it('программный push подтверждает маршрут и историю только после async guard', async () => {
+    const history = createMemoryHistory();
+    const router = createRouter({ history, routes: [{ path: '/', component: C }, { path: '/a', component: C }] });
+    await router.push('/');
+    let release!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    router.beforeEach(async (to) => {
+      if (to.path !== '/a') return;
+      entered();
+      await new Promise<void>((resolve) => { release = resolve; });
+    });
+    const pending = router.push('/a');
+    await started;
+    expect(router.currentRoute.value.path).toBe('/');
+    expect(history.location).toBe('/');
+    release();
+    await pending;
+    expect(router.currentRoute.value.path).toBe('/a');
+    expect(history.location).toBe('/a');
+  });
+
   it('push не бросает при отмене: FAILURE_ROWS', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: C }, { path: '/a', component: C }] });
     await router.push('/');

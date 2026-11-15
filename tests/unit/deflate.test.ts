@@ -536,3 +536,26 @@ describe('демо', () => {
     }
   });
 });
+
+
+describe('граница учебного декодера', () => {
+  it('зарезервированные символы fixed-блока 286 и 287 отвергаются, как в zlib', () => {
+    // BFINAL=1, BTYPE=01; fixed-коды передаются старшим битом вперёд.
+    // Символы 286/287 имеют коды 11000110/11000111, EOB 256 — 0000000.
+    for (const symbol of [286, 287]) {
+      const code = (0xc6 + symbol - 286).toString(2).padStart(8, '0');
+      const bits = [1, 1, 0, ...[...code].map(Number), 0, 0, 0, 0, 0, ...Array(7).fill(0)];
+      const raw = new Uint8Array(Math.ceil(bits.length / 8));
+      bits.forEach((bit, i) => { raw[i >> 3] |= bit << (i & 7); });
+      expect(() => zlib.inflateRawSync(raw)).toThrow();
+      expect(() => api.inflateRaw(raw)).toThrow('зарезервированный код длины');
+    }
+  });
+
+  it('чтение CRC в учебном gunzip не заменяет проверку контрольной суммы', () => {
+    const gz = zlib.gzipSync(enc.encode('данные'));
+    gz[gz.length - 8] ^= 1;
+    expect(() => zlib.gunzipSync(gz)).toThrow();
+    expect(same(api.gunzip(gz).data, enc.encode('данные'))).toBe(true);
+  });
+});

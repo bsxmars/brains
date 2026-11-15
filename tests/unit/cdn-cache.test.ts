@@ -184,6 +184,21 @@ describe('прослойка на node:http перед своим origin', () =>
     expect(r.headers.get('age')).toBe('0');
   });
 
+  it('304 без Cache-Control сохраняет max-age: после проверки снова свежий hit', async () => {
+    const s = await stand((req): ReturnType<Handler> => req.headers['if-none-match'] === '"v1"'
+      ? { status: 304, headers: { etag: '"v1"' } }
+      : { headers: { 'cache-control': 'max-age=10', etag: '"v1"' }, body: 'v1' });
+    await s.get('/merge');
+    s.clock.t = 12;
+    const validated = await s.get('/merge');
+    expect(validated.headers.get('cache-control')).toBe('max-age=10');
+    expect(validated.body).toBe('v1');
+    expect(s.hits()).toBe(2);
+    s.clock.t = 13;
+    expect((await s.get('/merge')).headers.get('cache-status')).toBe('edge; hit; ttl=9');
+    expect(s.hits()).toBe(2);
+  });
+
   it('no-cache хранится, но каждый запрос превращается в условный', async () => {
     const origin304 = await stand((req) =>
       req.headers['if-none-match'] === '"n"'

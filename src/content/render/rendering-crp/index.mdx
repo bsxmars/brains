@@ -2,7 +2,7 @@
 title: Критический путь и Web Vitals
 order: 3
 kicker: браузер и рендеринг
-lead: "Пока страница не показала первый пиксель, браузер в основном ждёт — сеть, стили, скрипты, — а не выполняет ваш код. Три метрики — LCP, INP и CLS — меряют три разных вещи: когда появилось главное, как быстро страница ответила на действие и насколько прыгало содержимое. И каждая ломается по-своему."
+lead: "Белый экран, поздняя большая картинка, прыгающая кнопка и медленный отклик возникают на разных участках работы браузера. Три метрики — LCP, INP и CLS — меряют три разных вещи: когда появилось главное, как быстро страница ответила на действие и насколько прыгало содержимое. И каждая ломается по-своему."
 summary: "Что останавливает разбор HTML, что задерживает первую отрисовку, как считаются LCP, INP и CLS — и почему зелёная оценка Lighthouse ничего не обещает."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), сентябрь 2026; пороги CWV — политика Google, сверяйте с web.dev"
 nav:
@@ -24,6 +24,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -84,6 +86,7 @@ import {
   CRUX_ACCESS_ROWS,
   SOURCES,
   RELATED,
+  LCP_WAIT_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Зачем мерить то, что и так видно" gap={24}>
@@ -91,8 +94,8 @@ import {
 
     Открыли страницу — полсекунды белый экран, потом текст, а картинка подъезжает ещё через
     секунду и сталкивает кнопку из-под пальца. Нажали — интерфейс молчит. У каждой из трёх бед
-    своё число и своя причина. Тема — о том, что браузер делает **до первого кадра** и сразу
-    после него; из чего состоит сам кадр, разобрано в [«Кадре браузера»](/render/render-pipeline/).
+    своё число и своя причина. LCP отмечает появление крупного содержимого, CLS — неожиданные сдвиги, INP — задержку
+    ответа на взаимодействие. Один зелёный показатель не заменяет остальные.
 
   </Callout>
 
@@ -221,7 +224,7 @@ import {
 
 
       В этом коде три места, где легко ошибиться: взять первую запись вместо последней,
-      забыть `buffered: true` и не учесть, что `renderTime` бывает пустым.
+      забыть `buffered: true` и перепутать время загрузки файла с моментом его показа.
 
     </Card>
   </CardGrid>
@@ -237,6 +240,8 @@ import {
   </CardGrid>
 
   <Plain text={PLAIN_LCP_PARTS} />
+
+  <ConceptDiagram data={LCP_WAIT_DIAGRAM} />
 
   ### Четыре части LCP на примере одной картинки
 
@@ -276,7 +281,9 @@ import {
     </CardNote>
   </Card>
 
-  <Card tone="err" title="Замер: один файл, два способа его показать" titleSize={17} pad={20} gap={12} size={15.5}>
+<Disclosure title="Локальный замер img и CSS-фона">
+
+<Card tone="err" title="Замер: один файл, два способа его показать" titleSize={17} pad={20} gap={12} size={15.5}>
     <Table
       head={['как объявлена картинка', 'LCP', 'почему']}
       rows={LCP_MEASURED.map((r) => [r.k, r.lcp, r.why])}
@@ -297,6 +304,9 @@ import {
 
     </CardNote>
   </Card>
+
+</Disclosure>
+
 </Section>
 
 <Section
@@ -442,7 +452,9 @@ import {
 
   </CardGrid>
 
-  <Card tone="warn" title="Свой `PerformanceObserver` — чтобы понимать, как считается метрика" titleSize={16.5} pad={20} gap={12} size={15.5} lh={1.6}>
+<Disclosure title="Собрать разложение Event Timing вручную">
+
+<Card tone="warn" title="Свой `PerformanceObserver` — чтобы понимать, как считается метрика" titleSize={16.5} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={INP_OBSERVER_CODE} size={11.5} lh={1.7} pad="15px 17px" />
 
 
@@ -459,6 +471,8 @@ import {
 
     </CardNote>
   </Card>
+
+</Disclosure>
 
   <DarkPanel eyebrow="Главный вывод раздела">
     <DarkText size={18} lh={1.55} tone="prose">
@@ -497,12 +511,13 @@ import {
   />
 
   <CardGrid min={300} gap={16} align="start">
-    <Card tone="err" title="Lighthouse не измеряет INP" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <Card tone="err" title="Обычный прогон загрузки не измеряет INP" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
 
-      Для INP нужны взаимодействия, а в лабораторном прогоне их нет: страница загрузилась,
-      инструмент ушёл. Вместо INP показывается **TBT**: для каждой задачи после FCP берут,
-      на сколько она длиннее 50 мс, и складывают. Замена разумная: длинные задачи действительно
-      портят INP.
+      Для INP нужны взаимодействия. В обычном navigation-прогоне Lighthouse их нет:
+      инструмент загружает страницу. Вместо INP показывается **TBT**: для каждой задачи после FCP берут,
+      на сколько она длиннее 50 мс, и складывают. Длинные задачи могут задерживать ввод,
+      поэтому TBT помогает искать часть причин плохого INP. В режиме **timespan** Lighthouse
+      записывает взаимодействия и может измерить их INP — это другой сценарий проверки.
 
       <CardNote tone="err">
 
@@ -540,8 +555,8 @@ import {
 
     <CardNote tone="prose">
 
-      `sendBeacon` здесь не случаен: он доставляет данные даже при уходе со страницы, в отличие
-      от `fetch`, который браузер вправе отменить при выгрузке документа. А `attribution` —
+      `sendBeacon` здесь не случаен: он ставит небольшой отчёт в очередь отправки при уходе со страницы. Это удобный механизм
+      передачи, но успешная постановка в очередь не подтверждает получение сервером. А `attribution` —
       то, ради чего библиотеку и берут: она отдаёт готовое разложение и селектор элемента,
       на котором случилось медленное взаимодействие. Искать причину вручную не приходится.
 

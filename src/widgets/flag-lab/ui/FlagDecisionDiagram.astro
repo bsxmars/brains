@@ -1,0 +1,47 @@
+---
+import { inlineMd } from '@/shared/lib/format';
+import { loadFlagApi, loadFlags } from '../model/run';
+
+interface Props {
+  flagCode: string;
+  flagsCode: string;
+  coinCode: string;
+  cases: { label: string; context: Record<string, string>; path: string }[];
+}
+const { flagCode, flagsCode, coinCode, cases } = Astro.props;
+const api = loadFlagApi(flagCode, coinCode);
+const flags = loadFlags(flagsCode);
+const rows = cases.map((item) => ({ ...item, answer: api.evaluate('new-cart', flags['new-cart'], item.context, false) }));
+---
+<figure class="ffed" data-flag-decision-diagram data-render-illustration="flag-decision" role="img" aria-labelledby="ffed-title" aria-describedby="ffed-desc">
+  <figcaption id="ffed-title">Первое совпадение решает: до корзины доходят не все</figcaption>
+  <ol>
+    {rows.map((row) => (
+      <li>
+        <div class="ffed-input"><b>{row.label}</b><span set:html={inlineMd(Object.entries(row.context).map(([k, v]) => `\`${k}: ${v}\``).join(', ') || '`{}`')} /></div>
+        <span class="ffed-arrow" aria-hidden="true">→</span>
+        <div class="ffed-path" set:html={inlineMd(row.path)} />
+        <span class="ffed-arrow" aria-hidden="true">→</span>
+        <div class="ffed-result" data-error={row.answer.reason === 'ERROR' ? 'yes' : undefined}>
+          <b>{String(row.answer.value)}</b>
+          <span>{row.answer.reason}</span>
+          <span>{row.answer.errorCode ?? row.answer.variant ?? 'значение вызывающего'}</span>
+        </div>
+      </li>
+    ))}
+  </ol>
+  <p id="ffed-desc">Первое совпавшее правило завершает поиск: увеличение процента не отменит правило для страны или сотрудника.</p>
+</figure>
+<style>
+  .ffed { margin: 0; padding: 24px; border-radius: var(--r4); box-shadow: var(--shadow-card); background: var(--surface); }
+  .ffed figcaption { color: var(--ink); font-size: var(--fs-7); line-height: 1.5; font-weight: 600; }
+  .ffed ol { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .ffed li { display: grid; grid-template-columns: minmax(0, 1.2fr) 20px minmax(0, 1fr) 20px minmax(0, 1fr); gap: 8px; align-items: stretch; }
+  .ffed-input, .ffed-path, .ffed-result { min-width: 0; padding: 14px; border-radius: var(--r2); background: var(--surface-2); color: var(--prose); font-size: var(--fs-5); line-height: 1.6; overflow-wrap: anywhere; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+  .ffed-result { color: var(--tone-ok-text); background: var(--tone-ok-bg); }
+  .ffed-result[data-error='yes'] { color: var(--tone-warn-text); background: var(--tone-warn-bg); }
+  .ffed-result span { font-family: var(--mono); font-size: var(--fs-3); }
+  .ffed-arrow { align-self: center; text-align: center; color: var(--dim); }
+  .ffed p { margin: 18px 0 0; color: var(--text-muted); font-size: var(--fs-5); line-height: 1.6; }
+  @media (max-width: 680px) { .ffed li { grid-template-columns: minmax(0, 1fr); gap: 4px; } .ffed-arrow { transform: rotate(90deg); } }
+</style>

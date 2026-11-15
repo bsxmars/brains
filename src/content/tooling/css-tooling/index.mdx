@@ -19,6 +19,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -87,6 +89,8 @@ import {
   SCAN_FACTS,
   TW_LAYERS_CODE,
   LAYER_PROBE,
+  IMPORTANT_ORDER_CODE,
+  IMPORTANT_ORDER_NOTE,
   TW_BYTES_ROWS,
   TW_CLASS_COUNT,
   TW_MARGINAL_ROWS,
@@ -100,6 +104,7 @@ import {
   PITFALLS,
   SOURCES,
   RELATED,
+  CSS_BOUNDARY_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="От исходника к браузеру" gap={24}>
@@ -119,6 +124,8 @@ import {
   кнопки.
 
   <Plain text={PLAIN_PIPELINE} />
+
+  <ConceptDiagram data={CSS_BOUNDARY_DIAGRAM} />
 
   <Glossary items={GLOSSARY} />
 </Section>
@@ -418,6 +425,14 @@ import {
 
   ### Три файла — что попало в CSS
 
+  <Disclosure title="Три входных файла сканера">
+    {TW_FILES.map((file) => (
+      <Card title={file.name}>
+        <CodeBlock lang={file.id === 'button' ? 'vue' : file.id === 'badge' ? 'tsx' : 'js'} code={file.text} />
+      </Card>
+    ))}
+  </Disclosure>
+
   <TwScanLab client:visible scanCode={TW_SCAN_CODE} files={TW_FILES} rules={TW_RULES} emptyBytes={TW_EMPTY_BYTES} caption={TW_DEMO_CAPTION} />
 
   ### Класс, собранный из кусков
@@ -446,7 +461,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Что выходит в CSS: слои и байты"
-  lead="Вывод Tailwind v4 — четыре каскадных слоя: переменные темы, сброс стилей браузера, компоненты и утилиты. Утилиты объявлены последними и поэтому перебивают всё, что лежит в слоях раньше, — независимо от специфичности."
+  lead="Вывод Tailwind v4 — четыре каскадных слоя: переменные темы, сброс стилей браузера, компоненты и утилиты. При обычных декларациях более поздний слой сильнее раннего независимо от специфичности. Для !important порядок слоёв обращается; правило вне слоёв и другие ступени каскада нужно учитывать отдельно."
 >
   <Card title="Начало вывода" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock lang="css" code={TW_LAYERS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -454,7 +469,7 @@ import {
 
   ### Ваш CSS рядом с утилитами
 
-  Слой сильнее специфичности, а правило вне слоёв сильнее любого слоя. Почему так и в каком
+  Для обычных деклараций слой проверяется раньше специфичности, а правило вне слоёв сильнее правил в слоях. У !important порядок обратный. Почему так и в каком
   порядке браузер проверяет критерии — в [«Каскаде и вычислении стилей»](/render/css-cascade/#s1).
   Для Tailwind из этого следует одно практическое правило, и проверить его просто:
   кнопка `<button class="btn p-4">`, вывод Tailwind с `p-4` и рядом своё правило `.btn`.
@@ -467,6 +482,11 @@ import {
     cols="minmax(250px,1.1fr) minmax(80px,.3fr) minmax(280px,1.5fr)"
     minWidth={680}
   />
+
+  <Card title="Важность меняет порядок слоёв">
+    <CodeBlock lang="css" code={IMPORTANT_ORDER_CODE} />
+    <Md text={IMPORTANT_ORDER_NOTE} />
+  </Card>
 
   ### Сколько весит вывод
 

@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -34,6 +36,9 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MigrationLab from '@/widgets/migration-lab/ui/MigrationLab.vue';
 import {
   GLOSSARY,
+  COMPATIBILITY_DIAGRAM,
+  QUEUE_DIAGRAM,
+
   PLAIN_MIGRATION,
   TABLE_SQL,
   TABLE_NAME,
@@ -47,6 +52,7 @@ import {
   COMPAT_CODE,
   COMPAT_NOTE,
   PLANS,
+  SYNC_PROTOCOL_SQL,
   LOCK_NAMES,
   DEMO_CAPTION,
   BACKFILL_RACE,
@@ -92,8 +98,8 @@ import {
   <Callout size={19} pad="24px 26px">
 
     Выкат кода и смена схемы — **два разных шага**, и между ними база живёт с двумя версиями
-    приложения сразу. Каждая миграция обязана подходить и старому коду, и новому. А каждый
-    `ALTER TABLE` — брать блокировку так, чтобы таблица не стояла дольше миллисекунд.
+    приложения сразу. Каждая миграция обязана подходить и старому коду, и новому. И отдельно нужно ограничить ожидание блокировки и работу под ней: совместимый
+    SQL всё ещё может задержать остальные запросы.
 
   </Callout>
 
@@ -111,7 +117,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Две версии на одной базе"
-  lead="Пример на всю тему — таблица пользователей и приложение, которое хочет переименовать столбец `name` в `full_name`. Сначала — что вообще может сделать с таблицей миграция, не уронив код, который о ней не знает."
+  lead="Приложение хочет переименовать `users.name` в `full_name`. Если изменить только схему, старые поды продолжат отправлять запросы к отсутствующему столбцу. Если изменить только код, новые поды потребуют столбец, которого ещё нет."
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Таблица" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -148,6 +154,8 @@ import {
   title="Расширить и сузить: переименование в шесть шагов"
   lead={EXPAND_LEAD}
 >
+  <ConceptDiagram data={COMPATIBILITY_DIAGRAM} />
+
   <CardGrid min={300} gap={16} align="start">
     <Card title="Переходный код: v2" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock lang="sql" code={versionCode('v2')} size={11.5} lh={1.65} pad="14px 16px" />
@@ -158,15 +166,36 @@ import {
     </Card>
   </CardGrid>
 
+  До совместной работы v1/v2 устанавливается триггер. Пока v1 ещё может писать или
+  использоваться для отката, `name` остаётся источником истины: изменение `name` в той же
+  операции обновляет `full_name`. После ухода v1 перенос закрывает оставшиеся NULL.
+  Перед выкатом v3 откат на v1 запрещают и триггер снимают — теперь v3 пишет только новое поле.
+
+  <Disclosure title="Синхронизация записей старой версии до переключения источника истины">
+
+    <CodeBlock lang="sql" code={SYNC_PROTOCOL_SQL} />
+
+  </Disclosure>
+
   ### Проверка: что ответит Postgres
 
   <Card title="Запрос против схемы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={COMPAT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Проверка запросов против схемы">
+
+      <CodeBlock code={COMPAT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <Md text={COMPAT_NOTE} />
 
   ### План по шагам
+
+  <Disclosure title="SQL обоих планов и снимки схем на каждом шаге">
+
+    <CodeBlock lang="json" code={JSON.stringify(PLANS, null, 2)} />
+
+  </Disclosure>
 
   <MigrationLab
     client:visible
@@ -187,6 +216,8 @@ import {
   title="Блокировки: кто кого ждёт"
   lead="Каждый запрос к таблице берёт на неё блокировку — даже обычный `SELECT`. Режимов восемь, и про каждый миграции важно знать две вещи: мешает ли он чтению и мешает ли записи."
 >
+  <ConceptDiagram data={QUEUE_DIAGRAM} />
+
   <Plain text={PLAIN_LOCK} />
 
   <Card title="Какую блокировку держит моя транзакция" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
@@ -217,6 +248,10 @@ import {
   />
 
   <Md text={LOCK_QUEUE_NOTE} />
+
+  Срок удержания блокировки задаёт транзакция: короткая команда внутри длинного BEGIN
+  может держать замок до COMMIT. Поэтому время ALTER и время недоступности таблицы —
+  разные числа. Очередь нескольких сессий здесь взята из правил Postgres, а не из PGlite.
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Не ждать дольше трёх секунд" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -285,7 +320,11 @@ import {
   <Md text={MVCC_TEXT} />
 
   <Card title="Перенос" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={BACKFILL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Backfill с явным регулятором нагрузки">
+
+      <CodeBlock code={BACKFILL_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     <Md text={BACKFILL_NOTE} />
   </Card>
 
@@ -294,12 +333,20 @@ import {
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Следующая тысяча пустых" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock lang="sql" code={PLAN_SUBQUERY_SQL} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock lang="sql" code={PLAN_SUBQUERY} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="План запроса с подзапросом">
+
+      <CodeBlock lang="text" code={PLAN_SUBQUERY} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     </Card>
 
     <Card tone="ok" title="Тысяча по диапазону ключа" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock lang="sql" code={PLAN_RANGE_SQL} size={11.5} lh={1.65} pad="14px 16px" />
-      <CodeBlock lang="sql" code={PLAN_RANGE} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="План запроса по диапазону">
+
+      <CodeBlock lang="text" code={PLAN_RANGE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     </Card>
   </CardGrid>
 

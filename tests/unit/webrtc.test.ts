@@ -114,6 +114,7 @@ describe('приоритет пары и список проверок прот�
       }
     }
     expect(n).toBeGreaterThanOrEqual(10);
+    expect(t.PAIR_NOTE).toContain('удвоенный больший');
   });
 
   it('checklist составил те же пары, что Chromium; лишняя у Chromium — только с prflx', () => {
@@ -277,6 +278,8 @@ describe('журнал стенда и числа из текста', () => {
     expect(runs.symmetric.caller.transport.iceState).toBe('failed');
     expect(runs.symmetric.caller.pairs).toHaveLength(0);
     expect(t.SYMMETRIC_RESULT).toContain('15 секунд');
+    expect(t.NAT_ROWS[2].works).toContain('на стенде');
+    expect(t.DEMO_CAPTION).toContain('не доказывает, что её не проверяли');
   });
 
   it('relay без серверов: ни одного кандидата, состояние new', () => {

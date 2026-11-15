@@ -57,7 +57,7 @@ async function strongestLock(db: PGlite): Promise<string> {
   const rows = (
     await db.query<{ mode: string }>(`SELECT mode FROM pg_locks WHERE pid = pg_backend_pid() AND relation = '${TABLE}'::regclass`)
   ).rows.map((r) => r.mode);
-  return rows.sort((a, b) => MODE_ORDER.indexOf(b) - MODE_ORDER.indexOf(a))[0];
+  return rows.sort((a, b) => MODE_ORDER.indexOf(b) - MODE_ORDER.indexOf(a))[0] ?? '';
 }
 
 /** Выполнить оператор в своей транзакции и снять цену. Ошибка — откат и её код. */
@@ -331,7 +331,7 @@ describe('перенос пачками — BACKFILL_CODE, планы и раз�
     expect(await plan(t.PLAN_RANGE_SQL, [0, 1000])).toBe(t.PLAN_RANGE);
   });
 
-  it('перенос при живой v1: VALIDATE падает с 23514, а обновление имени молча теряется', async () => {
+  it('без синхронизации с живой v1: VALIDATE падает с 23514, а обновление имени молча теряется', async () => {
     const db = await prepared();
     const run = async (sql: string, params: number[]) => (await db.query(sql, params)).affectedRows ?? 0;
     await backfill(run, 10000);
@@ -344,6 +344,47 @@ describe('перенос пачками — BACKFILL_CODE, планы и раз�
     await db.exec(plan.statements[0].sql);
     const err = await db.exec(plan.statements[1].sql).catch((e: { code: string }) => e);
     expect((err as { code: string }).code).toBe('23514');
+  });
+
+  it('протокол плана сохраняет поздние записи v1 и снимает старый источник истины до v3', async () => {
+    const db = await freshDb();
+    const steps = t.PLANS.find((p) => p.id === 'expand')!.steps;
+    for (const st of steps.find((s) => s.id === 'expand')!.statements) await db.exec(st.sql);
+    const run = async (sql: string, params: number[]) => (await db.query(sql, params)).affectedRows ?? 0;
+
+    // Та же последовательность v2 → поздняя v1, которая без триггера оставляла stale full_name.
+    await db.exec(t.VERSIONS.v2[2].replaceAll('Анна Ли', 'Версия B'));
+    await db.exec(t.VERSIONS.v1[2].replaceAll('Анна Ли', 'Версия C'));
+    expect((await one<{ coalesce: string }>(db, t.VERSIONS.v2[0])).coalesce).toBe('Версия C');
+    await db.exec(t.VERSIONS.v1[1]);
+    expect(await one(db, 'SELECT name, full_name FROM users ORDER BY id DESC LIMIT 1')).toEqual({
+      name: 'Анна Ким', full_name: 'Анна Ким',
+    });
+    await backfill(run, 10001);
+    // Откат к v1 после переноса тоже допустим, пока протокол ещё установлен.
+    await db.exec(t.VERSIONS.v1[2].replaceAll('Анна Ли', 'Откат v1'));
+    expect((await one<{ coalesce: string }>(db, t.VERSIONS.v2[0])).coalesce).toBe('Откат v1');
+
+    for (const st of steps.find((s) => s.id === 'constrain')!.statements) await db.exec(st.sql);
+    expect((await outcome(db, t.VERSIONS.v1[1])).code).toBe('23502');
+    // Теперь full_name — источник истины. Оставленный триггер затёр бы INSERT v3 в NULL.
+    await db.exec(t.VERSIONS.v3[1]);
+    expect(await one(db, 'SELECT name, full_name FROM users ORDER BY id DESC LIMIT 1')).toEqual({
+      name: null, full_name: 'Анна Ким',
+    });
+    await db.exec(t.VERSIONS.v3[2]);
+    expect((await one<{ coalesce: string }>(db, t.VERSIONS.v2[0])).coalesce).toBe('Анна Ли');
+    expect((await one<{ name: string }>(db, t.VERSIONS.v1[0])).name).toBe('Откат v1');
+
+    for (const st of steps.find((s) => s.id === 'contract')!.statements) await db.exec(st.sql);
+    expect((await outcome(db, t.VERSIONS.v2[0])).code).toBe('42703');
+    // Это переименование: актуальное значение не потеряно с удалением старого столбца.
+    // В отсутствие совместных писателей обратная схема восстанавливается из нового поля.
+    await db.exec('ALTER TABLE users ADD COLUMN name text');
+    await db.exec('UPDATE users SET name = full_name');
+    expect((await one<{ coalesce: string }>(db, t.VERSIONS.v2[0])).coalesce).toBe('Анна Ли');
+    expect((await one<{ name: string }>(db, t.VERSIONS.v1[0])).name).toBe('Анна Ли');
+    expect(t.ROLLBACK_TEXT).toContain('значение сохранилось в full_name');
   });
 });
 
@@ -366,5 +407,27 @@ describe('числа и утверждения текста', () => {
     expect(t.BACKFILL_CODE).toContain('10 пачек');
     expect(Object.keys(t.LOCK_NAMES)).toEqual(expect.arrayContaining(t.LOCK_MODES.map((m) => m.mode)));
     for (const plan of t.PLANS) for (const s of plan.steps) for (const st of s.statements) expect(t.LOCK_NAMES[st.cost.lock]).toBeDefined();
+  });
+});
+
+
+describe('backfill: граница пачки и явный регулятор нагрузки', () => {
+  it('невалидный batch/maxId отвергается до первого SQL-запроса', async () => {
+    let calls = 0;
+    const run = async () => { calls++; return 0; };
+    for (const batch of [0, -1, 0.5, Infinity, NaN]) await expect(backfill(run, 10000, batch)).rejects.toBeInstanceOf(RangeError);
+    for (const maxId of [-1, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1]) await expect(backfill(run, maxId)).rejects.toBeInstanceOf(RangeError);
+    expect(calls).toBe(0);
+  });
+
+  it('afterBatch вызывается после завершения SQL и до следующей пачки', async () => {
+    const order: string[] = [];
+    const counts = await backfill(async (_sql, [from, to]) => {
+      order.push(`sql ${from}:${to}`);
+      return 1;
+    }, 2000, 1000, async () => { order.push('pace'); });
+    expect(order).toEqual(['sql 0:1000', 'pace', 'sql 1000:2000', 'pace']);
+    expect(counts).toEqual([1, 1]);
+    expect(t.BACKFILL_NOTE).toContain('По умолчанию паузы нет');
   });
 });

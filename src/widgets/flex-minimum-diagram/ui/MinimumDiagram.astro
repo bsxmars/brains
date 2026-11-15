@@ -1,0 +1,50 @@
+---
+interface Props {
+  scenes: { label: string; container: number; widths: number[] }[];
+}
+const { scenes } = Astro.props;
+const scale = 1.7;
+const label = (n: number) => Number(n.toFixed(2)).toLocaleString('ru-RU');
+---
+
+<figure class="fmd" data-render-illustration="flex-minimum">
+  <figcaption class="fmd-title">Минимум ссылки меняет ширину соседнего элемента</figcaption>
+  <p class="fmd-note">У обоих элементов база 200 px и одинаковый flex-shrink. Меняется только min-width ссылки; ширина контейнера остаётся прежней.</p>
+  <div class="fmd-scroll">
+    <svg class="fmd-svg" viewBox="0 0 720 350" role="img" aria-labelledby="fmd-title fmd-desc">
+      <title id="fmd-title">Две флекс-строки шириной 300 CSS-пикселей</title>
+      <desc id="fmd-desc">При min-width auto ссылка занимает около 249,64 пикселя, а сосед — 50,36. При min-width 0 ширины равны: 150 и 150. Текст ссылки при этом всё ещё может выходить из своей коробки.</desc>
+      {scenes.map((scene, i) => {
+        const y = 65 + i * 155;
+        const first = scene.widths[0] * scale;
+        const second = scene.widths[1] * scale;
+        return <g>
+          <text class="fmd-label" x="35" y={y - 25}>{scene.label}</text>
+          <text class="fmd-dimension" x={35 + scene.container * scale} y={y - 25} text-anchor="end">контейнер {scene.container} CSS px</text>
+          <rect class="fmd-link" x="35" y={y} width={first} height="60" rx="8" />
+          <rect class="fmd-neighbour" x={35 + first} y={y} width={second} height="60" rx="8" />
+          <text class="fmd-body" x={35 + first / 2} y={y + 37} text-anchor="middle">ссылка</text>
+          <text class="fmd-body" x={35 + first + second / 2} y={y + 37} text-anchor="middle">ok</text>
+          <path class="fmd-ruler" d={`M 35 ${y + 75} v 7 H ${35 + first} v -7 M ${35 + first} ${y + 75} v 7 H ${35 + first + second} v -7`} />
+          <text class="fmd-dimension" x={35 + first / 2} y={y + 108} text-anchor="middle">{label(scene.widths[0])} px</text>
+          <text class="fmd-dimension" x={35 + first + second / 2} y={y + 108} text-anchor="middle">{label(scene.widths[1])} px</text>
+        </g>;
+      })}
+    </svg>
+  </div>
+  <p class="fmd-note">min-width: 0 разрешает сжать коробку, но не переносит длинное слово. Для переноса нужен overflow-wrap: anywhere, для обрезки — своё правило overflow. Числа — из фикстур Chromium 153, как в таблице выше.</p>
+</figure>
+
+<style>
+.fmd { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); background: var(--surface); box-shadow: var(--shadow-card); }
+.fmd-title { color: var(--ink); font-size: var(--fs-7); font-weight: 600; line-height: 1.45; }
+.fmd-note { margin: 10px 0 0; color: var(--text-muted); font-size: var(--fs-5); line-height: 1.6; }
+.fmd-scroll { overflow-x: auto; min-width: 0; margin-top: 16px; }
+.fmd-svg { display: block; width: 100%; min-width: 720px; height: auto; fill: none; }
+.fmd-label { fill: var(--ink); font-family: var(--mono); font-size: var(--fs-5); }
+.fmd-dimension { fill: var(--text-muted); font-family: var(--mono); font-size: var(--fs-4); }
+.fmd-body { fill: var(--prose); font-size: var(--fs-6); }
+.fmd-link { fill: var(--tone-info-bg); stroke: var(--tone-info-line); }
+.fmd-neighbour { fill: var(--tone-ok-bg); stroke: var(--tone-ok-line); }
+.fmd-ruler { fill: none; stroke: var(--dim); }
+</style>

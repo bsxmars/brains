@@ -4,7 +4,7 @@ heading: "CSP и Trusted Types: как внедрить и не сломать �
 headingWidth: 24
 order: 17
 kicker: сеть и безопасность
-lead: "Строгая CSP пишется в одну строку: `script-src 'nonce-…' 'strict-dynamic'`. Дальше начинается работа: какие ваши скрипты она заблокирует, почему `'unsafe-inline'` рядом с nonce ничего не разрешает, где кнопки перестанут нажиматься, как узнать об этом из отчётов раньше пользователей — и что Trusted Types делают с `innerHTML`, `v-html` и `dangerouslySetInnerHTML`."
+lead: "CSP может заблокировать внедрённый скрипт даже на своём домене: `script-src 'nonce-…' 'strict-dynamic'`. Дальше начинается работа: какие ваши скрипты она заблокирует, почему `'unsafe-inline'` рядом с nonce ничего не разрешает, где кнопки перестанут нажиматься, как узнать об этом из отчётов раньше пользователей — и что Trusted Types делают с `innerHTML`, `v-html` и `dangerouslySetInnerHTML`."
 summary: "Как браузер решает, выполнить ли скрипт: цепочка директив, nonce, хеш, `'strict-dynamic'`, обработчики и `javascript:`, `'unsafe-hashes'`. Отчёты `report-uri` и `report-to`, режим report-only и поэтапное внедрение, заголовок против `<meta>`. Trusted Types: места вставки, политики, `default`, и как с ними живут Vue и React."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, Vue 3.5.42, React 19.3.0, esbuild 0.28.2, октябрь 2026: журнал «31 политика × 15 проб», тексты консоли, тела отчётов, <meta>, Trusted Types и поведение Vue и React снимаются заново tests/unit/csp.test.ts, функция темы сверена с журналом на всех 465 парах. Доставка report-to на сервер на стенде не наблюдалась — её вид по спецификации Reporting API; другие движки не проверялись"
 nav:
@@ -19,6 +19,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -36,6 +38,8 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CspLab from '@/widgets/csp-lab/ui/CspLab.vue';
 import {
+  SCRIPT_TRUST_DIAGRAM,
+  TRUSTED_HTML_DIAGRAM,
   GLOSSARY,
   PLAIN_CSP,
   SITE,
@@ -110,9 +114,8 @@ import {
 
   </Callout>
 
-  При внедрении CSP страницы ломаются почти всегда на одном и том же: инлайн-скрипт
-  без nonce, `onclick` в разметке, `'self'` рядом со `'strict-dynamic'`, `<meta>` вместо
-  заголовка. Всё это видно заранее — в консоли и в отчётах браузера.
+  Инлайн-скрипт без nonce и `onclick` в разметке перестают исполняться под строгой политикой.
+  Разрешённый список хостов перестаёт помогать при `'self'` рядом со `'strict-dynamic'`; поздняя политика в `<meta>` не защищает предыдущую разметку. Консоль и отчёты позволяют обнаружить эти отказы до включения блокировки.
 
   <Plain text={PLAIN_CSP} />
 
@@ -153,15 +156,16 @@ import {
     minWidth={640}
   />
 
-  ### Вся проверка одной функцией
+  ### Учебная модель проверенных случаев
 
+  <Md text={CHECK_NOTE} />
+
+  <Disclosure title="Код модели checkScript">
   <Card title="checkScript: заголовок → решение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CSP_CHECK_CODE} size={11} lh={1.6} pad="14px 16px" />
 
-    <CardNote tone="prose">
-      <Md text={CHECK_NOTE} />
-    </CardNote>
   </Card>
+  </Disclosure>
 
   ### Пятнадцать проб под любой политикой
 
@@ -211,6 +215,8 @@ import {
   <CodeBlock lang="text" code={CONSOLE_STRICT_DYNAMIC} size={11} lh={1.6} pad="14px 16px" />
 
   <Md text={STRICT_DYNAMIC_NOTE} />
+
+  <ConceptDiagram data={SCRIPT_TRUST_DIAGRAM} />
 
   ### Nonce на сервере
 
@@ -267,10 +273,11 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Отчёты и поэтапное внедрение"
-  lead="В режиме report-only политика ничего не ломает, но показывает, что сломала бы. Браузер выполняет всё как раньше и присылает отчёт о каждом скрипте, который заблокировал бы."
+  lead="Report-only обнаруживает нарушения без блокировки со стороны этой политики. Уже включённая enforce-политика продолжает действовать. Отчёты помогают найти проблемный код, но их доставка на сервер не гарантирована."
 >
   <CodeBlock lang="text" code={REPORT_HEADERS_CODE} size={11} lh={1.65} pad="14px 16px" />
 
+  <Disclosure title="Форматы отчётов и событие на странице">
   <CardGrid min={300} gap={16} align="start">
     <Card title="Тело отчёта report-uri" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock lang="json" code={REPORT_URI_BODY} size={11} lh={1.6} pad="14px 16px" />
@@ -291,6 +298,8 @@ import {
   <Card title="Событие securitypolicyviolation" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={VIOLATION_LISTENER_CODE} size={11} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 
   ### Две политики сразу
 
@@ -331,7 +340,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Trusted Types"
-  lead="CSP решает, какие скрипты выполнить. Trusted Types решают, какие строки пустить туда, где строка становится разметкой или кодом. С `require-trusted-types-for 'script'` обычная строка в `innerHTML` вызывает исключение: браузер принимает только объект, который выдала ваша политика."
+  lead="CSP решает, какие скрипты выполнить. Trusted Types решают, какие строки пустить туда, где строка становится разметкой или кодом. При включённом `require-trusted-types-for 'script'` и без политики `default` присваивание обычной строки в `innerHTML` вызывает TypeError. Разрешённая политика создаёт TrustedHTML; безопасность её преобразования проверяет приложение."
 >
   <Plain text={PLAIN_TT} />
 
@@ -354,6 +363,8 @@ import {
   <Card title="Своя политика" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock lang="jsx" code={TT_POLICY_CODE} size={11} lh={1.65} pad="14px 16px" />
   </Card>
+
+  <ConceptDiagram data={TRUSTED_HTML_DIAGRAM} />
 
   <Table
     head={['директива trusted-types', 'что можно создать']}
@@ -417,8 +428,8 @@ import {
   <DarkPanel eyebrow="Что из этого следует">
     <DarkText size={18} lh={1.55} tone="prose">
 
-      Одной правкой заголовка CSP и Trusted Types не включить. Сначала report-only
-      показывает каждый инлайн-скрипт, обработчик и место, где строка становится разметкой.
+      Одной правкой заголовка CSP и Trusted Types не включить. Report-only
+      помогает найти нарушающие политику скрипты, обработчики и места вставки строк.
       Потом скрипты получают nonce, обработчики переезжают в `addEventListener`, вставка HTML —
       в одну-две политики с известными именами. Только после этого заголовок начинает блокировать.
 

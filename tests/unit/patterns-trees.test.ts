@@ -213,3 +213,11 @@ describe('тонкие места', () => {
     expect(b).toEqual([8, 1, 3]);
   });
 });
+
+
+describe('практический контракт', () => {
+  it('обход считает вхождения общего узла и отвергает активного предка', async () => {
+    checkPage(t.PRACTICE_CODE);
+    expect(await execute(t.PRACTICE_CODE)).toEqual(t.PRACTICE_OUT);
+  });
+});

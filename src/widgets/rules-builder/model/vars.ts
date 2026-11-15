@@ -1,5 +1,6 @@
 /**
- * Приоритет переменных: одну и ту же переменную можно задать в семи местах, и выигрывает
+ * Приоритет переменных: демо использует семь источников из более полного порядка GitLab.
+ * Одну переменную можно задать на разных уровнях, и выигрывает
  * не то, которое ближе к джобу в файле.
  *
  * ПОРЯДОК СНЯТ ПРОГОНОМ (`gitlab-ci-local` 4.75.1, образ `alpine:3`). Одна переменная,
@@ -17,17 +18,27 @@
  * а не замер.
  */
 
-export type VarSource = 'predefined' | 'global' | 'job' | 'rules' | 'dotenv' | 'project' | 'manual';
+export type VarSource =
+  | 'predefined' | 'deployment' | 'global' | 'workflowRules' | 'job' | 'rules'
+  | 'dotenv' | 'instance' | 'group' | 'project' | 'manual' | 'manualJob' | 'policy';
 
-/** Слои от слабого к сильному. Индекс в этом массиве и есть приоритет. */
+/** Порядок из документации GitLab; часть источников в локальном стенде не запускалась.
+ * Применяется к обычным переопределяемым ключам (например DEPLOY), не к защищённым CI_*;
+ * policy означает политику, которая добавила рассматриваемый джоб. */
 export const VAR_ORDER: VarSource[] = [
   'predefined',
+  'deployment',
   'global',
+  'workflowRules',
   'job',
   'rules',
   'dotenv',
+  'instance',
+  'group',
   'project',
   'manual',
+  'manualJob',
+  'policy',
 ];
 
 export interface VarLayer {

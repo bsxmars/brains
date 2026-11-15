@@ -891,3 +891,22 @@ s.pipe(new Writable({ write(c, _, cb) { out += c; cb(); }, final(cb) {
     expect(pit.d).not.toContain('без единого предупреждения');
   });
 });
+
+
+// Содержательные уточнения закреплены отдельно от числовых сценариев темы.
+it('редакционная граница: справочник Flight относится к показанному снимку', async () => {
+  const { readFileSync } = await import('node:fs');
+  const mdx = readFileSync('src/content/frameworks/server-components/index.mdx', 'utf8');
+  expect(mdx).toContain('В показанном примере');
+  expect(mdx).toContain('сериализуются в Flight');
+  expect(mdx).not.toContain('превращается в текст и обратно');
+  // Полный Flight не сводится к текстовым строкам учебного примера.
+  const { createRequire } = await import('node:module');
+  const pkg = createRequire(import.meta.url).resolve('react-server-dom-webpack/package.json');
+  const source = readFileSync(new URL('cjs/react-server-dom-webpack-server.node.production.js', `file://${pkg}`), 'utf8');
+  expect(source).toContain('function serializeTypedArray(');
+  expect(source).toContain('value instanceof Uint8Array');
+  expect(mdx).toContain('экземпляры пользовательских классов');
+  expect(mdx).toContain('lang="text" code={FLIGHT_SAMPLE_VIEW}');
+  expect(t.GLOSSARY.find((x) => x.k === 'Flight')!.d).toContain('В текстовом примере темы');
+});

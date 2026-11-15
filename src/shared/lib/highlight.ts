@@ -8,7 +8,7 @@ import { THEME_OPTIONS, tokensToLines } from './highlight-theme';
 /** Языки, которые встречаются в темах. Не из списка — ошибка типов, а не молча серый код. */
 export const CODE_LANGS = [
   'js', 'ts', 'jsx', 'tsx', 'json', 'html', 'css', 'vue', 'svelte', 'graphql',
-  'bash', 'shellsession', 'yaml', 'sql', 'docker', 'nginx', 'hcl', 'http', 'wasm', 'c',
+  'bash', 'shellsession', 'yaml', 'toml', 'sql', 'docker', 'nginx', 'hcl', 'http', 'wasm', 'c', 'go', 'glsl', 'wgsl',
 ] as const;
 /** `text` — не код: вывод программы, журнал, схема из стрелок. Печатается одним цветом. */
 export type CodeLang = (typeof CODE_LANGS)[number] | 'text';

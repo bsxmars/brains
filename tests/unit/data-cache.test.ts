@@ -222,6 +222,34 @@ describe('сценарии: мини-кеш демо против @tanstack/quer
 // ─── Ключ, ссылки, уведомления ─────────────────────────────────────────────────────────────
 
 describe('ключ и структурное разделение', () => {
+  it('шкала сроков: staleTime не запускает запрос, gcTime отсчитывается от последней отписки', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    const { staleTime, lastObserverLeftAt, gcTime } = t.CACHE_LIFETIME;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime } } });
+    try {
+      const key = ['lifetime'];
+      const queryFn = vi.fn(async () => ['новый ответ']);
+      client.setQueryData(key, ['снимок']);
+      const observer = new QueryObserver(client, { queryKey: key, queryFn, staleTime });
+      const off = observer.subscribe(() => {});
+      const query = client.getQueryCache().find({ queryKey: key })!;
+      await vi.advanceTimersByTimeAsync(lastObserverLeftAt);
+      off();
+      await vi.advanceTimersByTimeAsync(staleTime - lastObserverLeftAt);
+      expect(query.isStaleByTime(staleTime)).toBe(true);
+      expect(queryFn).not.toHaveBeenCalled();
+      expect(client.getQueryData(key)).toEqual(['снимок']);
+      await vi.advanceTimersByTimeAsync(lastObserverLeftAt + gcTime - staleTime - 1);
+      expect(client.getQueryData(key)).toEqual(['снимок']);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(client.getQueryState(key)).toBeUndefined();
+    } finally {
+      client.clear();
+      vi.useRealTimers();
+    }
+  });
+
   it('HASHES: hashKey темы совпадает с query-core', () => {
     expect(t.HASHES.length).toBeGreaterThan(2);
     for (const { key, hash } of t.HASHES) {

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 // `yaml` приходит в проект транзитивно — тем же путём, что в `delivery-configs.test.ts`.
 // Пропадёт из `node_modules` — файл упадёт на импорте громко, а не пройдёт молча.
@@ -118,14 +119,14 @@ describe('ROUTER_CODE: порядок совпадений', () => {
     expect(router.routeIngress(spec, req('https://x.example/a/bc')).backend).toBe('mid:80');
   });
 
-  it('край: Prefix /foo/ против Exact /foo на /foo — Ingress выбирает префикс, HTTPRoute — Exact', () => {
+  it('учебная нормализация спорной пары Prefix /foo/ и Exact /foo не делает слэш преимуществом', () => {
     const ing: IngressSpec = {
       rules: [{ http: { paths: [
         { path: '/foo', pathType: 'Exact', backend: svc('exact') },
         { path: '/foo/', pathType: 'Prefix', backend: svc('prefix') },
       ] } }],
     };
-    expect(router.routeIngress(ing, req('https://x.example/foo')).backend).toBe('prefix:80');
+    expect(router.routeIngress(ing, req('https://x.example/foo')).backend).toBe('exact:80');
 
     const route: HTTPRouteSpec = {
       rules: [
@@ -134,7 +135,8 @@ describe('ROUTER_CODE: порядок совпадений', () => {
       ],
     };
     expect(router.routeHTTP(route, req('https://x.example/foo')).backends?.[0].name).toBe('exact:80');
-    expect(t.ROUTE_ORDER_NOTE).toContain('`Prefix /foo/` против `Exact /foo`');
+    expect(t.ROUTE_ORDER_NOTE).toContain('это явная политика учебного кода');
+    expect(t.ROUTE_ORDER_NOTE).toContain('не проверенное поведение всех контроллеров');
   });
 
   it('HTTPRoute: заголовки, потом параметры, потом порядок правил', () => {
@@ -384,5 +386,20 @@ describe('текст темы', () => {
     for (const code of [t.INGRESS_CODE, t.INGRESS_CLASS_CODE, t.ANNOTATIONS_CODE, t.REDIRECT_CODE]) {
       expect(() => parse(code, { uniqueKeys: true })).not.toThrow();
     }
+  });
+});
+
+
+describe('версионный снимок первичных CRD Gateway API', () => {
+  it('TLSRoute, TCPRoute и UDPRoute в Standard v1.7.0, а таблица не называет их экспериментальными', () => {
+    const snapshot = JSON.parse(readFileSync(new URL('../fixtures/gateway-api-standard-1.7.0.json', import.meta.url), 'utf8'));
+    expect(snapshot.release).toBe('v1.7.0');
+    expect(snapshot.resources.map((resource: { kind: string; channel: string }) => [resource.kind, resource.channel])).toEqual([
+      ['TLSRoute', 'standard'], ['TCPRoute', 'standard'], ['UDPRoute', 'standard'],
+    ]);
+    const protocols = t.COMPARE.rows.find((row) => row[0] === 'Протоколы')![2];
+    expect(protocols).toContain('`TLSRoute` — Standard с v1.5');
+    expect(protocols).toContain('`TCPRoute` и `UDPRoute` — Standard с v1.6');
+    expect(protocols).not.toContain('Experimental');
   });
 });

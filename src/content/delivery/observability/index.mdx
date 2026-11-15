@@ -19,6 +19,8 @@ nav:
   - { id: s10, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -37,6 +39,8 @@ import TraceLab from '@/widgets/trace-lab/ui/TraceLab.vue';
 import LatencyLab from '@/widgets/trace-lab/ui/LatencyLab.vue';
 import {
   GLOSSARY,
+  TRACE_CONTEXT_DIAGRAM,
+
   PLAIN_SIGNALS,
   SCENARIOS,
   SIGNAL_ROWS,
@@ -162,7 +166,11 @@ import {
   />
 
   <Card title="Спан запроса к базе — целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock lang="json" code={SPAN_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная запись спана">
+
+      <CodeBlock lang="json" code={SPAN_PRINT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   ### В каком порядке спаны приходят
@@ -176,7 +184,11 @@ import {
   </Card>
 
   <Card title="Список → дерево → водопад" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Построение дерева трассы">
+
+      <CodeBlock code={TREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={TREE_NOTE} />
@@ -190,6 +202,8 @@ import {
   title="Заголовок traceparent"
   lead="Внутри процесса родителя передают в памяти. Между процессами его несёт заголовок `traceparent` — четыре поля через дефис. Получатель достаёт оттуда trace id и номер родителя, а в свои исходящие запросы кладёт тот же trace id и номер своего спана."
 >
+  <ConceptDiagram data={TRACE_CONTEXT_DIAGRAM} />
+
   <Plain text={PLAIN_TRACEPARENT} />
 
   <CodeBlock lang="yaml" code={HEADER_EXAMPLE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -203,7 +217,11 @@ import {
   />
 
   <Card title="Разбор и сборка заголовка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TRACEPARENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Разбор и сборка traceparent">
+
+      <CodeBlock code={TRACEPARENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={TRACEPARENT_NOTE} />
@@ -221,6 +239,12 @@ import {
   </CardGrid>
 
   ### Запрос через три сервиса
+
+  <Disclosure title="Спаны и переданные заголовки трёх сохранённых сценариев">
+
+    <CodeBlock lang="json" code={JSON.stringify(SCENARIOS, null, 2)} />
+
+  </Disclosure>
 
   <TraceLab
     client:visible
@@ -304,7 +328,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Метрики: счётчик и гистограмма"
-  lead="Метрика — число, которое процесс копит у себя и периодически отдаёт наружу — по умолчанию раз в минуту. Отдельных запросов в нём нет: только суммы, количества и раскладка по корзинам. Поэтому метрика стоит одинаково при любом трафике и годится для алертов."
+  lead="Метрика агрегирует измерения: суммы, количества и корзины вместо отдельной записи на каждый запрос. При фиксированных метках объём агрегированного состояния не растёт с каждым запросом, но обработка измерений всё равно требует работы. Периодический reader OTel экспортирует по умолчанию раз в минуту; pull-экспорт и другие reader работают иначе."
 >
   <Table
     head={['вид', 'что хранит', 'пример', 'как смотрят']}
@@ -339,16 +363,26 @@ import {
 <Section
   id="s7"
   eyebrow="Раздел 7"
-  title="Почему среднее врёт, а перцентили — нет"
+  title="Среднее и перцентили: разные свойства задержки"
   lead="Среднее складывает быстрые и медленные запросы в одно число и прячет хвост. Перцентиль отвечает на вопрос пользователя: насколько медленно бывает у каждого сотого?"
 >
   <Plain text={PLAIN_PERCENTILE} />
 
   <Card title="Перцентиль — точно и по корзинам" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={STATS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Точные и гистограммные перцентили">
+
+      <CodeBlock code={STATS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   ### Одно среднее — разные хвосты
+
+  <Disclosure title="Два синтетических набора задержек">
+
+    <CodeBlock lang="json" code={JSON.stringify(LATENCY_SETS, null, 2)} />
+
+  </Disclosure>
 
   <LatencyLab client:visible statsCode={STATS_CODE} sets={LATENCY_SETS} bounds={OTEL_DEFAULT_BOUNDS} caption={LATENCY_CAPTION} />
 
@@ -389,7 +423,7 @@ import {
     <DarkText size={18} lh={1.55} tone="prose">
 
       **Метрика говорит «что-то не так», трасса — «где», лог — «что именно».** Связывает их
-      один номер: trace id в заголовке, в поле лога и в экземпляре гистограммы. Пока номер
+      один номер: trace id в заголовке, в поле лога и в exemplar гистограммы. Пока номер
       проходит через все сервисы, от графика до строки в базе можно дойти, не гадая по времени.
 
     </DarkText>

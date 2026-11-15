@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FUNCTIONAL_CODE,
+  GCS_FACTS,
   IACVT_NOTE,
   LAYER_CODE,
   LAYER_PROJECT_CODE,
@@ -134,5 +135,18 @@ describe('@property и анимация', () => {
   it('регистрация не названа единственным способом анимировать тень', () => {
     expect(PROPERTY_NOTE).not.toMatch(/единственный[^.]*тень/);
     expect(PROPERTY_NOTE).toContain('способ анимировать градиент через CSS');
+  });
+});
+
+
+describe('CSSOM color: used не означает обязательный layout', () => {
+  it('таблица и объяснение различают стадию значения и зависимость от геометрии', () => {
+    // CSSOM §9 относит color к used value; в этом примере used совпадает с computed.
+    const color = RESOLVED_ITEMS.find((item) => item.name === 'color')!;
+    expect(color.stage).toBe('used');
+    expect(color.note).toContain('не требует размеров');
+    const fact = GCS_FACTS.find((item) => item.t.includes('resolved value'))!;
+    expect(fact.d).toContain('Для `color` CSSOM определяет used value');
+    expect(fact.d).not.toContain('Для `color`, `font-size`, `display` resolved value — это computed');
   });
 });

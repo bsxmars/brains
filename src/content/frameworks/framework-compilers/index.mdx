@@ -2,7 +2,7 @@
 title: "Компиляторы фреймворков"
 order: 9
 kicker: фреймворки изнутри
-lead: "Компилятор фреймворка переносит работу из браузера в сборку: заранее выясняет, что в компоненте может измениться и от чего, и оставляет рантайму готовый список обновлений. React Compiler расставляет мемоизацию, Svelte 5 и Solid превращают шаблон в клонирование HTML и эффекты на узлах."
+lead: "Компилятор фреймворка переносит работу из браузера в сборку: выделяет изменчивые места компонента и генерирует проверки кеша или привязки к узлам. Новые значения и фактически выполненные чтения становятся известны при исполнении. React Compiler расставляет мемоизацию, Svelte 5 и Solid превращают шаблон в клонирование HTML и эффекты на узлах."
 summary: "Учебный компилятор шаблонов в «клонируй и обнови точечно»; настоящий вывод React Compiler (`_c(n)`, `$[i] !== x`, отказы с диагностиками), Svelte 5 (руны → `$.state`, `template_effect`) и Solid (`template`, `insert`) — и сколько вызовов и записей в DOM стоит одно изменение у каждого."
 verifiedOn: "babel-plugin-react-compiler 1.0.0 · @babel/core 7.29.7 · React 19.3.0 · svelte 5.57.1 · babel-preset-solid 1.9.15 · solid-js 1.9.15 · happy-dom 20.14.5 · Node 26.8.2"
 nav:
@@ -24,6 +24,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -34,7 +36,7 @@ import {
   PARSE_NOTE, ANALYZE_NOTE, GENERATE_NOTE, RUNTIME_NOTE,
   MINI_COMPILER_CODE, MINI_COUNTER_OUT, MINI_OUT_NOTE, MINI_PRESETS, DEMO_NOTE,
   PLAIN_MEMO_CACHE, REACT_COUNTER_SRC, REACT_COUNTER_OUT, TRACK_NOTE, REACT_OUT_NOTES, REACT_WHAT_NOTE,
-  REACT_SUM_SRC, REACT_SUM_OUT,
+  REACT_SUM_SRC, REACT_SUM_OUT, REACT_SUM_NOTE,
   BAILOUT_HEAD, BAILOUT_ROWS, BAILOUT_SILENT_NOTE, BAILOUT_SORT_NOTE, USE_NO_MEMO_NOTE,
   PLAIN_RUNES, SVELTE_COUNTER_SRC, SVELTE_HINT_SRC, SVELTE_COUNTER_OUT, SVELTE_OUT_NOTES,
   SVELTE_PROXY_SRC, SVELTE_PROXY_OUT, SVELTE_PROXY_NOTE,
@@ -42,7 +44,7 @@ import {
   UPDATE_HEAD, UPDATE_ROWS, UPDATE_NOTE, UPDATE_TAKEAWAYS,
   PITFALLS, SOURCES, RELATED,
   REACT_CACHE_SCENE_NOTE,
-  REACT_CACHE_STEPS,
+  REACT_CACHE_STEPS, COMPILE_BOUNDARY_DIAGRAM,
 } from './data';
 
 <Section
@@ -61,6 +63,8 @@ import {
   title="Где делается работа: в браузере или при сборке"
   lead="Каждый фреймворк отвечает на один вопрос — что сделать, когда изменилось одно значение. Различаются они тем, какая часть ответа известна ещё при сборке."
 >
+  <ConceptDiagram data={COMPILE_BOUNDARY_DIAGRAM} />
+
   <Table
     head={SPECTRUM_HEAD}
     rows={SPECTRUM_ROWS}
@@ -80,6 +84,8 @@ import {
 >
   <Plain text={PLAIN_TEMPLATE} />
 
+  <CodeBlock lang="html" code={MINI_PRESETS[0].source} />
+
   ### Разбор
 
   <CodeBlock code={STEP_PARSE} />
@@ -98,13 +104,17 @@ import {
 
   <Card pad={18} gap={11} size={15.5} lh={1.6} text={GENERATE_NOTE} />
 
-  ### Рантайм и интерпретатор для сравнения
+  ### Рантайм обновляет известный узел
 
   <CodeBlock code={STEP_RUNTIME} />
 
   <Card pad={18} gap={11} size={15.5} lh={1.6} text={RUNTIME_NOTE} />
 
-  <CodeBlock code={STEP_INTERPRET} />
+  <Disclosure title="Интерпретатор: тот же шаблон без генерации кода">
+
+    <CodeBlock code={STEP_INTERPRET} />
+
+  </Disclosure>
 
   ### Что получилось
 
@@ -121,7 +131,7 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="React Compiler: кеш вместо ручной мемоизации"
-  lead="React Compiler не меняет модель React: функция компонента по-прежнему вызывается на каждое изменение. Он переписывает её тело так, чтобы внутри вызова всё, у чего входы не изменились, бралось из кеша."
+  lead="На клике счётчика React снова вызывает Counter. Компилятор добавляет в его тело проверки кеша: зависимые от count элементы создаются заново, независимый Hint берётся из ячейки. Обновление по-прежнему проходит через React и сравнение элементов."
 >
   <Plain text={PLAIN_MEMO_CACHE} />
 
@@ -164,7 +174,13 @@ import {
 
   <CodeBlock lang="jsx" code={REACT_SUM_SRC} />
 
-  <CodeBlock lang="jsx" code={REACT_SUM_OUT} />
+  <Disclosure title="Полный вывод для расчёта суммы">
+
+    <CodeBlock lang="jsx" code={REACT_SUM_OUT} />
+
+  </Disclosure>
+
+  <Md text={REACT_SUM_NOTE} />
 </Section>
 
 <Section
@@ -218,7 +234,11 @@ import {
 
   <CodeBlock lang="svelte" code={SVELTE_PROXY_SRC} />
 
-  <CodeBlock lang="jsx" code={SVELTE_PROXY_OUT} />
+  <Disclosure title="Вывод компилятора для объекта и эффекта">
+
+    <CodeBlock lang="jsx" code={SVELTE_PROXY_OUT} />
+
+  </Disclosure>
 
   <Card pad={18} gap={11} size={15.5} lh={1.6} text={SVELTE_PROXY_NOTE} />
 </Section>

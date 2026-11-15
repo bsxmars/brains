@@ -2,7 +2,7 @@
 title: "React изнутри: хуки и контекст"
 order: 4
 kicker: фреймворки изнутри
-lead: "Почему `setState` тем же значением иногда всё же вызывает функцию компонента, почему `memo` не останавливает контекст и почему стор, прочитанный в рендере, показывает на одном экране два разных числа. Ответ на каждый вопрос — несколько строк в `ReactFiberHooks.js`. Здесь эти строки написаны по шагам, и тест сверяет их с React 19.3 — вплоть до формы ячеек на файбере."
+lead: "Почему `setState` тем же значением иногда всё же вызывает функцию компонента, почему `memo` не останавливает контекст и почему стор, прочитанный в рендере, показывает на одном экране два разных числа. Ответы связывают хуки, контекст и планировщик. Здесь соответствующие механизмы собраны в учебном рендерере по шагам, и тест сверяет их с React 19.3 — вплоть до формы ячеек на файбере."
 summary: "Хуки изнутри: диспетчер и список ячеек, useRef и useMemo, очередь useReducer и ранний выход useState, контекст как стек и пометка читателей мимо memo, useSyncExternalStore и разрыв экрана без него."
 verifiedOn: React 19.3 · Node 26.8
 nav:
@@ -17,6 +17,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -29,6 +31,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniHooks from '@/widgets/mini-hooks/ui/MiniHooks.vue';
 import {
+  MECHANISM_DIAGRAM,
   CELLS_NOTE,
   COND_CONTEXT_CODE,
   COND_CONTEXT_NOTE,
@@ -96,7 +99,7 @@ import {
 <Section
   variant="intro"
   eyebrow="Хуки: когда именно"
-  lead="Снаружи хуки описывают глаголами: `useMemo` запоминает, контекст пробрасывает, `useSyncExternalStore` подписывает. Каждый глагол верен, пока не спросишь, **когда именно** — когда запомненное пересчитается, кого контекст разбудит, в какой момент подписка успеет. На эти вопросы отвечает не документация, а три поля файбера: список ячеек, `dependencies` и пометки работы."
+  lead="Снаружи хуки описывают глаголами: `useMemo` запоминает, контекст пробрасывает, `useSyncExternalStore` подписывает. Каждый глагол верен, пока не спросишь, **когда именно** — когда запомненное пересчитается, кого контекст разбудит, в какой момент подписка успеет. Механику связывают список ячеек, `dependencies` и пометки работы. Учебный рендерер делает эти связи видимыми; его результаты на сценариях сопоставлены с React 19.3, а упрощения названы отдельно."
 >
   <Glossary items={GLOSSARY} min={240} gap={14} pad={18} />
 </Section>
@@ -196,7 +199,7 @@ import {
     <Card title="Зависимости сравнивает `Object.is`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
       <CodeBlock code={DEPS_IS_CODE} />
 
-      <CodeBlock code={DEPS_IS_TRACE} tone="ok" />
+      <CodeBlock lang="text" code={DEPS_IS_TRACE} tone="ok" />
 
       <Md text={DEPS_NOTE} />
     </Card>
@@ -238,7 +241,7 @@ import {
     <Card tone="warn" title="`setState` тем же значением: ноль, один, ноль" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
       <CodeBlock code={SAME_VALUE_CODE} />
 
-      <CodeBlock code={SAME_VALUE_TRACE} tone="ok" />
+      <CodeBlock lang="text" code={SAME_VALUE_TRACE} tone="ok" />
 
       <Md text={EAGER_NOTE} />
     </Card>
@@ -246,7 +249,7 @@ import {
     <Card tone="err" title="`dispatch` тем же состоянием: каждый раз" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
       <CodeBlock code={REDUCER_SAME_CODE} />
 
-      <CodeBlock code={REDUCER_SAME_TRACE} tone="ok" />
+      <CodeBlock lang="text" code={REDUCER_SAME_TRACE} tone="ok" />
 
       <Md text={REDUCER_NOTE} />
 
@@ -280,6 +283,8 @@ import {
 >
   <Plain text={PLAIN_PROVIDER_STACK} />
 
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
+
   <Card title="Шаг 7 · провайдер, `readContext` и распространение" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock lang="jsx" code={STEP_CONTEXT} />
 
@@ -295,7 +300,7 @@ import {
   <Card title="Кто вызван: тема, пользователь, постороннее состояние" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={SCENARIO_CONTEXT} />
 
-    <CodeBlock code={CONTEXT_TRACE} tone="ok" />
+    <CodeBlock lang="text" code={CONTEXT_TRACE} tone="ok" />
 
     <Md text={CONTEXT_NOTE} />
   </Card>
@@ -328,7 +333,7 @@ import {
   <Card title="Разрыв: переход, и после первой ячейки — `store.set`" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={SCENARIO_TEAR_PLAIN} />
 
-    <CodeBlock code={TEAR_TRACE} tone="ok" />
+    <CodeBlock lang="text" code={TEAR_TRACE} tone="ok" />
 
 
     Без хука `A` прочитала `0`, событие сменило стор, `B` и `C` прочитали `1` — и коммит
@@ -362,7 +367,7 @@ import {
   </Card>
 
   <Card title="Разрыв на монтировании: подписки ещё нет" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
-    <CodeBlock code={TEAR_MOUNT_TRACE} tone="ok" />
+    <CodeBlock lang="text" code={TEAR_MOUNT_TRACE} tone="ok" />
 
 
     Ячейки монтируются в переходе, а стор меняется после первой из них. Подписка — эффект, она
@@ -372,11 +377,14 @@ import {
 
   </Card>
 
+  <Disclosure title="Исходник эффекта подписки учебного renderer">
   <Card title="Шаг 9 · эффект, на котором держится подписка" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={STEP_EFFECT} />
 
     <Md text={EFFECT_LINK} />
   </Card>
+
+  </Disclosure>
 
   <Card tone="err" title="Снимок обязан быть тем же объектом" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
     <CodeBlock code={UNCACHED_SNAPSHOT_CODE} />

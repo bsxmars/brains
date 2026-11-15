@@ -1,0 +1,56 @@
+---
+import Md from '@/shared/ui/Md.astro';
+import { loadStacking } from '../model/run';
+import type { StackScene } from '../model/types';
+
+interface Props { scene: StackScene; code: string }
+const { scene, code } = Astro.props;
+const header = scene.tree.find((node) => node.id === 'header')!;
+const main = scene.tree.find((node) => node.id === 'main')!;
+const modal = header.kids!.find((node) => node.id === 'modal')!;
+const order = loadStacking(code).paintOrder(scene.tree).order.map((node) => node.id);
+---
+
+<figure class="scd" data-render-illustration="stacking-context-boundary">
+  <figcaption class="scd-title">Почему 9999 не перекрывает 2</figcaption>
+  <div class="scd-scroll">
+    <svg class="scd-svg" viewBox="0 0 800 400" fill="none" role="img" aria-labelledby="scd-title scd-desc">
+      <title id="scd-title">Вложенность контекстов и результат наложения</title>
+      <desc id="scd-desc">Корень сравнивает header с z-index {header.css['z-index']} и main с z-index {main.css['z-index']}. Modal с z-index {modal.css['z-index']} вложен в header. Порядок отрисовки модели: {order.join(', ')}. Справа условная геометрия перекрытия: main закрывает часть modal вместе с его родительским контекстом.</desc>
+      <text x="20" y="28" class="scd-label">ВЛОЖЕННОСТЬ КОНТЕКСТОВ</text>
+      <rect class="scd-root" x="20" y="52" width="360" height="300" rx="14" />
+      <text x="40" y="84">корень страницы</text>
+      <rect class="scd-header" x="40" y="112" width="170" height="220" rx="10" />
+      <text x="55" y="145">header · {header.css['z-index']}</text>
+      <rect class="scd-modal" x="55" y="182" width="140" height="125" rx="10" />
+      <text x="70" y="219">modal</text>
+      <text x="70" y="252">{modal.css['z-index']}</text>
+      <rect class="scd-main" x="230" y="112" width="130" height="220" rx="10" />
+      <text x="246" y="145">main · {main.css['z-index']}</text>
+      <text x="440" y="28" class="scd-label">ПРИ ПЕРЕКРЫТИИ</text>
+      <rect class="scd-header" x="440" y="75" width="250" height="190" rx="10" />
+      <text x="460" y="108">header · {header.css['z-index']}</text>
+      <rect class="scd-modal" x="470" y="135" width="260" height="190" rx="10" />
+      <text x="490" y="171">modal · {modal.css['z-index']}</text>
+      <rect class="scd-main" x="520" y="205" width="260" height="150" rx="10" />
+      <text x="540" y="244">main · {main.css['z-index']}</text>
+      <text x="540" y="282">нарисован позже</text>
+      <text x="20" y="385" class="scd-note">Геометрия условная. Вложенность и числа — из примера выше.</text>
+    </svg>
+  </div>
+  <Md text="В корне сравниваются **1 и 2**. Число **9999** участвует только внутри `header`; увеличение этого числа не меняет место всей шапки." />
+</figure>
+
+<style>
+  .scd { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); box-shadow: var(--shadow-card); background: var(--surface); }
+  .scd-title { font-size: var(--fs-7); line-height: 1.45; color: var(--ink); font-weight: 600; }
+  .scd-scroll { overflow-x: auto; margin: 16px 0; }
+  .scd-svg { display: block; width: 100%; min-width: 800px; height: auto; }
+  .scd-svg text { fill: var(--prose); font-size: var(--fs-6); font-family: var(--mono); }
+  .scd-svg .scd-label, .scd-svg .scd-note { font-size: var(--fs-3); fill: var(--text-muted); }
+  .scd-root { fill: var(--surface-2); stroke: var(--border-strong); }
+  .scd-header { fill: var(--tone-info-bg); stroke: var(--tone-info-line); }
+  .scd-modal { fill: var(--tone-warn-bg); stroke: var(--tone-warn-line); }
+  .scd-main { fill: var(--tone-ok-bg); stroke: var(--tone-ok-line); }
+  .scd > :global(.md) { font-size: var(--fs-5); line-height: 1.6; color: var(--text-muted); }
+</style>

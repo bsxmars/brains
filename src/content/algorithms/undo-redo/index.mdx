@@ -16,9 +16,13 @@ nav:
   - { id: s6, label: Совместно }
   - { id: s7, label: Дерево отмены }
   - { id: s8, label: Тонкие места }
+  - { id: practice, label: Где применять }
   - { id: s9, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import { MECHANISM_DIAGRAM, PRACTICE_CARDS } from './data';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -102,6 +106,8 @@ import {
   <Plain text={PLAIN_HISTORY} />
 
   <Glossary items={GLOSSARY} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 </Section>
 
 <Section
@@ -139,7 +145,7 @@ import {
   <Card title="Сколько стоит снимок объекта" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SHARING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-    <CodeBlock code={SHARING_OUT} tone="ok" size={11.5} lh={1.65} pad="12px 16px" />
+    <CodeBlock code={SHARING_OUT} lang="text" tone="ok" size={11.5} lh={1.65} pad="12px 16px" />
 
     <CardNote tone="prose">
       <Md text={SHARING_NOTE} />
@@ -179,7 +185,9 @@ import {
   до правки и записывает пару патчей.
 
   <Card title="Правка с патчами в формате Immer" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PATCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходный код patch">
+      <CodeBlock code={PATCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={PATCH_NOTE} />
@@ -188,7 +196,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Массив — по номерам мест" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={IMMER_SPLICE_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock code={IMMER_SPLICE_PRINT} lang="text" size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="warn" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={IMMER_SPLICE_NOTE} />
@@ -201,7 +209,9 @@ import {
   функции `xform` и `shiftPos` нужны для совместной работы — о них в разделе [«Совместно»](#s6).
 
   <Card title="createEditor" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={HISTORY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходный код history">
+      <CodeBlock code={HISTORY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -212,6 +222,12 @@ import {
   </CardGrid>
 
   ### Две стопки вживую
+
+  <Card title="xform и shiftPos" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+    <Disclosure title="Исходный код xform">
+      <CodeBlock code={XFORM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
+  </Card>
 
   <UndoLab client:visible opsCode={OPS_CODE} xformCode={XFORM_CODE} historyCode={HISTORY_CODE} start={DEMO_START} caption={DEMO_CAPTION} />
 </Section>
@@ -244,7 +260,7 @@ import {
   <Card title="Своя отмена в Yjs" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={YJS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-    <CodeBlock code={YJS_OUT} tone="ok" size={11.5} lh={1.65} pad="12px 16px" />
+    <CodeBlock code={YJS_OUT} lang="text" tone="ok" size={11.5} lh={1.65} pad="12px 16px" />
 
     <CardNote tone="prose">
       <Md text={GROUP_NOTE} />
@@ -317,9 +333,7 @@ import {
 
   ### Пересчитать правку через чужую
 
-  <Card title="xform и shiftPos" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={XFORM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  Позиции пересчитываются через чужую правку: вставка сдвигает последующие позиции, а удаление может поглотить отменяемую операцию. Модель работает с одной строкой и кодовыми единицами UTF-16; правила графем и IME требуют отдельной обработки.
 
   <CardGrid min={260} gap={14} align="start">
     {XFORM_FACTS.map((fact) => (
@@ -358,6 +372,12 @@ import {
 
 <Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Где применять">
+  <CardGrid min={300} gap={16}>
+    {PRACTICE_CARDS.map((item) => <Card title={item.t} text={item.d} />)}
+  </CardGrid>
 </Section>
 
 <Section id="s9" eyebrow="Раздел 9" title="Источники">

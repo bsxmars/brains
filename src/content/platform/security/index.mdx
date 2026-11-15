@@ -30,8 +30,11 @@ import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CspSandbox from '@/widgets/csp-sandbox/ui/CspSandbox.vue';
 import CorsPreflight from '@/widgets/cors-preflight/ui/CorsPreflight.vue';
 import IsolationProbe from '@/widgets/isolation-probe/ui/IsolationProbe.vue';
@@ -158,6 +161,7 @@ import {
   STORAGE_STEPS,
   PLAIN_TOKEN_STORAGE,
   RELATED,
+  CORS_BOUNDARY_DIAGRAM, ISOLATION_BOUNDARY_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Откуда вообще берутся все эти механизмы" gap={24}>
@@ -169,16 +173,16 @@ import {
 
   </Callout>
 
-  Без этой картины SOP, CORS, CSP, `SameSite` и десяток заголовков выглядят случайным набором
-  исторических заплаток. Отчасти так и есть, но логика в нём есть: **из такой среды
-  растут три проблемы, и каждый механизм отвечает на одну из них.**
+  Чтение чужих данных, исполнение внедрённого кода и действие с чужими учётными данными —
+  разные угрозы. Один запрет не закрывает остальные: сервер мог уже выполнить запрос,
+  хотя браузер не отдал его ответ вызывающему скрипту.
 
   <CardGrid min={280} gap={14}>
     <Card tone="err" title="Проблема 1: чтение" titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
 
-      Если бы `evil.com` мог сделать `fetch('https://mail.google.com/inbox')` и **прочитать
-      ответ**, любой сайт читал бы почту своих посетителей: запрос уходит с куками пользователя,
-      потому что куки браузер прикрепляет автоматически. Отсюда правило: **скрипт одного сайта
+      Если бы `evil.com` мог сделать `fetch('https://mail.google.com/inbox', { credentials: 'include' })` и **прочитать
+      ответ**, подходящая сессия превращалась бы в доступ к почте. Браузер может прикрепить куки,
+      если это разрешено режимом credentials, SameSite и политикой сторонних кук. Отсюда правило: **скрипт одного сайта
       не читает ответы другого**. Это SOP — правило одного источника. А CORS — официальный
       способ сделать из него исключение.
 
@@ -196,7 +200,7 @@ import {
     <Card tone="info" title="Проблема 3: куки прикладываются сами" titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
 
       Отправлять запрос на чужой сайт HTML разрешал с 1995 года, и запретить это задним
-      числом нельзя — сломается половина интернета. А куки к такому запросу браузер прикладывает
+      числом нельзя — сломается половина интернета. А подходящие куки к такому запросу браузер прикладывает
       сам — это называют ambient authority, «полномочия из воздуха». Значит, любой сайт может
       **заставить браузер пользователя выполнить действие** на другом сайте, с его куками. Прочитать
       ответ SOP не даст, но действие уже выполнено. Это CSRF.
@@ -204,7 +208,7 @@ import {
     </Card>
   </CardGrid>
 
-  Почему браузер разводит по процессам сайты (site), а не отдельные источники (origin), разобрано
+  Как связаны сайты (site), источники (origin) и размещение в процессах, разобрано
   в [«Устройстве браузера»](/js/browser-architecture/#s1). Почему preflight — это **лишний поход
   на сервер и обратно** и как он кешируется — в [«Сети и кешировании»](/platform/network/#s3).
 
@@ -215,7 +219,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Origin и правило одного источника"
-  lead="Источник (origin) — это не URL и не домен, а три значения вместе: протокол, домен и порт. Все решения о доверии браузер принимает, сравнивая такие тройки. Каждая из трёх частей защищает от своей атаки."
+  lead="Источник (origin) — это не URL и не домен, а три значения вместе: протокол, домен и порт. SOP сравнивает такие тройки. Куки, SameSite и размещение по процессам используют другие границы — источник нельзя подставлять вместо них."
 >
   <CodeBlock lang="text" code={`origin  =  scheme  +  host             +  port
            https      app.example.com     443     ← три значения, а не строка URL`} size={12} lh={1.7} pad="16px 18px" />
@@ -248,6 +252,8 @@ import {
   </Callout>
 
   <Plain text={PLAIN_SOP} />
+
+  <ConceptDiagram data={CORS_BOUNDARY_DIAGRAM} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SOP_SPECTRE} />
 
@@ -303,7 +309,7 @@ import {
   eyebrow="Раздел 2 · демо"
   eyebrowTone="demo"
   title="CORS и preflight"
-  lead="Одни запросы браузер отправляет сразу, другие — только после разрешения сервера. Граница выводится из одного вопроса: мог ли это отправить обычный <form> в 2005 году."
+  lead="Одни запросы браузер отправляет сразу, другие — только после разрешения сервера. Историческая идея — сохранить запросы, доступные HTML-форме. Точное решение определяется методом, заголовками и другими условиями Fetch, а не одним вопросом про форму."
 >
   <Callout size={18} pad="20px 22px">
     <Md text={SIMPLE_IDEA} />
@@ -314,14 +320,14 @@ import {
   <Card title="Точные условия «простого» запроса" titleSize={18} pad={22} gap={14}>
 
     Fetch Standard называет такой запрос CORS-safelisted request. Все условия должны выполняться
-    одновременно. Заучивать список не нужно: каждое условие следует из вопроса про форму.
+    одновременно. Сравнение с формой объясняет замысел, но не заменяет эти проверки.
 
     <NumberedList items={SIMPLE_RULES} size={15} />
 
     <CardNote tone="err">
 
       **Опасное следствие:** `POST` с `Content-Type: text/plain` и JSON-телом внутри —
-      **простой** запрос. Preflight не будет, куки уйдут. Полный разбор с починкой — тонкое
+      **простой** запрос. Такой Content-Type сам по себе не требует preflight; отправка кук всё ещё зависит от credentials, SameSite и политики браузера. Полный разбор с починкой — тонкое
       место «Простой POST в JSON-API» в разделе [«Тонкие места»](#s8).
 
     </CardNote>
@@ -396,7 +402,7 @@ import {
     на свой стек: такую конфигурацию можно проверить `curl`-ом, не запуская браузер,
     и она не зависит от версии библиотеки.
 
-    <CodeBlock code={SERVER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="go" code={SERVER_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
     <CheckList items={SERVER_NOTES} tone="ok" size={14.5} />
   </Card>
@@ -441,7 +447,7 @@ import {
   eyebrow="Раздел 3 · демо"
   eyebrowTone="demo"
   title="CSP"
-  lead="CSP (Content Security Policy) — заголовок, в котором сервер перечисляет, откуда странице можно брать скрипты и другие ресурсы. Применяет его сам браузер, ещё до сети, и о каждом отказе он умеет отчитаться именем нарушенной директивы."
+  lead="CSP (Content Security Policy) — заголовок, в котором сервер перечисляет, откуда странице можно брать скрипты и другие ресурсы. Браузер проверяет загрузки и исполнение по этой политике; отчёт называет нарушенную директиву. Проверка ресурса может остановить его до отправки, но строка blocked:csp в DevTools всё равно возможна."
 >
   <Callout size={18} pad="20px 22px">
     <Md text={CSP_WHY} />
@@ -456,6 +462,8 @@ import {
     ))}
 
   </CardGrid>
+
+  <Disclosure title="Почему allowlist обходится: исследование и примеры">
 
   ### Почему не список доменов
 
@@ -485,6 +493,8 @@ import {
 
     </CardNote>
   </Card>
+
+  </Disclosure>
 
   ### Nonce и `'strict-dynamic'`
 
@@ -561,11 +571,16 @@ import {
     minWidth={700}
   />
 
+  Разбор nonce, отчётов и Trusted Types продолжает тема
+  [«CSP и Trusted Types»](/platform/csp/).
+
   ### Проверьте в своём браузере
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CSP_DEMO_NOTE} />
 
   <CspSandbox client:visible />
+
+  <Disclosure title="Справочник внедрения: директивы, report-only и стили">
 
   ### Целевая политика и как к ней прийти
 
@@ -607,6 +622,8 @@ import {
       <Md text={VUE_STYLE_WHY} />
     </CardNote>
   </Card>
+  </Disclosure>
+
 </Section>
 
 <Section
@@ -681,7 +698,7 @@ import {
 
   ### Trusted Types: строка в опасное место не пройдёт
 
-  <Card tone="ok" title="Trusted Types: DOM-XSS закрывается для всего кода сразу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Card tone="ok" title="Trusted Types: контролируем HTML на входе в опасные места" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="http" code={TRUSTED_TYPES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
     <CodeBlock code={TRUSTED_TYPES_JS} size={11} lh={1.65} pad="14px 16px" />
 
@@ -706,7 +723,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="CSRF и кликджекинг"
-  lead="В обеих атаках ваш код может быть без единой ошибки. Обе используют то, что браузер по умолчанию действует от имени пользователя, даже когда действие начал чужой сайт. Поэтому защищаются от них не исправлением бага, а явными заголовками."
+  lead="Чужой сайт может инициировать запрос с подходящей сессионной кукой или подложить ваш интерфейс под чужой клик. Для CSRF сервер проверяет намерение и контекст изменения; для кликджекинга страница ограничивает, кто вправе её встраивать. Это разные барьеры."
 >
   <Callout size={18} pad="20px 22px">
     <Md text={AMBIENT_AUTHORITY} />
@@ -788,7 +805,7 @@ import {
     <Card tone="info" title="Токены: синхронизирующий и double-submit" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DOUBLE_SUBMIT_NOTE} />
 
     <Card tone="ok" title="Fetch Metadata — самый дешёвый современный слой" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={FETCH_META_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="go" code={FETCH_META_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
       <CardNote tone="ok">
         <Md text={FETCH_META_WHY} />
@@ -831,9 +848,9 @@ import {
 >
   <Callout size={18} pad="20px 22px">
 
-    **Полезную нагрузку JWT читает кто угодно: вы, пользователь, расширение браузера и любой
-    скрипт на странице.** `base64url` — это кодировка, а не шифр. Из этого следует почти всё
-    остальное про токены на фронте.
+    **Полезную нагрузку разобранного подписанного JWT читает любой, у кого есть строка
+    токена.** Base64url — кодировка, а не шифрование и не проверка подписи. Возможность
+    декодировать payload сама по себе не делает его достоверным.
 
   </Callout>
 
@@ -855,6 +872,8 @@ import {
     </CardGrid>
   </Card>
 
+  <Disclosure title="Разобрать JWT: base64url, UTF-8 и границы декодирования">
+
   <Card tone="warn" title="Как прочитать нагрузку и две ловушки по дороге" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={JWT_READ_CODE} size={11} lh={1.65} pad="14px 16px" />
 
@@ -865,8 +884,10 @@ import {
     </CardNote>
   </Card>
 
+  </Disclosure>
+
   <CardGrid min={300} gap={16} align="start">
-    <Card tone="err" title="Чего фронт не может: проверить подпись" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={JWT_SIGNATURE_NOTE} />
+    <Card tone="err" title="HS256: секретный ключ остаётся на сервере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={JWT_SIGNATURE_NOTE} />
 
     <Card tone="info" title="`exp` — для удобства, не для безопасности" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={EXP_NOTE} />
   </CardGrid>
@@ -964,8 +985,8 @@ import {
 
   <Card title="Чего фронт не видит в принципе" titleSize={18} pad={22} gap={14}>
 
-    Правильное хранение сессии — это `httpOnly`-кука, и платят за него тем, что фронт её
-    не видит. Три вещи, которые кажутся элементарными, фронту недоступны вовсе.
+    Если сессия хранится в HttpOnly-куке, JS страницы не получает её байты и атрибуты.
+    Поэтому состояние входа определяют по ответу сервера, а не по попытке прочитать куку.
 
     <CardGrid min={280} gap={14} align="start">
       {BLIND_SPOTS.map((item) => (
@@ -988,7 +1009,7 @@ import {
   eyebrow="Раздел 7 · демо"
   eyebrowTone="demo"
   title="Изоляция страницы: COOP и COEP"
-  lead="Общая память между потоками (`SharedArrayBuffer`) и точные часы `performance.now()` браузер выдаёт только изолированной странице: в её процессе не должно быть чужих данных без их согласия. Изоляцию включают два заголовка ответа, и она ломает часть привычного: окна входа через OAuth и чужие ресурсы без разрешения."
+  lead="Режим crossOriginIsolated открывает обмен общей памятью и более высокое разрешение часов. COOP ограничивает связи окон, COEP — встраивание ресурсов. Это условия браузерного режима, а не доказательство состава памяти процесса; часть OAuth-popup и чужих ресурсов перестаёт работать."
 >
   ### Почему браузеры отключали `SharedArrayBuffer`: атака Spectre
 
@@ -999,6 +1020,8 @@ import {
   ### Как общую память вернули: два заголовка ответа
 
   <CodeBlock lang="http" code={ISOLATION_HEADERS} />
+
+  <ConceptDiagram data={ISOLATION_BOUNDARY_DIAGRAM} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={ISOLATION_WHY} />
@@ -1029,11 +1052,9 @@ import {
 
   <Card tone="dim" pad="15px 17px" radius={4} size={15.5} lh={1.6}>
     <p class="t-body">
-      Почему изоляция защищает, объясняется устройством процессов браузера. Браузер разносит
-      по разным процессам разные **сайты**, а не разные источники (origin): страницы двух
-      поддоменов одного сайта могут жить в одном процессе. К тому же в процесс страницы попадают
-      чужие картинки и скрипты, которые она загрузила. Поэтому изоляция и требует, чтобы каждый
-      чужой ресурс согласился там оказаться. Подробно — в теме
+      Изоляция ограничивает допустимые связи и загрузки, а размещение документов в процессах
+      остаётся решением браузера. Нельзя вывести из одного заголовка ни отдельный PID, ни отсутствие
+      чужих данных в памяти. Как различаются origin, site, агент и процесс, разобрано в теме
       <a href="/js/browser-architecture/#s1">Устройство браузера</a>.
     </p>
   </Card>
@@ -1058,17 +1079,9 @@ import {
   eyebrow="Раздел 9"
   title="Источники"
 >
-  <CardGrid min={320} gap={16} align="start">
-    {SOURCES.map((group) => (
-      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
-        {group.items.map((item) => (
-          <Md text={item} />
-        ))}
-      </Card>
-
-    ))}
-
-  </CardGrid>
+  <Card pad={22}>
+    <SourceList items={SOURCES} />
+  </Card>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
     <Md text={RELATED} />

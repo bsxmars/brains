@@ -465,6 +465,35 @@ describe('Chromium: FACTS', () => {
 });
 
 describe('Chromium: примеры кода темы', () => {
+  it('contenteditable: preventDefault не отменяет шаг IME, как предупреждает CE_NOTE', async () => {
+    await page.goto(URL_);
+    await page.evaluate(() => {
+      const editor = document.createElement('div');
+      editor.id = 'ime-editor';
+      editor.contentEditable = 'true';
+      document.body.append(editor);
+      const log: { inputType: string; cancelable: boolean; defaultPrevented: boolean }[] = [];
+      (window as unknown as { imeLog: typeof log }).imeLog = log;
+      editor.addEventListener('beforeinput', (event) => {
+        const input = event as InputEvent;
+        input.preventDefault();
+        log.push({ inputType: input.inputType, cancelable: input.cancelable, defaultPrevented: input.defaultPrevented });
+      });
+      editor.focus();
+    });
+    await cdp.send('Input.imeSetComposition', { text: 'かん', selectionStart: 2, selectionEnd: 2 });
+    const result = await page.evaluate(() => ({
+      text: document.getElementById('ime-editor')!.textContent,
+      log: (window as unknown as { imeLog: { inputType: string; cancelable: boolean; defaultPrevented: boolean }[] }).imeLog,
+    }));
+    expect(result.text).toBe('かん');
+    expect(result.log).toEqual([{ inputType: 'insertCompositionText', cancelable: false, defaultPrevented: false }]);
+    // Сторож не даёт вернуть обещание отмены всех правок после раздела про IME.
+    expect(t.CE_NOTE).toContain('в том числе в `contenteditable`');
+    expect(t.CE_NOTE).toContain('`event.cancelable`');
+    await cdp.send('Input.insertText', { text: '漢' });
+  });
+
   it('SHORTCUT_CODE: Ctrl/Cmd+K по code срабатывает на русской раскладке, «?» — по key', async () => {
     await page.goto(URL_);
     await page.evaluate((code) => {

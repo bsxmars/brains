@@ -17,6 +17,8 @@ nav:
 ---
 
 import Md from '@/shared/ui/Md.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -36,6 +38,7 @@ import {
   STICKY_NOTE, INFINITE_FACTS,
   PITFALLS, SOURCES, RELATED,
   JUMP_SCENE_CODE, JUMP_SCENE_NOTE, JUMP_STEPS, PLAIN_JUMP, CV_FIRST_STEPS,
+  WINDOW_PARTS_DIAGRAM,
 } from './data';
 
 <Section
@@ -52,7 +55,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Цена узла: за что платит длинный список"
-  lead="Длинный список тормозит в трёх местах: когда строится, когда меняется ширина окна и когда его прокручивают. У трёх способов показать список эти расходы разные. В таблице — во сколько раз дороже или дешевле, чем «всё в DOM» на 10 000 строк: миллисекунды зависят от машины, а отношения — нет."
+  lead="Длинный список тормозит в трёх местах: когда строится, когда меняется ширина окна и когда его прокручивают. У трёх способов показать список эти расходы разные. Таблица сравнивает три реализации на стенде Chromium с 10 000 строк. Отношения показывают результат этого опыта, а не постоянные коэффициенты для любого устройства."
 >
   <Table
     head={COST_HEAD}
@@ -77,6 +80,8 @@ import {
 
   <CodeBlock code={WINDOW_CODE} />
 
+  <ConceptDiagram data={WINDOW_PARTS_DIAGRAM} />
+
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={WINDOW_NOTE} />
 
   ### Распорки или `transform`
@@ -98,7 +103,7 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Разная высота: смещения, поиск и прыжки"
-  lead="Когда строки разной высоты, деление не работает: верх строки — сумма высот всех строк до неё. Эти суммы считаются один раз в массив, а строка по координате ищется в нём делением пополам."
+  lead="Когда строки разной высоты, деление не работает: верх строки — сумма высот всех строк до неё. Смещения хранят в массиве, а строку по координате ищут делением пополам. Когда измеренная высота меняется, смещения следующих строк нужно обновить."
 >
   <Plain text={PLAIN_PREFIX} />
 
@@ -169,9 +174,9 @@ import {
     minWidth={600}
   />
 
-  ### Первый кадр и запасной размер
+<Disclosure title="Замер первого кадра и запасного размера">
 
-  Что браузер делает в первом кадре с десятью тысячами строк — без запасного размера и с ним.
+### Первый кадр и запасной размер
 
   <CardGrid min={290} gap={14} align="start">
     {CV_FIRST_STEPS.map((b) => (
@@ -198,6 +203,8 @@ import {
   <Card tone="err" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CV_FIRST_NOTE} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CV_AUTO_NOTE} />
+
+</Disclosure>
 
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={CV_JUMP_NOTE} />
 </Section>

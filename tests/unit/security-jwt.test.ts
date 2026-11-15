@@ -1,11 +1,12 @@
 import { Buffer } from 'node:buffer';
-import { createHmac } from 'node:crypto';
+import { createHmac, webcrypto } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   AUTH_SCHEME_CODE,
   BLIND_SPOTS,
   BLIND_SPOT_RUN,
   EXP_NOTE,
+  HTTPONLY_TRUTH,
   JWT_ANATOMY_CODE,
   JWT_PARTS,
   JWT_READ_CODE,
@@ -16,6 +17,7 @@ import {
   REFRESH_LOCK_NOTE,
   REFRESH_RACE_STEPS,
   TOKEN_PAIR_ROWS,
+  STORAGE_STEPS,
 } from '@/content/platform/security/data';
 
 /**
@@ -36,11 +38,10 @@ import {
  * Сама гонка вкладок не проверяется нигде: для неё нужен сервер с одноразовым refresh,
  * и тема честно помечает её непроверенной. Кросс-сайтовые куки — там же.
  *
- * ⚠️ Две находки прогона записаны здесь как есть, данные темы не правились:
+ * Уточнения по итогам прогона:
  *   1. литерал мусора в `JWT_READ_TRAPS` потерял невидимые управляющие байты C1 —
  *      см. «мусор в теме совпадает с настоящим»;
- *   2. `JWT_RUN_NOTE` обещает, что лишние `=` «ничего не ломают», а один лишний `=`
- *      в Node 26.8 бросает — см. «паддинг».
+ *   2. `JWT_RUN_NOTE` различает правильный и ошибочный паддинг; ниже сторожится оба исхода.
  */
 
 // ── инструменты ───────────────────────────────────────────────────────────────────────────
@@ -238,11 +239,8 @@ describe('паддинг дописывать не нужно', () => {
     expect(JWT_RUN_NOTE).toMatch(/не нужно/);
   });
 
-  it('⚠️ один лишний `=` разбор ломает, два — нет', () => {
-    // Находка прогона, данные не правились: `JWT_RUN_NOTE` обещает, что лишние `=`
-    // «ничего не ломают». В Node 26.8 это верно лишь для правильного паддинга: длина
-    // части даёт остаток 2, поэтому `==` дополняет её до кратной четырём, а одиночный
-    // `=` — нет, и `atob` бросает. Закрепляем поведение движка, а не формулировку темы.
+  it('один лишний `=` ломает разбор, два дополняют верно', () => {
+    expect(JWT_RUN_NOTE).toContain('одиночный `=` бросает');
     expect(PAYLOAD.length % 4).toBe(2);
     expect((caught(() => atob(`${PAYLOAD}=`)) as DOMException).name).toBe('InvalidCharacterError');
     expect(atob(`${PAYLOAD}==`)).toBe(atob(PAYLOAD));
@@ -251,7 +249,7 @@ describe('паддинг дописывать не нужно', () => {
 
 // ── 6. Подпись: почему её не проверяют на фронте ──────────────────────────────────────────
 
-describe('подпись: проверить её на клиенте нечем', () => {
+describe('подпись: HS256 и асимметричная схема — разные ограничения', () => {
   it('одна и та же нагрузка на двух ключах даёт две разные подписи', () => {
     // Ровно то, что `JWT_SIGNATURE_NOTE` объявляет проверенным запуском.
     const body = `${HEADER}.${PAYLOAD}`;
@@ -276,10 +274,27 @@ describe('подпись: проверить её на клиенте нечем
     expect(sign(`${HEADER}.${b64url(forgedJson)}`, 'secret')).not.toBe(SIGNATURE);
   });
 
-  it('тема не обещает клиентской проверки подписи', () => {
+  it('HS256 требует секрет, а клиентское решение не заменяет серверную авторизацию', () => {
     expect(JWT_SIGNATURE_NOTE).toMatch(/фронт не может/);
+    expect(JWT_SIGNATURE_NOTE).toContain('HS256');
     expect(JWT_SIGNATURE_NOTE).toMatch(/[Кк]люч живёт на сервере/);
     expect(JWT_SIGNATURE_NOTE).toMatch(/не чтобы разрешить/);
+  });
+
+  it('WebCrypto проверяет асимметричную подпись публичным ключом', async () => {
+    const keys = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']);
+    const data = new TextEncoder().encode('header.payload');
+    const algorithm = { name: 'ECDSA', hash: 'SHA-256' };
+    const signature = await webcrypto.subtle.sign(algorithm, keys.privateKey, data);
+    expect(await webcrypto.subtle.verify(algorithm, keys.publicKey, signature, data)).toBe(true);
+    expect(await webcrypto.subtle.verify(algorithm, keys.publicKey, signature, new TextEncoder().encode('header.forged'))).toBe(false);
+    expect(JWT_SIGNATURE_NOTE).toContain('публичным ключом');
+  });
+
+  it('HttpOnly не обещает прекращения всех последствий XSS после закрытия вкладки', () => {
+    // Смысловой сторож: скрытость байтов куки проверяет security-cookies.spec, а не эта строка.
+    expect(HTTPONLY_TRUTH).toContain('закрытие вкладки не отменяет последствия');
+    expect(STORAGE_STEPS.find((step) => step.k.includes('httpOnly'))?.what).toContain('могут пережить закрытие вкладки');
   });
 });
 
@@ -398,7 +413,7 @@ function serializingLocks(): {
   };
 }
 
-async function exerciseLock(listing: string): Promise<{ fetches: number; shared: boolean }> {
+async function exerciseLock(listing: string, separateVariables = false): Promise<{ fetches: number; shared: boolean }> {
   let fetches = 0;
   const isFresh = (t: { fresh?: boolean } | undefined): boolean => Boolean(t?.fresh);
   const fetchStub = async (): Promise<{ json: () => Promise<unknown> }> => {
@@ -421,12 +436,18 @@ async function exerciseLock(listing: string): Promise<{ fetches: number; shared:
     seed: unknown,
   ) => () => Promise<unknown>;
 
-  const getAccessToken = build(isFresh, fetchStub, { locks: serializingLocks() }, { fresh: false });
-  const [first, second] = await Promise.all([getAccessToken(), getAccessToken()]);
+  const navigator = { locks: serializingLocks() };
+  const getAccessToken = build(isFresh, fetchStub, navigator, { fresh: false });
+  const otherContext = separateVariables ? build(isFresh, fetchStub, navigator, { fresh: false }) : getAccessToken;
+  const [first, second] = await Promise.all([getAccessToken(), otherContext()]);
   return { fetches, shared: first === second };
 }
 
 describe('замок из темы: листинг снимает двойное обновление', () => {
+  it('раздельные token под общим замком не получают результат другой вкладки автоматически', async () => {
+    expect(await exerciseLock(REFRESH_LOCK_CODE, true)).toEqual({ fetches: 2, shared: false });
+    expect(REFRESH_LOCK_NOTE).toContain('переменные отдельные');
+  });
   it('два одновременных вызова дают ровно одно обращение к `/api/auth/refresh`', async () => {
     const { fetches, shared } = await exerciseLock(REFRESH_LOCK_CODE);
     expect(fetches, 'листинг сходил за токеном дважды').toBe(1);

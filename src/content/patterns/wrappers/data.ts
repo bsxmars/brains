@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
@@ -36,6 +37,7 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  *   — стопка `@`-декораторов применяется снизу вверх, а вызывается сверху вниз;
  *   — Vue собирает DOM-рендерер мостом: `runtime-dom` передаёт `createRenderer` объект
  *     `extend({ patchProp }, nodeOps)` (проверено по `@vue/runtime-dom` 3.5.42 в `node_modules`).
+ * Практика: HTTP, JSON и декодирование unknown проверены отдельными отказами PRACTICE_CODE; FETCH_NOTES различает получение ответа и чтение тела.
  */
 
 /* ──────────────────── Вводный раздел · словарь ──────────────────── */
@@ -316,7 +318,7 @@ try { await getJson<User>('/users/1'); } catch (e) { console.log((e as Error).me
 export const FETCH_OUT = ['false 500 undefined', 'HTTP 500'];
 
 export const FETCH_NOTES: string[] = [
-  '**`fetch` не считает 404 и 500 ошибкой.** Промис отклоняется, только если ответа нет вовсе: сеть, DNS, отмена. Ответ сервера с любым статусом — это успех, просто с `ok: false`. Код без фасада получает `user.name === undefined` и падает дальше, в другом месте. Проверка `res.ok` — первое, ради чего пишут обёртку над `fetch`.',
+  '**`fetch` не считает 404 и 500 ошибкой.** Промис отклоняется при сетевой ошибке (в браузере в том числе при блокировке CORS) или отмене. Полученный HTTP-ответ со статусом 404 или 500 разрешает промис, но имеет `ok: false`. Чтение тела — отдельный асинхронный шаг: `json()` может отклониться из-за невалидного JSON, сбоя потока или отмены. Код без фасада получает `user.name === undefined` и падает дальше, в другом месте. Проверка `res.ok` — первое, ради чего пишут обёртку над `fetch`.',
   '**`res.json()` возвращает `Promise<any>`.** Так объявлено в `lib.dom.d.ts`. Аннотация `const user: User` — обещание программиста, а не проверка: компилятор принимает любой `any`. `getJson<User>` честнее не стал — он лишь собрал это обещание в одно место. Если форма ответа важна, её проверяют при выполнении, там же, в фасаде.',
   '**Фасад должен пропускать то, что нужно вызывающему.** `signal` в `getJson` — пример: без него запрос через фасад нельзя отменить. Как работает отмена у `fetch` — в теме [«Отмена: AbortController и AbortSignal», раздел «fetch»](/js/abort-controller/#s3).',
 ];
@@ -659,6 +661,11 @@ export const PITFALLS: Pitfall[] = [
 /** ⚠️ Без разметки: `SourceList` печатает `title` и `what` как есть. */
 export const SOURCES: Source[] = [
   {
+    title: 'Fetch Standard — fetch и Body mixin',
+    href: 'https://fetch.spec.whatwg.org/#fetch-method',
+    what: 'сетевые ошибки, CORS и отмена; получение Response отделено от чтения и разбора тела',
+  },
+  {
     title: 'Refactoring Guru — структурные паттерны',
     href: 'https://refactoring.guru/ru/design-patterns/structural-patterns',
     what: 'адаптер, мост, фасад, заместитель и декоратор: схемы и примеры на TypeScript',
@@ -697,3 +704,107 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Создание объектов: фабрика, строитель, прототип, одиночка](/patterns/creational/) — порождающие паттерны и где их книжная версия ломается в JS. [Proxy и Reflect](/js/proxy-reflect/) — встроенный перехват, на котором пишут заместителей. [Объектная модель, раздел «Классы»](/js/object-model/#s4) — механика `@`-декораторов. [TypeScript на уровне типов, раздел «Классы»](/tooling/typescript/#s7) — `implements`, типизированный декоратор. [Debounce, throttle и token bucket, раздел «Debounce и throttle: в чём разница»](/algorithms/rate-limiting/#s1) — декораторы для функций. [Vue 3 изнутри: рендерер и patch](/frameworks/vue-patch-internals/) и [React изнутри](/frameworks/react-internals/) — мост между ядром и платформой. [Внедрение зависимостей](/frameworks/dependency-injection/) — как реализацию моста или обёртку подставляет контейнер.';
+
+
+/** Практический пример: та же строка проверяется tsc и исполняется patterns-wrappers.test.ts. */
+export const PRACTICE_CODE = `type User = { id: number; name: string };
+type Transport = (url: string, init: RequestInit) => Promise<Response>;
+function decodeUser(value: unknown): User {
+  if (typeof value !== 'object' || value === null
+      || !('id' in value) || typeof value.id !== 'number'
+      || !Number.isSafeInteger(value.id) || value.id <= 0
+      || !('name' in value) || typeof value.name !== 'string') {
+    throw new Error('Некорректный пользователь');
+  }
+  return { id: value.id, name: value.name };
+}
+function createUsersApi(send: Transport, base: string) {
+  return {
+    async get(id: number, signal?: AbortSignal): Promise<User> {
+      if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Некорректный id');
+      const response = await send(new URL('users/' + id, base).href, { signal });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const body: unknown = await response.json();
+      return decodeUser(body);
+    },
+  };
+}
+// В приложении: createUsersApi(fetch, 'https://api.example/v1/').
+const replies = [
+  Response.json({ id: 7, name: 'Анна' }),
+  Response.json({ id: '7', name: 'Анна' }),
+  new Response('unavailable', { status: 503 }),
+  new Response('{broken', { status: 200 }),
+];
+const api = createUsersApi(async () => replies.shift()!, 'https://api.example/v1/');
+for (let i = 0; i < 4; i++) {
+  try { console.log((await api.get(7)).name); }
+  catch (error) { console.log(error instanceof SyntaxError ? 'Невалидный JSON' : (error as Error).message); }
+}`;
+export const PRACTICE_OUT = ["Анна", "Некорректный пользователь", "HTTP 503", "Невалидный JSON"];
+export const PRACTICE_DIAGRAM: ConceptDiagramData = {
+  "title": "Успешный HTTP ещё не означает пользователя",
+  "description": "Фасад отделяет транспорт от проверки данных. Входной JSON не получает доменный тип до decodeUser; сбой останавливает путь до использования name.",
+  "width": 1040,
+  "height": 590,
+  "nodes": [
+    {
+      "id": "transport",
+      "x": 10,
+      "y": 10,
+      "width": 260,
+      "height": 230,
+      "label": "Транспорт",
+      "detail": "Response: статус, заголовки, тело. Здесь возможны отказ сети и отмена запроса.",
+      "tone": "neutral"
+    },
+    {
+      "id": "decode",
+      "x": 390,
+      "y": 10,
+      "width": 260,
+      "height": 230,
+      "label": "Граница данных",
+      "detail": "Проверить ok, разобрать JSON, проверить unknown. HTTP 200 со строковым id отвергается.",
+      "tone": "warn"
+    },
+    {
+      "id": "user",
+      "x": 770,
+      "y": 10,
+      "width": 260,
+      "height": 230,
+      "label": "Доменный объект",
+      "detail": "User с положительным целым id и строковым name. Вызывающий работает с одной формой.",
+      "tone": "ok"
+    },
+    {
+      "id": "error",
+      "x": 390,
+      "y": 350,
+      "width": 260,
+      "height": 230,
+      "label": "Явная ошибка",
+      "detail": "503 → HTTP 503; сломанный JSON → SyntaxError; неверная форма → ошибка декодера.",
+      "tone": "err"
+    }
+  ],
+  "edges": [
+    {
+      "to": "decode",
+      "from": "transport"
+    },
+    {
+      "to": "user",
+      "from": "decode"
+    },
+    {
+      "to": "error",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "from": "decode"
+    }
+  ],
+  "note": "Декодер проверяет только инварианты этого User. Он не доказывает права доступа, свежесть ответа и существование пользователя.",
+  "id": "patterns-wrappers-boundary"
+};

@@ -303,6 +303,7 @@ describe('раздел «Один компонент — два вывода»: 
   it('у VDOM — девять вызовов, создающих VNode, в тексте render-функции', () => {
     expect(D.VDOM_CODE.match(/_create(ElementVNode|ElementBlock|CommentVNode)\(/g)).toHaveLength(9);
     expect(D.OUTPUT_NOTE).toContain('девять вызовов');
+    expect(D.OUTPUT_NOTE).toContain('места вызова в исходнике');
   });
 });
 
@@ -531,6 +532,49 @@ describe('раздел «Как включить и смешать»', () => {
 });
 
 describe('раздел «Чего нет в rc.9»', () => {
+  it.each(BUILDS)('%s: Suspense вокруг async Vapor работает через interop', async (build) => {
+    const vue = VUE36[build];
+    let resolveReady!: () => void;
+    const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
+    const AsyncChild = vue.defineVaporComponent({
+      async setup() {
+        await ready;
+        return vue.template('<p>готово</p>')();
+      },
+    });
+    const parent = sfcComponent(vue, `<script setup vapor>
+import AsyncChild from './Async.vue'
+</script><template><Suspense><AsyncChild /><template #fallback><b>ждём</b></template></Suspense></template>`, { AsyncChild });
+    const el = container();
+    const app = vue.createVaporApp(parent).use(vue.vaporInteropPlugin);
+    capture(() => app.mount(el));
+    expect(el.textContent).toBe('ждём');
+    resolveReady();
+    await ready;
+    // Async setup and Suspense each attach a Promise continuation before the DOM job.
+    await Promise.resolve();
+    await Promise.resolve();
+    await vue.nextTick();
+    expect(el.textContent).toBe('готово');
+    app.unmount();
+    expect(D.LIMITS.find((limit) => limit.t.includes('Suspense'))?.d).toContain('vaporInteropPlugin');
+  });
+
+  it.each(BUILDS)('%s: vue:mounted на элементе не является хуком монтирования Vapor', (build) => {
+    const vue = VUE36[build];
+    let calls = 0;
+    const src = `<script setup vapor>
+import mark from './mark.js'
+</script><template><p @vue:mounted="mark">готово</p></template>`;
+    const code = compile(SFC36, src);
+    expect(code).toContain('"vnode-mounted"');
+    const el = container();
+    const app = vue.createVaporApp(sfcComponent(vue, src, { mark: () => { calls++; } }));
+    app.mount(el);
+    expect(calls).toBe(0);
+    app.unmount();
+    expect(D.LIMITS.find((limit) => limit.t.includes('@vue:mounted'))?.d).toContain('не хук жизненного цикла');
+  });
   it.each(BUILDS)('%s: data() и mounted у defineVaporComponent молча игнорируются', (build) => {
     const vue = VUE36[build];
     let mounted = false;

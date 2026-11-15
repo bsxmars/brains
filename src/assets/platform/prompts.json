@@ -1,0 +1,11 @@
+{
+  "tool": "image_gen.imagegen",
+  "date": "2026-11-12",
+  "images": [
+    {
+      "file": "push-sealed-message.png",
+      "use_case": "scientific-educational",
+      "prompt": "Use case: scientific-educational. Asset type: a wide editorial illustration for a Russian web engineering lesson, with all labels added later as real HTML. Primary request: visually distinguish a delivery intermediary checking sender identity from that intermediary being unable to read a sealed end-to-end message. Composition: three equal stages arranged left to right on a clean white canvas, one consistent parcel-like violet sealed envelope throughout. Left: a simple application server workstation with a readable small paper message beside it and a sealed opaque envelope being prepared. Middle: a clean abstract delivery sorting station with exactly one sealed envelope on its conveyor; a separate small violet identity badge outside the envelope is inspected with a magnifying lens and a small green check symbol. The envelope remains fully sealed and opaque. Right: a smartphone/browser device opens that same violet envelope and reveals the paper message to the recipient. Thin neutral directional arrows connect the stages. Style: precise restrained isometric paper-and-vector editorial illustration, subtle soft depth, no photorealism, no people, generous whitespace, crisp silhouettes; primary white #FFFFFF, dark ink #191622, violet #7C3AED, pale violet #F5F0FF, muted green accent, neutral cool shadows. Important semantic constraints: the identity badge is separate from the message content; never show the middle station reading or opening the envelope; no private keys at the delivery station; no claim of guaranteed delivery or timing; this is a metaphor, not a protocol diagram. No text, letters, digits, logos, watermark, captions, titles or labels anywhere in the image. Wide aspect ratio around 3:1 with the three stages visually balanced and large enough to understand on a teaching webpage."
+    }
+  ]
+}

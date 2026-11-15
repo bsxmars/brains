@@ -19,6 +19,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -37,6 +39,7 @@ import BalancerLab from '@/widgets/lb-lab/ui/BalancerLab.vue';
 import RingLab from '@/widgets/lb-lab/ui/RingLab.vue';
 import {
   GLOSSARY,
+  RETRY_WORK_DIAGRAM,
   PLAIN_BALANCER,
   PLAIN_L4L7,
   L4L7_CONF,
@@ -166,13 +169,13 @@ import {
 
   <Plain text={PLAIN_SWRR} />
 
-  <Card title="Выбор бэкенда — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Выбор бэкенда — модель">
     <CodeBlock code={PICK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={PICK_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   ### Ход за ходом
 
@@ -204,7 +207,7 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Кто свободнее: least_conn и два случайных"
-  lead="Круг не смотрит на то, чем заняты бэкенды. Если запросы разной тяжести, один бэкенд может стоять с очередью долгих запросов, а круг продолжит отдавать ему каждый третий. `least_conn` отдаёт запрос тому, у кого меньше незаконченных запросов."
+  lead="Круг не смотрит на то, чем заняты бэкенды. Если запросы разной тяжести, один бэкенд может стоять с очередью долгих запросов, а круг продолжит отдавать ему каждый третий. `least_conn` сравнивает активные соединения к бэкендам с учётом весов. В HTTP/1-стенде долгий запрос занимает такое соединение; это не измерение CPU и не универсальный счётчик запросов для всех протоколов."
 >
   <Table
     head={['алгоритм', 'два долгих запроса', 'шесть коротких следом']}
@@ -243,13 +246,13 @@ import {
 
   <Plain text={PLAIN_RING} />
 
-  <Card title="Остаток и кольцо — модель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Остаток и кольцо — модель">
     <CodeBlock code={RING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={RING_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   <Table
     head={['nginx, 1000 ключей, 3 → 4 бэкенда', 'переехало', 'по расчёту', 'куда']}
@@ -369,6 +372,8 @@ import {
   title="Повторы и идемпотентность"
   lead="Когда бэкенд не ответил, nginx может отправить тот же запрос следующему. Для пользователя это спасение: вместо 502 он получает ответ. Но балансировщик не знает, успел ли первый бэкенд выполнить запрос, — и повтор может выполнить его второй раз."
 >
+  <ConceptDiagram data={RETRY_WORK_DIAGRAM} />
+
   <Plain text={PLAIN_IDEMPOTENT} />
 
   <Table
@@ -391,7 +396,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Плавный вывод"
-  lead="Бэкенд выводят из работы при каждом выкате, масштабировании и обновлении машины. Сделать это без единой ошибки у пользователя можно, только если бэкенд и балансировщик действуют в правильном порядке."
+  lead="Бэкенд выводят из работы при каждом выкате, масштабировании и обновлении машины. Чтобы уменьшить число ошибок, маршрутизацию новых запросов отключают и дают начатым завершиться. Эти действия распространяются не мгновенно, поэтому нужны запас времени и обработка отказов на клиенте."
 >
   <CardGrid min={240} gap={14} align="start">
     {DRAIN_STEPS.map((step) => (

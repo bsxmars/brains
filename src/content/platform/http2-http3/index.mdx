@@ -4,7 +4,7 @@ heading: "HTTP/2 и HTTP/3: потоки, кадры и QUIC"
 headingWidth: 24
 order: 14
 kicker: сеть и безопасность
-lead: "HTTP/1.1 везёт по соединению один запрос за раз, и браузер держит шесть соединений на сервер. HTTP/2 отправляет всё по одному соединению: режет запросы на кадры с номером потока и сжимает заголовки так, что повторный `user-agent` занимает один байт. HTTP/3 переносит те же потоки в QUIC поверх UDP, и потерянный пакет больше не задерживает соседние файлы."
+lead: "HTTP/1.1 везёт по соединению один запрос за раз, и браузер держит шесть соединений на сервер. HTTP/2 отправляет всё по одному соединению: режет запросы на кадры с номером потока и сжимает заголовки так, что повторный `user-agent` занимает один байт. HTTP/3 переносит те же потоки в QUIC поверх UDP, и потеря данных одного потока не требует останавливать доставку остальных."
 summary: "Шесть соединений против одного; 9-байтовый заголовок кадра, типы кадров, номера потоков, SETTINGS трёх браузеров; окно 65 535 и WINDOW_UPDATE; HPACK по битам — статическая и динамическая таблицы, целые с префиксом, Хаффман; почему HTTP/2 не спасает от потерь TCP и куда делся server push; HTTP/3: кадры в QUIC, первый пакет Initial, 1-RTT и 0-RTT, миграция, QPACK, `Alt-Svc`."
 verifiedOn: "Node 24.11.0 (nghttp2 1.66.0), Chromium 153.0.8010.12, Firefox 155.0, WebKit 26.6 (Playwright 1.63), октябрь 2026: байты кадров сняты прокси между клиентом и сервером node:http2 (для браузеров — с расшифровкой TLS); разбор кадров и HPACK сверен tests/unit/http2-http3.test.ts с nghttp2 и векторами RFC 7541. QUIC-сервера на стенде нет — HTTP/3 разобран по RFC 9000, 9114 и 9204, кроме заголовка первого пакета Chromium"
 nav:
@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FrameLab from '@/widgets/h2-frame-lab/ui/FrameLab.vue';
 import IntLab from '@/widgets/h2-frame-lab/ui/IntLab.vue';
 import {
+  MECHANISM_DIAGRAM,
   GLOSSARY,
   PLAIN_H2,
   CONN_LEAD,
@@ -132,7 +135,7 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Кадры: девять байт заголовка"
-  lead="Всё, что идёт по соединению HTTP/2, — кадры. У каждого одинаковый заголовок из 9 байт, а дальше полезная нагрузка той длины, что указана в заголовке. Получатель не разбирает текст, как в HTTP/1.1: он читает 9 байт, узнаёт длину и тип и сразу знает, где кончается этот кадр и начинается следующий."
+  lead="После начального приветствия HTTP/2 по соединению идут кадры. У каждого одинаковый заголовок из 9 байт, а дальше полезная нагрузка той длины, что указана в заголовке. Получатель не разбирает текст, как в HTTP/1.1: он читает 9 байт, узнаёт длину и тип и сразу знает, где кончается этот кадр и начинается следующий."
 >
   <Plain text={PLAIN_FRAME} />
 
@@ -149,7 +152,9 @@ import {
   <Md text={PREFACE_NOTE} />
 
   <Card title="Разбор кадров из байтов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={FRAME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Разбор кадров HTTP/2">
+      <CodeBlock code={FRAME_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <Table
@@ -191,13 +196,15 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Потоки вперемешку и окно приёма"
-  lead="Номер потока в каждом кадре позволяет слать кадры разных запросов вперемешку: получатель разложит их обратно. Но все потоки делят одно соединение. Чтобы один поток не забил его, у каждого потока есть окно — сколько байт получатель готов принять."
+  lead="Номер потока в каждом кадре позволяет слать кадры разных запросов вперемешку: получатель разложит их обратно. Но все потоки делят одно соединение. Получатель ограничивает объём ещё не обработанных данных двумя окнами: отдельным для потока и общим для соединения. Окно защищает память получателя; распределять полосу между потоками должен планировщик отправителя."
 >
   <Md text={MUX_NOTE} />
 
   ### Окно
 
   <Plain text={PLAIN_WINDOW} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 
   <Table
     head={['сценарий', 'байт DATA дошло', 'WINDOW_UPDATE от клиента']}
@@ -216,7 +223,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="HPACK: заголовок одним байтом"
-  lead="Заголовки запросов почти не меняются от запроса к запросу: тот же `user-agent`, тот же `accept`, те же куки. HTTP/1.1 отправлял их текстом каждый раз. HPACK запоминает уже отправленное в таблице, общей для обеих сторон, и дальше передаёт номер."
+  lead="Заголовки запросов почти не меняются от запроса к запросу: тот же `user-agent`, тот же `accept`, те же куки. HTTP/1.1 отправлял их текстом каждый раз. HPACK запоминает уже отправленное в синхронных таблицах кодировщика и декодера и дальше передаёт номер. Для каждого направления соединения состояние своё: таблица запросов не является таблицей ответов."
 >
   <Plain text={PLAIN_HPACK} />
 
@@ -235,7 +242,9 @@ import {
   ### Две таблицы
 
   <Card title="Статическая таблица, динамическая таблица" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={HPACK_TABLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Статическая таблица и состояние HPACK">
+      <CodeBlock code={HPACK_TABLE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <Md text={STATIC_NOTE} />
@@ -248,7 +257,9 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="RFC 7541, §5.1" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={HPACK_INT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="Код целых с префиксом">
+        <CodeBlock code={HPACK_INT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      </Disclosure>
     </Card>
 
     <Table
@@ -260,7 +271,7 @@ import {
     />
   </CardGrid>
 
-  <IntLab client:visible frameCode={FRAME_CODE} intCode={HPACK_INT_CODE} tableCode={HPACK_TABLE_CODE} decodeCode={HPACK_DECODE_CODE} caption={INT_DEMO_CAPTION} />
+  <IntLab client:visible intCode={HPACK_INT_CODE} caption={INT_DEMO_CAPTION} />
 
   ### Что за запись — по первым битам
 
@@ -274,7 +285,9 @@ import {
   />
 
   <Card title="Декодер блока заголовков" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={HPACK_DECODE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходник декодера HPACK">
+      <CodeBlock code={HPACK_DECODE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={HUFFMAN_NOTE} />
@@ -335,7 +348,9 @@ import {
   <Md text={QUIC_PACKET_LEAD} />
 
   <Card title="Длинный заголовок QUIC" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={QUIC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Разбор длинного заголовка QUIC">
+      <CodeBlock code={QUIC_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={VARINT_NOTE} />

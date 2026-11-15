@@ -593,6 +593,8 @@ ${t.REACT_LIFT_CODE}
 
 ${t.REACT_CARET_FIX_CODE}
 
+${t.IME_REACT_CODE}
+
 const save = (title) => new Promise((ok) => { window.__saves.push(title); window.__release = ok; });
 window.__saves = [];
 ${t.ACTION_CODE}
@@ -609,6 +611,7 @@ createRoot(document.getElementById('react')).render(<>
   <div id="react-fix"><UpperInput /></div>
   <ImeReact id="ime-react" start="" />
   <ImeReact id="ime-react-upper" start="ABCDEF" transform={up} />
+  <SafeImeInput id="ime-react-safe" />
   <div id="action"><OrderForm /></div>
   <div id="lift"><Form /></div>
 </>);
@@ -726,6 +729,16 @@ describe('Chromium: каретка — CARET_ROWS', () => {
   });
 });
 
+it('React восстанавливает каретку и при прежнем преобразованном тексте', async () => {
+  const input = page.locator('#react-fix input');
+  await input.fill('ABCDEF');
+  await input.evaluate((el: HTMLInputElement) => el.setSelectionRange(0, 1));
+  await page.keyboard.type('a');
+  await page.waitForTimeout(40);
+  expect(await input.inputValue()).toBe('ABCDEF');
+  expect(await input.evaluate((el: HTMLInputElement) => el.selectionStart)).toBe(1);
+});
+
 describe('Chromium: правки DOM от одного символа — RENDER_DOM', () => {
   for (const [id, renders, expected] of [['lift', 6, () => t.RENDER_DOM], ['vue-lift', 3, () => t.RENDER_DOM_VUE]] as const) it(`${id}: рендеры и записи в DOM`, async () => {
     await page.locator(`#${id} input[name="name"]`).click();
@@ -809,6 +822,15 @@ describe('Chromium: IME — IME_TRACE, IME_COUNTS, IME_UPPER', () => {
     const got = { react: await page.locator('#ime-react-upper').inputValue(), vue: await page.locator('#ime-vue-upper').inputValue() };
     dump('ime-upper', got);
     expect(got).toEqual({ react: t.IME_UPPER.react, vue: t.IME_UPPER.vue });
+  });
+
+  it('IME_REACT_CODE сохраняет сырой ввод до compositionend', async () => {
+    await compose('#ime-react-safe', ['k', 'ka', 'kan'], 'かん');
+    expect(await page.locator('#ime-react-safe').inputValue()).toBe('かん');
+    await page.locator('#ime-react-safe').fill('');
+    await compose('#ime-react-safe', ['a', 'ab'], 'abc');
+    expect(await page.locator('#ime-react-safe').inputValue()).toBe('ABC');
+    expect(t.IME_GUARD_NOTE).toContain('сохранить сырой текст');
   });
 
   it('текст раздела называет снятые числа', () => {

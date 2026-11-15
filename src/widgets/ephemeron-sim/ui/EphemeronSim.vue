@@ -40,6 +40,11 @@ const keyReachableOutside = computed(
   () => scenario.value.holder === 'key' || (scenario.value.holder === 'value' && scenario.value.valueToKey),
 );
 const entrySurvives = computed(() => keyReachableOutside.value);
+const ruleText = computed(
+  () => `Запись жива ⇔ ключ достижим **иначе**, чем через саму эту запись. `
+    + `Здесь ключ ${keyReachableOutside.value ? 'достижим' : 'не достижим'} снаружи — `
+    + `значит запись ${entrySurvives.value ? 'сохраняется' : 'удаляется'}.`,
+);
 
 const verdict = computed(() => {
   if (!collected.value) return { tone: 'dim', text: 'выберите случай и посмотрите, что сохранится по схеме' };
@@ -93,9 +98,7 @@ const gone = computed(() => collected.value && !entrySurvives.value);
 
         <div class="rule">
           <span class="rule__head">правило спецификации</span>
-          Запись жива ⇔ ключ достижим <b>иначе</b>, чем через саму эту запись.
-          Здесь ключ {{ keyReachableOutside ? 'достижим' : 'не достижим' }} снаружи —
-          значит запись {{ entrySurvives ? 'сохраняется' : 'удаляется' }}.
+          <Md :text="ruleText" />
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -105,13 +105,16 @@ describe('раздел 2 · наблюдатель', () => {
 
   it('OBSERVER_PLATFORM_NOTE: когда наблюдатели отдают пачку — как в замере темы «Наблюдатели»', () => {
     // MutationObserver — до setTimeout и до кадра (микрозадача), ResizeObserver — в кадре после rAF,
-    // IntersectionObserver — последним, позже setTimeout из ResizeObserver: задачей после кадра.
+    // В этом журнале Chromium IO идёт позже таймера из RO. Это порядок стенда,
+    // а не гарантия предъявления пикселей: спецификация IO §3.2.4 задаёт отдельную task source.
     const at = (s: string) => obs.ORDER_LOG.findIndex((l) => l.endsWith(s));
     expect(at('MutationObserver, записей: 1')).toBeLessThan(at('setTimeout 0'));
     expect(obs.ORDER_LOG[at('ResizeObserver')]).toMatch(/^кадр \+1/);
     expect(at('rAF')).toBeLessThan(at('ResizeObserver'));
     expect(at('IntersectionObserver')).toBeGreaterThan(at('setTimeout из ResizeObserver'));
-    expect(t.OBSERVER_PLATFORM_NOTE).toContain('`MutationObserver` — микрозадачей, `ResizeObserver` — в кадре, `IntersectionObserver` — задачей после кадра');
+    expect(t.OBSERVER_PLATFORM_NOTE).toContain('`MutationObserver` — микрозадачей, `ResizeObserver` — в кадре, `IntersectionObserver` — отдельной задачей');
+    expect(t.OBSERVER_PLATFORM_NOTE, 'доставка IO не доказывает, что пиксели уже на экране')
+      .toContain('не гарантирует, что кадр уже показан');
     expect(t.OBSERVER_PLATFORM_NOTE).not.toContain('в своё время кадра');
   });
 
@@ -327,3 +330,31 @@ for (const [k, name] of rows) {
 }
 console.log(JSON.stringify(result));
 `;
+
+
+describe('практический контракт', () => {
+  it('асинхронная рассылка сохраняет результаты остальных после синхронного throw', async () => {
+    checkPage(t.PRACTICE_CODE);
+    expect(await execute(t.PRACTICE_CODE)).toEqual(t.PRACTICE_OUT);
+  });
+});
+
+
+describe('отклонённый промис слушателя в настоящем Node', () => {
+  it.each([
+    ['target', 'uncaughtException', 1],
+    ['default', 'unhandledRejection', 1],
+    ['capture', 'error: listener failed', 0],
+  ] as const)('%s: наблюдаемый канал отказа и код выхода', (mode, channel, status) => {
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', t.REJECTION_PROBE_CODE], {
+      encoding: 'utf8', timeout: 5000, env: { ...process.env, PROBE_MODE: mode },
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.stdout.trim().split('\n')).toEqual(['рассылка вернулась', channel]);
+    expect(result.status).toBe(status);
+    // ASYNC_NOTE различает ожидание отправителя и обработку отказа платформой.
+    expect(t.ASYNC_NOTE).toContain('Node `EventTarget` перехватывает отказ');
+    expect(t.ASYNC_NOTE).toContain('`captureRejections: true`');
+    expect(t.ASYNC_NOTE).not.toContain('не смотрят на него');
+  });
+});

@@ -7,6 +7,12 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import {
   AUGMENT_FILES,
+  COMPILE_BOUNDARY_CODE,
+  ERASURE_SIZE_EXAMPLES,
+  INFER_EXTENDS_CODE,
+  MECHANISM_DIAGRAM,
+  STATE_NARROW_CODE,
+  STATE_NOTES,
   CLASS_CONTRACT_CODE,
   CLASS_PRIVATE_CODE,
   CLASS_PRIVATE_OUT,
@@ -990,10 +996,8 @@ describe('третий проход · раздел 5: полиморфный `t
  * проверяются в эмите, берутся **из самой схемы `ERASURE_CODE`**: если схема обещает
  * `Level[Level["Low"] = 0] = "Low";`, компилятор обязан это напечатать.
  *
- * ⚠️ Байты «188 против 43» из `ERASURE_NOTES` дословно не воспроизводятся: исходник той
- * фикстуры в теме не записан, а число байт зависит от каждого пробела в нём. Закреплено
- * отношение — файл с `enum` в разы тяжелее файла с объединением строк, — и оно же
- * сверяется с числами текста. Детерминированное число есть одно: 11 байт `export {};\n`.
+ * Байты 188/43 воспроизводятся на `ERASURE_SIZE_EXAMPLES`, напечатанных в теме:
+ * tsc 6.0.3, ES2022/ESNext, без минификации. Ни исходники, ни числа не дублируются.
  */
 describe('раздел 1 · стирание: что переживает компиляцию', () => {
   const ERASURE_FIXTURES: Record<string, string> = {
@@ -1094,15 +1098,16 @@ describe('раздел 1 · стирание: что переживает ком
   });
 
   it('файл с enum в разы тяжелее того же файла на объединении строк — и текст говорит то же', () => {
-    const enumJs = emit('export enum Level { Low, High }\nexport const isHigh = (l: Level) => l === Level.High;\n');
-    const unionJs = emit("export type Level = 'low' | 'high';\nexport const isHigh = (l: Level) => l === 'high';\n");
+    const enumJs = emit(ERASURE_SIZE_EXAMPLES.enum);
+    const unionJs = emit(ERASURE_SIZE_EXAMPLES.union);
     expect(unionJs).toBe("export const isHigh = (l) => l === 'high';\n");
     const ratio = Buffer.byteLength(enumJs) / Buffer.byteLength(unionJs);
     expect(ratio).toBeGreaterThan(3);
 
-    // Числа текста дословно не проверить (см. докстринг) — проверяется, что они о том же.
+    // Точные размеры считаем по тем же исходникам, которые читатель видит на странице.
     const [enumBytes, unionBytes] = [...ERASURE_NOTES[0].matchAll(/\*\*(\d+)(?: байт)?\*\*/g)].map((m) => Number(m[1]));
-    expect(enumBytes / unionBytes).toBeGreaterThan(3);
+    expect([enumBytes, unionBytes]).toEqual([Buffer.byteLength(enumJs), Buffer.byteLength(unionJs)]);
+    expect(ERASURE_NOTES[0]).toContain("`namespace` со значением тоже создаёт объект");
   });
 
   it('--erasableSyntaxOnly: ts(1294) ровно на четырёх, остальные молчат', () => {
@@ -1331,7 +1336,41 @@ describe('вычитка 2026-10-30: отсылки и числа в текст�
     expect(erasure).toBeGreaterThan(0);
     expect(s1.slice(erasure + 1)).toContain('### `type` или `interface`');
     expect(mdx).not.toContain('в конце раздела «Тип как вычисление»');
-    expect(mdx).toContain('в подразделе о стирании');
+    // Вступление больше не пересказывает расположение блоков. Стирание и таблица
+    // остаются внутри s1, а новая схема связана с исполняемым примером до неё.
+    expect(mdx.indexOf('code={COMPILE_BOUNDARY_CODE}')).toBeLessThan(mdx.indexOf('data={MECHANISM_DIAGRAM}'));
+    expect(s1).toContain('code={ERASURE_CODE}');
   });
 });
 
+
+
+describe('граница проверки типов и выполнения', () => {
+  it('JSON.parse проходит проверку User, но тот же исходник бросает TypeError', () => {
+    checkPage(COMPILE_BOUNDARY_CODE);
+    expect(() => execute(COMPILE_BOUNDARY_CODE)).toThrow(TypeError);
+    const runtime = MECHANISM_DIAGRAM.nodes.find((node) => node.id === 'runtime')!;
+    expect(runtime.detail).toContain('TypeError');
+    expect(MECHANISM_DIAGRAM.edges.some((edge) => edge.from === 'checker' && edge.to === 'runtime')).toBe(false);
+  });
+
+  it('два вида деструктуризации и const-условие сужают именно напечатанный пример', () => {
+    checkPage(STATE_NARROW_CODE);
+    // 4.4 и 4.6 — разные возможности из release notes: не относить исходный объект к 4.6.
+    expect(STATE_NOTES[3]).toContain('С 4.4');
+    expect(STATE_NOTES[3]).toContain('С 4.6');
+    expect(STATE_NOTES[3]).toContain('двух извлечённых полей');
+  });
+
+  it('вывод числового литерала требует обратимой печати строки', () => {
+    checkPage(`${INFER_EXTENDS_CODE}\n${HEAD}
+      type _A = Expect<IsEqual<A, 'h'>>;
+      type _B = Expect<IsEqual<B, 42>>;
+      type _C = Expect<IsEqual<C, number>>;
+      type _D = Expect<IsEqual<D, never>>;
+    `);
+    const mdx = readFileSync('src/content/tooling/typescript/index.mdx', 'utf8');
+    // Синтаксис infer-ограничения — 4.7; числовой литерал вместо number — 4.8.
+    expect(mdx).toContain('вывод самого литерала — в **4.8**');
+  });
+});

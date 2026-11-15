@@ -283,8 +283,8 @@ onBeforeUnmount(() => {
         <div v-if="summary" class="hint">
           <template v-if="summary.line !== null">
             Первая ошибка — в строке {{ summary.line }}. Число перед ней в логе
-            (<code>0:{{ summary.line }}</code>) — это не колонка, а номер исходника в массиве,
-            переданном в <code>shaderSource</code>.
+            (<code>{{ summary.source }}:{{ summary.line }}</code>) — номер исходника в диагностике GLSL,
+            а не колонка. WebGL <code>shaderSource</code> принимает одну строку исходного текста.
           </template>
           <template v-else>
             Ошибка не привязана к строке: компилятор пишет координаты
@@ -311,7 +311,7 @@ onBeforeUnmount(() => {
     <template #footer>
       <div class="disclaimer">
         <Md :text="vertexNote" />
-        <CodeView class="vertex" lang="wgsl" :code="VERTEX" />
+        <CodeView class="vertex" lang="glsl" :code="VERTEX" />
       </div>
     </template>
   </DemoFrame>

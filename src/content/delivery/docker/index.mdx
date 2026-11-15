@@ -2,9 +2,9 @@
 title: "Docker: образ и слои"
 order: 1
 kicker: доставка
-lead: "Образ Docker — не архив с приложением, а стопка слоёв. Каждый слой хранит только то, что изменила одна строка Dockerfile, а короткий JSON-файл перечисляет, какие слои входят в образ. Отсюда следует всё остальное: почему удаление файла не уменьшает образ, почему от порядка строк в Dockerfile зависит скорость сборки и почему ваше приложение вместе с зависимостями — всего три процента того, что уезжает на сервер."
+lead: "Образ Docker — не архив с приложением, а стопка слоёв. Слой хранит изменения файлов, конфиг — настройки запуска, а манифест связывает конфиг и слои. Отсюда следует всё остальное: почему удаление файла не уменьшает образ, почему от порядка строк в Dockerfile зависит скорость сборки и почему размер базы может быть гораздо больше размера самого приложения."
 summary: "Из чего состоит образ; как Docker решает, какой шаг сборки взять из кеша; почему важен порядок строк в Dockerfile; как многоступенчатая сборка оставляет инструменты сборки за бортом и откуда на самом деле берётся вес образа."
-verifiedOn: "Docker 27.4.0 (BuildKit), платформа arm64/linux, macOS, сентябрь 2026. Базовые образы node:22, node:22-slim, node:22-alpine (Node 22.23.2, Alpine 3.24.1). Числа сняты на arm64 — на amd64 веса другие. Реестры, опись и подпись образов, сканирование уязвимостей, bake и права контейнера при запуске замером не закрыты — описаны по документации."
+verifiedOn: "Исторические размеры и времена: Docker 27.4.0 (BuildKit), платформа arm64/linux, macOS, сентябрь 2026. Базовые образы node:22, node:22-slim, node:22-alpine (Node 22.23.2, Alpine 3.24.1). Числа сняты на arm64 — на amd64 веса другие. Реестры, опись и подпись образов, сканирование уязвимостей, bake и права контейнера при запуске замером не закрыты — описаны по документации. Инструкция и файловый слой разделены реальным BuildKit-прогоном FROM scratch в docker-mechanisms.test.ts (Docker 27.4.0, ноябрь 2026)."
 nav:
   - { id: s1, label: Что такое образ }
   - { id: s2, label: Как кеш решает }
@@ -16,6 +16,7 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -30,12 +31,16 @@ import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import LayersDiagram from '@/widgets/docker-layers-diagram/ui/LayersDiagram.astro';
 import StagesDiagram from '@/widgets/docker-stages-diagram/ui/StagesDiagram.astro';
 import LayerCache from '@/widgets/layer-cache/ui/LayerCache.vue';
 import ImageSize from '@/widgets/image-size/ui/ImageSize.vue';
 import {
+  INSTRUCTION_LAYERS_CODE,
+  HISTORICAL_SHARE_NOTE,
+  VERIFICATION_SOURCES,
   BASE_LAYERS_ROWS,
   BAKE_CODE,
   BAKE_FACTS,
@@ -98,14 +103,12 @@ import {
   RELATED,
 } from './data';
 
-<Section variant="intro" eyebrow="Почему про образ стоит знать больше, чем «это коробка с приложением»" gap={24}>
+<Section variant="intro" eyebrow="Файлы и настройки запуска" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Образ удобно представлять архивом: положили приложение, закрыли, увезли. Но эта картинка
-    не объясняет ни одной странности Docker, с которыми сталкиваешься на практике.
-    **Образ — это стопка слоёв плюс JSON-файл, который их перечисляет. Каждый слой хранит
-    только изменения: какие файлы одна строка Dockerfile добавила или поменяла.** Всё остальное
-    в теме следует отсюда.
+    **Образ хранит изменения файлов и конфигурацию запуска.** Файлы складываются из
+    неизменяемых слоёв; ENV, USER и CMD задают настройки. Манифест связывает конфиг
+    со слоями. Поэтому строк в docker history может быть больше, чем файловых слоёв.
 
   </Callout>
 
@@ -113,15 +116,15 @@ import {
 
   <Card tone="warn" title="Одно правило, из которого выводится вся тема" titleSize={17} pad={20} gap={11} size={16} lh={1.6}>
 
-    Каждая инструкция Dockerfile даёт **слой**. У слоя есть **ключ кеша** — отпечаток того,
-    из чего слой сделан. Слои выстроены в **цепочку**. Если ключ совпал с прошлой сборкой,
+    У шага сборки есть **ключ кеша** — отпечаток инструкции и её входов. Изменение файлов
+    может создать слой; изменение настроек может оставить только запись в конфиге.
+    Шаги обычной ступени зависят от предыдущих. Если ключ совпал с прошлой сборкой,
     Docker берёт готовый слой с диска и ничего не выполняет. Если не совпал — пересобирает этот
-    слой и **все слои ниже по тексту файла**, даже если их строки не менялись.
+    шаг и зависимые от него шаги этой ступени, даже если их строки не менялись.
 
     <CardNote tone="warn">
 
-      Отсюда главное правило для автора Dockerfile: **что меняется реже, ставь выше**. Цену
-      ошибки показывает замер ниже. Правка одной строки кода пересобирается за 1.1 секунды при
+      Отсюда главное правило для автора Dockerfile: **что меняется реже, ставь выше**. Исторический замер сентября 2026 года показывает цену на одной фикстуре. Правка одной строки кода пересобирается за 1.1 секунды при
       правильном порядке и за 3.0 — при неправильном. Во втором случае Docker заново ставит
       зависимости, которых никто не трогал.
 
@@ -151,7 +154,8 @@ import {
 
   <Card title="Из чего состоит «маленький» alpine" titleSize={18} pad={22} gap={14} size={16} lh={1.6}>
 
-    `node:22-alpine` принято называть лёгким. Он весит **160.9 МБ**, и вот куда они уходят.
+    В историческом снимке сентября 2026 года `node:22-alpine` для arm64 весил **160.9 МБ**.
+    Тег изменяемый: это разбор сохранённого образа, а не текущий размер в реестре.
 
     <Table
       head={['слой', 'вес', 'что это']}
@@ -172,6 +176,11 @@ import {
     </CardNote>
   </Card>
 
+  <Disclosure title="Инструкция не равна файловому слою: минимальный Dockerfile">
+    <CodeBlock lang="docker" code={INSTRUCTION_LAYERS_CODE} />
+    <Md text="У target `metadata` нет файловых слоёв: ENV, LABEL и CMD меняют конфиг. WORKDIR может создать каталог, COPY добавляет файл. История инструкций и RootFS.Layers отвечают на разные вопросы." />
+  </Disclosure>
+
   <LayersDiagram {...LAYERS_DIAGRAM} />
 
   <DarkPanel eyebrow="Почему слой — это разница, а не снимок">
@@ -188,7 +197,8 @@ import {
 
       У этой экономии есть неприятное следствие — первое в списке тонких мест. Слой умеет
       **дописывать**, но не умеет вычитать. Удаление файла записывается в верхний слой особой
-      пометкой, а сами байты остаются в нижнем — и скачиваются заново при каждом `docker pull`.
+      пометкой, а сами байты остаются в нижнем. Чистому получателю всё ещё нужен этот слой;
+      повторный pull уже имеющегося слоя его не скачивает.
 
     </DarkText>
 
@@ -196,7 +206,7 @@ import {
 
       Запущенный контейнер получает поверх стопки ещё один слой — пустой и единственный
       доступный для записи. Всё, что приложение пишет на диск, попадает туда и исчезает вместе
-      с контейнером. Поэтому данные, которые должны пережить перезапуск, держат не в контейнере,
+      с контейнером. Поэтому данные, которые должны пережить удаление и пересоздание контейнера, держат не в его записываемом слое,
       а в томе — об этом [раздел «Тома и данные»](/delivery/compose/#s4) темы про Compose.
 
     </DarkText>
@@ -208,7 +218,9 @@ import {
   под своим digest. Поэтому `push` и `pull` передают **только недостающие слои** — это видно
   прямо в выводе команд.
 
-  <CodeBlock lang="shellsession" code={REGISTRY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <Disclosure title="Команды работы с реестром">
+    <CodeBlock lang="shellsession" code={REGISTRY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  </Disclosure>
 
   <CardGrid min={290} gap={14}>
     {REGISTRY_FACTS.map((fact) => (
@@ -226,7 +238,9 @@ import {
 
   <Plain text={PLAIN_SUPPLY} />
 
-  <CodeBlock lang="shellsession" code={SUPPLY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <Disclosure title="Справка: SBOM, provenance и подпись">
+    <CodeBlock lang="shellsession" code={SUPPLY_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  </Disclosure>
 
   <CardGrid min={290} gap={14}>
     {SUPPLY_FACTS.map((fact) => (
@@ -270,9 +284,8 @@ import {
 
   <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6}>
 
-    **Ключ `RUN` — это текст команды, а не её результат.** Docker не запускает команду, чтобы
-    узнать, изменилось ли что-то снаружи. Он сравнивает строку. Поэтому `RUN apt-get update`
-    совпадает с прошлой сборкой всегда, даже через год. Это не полезная оптимизация, а ловушка —
+    **Ключ `RUN` учитывает команду и входное состояние, а не свежесть внешнего репозитория.** Docker не запускает команду, чтобы
+    узнать, изменилось ли что-то снаружи. При тех же входах RUN apt-get update может совпасть с прошлой сборкой и через год. Это не полезная оптимизация, а ловушка —
     она разобрана в тонких местах.
 
   </Card>
@@ -282,18 +295,19 @@ import {
 
     <CardNote tone="prose">
 
-      `docker history` — главный инструмент темы: он показывает **вес каждого слоя и строку,
-      которая его создала**. Читая его, помните две вещи. Первая: `0B` значит не «мало», а «ни
-      одного файла» — `WORKDIR`, `ENV` и `CMD` меняют только конфиг. Вторая: размеры в колонке
-      **округлены**, поэтому их сумма не сойдётся с `docker image inspect` до байта. Вес
-      приложения точнее считать вычитанием: размер образа минус размер базы.
+      `docker history` показывает вклад шагов и строку, которая его создала. `0B` —
+      не доказательство, что файлового слоя нет: WORKDIR может создать пустой каталог.
+      ENV, USER и CMD меняют конфиг. Количество файловых слоёв отдельно показывает
+      RootFS.Layers из inspect. Размеры в history округлены, поэтому их сумма может
+      не совпасть с inspect до байта; вклад приложения точнее считать разностью размера
+      готового образа и базы.
 
     </CardNote>
   </Card>
 
   <Plain text={PLAIN_CONTEXT} />
 
-  <Card tone="info" title="Контекст сборки уезжает демону целиком — ещё до первой инструкции" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Card tone="info" title="Контекст ограничивает файлы, доступные COPY и ADD" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="shellsession" code={CONTEXT_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CheckList items={CONTEXT_NOTE} tone="ok" size={14.5} />
@@ -307,15 +321,13 @@ import {
   title="Почему от порядка инструкций зависит скорость сборки"
   lead={ORDER_DEMO_NOTE}
 >
-  <LayerCache client:visible variants={BUILD_VARIANTS} changes={BUILD_CHANGES} caption={DEMO_CAPTION} />
-
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Так делать не надо" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock lang="docker" code={DOCKERFILE_BAD} size={11} lh={1.7} pad="14px 16px" />
 
       <CardNote tone="err">
 
-        `COPY . .` стоит перед установкой. Поэтому **любая** правка любого файла — запятая
+        `COPY . .` стоит перед установкой. Поэтому правка любого попавшего в контекст и копируемого файла — запятая
         в `README`, строка в тесте — ломает кеш этого слоя, а за ним и `npm ci`. Зависимости
         ставятся заново на каждый коммит, хотя их никто не менял.
 
@@ -328,13 +340,15 @@ import {
       <CardNote tone="ok">
 
         Файлы со списком зависимостей копируются отдельно и раньше кода. Теперь слой
-        с `node_modules` зависит **только от `package-lock.json`** и переживает любую правку
+        с `node_modules` зависит от `package.json`, `package-lock.json`, команды и предшествующего состояния и переживает любую правку
         кода. Приём работает в любом языке: `go.sum`, `requirements.txt`, `Cargo.lock`
         копируют так же и по той же причине.
 
       </CardNote>
     </Card>
   </CardGrid>
+
+  <LayerCache client:visible variants={BUILD_VARIANTS} changes={BUILD_CHANGES} caption={DEMO_CAPTION} />
 
   <Table
     head={['что изменили', 'зависимости раньше кода', '`COPY . .` раньше установки']}
@@ -366,7 +380,9 @@ import {
 
   <Md text={CI_CACHE_LEAD} />
 
-  <CodeBlock lang="shellsession" code={CI_CACHE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <Disclosure title="Справка: перенос кеша между CI-машинами">
+    <CodeBlock lang="shellsession" code={CI_CACHE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  </Disclosure>
 
   <CheckList items={CI_CACHE_FACTS} tone="ok" size={14.5} />
 </Section>
@@ -413,7 +429,9 @@ import {
   сборки обрастают флагами, расходятся между CI и машинами разработчиков, и собираются
   образы по очереди, хотя друг от друга не зависят.
 
-  <CodeBlock lang="shellsession" code={BAKE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  <Disclosure title="Полный docker-bake.hcl">
+    <CodeBlock lang="shellsession" code={BAKE_CODE} size={11.5} lh={1.7} pad="16px 18px" />
+  </Disclosure>
 
   <CheckList items={BAKE_FACTS} tone="ok" size={14.5} />
 </Section>
@@ -424,6 +442,8 @@ import {
   title="Размер образа и откуда он берётся"
   lead="Одно и то же приложение упаковано четырьмя способами. Размер образа — от 165.9 МБ до 1166.5 МБ, то есть различается в семь раз. И почти вся эта разница — не ваш код."
 >
+  <Md text={HISTORICAL_SHARE_NOTE} />
+
   <ImageSize client:visible bars={SIZE_BARS} unit="МБ" caption={SIZE_CAPTION} />
 
   <Table
@@ -546,6 +566,8 @@ import {
   title="Источники"
   lead="Спецификации OCI меняются медленно и объясняют, как устроен образ. Документация Docker описывает поведение конкретного сборщика. Статьи о практике устаревают быстрее всего."
 >
+  <SourceList items={VERIFICATION_SOURCES} />
+
   <CardGrid min={320} gap={16} align="start">
     {SOURCES.map((group) => (
       <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>

@@ -3,8 +3,8 @@ title: Реактивность Vue
 order: 10
 kicker: фреймворки изнутри
 lead: "Vue сам узнаёт, какой код от каких данных зависит: он замечает каждое чтение реактивного значения и запоминает, кто читал. Когда значение меняется, Vue перезапускает этот код. Граф зависимостей, очередь обновлений и `nextTick` вырастают из одного этого правила."
-summary: "Живой граф зависимостей, очередь обновлений и три режима `flush`, шесть причин «почему не обновляется» — всё на настоящем `@vue/reactivity`."
-verifiedOn: Vue 3.5.42 · Node 24.11
+summary: "Чтения создают граф зависимостей; компонентный планировщик объединяет обновления. Живые демо реактивности, три режима flush и диагностика потерянных связей."
+verifiedOn: Vue 3.5.42 · Node 26.8.2
 nav:
   - { id: s1, label: Модель }
   - { id: s2, label: Граф }
@@ -25,6 +25,8 @@ import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -44,13 +46,13 @@ import {
   SOURCES, RELATED,
   PLAIN_TRACK, PLAIN_PROXY, PLAIN_ACTIVE_SUB, PLAIN_COMPUTED, PLAIN_FLUSH,
   GRAPH_DEMO_NOTE, QUEUE_DEMO_NOTE, TRAPS_DEMO_NOTE,
-  BRANCH_SCENE_CODE, BRANCH_SCENE_NOTE, BRANCH_STEPS, PLAIN_BRANCH,
+  BRANCH_DIAGRAM, BRANCH_SCENE_CODE, BRANCH_SCENE_NOTE, BRANCH_STEPS, PLAIN_BRANCH,
   FLUSH_SCENE_CODE, FLUSH_SCENE_NOTE, FLUSH_STEPS, PLAIN_FLUSH_THREE,
 } from './data';
 
 <Section
   variant="intro"
-  eyebrow="Зачем тема отдельно"
+  eyebrow="Идея"
   lead={INTRO_NOTE}
 >
   <Plain text={PLAIN_TRACK} />
@@ -106,6 +108,8 @@ import {
     </Card>
   </CardGrid>
 
+  <Disclosure title="Цена прокси: замер чтений и памяти">
+
   ### Сколько стоит сам перехват
 
   <Table
@@ -123,6 +127,8 @@ import {
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={COST_WHERE} />
   </Card>
+
+  </Disclosure>
 
 </Section>
 
@@ -144,7 +150,8 @@ import {
     **Как увидеть связи в своём приложении.** Штатный способ спросить, от чего зависит эффект, —
     опции `onTrack` и `onTrigger`, а для компонента — `onRenderTracked`. Работают они только
     в сборке для разработки: в продакшен-сборке этот код вырезан, и там они молчат без ошибки.
-    Демо графа собрано для продакшена, поэтому отмечает связь само — в той строке, где срабатывает `track`.
+    Демо отмечает связь собственными обёртками чтения рядом с обращением к реактивному значению.
+    Выполнение и счётчики настоящие; отображённые рёбра — журнал этих обёрток, а не чтение закрытого `targetMap`.
 
   </Card>
 
@@ -170,6 +177,8 @@ import {
   ### Как эффект забывает связи, которые больше не нужны
 
   <CodeBlock code={BRANCH_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
+
+  <ConceptDiagram data={BRANCH_DIAGRAM} />
 
   <Md text={BRANCH_SCENE_NOTE} />
 
@@ -236,7 +245,7 @@ import {
   />
 
   <CardGrid min={290} gap={16} align="start">
-    <Card tone="ok" title="`'post'` — единственный режим, который видит обновлённый DOM" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
+    <Card tone="ok" title="`'post'` выполняется после патча DOM своего компонента" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
 
       Задание идёт в отдельную очередь. Она выполняется после основной — то есть после того,
       как Vue внёс изменения в DOM (это называют патчем). Измерения, прокрутка, фокус и связка
@@ -297,7 +306,9 @@ import {
 
   <ReactivityTraps client:visible scenarios={TRAPS} />
 
-  ### Полный список причин — их девять
+  <Disclosure title="Ещё причины потерянного обновления">
+
+  ### Где теряется связь
 
   <CardGrid min={290} gap={14} align="start">
     {NOT_UPDATING.map((item) => (
@@ -306,6 +317,8 @@ import {
     ))}
 
   </CardGrid>
+
+  </Disclosure>
 
   <Card title="Как искать причину по шагам" titleSize={17} pad={20} gap={13} size={16} lh={1.6}>
     <NumberedList items={DIAGNOSIS} size={15.5} />
@@ -360,9 +373,10 @@ import {
 >
   <Card tone="ok" title="Что останавливается само" titleSize={17} pad={20} gap={12} size={16} lh={1.6}>
 
-    Всё, что создано **синхронно внутри `setup()`** — `watch`, `watchEffect`, `computed`,
-    вложенные `effectScope`, — привязывается к компоненту и останавливается, когда компонент
-    убирают со страницы.
+    `watch`, `watchEffect` и обычные эффекты, созданные **синхронно внутри `setup()`**,
+    входят в область компонента и останавливаются при размонтировании. Вложенные
+    неотсоединённые области останавливаются вместе с ней. `computed` в Vue 3.5 — отдельный
+    случай: если сохранить ссылку, его можно продолжать читать после остановки области.
 
     <CheckList
       items={[
@@ -375,7 +389,7 @@ import {
 
     <CheckList
       items={[
-        'после `await` — ничьё',
+        'после `await` в обычном async-колбэке — требуется своя остановка',
         'в модуле, на верхнем уровне — живёт вечно',
         'в колбэке таймера — ничьё',
       ]}
@@ -398,7 +412,6 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Источники"
-  lead="Документация отвечает на вопрос «как пользоваться», исходники — на вопрос «почему так себя ведёт». Тонкие места этой темы есть только во вторых."
 >
   <Card pad={22} radius={5} gap={14}>
     <SourceList items={SOURCES} />

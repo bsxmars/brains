@@ -4,9 +4,9 @@ heading: "Аутентификация: сессии, токены, OAuth и OID
 headingWidth: 24
 order: 11
 kicker: сеть и безопасность
-lead: "Сервер должен узнать пользователя на каждом запросе. Либо он помнит его сам — сессия и кука с номером, — либо пользователь приносит подписанное утверждение о себе — токен. Как считается и проверяется подпись JWT, почему его нельзя отозвать, и как вход через чужой сервис — OAuth с PKCE и OpenID Connect — доставляет токен в браузер так, чтобы по дороге его не перехватили."
+lead: "Сервер должен узнать пользователя на каждом запросе. Либо он помнит его сам — сессия и кука с номером, — либо пользователь приносит подписанное утверждение о себе — токен. Как считается и проверяется подпись JWT, почему автономная проверка не узнаёт об отзыве, и как OAuth с PKCE и OpenID Connect возвращают результат входа вашему приложению. При BFF токены получает сервер, при чистой SPA — браузер."
 summary: "Сессия на сервере против самодостаточного токена; подпись JWT HS256 на Web Crypto, почему подпись ≠ шифрование, `alg: none` и отзыв до `exp`; BFF и клиент только в браузере; OAuth 2.0 authorization code + PKCE по шагам — verifier, challenge, `state`; OpenID Connect — id_token, `nonce` и проверки. Вход проверен в Chromium, функции темы сверены с тестовыми векторами RFC."
-verifiedOn: "Node 24.11.0 (Web Crypto, node:crypto), Chromium 153.0.8010.12 (Playwright 1.63.0), октябрь 2026: вход authorization code + PKCE + OIDC через свой сервер авторизации на node:http снят стендом; функции темы сверены tests/unit/authentication.test.ts с RFC 7515 A.1, RFC 7636 B и node:crypto. RFC 6749, 7636, 7519, 7515, 7518, 8725, 9700 и OpenID Connect Core 1.0 — по текстам стандартов"
+verifiedOn: "Функции повторно проверены 12 ноября 2026 на Node 26.8.2. Исходный снимок стенда: Node 24.11.0 (Web Crypto, node:crypto), Chromium 153.0.8010.12 (Playwright 1.63.0), октябрь 2026: вход authorization code + PKCE + OIDC через свой сервер авторизации на node:http снят стендом; функции темы сверены tests/unit/authentication.test.ts с RFC 7515 A.1, RFC 7636 B и node:crypto. RFC 6749, 7636, 7519, 7515, 7518, 8725, 9700 и OpenID Connect Core 1.0 — по текстам стандартов"
 nav:
   - { id: s1, label: Сессия или токен }
   - { id: s2, label: Подпись JWT }
@@ -17,6 +17,8 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -36,6 +38,8 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import JwtLab from '@/widgets/auth-lab/ui/JwtLab.vue';
 import PkceFlow from '@/widgets/auth-lab/ui/PkceFlow.vue';
 import {
+  BFF_BOUNDARY_DIAGRAM,
+  JWT_SCOPE_NOTE,
   GLOSSARY,
   PLAIN_AUTH,
   SESSION_CODE,
@@ -105,7 +109,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Сессия или токен"
-  lead="Сессия: сервер хранит запись о входе, а браузер носит только её случайный номер. Токен: сервер записывает всё нужное в саму строку, подписывает её и больше ничего не хранит. Разница видна на трёх моментах — входе, обычном запросе и выходе."
+  lead="Сессия: сервер хранит запись о входе, а браузер носит только её случайный номер. Самодостаточный токен можно проверить без поиска записи о входе: сервер читает подписанные claims и проверяет их. Это режим проверки, а не обязательное свойство любого токена: OAuth допускает и непрозрачные строки, и серверное состояние для отзыва."
 >
   <CardGrid min={300} gap={16} align="start">
     <Card title="Сессия на сервере" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -132,9 +136,13 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Подпись JWT: как её считают и проверяют"
-  lead="HS256 — самый простой алгоритм подписи JWT: HMAC с хешем SHA-256 и одним общим секретом. Вся подпись и вся проверка умещаются в полсотни строк на Web Crypto, который есть и в браузере, и в Node. Библиотеки делают то же самое, только с большим числом алгоритмов и проверок."
+  lead="HS256 — самый простой алгоритм подписи JWT: HMAC с хешем SHA-256 и одним общим секретом. Учебный код на Web Crypto показывает подпись, выбор разрешённого алгоритма и срок. Приём токена в настоящем API требует также проверки издателя, получателя и правил конкретного вида токена."
 >
   <Plain text={PLAIN_SIGNATURE} />
+
+  <Md text={JWT_SCOPE_NOTE} />
+
+  <Disclosure title="Исходник подписи и учебной проверки JWT">
 
   <Card title="Подпись и проверка HS256" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={JWT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -143,6 +151,8 @@ import {
       <Md text={RFC7515_NOTE} />
     </CardNote>
   </Card>
+
+  </Disclosure>
 
   <CardGrid min={260} gap={14} align="start">
     {SIGN_STEPS.map((step) => (
@@ -167,6 +177,8 @@ import {
   <Md text={STORAGE_NOTE} />
 
   <Plain text={PLAIN_BFF} />
+
+  <ConceptDiagram data={BFF_BOUNDARY_DIAGRAM} />
 
   <Table
     head={['схема', 'как устроено', 'что достанется XSS']}
@@ -271,6 +283,8 @@ import {
 
   ### Документ обнаружения
 
+  <Disclosure title="Discovery: адреса провайдера и его открытые ключи">
+
   <CardGrid min={300} gap={16} align="start">
     <Card title="Адреса и ключи провайдера" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock lang="text" code={DISCOVERY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -278,6 +292,8 @@ import {
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={DISCOVERY_NOTE} />
   </CardGrid>
+
+  </Disclosure>
 
   <DarkPanel eyebrow="Что из этого следует">
     <DarkText size={18} lh={1.55} tone="prose">

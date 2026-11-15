@@ -327,3 +327,10 @@ describe('утверждения темы без отдельного приме
     expect(stderr).toContain('ERR_INVALID_ARG_TYPE');
   });
 });
+
+// Операционная ошибка стрима и неверный вызов API имеют разные каналы.
+it('Writable.write(null) бросает синхронно, несмотря на событийный канал error', () => {
+  const sink = new stream.Writable({ write(_chunk, _encoding, done) { done(); } });
+  expect(() => sink.write(null)).toThrow(TypeError);
+  sink.destroy();
+});

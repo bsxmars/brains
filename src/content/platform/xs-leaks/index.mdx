@@ -4,9 +4,9 @@ heading: "XS-Leaks: как чужой сайт узнаёт о вас, ниче�
 headingWidth: 24
 order: 8
 kicker: сеть и безопасность
-lead: "Правило одного источника не даёт чужой странице прочитать ваш ответ — но не мешает ей заметить, загрузился ли он, сколько в нём фреймов и куда он перенаправил. Одного такого признака хватает, чтобы узнать, вошёл ли человек на сайт или есть ли у него доступ к документу. Закрывают такие утечки несколько заголовков вместе: каждый закрывает часть каналов, и ни один не закрывает все."
+lead: "Правило одного источника не даёт чужой странице прочитать ваш ответ — но не мешает ей заметить, загрузился ли он, сколько в нём фреймов или изменились ли доступные признаки открытого окна. Одного такого признака хватает, чтобы узнать, вошёл ли человек на сайт или есть ли у него доступ к документу. Закрывают такие утечки несколько заголовков вместе: каждый закрывает часть каналов, и ни один не закрывает все."
 summary: "Что такое межсайтовая утечка одного бита и почему SOP её не закрывает; классы утечек и что закрывает каждый; Fetch Metadata и серверная политика изоляции ресурсов, CORP, COOP и frame-ancestors — с поведением каждого заголовка, проверенным в Chromium на двух тестовых сайтах."
-verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless) против своего сервера на Node 26.8.2, https с самоподписанным сертификатом и http для контроля; три хоста a.test, sub.a.test и b.test через --host-resolver-rules, сентябрь 2026. Снималось только поведение защитных заголовков — с ними и без них. Разделение HTTP-кеша — по документации Chrome, без запуска. Firefox и WebKit не снимались"
+verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless) против своего сервера на Node 26.8.2, https с самоподписанным сертификатом и http для контроля; три хоста a.test, sub.a.test и b.test через --host-resolver-rules, сентябрь 2026. Снималось только поведение защитных заголовков — с ними и без них. Разделение HTTP-кеша — по документации Chrome, без запуска. Firefox и WebKit не снимались; уточнения Lax/SOP/CORP и HTTP loopback проверены tests/unit/xs-leaks.test.ts на официальном Node 26.8.2 и Chromium в ноябре 2026"
 nav:
   - { id: s1, label: Один бит вместо ответа }
   - { id: s2, label: Классы утечек }
@@ -17,6 +17,9 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -24,7 +27,6 @@ import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
-import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -34,12 +36,11 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import FetchMetadataPolicy from '@/widgets/fetch-metadata-policy/ui/FetchMetadataPolicy.vue';
 import {
+  OBSERVABLE_BIT_DIAGRAM,
+  DEFENSE_BOUNDARY_DIAGRAM,
   GLOSSARY,
   PLAIN_LEAK,
   PLAIN_FETCH_METADATA,
-  LEAK_CHIPS,
-  LEAK_LINKS,
-  SOP_NOTE,
   BIT_NOTE,
   LEAK_CLASSES,
   CLASSES_NOTE,
@@ -79,16 +80,17 @@ import {
   <Callout size={19} pad="24px 26px">
 
     Чужая страница не может прочитать ответ вашего сайта. Но она может попросить браузер
-    пользователя его загрузить — **с куками пользователя** — и посмотреть, что из этого вышло:
-    ошибка или успех, сколько фреймов, было ли перенаправление. Ответ прочитан не был,
-    а вопрос «вошёл ли этот человек в вашу клинику» уже решён.
+    пользователя его загрузить и посмотреть, что из этого вышло:
+    ошибка или успех, сколько фреймов, закрылось ли окно для открывшего. Ответ прочитан не был,
+    а признак сессии уже мог стать видимым. Это возможно, когда загрузка зависит от личного состояния
+    и различие доступно наблюдателю.
 
   </Callout>
 
-  Такие утечки называют XS-Leaks, от cross-site leaks. Уязвимость здесь не в чьём-то
-  коде — это свойство самого веба, где страницы свободно ссылаются друг на друга. Поэтому
-  и закрывается она не исправлением бага, а заголовками, которые сужают, что чужой сайт
-  может запросить и что он может увидеть.
+  Такие утечки называют XS-Leaks, от cross-site leaks. SOP скрывает содержимое ответа,
+  но страницы по-прежнему встраивают ресурсы и открывают окна. Утечка возникает, когда
+  поведение этих механизмов различает личные состояния пользователя. Защита меняет
+  допустимые запросы, ответы или доступные наблюдателю признаки.
 
   <Plain text={PLAIN_LEAK} />
 
@@ -99,15 +101,9 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Один бит вместо ответа"
-  lead="Утечке нужны три звена: запрос уходит с куками пользователя, ответ зависит от того, кто этот пользователь, и разница видна чужой странице. Каждая защита рвёт одно из этих звеньев, и важно понимать, какое именно."
+  lead="В примере с картинкой сервер отличает вошедшего от анонимного по сессионной куке. Чужая страница не читает картинку, но получает load или error. Для утечки нужны и доступ к личному состоянию, и зависимость ответа от него, и различимый исход."
 >
-  <Card title="Из чего складывается утечка" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
-    <FlowChips minWidth={640} chips={LEAK_CHIPS} />
-
-    <CardNote tone="prose">
-      <Md text={SOP_NOTE} />
-    </CardNote>
-  </Card>
+  <ConceptDiagram data={OBSERVABLE_BIT_DIAGRAM} />
 
   ### Одна картинка, три защиты
 
@@ -129,18 +125,6 @@ import {
 
   <Plain text={PLAIN_ONE_BIT} />
 
-  Те же три звена — и что рвёт каждое, коротко:
-
-  <CardGrid min={280} gap={14} align="start">
-    {LEAK_LINKS.map((link) => (
-      <Card tone={link.tone ?? 'neutral'} title={link.t} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
-        <Md text={link.d} />
-      </Card>
-
-    ))}
-
-  </CardGrid>
-
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={BIT_NOTE} />
 </Section>
 
@@ -150,6 +134,7 @@ import {
   title="Классы утечек и что их закрывает"
   lead="Каналов много, а механизмов защиты немного, и каждый закрывает несколько каналов сразу. Ни один не закрывает все: политика изоляции пропускает переходы, CORP не касается окон, COOP не касается картинок."
 >
+  <Disclosure title="Каналы и ограничения каждой защиты">
   <Table
     head={['канал', 'какой бит утекает', 'что закрывает']}
     rows={LEAK_CLASSES.map((r) => [r.k, r.bit, r.closes])}
@@ -159,6 +144,8 @@ import {
     minWidth={760}
   />
 
+  </Disclosure>
+
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={CLASSES_NOTE} />
 </Section>
 
@@ -166,9 +153,13 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Fetch Metadata: что браузер сообщает серверу"
-  lead="Раньше сервер не мог отличить картинку со своей страницы от той же картинки, вставленной на чужую: запрос одинаковый, куки те же. Теперь браузер добавляет к каждому запросу по https заголовки `Sec-Fetch-*`. Из них видно, откуда пришёл запрос относительно адресата, каким способом и ради чего."
+  lead="Fetch Metadata сообщает серверу контекст запроса: кто инициировал загрузку относительно адресата, каким способом и ради чего. Браузер выставляет Sec-Fetch-* для потенциально доверенных URL — например HTTPS и HTTP loopback. Это контекст запроса, а не удостоверение пользователя."
 >
   <Plain text={PLAIN_FETCH_METADATA} />
+
+  Заголовки в таблице — сохранённый журнал Chromium 153 с исторического HTTPS-стенда.
+  Колонку решения заново считает та же функция, что работает в калькуляторе политики.
+  Таблица не отправляет эти запросы из вашего браузера.
 
   <Table
     head={['что сделала страница', '`Site`', '`Mode`', '`Dest`', 'решение политики']}
@@ -186,7 +177,7 @@ import {
     minWidth={780}
   />
 
-  <Card tone="err" title="На http заголовков нет" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={HTTP_NOTE} />
+  <Card tone="err" title="Недоверенный HTTP и исключение loopback" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6} text={HTTP_NOTE} />
 
   <CardGrid min={280} gap={14} align="start">
     {METADATA_FACTS.map((fact) => (
@@ -203,8 +194,9 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Политика изоляции ресурсов"
-  lead="Самая сильная защита, которую может поставить сам сервер: чужой сайт получает отказ раньше, чем сервер прочитал куку и сходил в базу. Ответа, который зависит от пользователя, не появляется, и чужой странице нечего различать. Переходы по ссылкам политика пропускает, иначе на сайт нельзя было бы прийти из поиска."
+  lead="Ранний отказ по Fetch Metadata может остановить чужую подгрузку до чтения сессии и запроса к базе. Напечатанный вариант допускает свой сайт, запросы без метаданных, открытые адреса и GET-навигации. Последняя ветка включает iframe: для него здесь нет раннего отказа."
 >
+  <Disclosure title="Исходник политики и обвязка node:http">
   <CardGrid min={320} gap={16} align="start">
     <Card title="Политика решает по заголовкам запроса" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={RIP_CODE} size={10.5} lh={1.65} pad="14px 16px" />
@@ -223,11 +215,13 @@ import {
     </Card>
   </CardGrid>
 
+  </Disclosure>
+
   ### Решение политики по заголовкам
 
   <FetchMetadataPolicy client:visible code={RIP_CODE} presets={RIP_PRESETS} ruleNotes={RULE_NOTES} />
 
-  ### Та же политика перед настоящим браузером
+  ### Сохранённый результат браузерного стенда
 
   <Table
     head={['запрос в нашей проверке', 'что получила страница', 'ветка']}
@@ -254,8 +248,10 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="CORP, COOP и frame-ancestors"
-  lead="Политика изоляции решает на сервере, пускать ли запрос. Эти три заголовка работают иначе: сервер отвечает, а браузер решает, что из ответа показать чужой странице. Запрос до сервера при этом доходит всегда."
+  lead="Ранний серверный отказ останавливает работу приложения. Заголовки ответа работают позже: браузер решает, разрешено ли встраивание ресурса и связь окон. Они могут скрыть признак, но не отменяют уже обработанный запрос."
 >
+  <ConceptDiagram data={DEFENSE_BOUNDARY_DIAGRAM} />
+
   ### `Cross-Origin-Resource-Policy`: не встраивать чужим
 
   <Plain text={PLAIN_CORP} />
@@ -292,7 +288,7 @@ import {
 
   <Plain text={PLAIN_COOP_VALUES} />
 
-  Все восемь случаев из наших проверок. Номера строк — те же, на которые ссылается пример выше:
+  <Disclosure title="Восемь сочетаний COOP из исторического стенда">
 
   <Table
     head={['открывает', 'открытое окно', '`window.opener` в окне', 'ссылка у открывшего']}
@@ -303,6 +299,8 @@ import {
     cols="minmax(170px,1fr) minmax(190px,1.1fr) minmax(130px,.7fr) minmax(130px,.7fr)"
     minWidth={680}
   />
+
+  </Disclosure>
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={COOP_NOTE} />
 
@@ -340,17 +338,7 @@ import {
   eyebrow="Раздел 7"
   title="Источники"
 >
-  <CardGrid min={320} gap={16} align="start">
-    {SOURCES.map((group) => (
-      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
-        {group.items.map((item) => (
-          <Md text={item} />
-        ))}
-      </Card>
-
-    ))}
-
-  </CardGrid>
+  <SourceList items={SOURCES} />
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
     <Md text={RELATED} />

@@ -18,6 +18,7 @@ nav:
   - { id: s10, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +36,8 @@ import BlueGreenDiagram from '@/widgets/progressive-delivery-bluegreen-diagram/u
 import BundleDiagram from '@/widgets/progressive-delivery-bundle-diagram/ui/BundleDiagram.astro';
 import {
   ALL_AT_ONCE_WHY,
+  ANALYSIS_LIMITS,
+  SIM_CODE,
   ANALYSIS_CODE,
   ANALYSIS_WHY,
   API_NOTE,
@@ -108,7 +111,7 @@ import {
   BUNDLE_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем тема отдельно" lead={INTRO_NOTE}>
+<Section variant="intro" eyebrow="Два независимых действия: выкат и включение" lead={INTRO_NOTE}>
   <Plain text={PLAIN_CANARY} />
 
   <Glossary items={GLOSSARY} />
@@ -143,9 +146,11 @@ import {
     <Md text={BG_WHY} />
   </Card>
 
-  <BlueGreenDiagram data={BG_DIAGRAM} />
+  <Disclosure title="Rollout с activeService, previewService и окном отката">
+    <CodeBlock lang="yaml" code={BLUEGREEN_CODE} />
+  </Disclosure>
 
-  <CodeBlock lang="yaml" code={BLUEGREEN_CODE} />
+  <BlueGreenDiagram data={BG_DIAGRAM} />
 
   <CardGrid min={270} gap={14} align="start">
     {BG_FACTS.map((fact) => (
@@ -269,7 +274,11 @@ import {
 
   <Plain text={PLAIN_VERDICT} />
 
-  <CodeBlock code={STATS_CODE} />
+  <Disclosure title="Формулы интервалов и учебное правило решения">
+    <CodeBlock code={STATS_CODE} />
+  </Disclosure>
+
+  <Md text={ANALYSIS_LIMITS} />
 
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={STATS_NOTE} />
@@ -344,7 +353,9 @@ import {
     <Md text={PLAN_WHY} />
   </Card>
 
-  <CodeBlock code={PLAN_CODE} />
+  <Disclosure title="Полная функция продвижения по плану">
+    <CodeBlock code={PLAN_CODE} />
+  </Disclosure>
 
   <Table
     head={PLAN_TABLE.head}
@@ -397,7 +408,7 @@ import {
   eyebrow="Раздел 7 · демо"
   eyebrowTone="demo"
   title="Канарейка по шагам"
-  lead="Доля, сценарий и поток виртуальных пользователей. Кто в какой версии, накопленные числа и решение анализа считает модель из этой темы."
+  lead="При малой доле новая версия набирает наблюдения медленно. Даже здоровая канарейка остаётся на паузе, если интервал ещё накрывает порог: отсутствие доказанного ухудшения само по себе не разрешает следующий шаг."
 >
   <Card pad={20} gap={11} size={15.5} lh={1.6}>
     <Md text={DEMO_WHY} />
@@ -406,6 +417,10 @@ import {
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={DEMO_NOTE} />
   </Card>
+
+  <Disclosure title="Источник синтетического трафика: те же запросы при одном сиде">
+    <CodeBlock code={SIM_CODE} />
+  </Disclosure>
 
   <PdCanary
     client:visible

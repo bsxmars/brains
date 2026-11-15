@@ -27,6 +27,14 @@ const TOL = 50;
 const FONTS = 'src/shared/styles/fonts';
 
 describe('fontPhase против Chromium на стенде', () => {
+  it('отделяет параметры модели от таймера и рекомендаций CSS Fonts', () => {
+    // CSS Fonts §3.2: начало font-display — первая попытка использования, preload может быть раньше.
+    expect(t.FONT_DISPLAY_SCOPE).toContain('от первой попытки использовать шрифт');
+    expect(t.FONT_DISPLAY_SCOPE).toContain('не обещает одинаковые миллисекунды');
+    // CSS Fonts §5.3: базовый символ и combining marks не обязаны подбираться независимо.
+    expect(t.FONT_MATCHING_NOTE).toContain('Базовую букву и комбинируемые знаки');
+  });
+
   it('стенд покрывает все пять значений и все задержки', () => {
     for (const display of ['auto', 'block', 'swap', 'fallback', 'optional'] as const) {
       const delays = t.STAND_RUNS.filter((r) => r.display === display && !r.preload).map((r) => r.delay);

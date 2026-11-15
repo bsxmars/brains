@@ -14,7 +14,6 @@ import { onMounted, ref } from 'vue';
 import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { Button } from '@/shared/ui';
 import { runLiveBinding, type LiveRun, type Readings } from '../model/run';
-import CodeView from '@/shared/ui/CodeView.vue';
 
 const ROWS: { key: keyof Readings; expr: string; what: string }[] = [
   { key: 'binding', expr: 'count', what: 'прямой импорт — привязка к чужой ячейке' },
@@ -39,19 +38,12 @@ onMounted(go);
   <DemoFrame>
     <template #toolbar>
       <div class="bar">
-        <span class="t-label">две пары блобов, настоящий import(), числа читает сам модуль</span>
+        <span class="t-label">count изменён через inc(): какие чтения увидят новое значение</span>
         <Button variant="primary" :disabled="busy" @click="go">прогнать заново</Button>
       </div>
     </template>
 
     <div class="body">
-      <div class="split">
-        <div v-for="file in run?.sources ?? []" :key="file.name" class="pane">
-          <div class="t-label">{{ file.name }}</div>
-          <CodeView class="code" :code="file.code" />
-        </div>
-      </div>
-
       <div v-if="!run" class="empty">грузим модули…</div>
 
       <!-- Обёртка с собственной прокруткой обязательна: на телефоне четыре колонки иначе
@@ -85,15 +77,6 @@ onMounted(go);
         при исполнении тела модуля.
       </div>
     </div>
-
-    <template #footer>
-      <div class="disclaimer">
-        В CommonJS та же пара даёт <b>0 и 0</b>: снято в Node 24.11 и закреплено
-        <code>tests/unit/modules.test.ts</code>. Причина не в том, что «require копирует» —
-        объект возвращается по ссылке; копия появилась раньше, когда тело модуля положило
-        значение примитива в свойство объекта.
-      </div>
-    </template>
   </DemoFrame>
 </template>
 
@@ -112,26 +95,6 @@ onMounted(go);
   gap: 18px;
   padding: 22px 20px;
   min-width: 0;
-}
-
-.split {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
-  gap: 14px;
-}
-.pane {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  min-width: 0;
-}
-.code {
-  margin: 0;
-  padding: 13px 15px;
-  border-radius: var(--r2);
-  font-size: var(--fs-3);
-  line-height: 1.7;
-  overflow-x: auto;
 }
 
 .empty {
@@ -204,9 +167,4 @@ tbody tr[data-live='no'] .num {
   color: var(--tone-ok-text);
 }
 
-.disclaimer {
-  font-size: var(--fs-5);
-  line-height: 1.55;
-  color: var(--text-muted);
-}
 </style>

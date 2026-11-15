@@ -4,7 +4,7 @@ export interface Peer {
   weight: number;
   /** Накопленный вес плавного круга (`current_weight` в nginx). */
   current: number;
-  /** Сколько запросов сейчас в работе у этого бэкенда. */
+  /** Активные соединения к бэкенду; в HTTP/1-модели одно занято одним запросом. */
   conns: number;
 }
 

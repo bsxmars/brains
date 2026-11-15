@@ -48,3 +48,17 @@ describe('«Различие»: таблица CONTRAST против устан�
     expect(row[1]).not.toMatch(/внутренн/);
   });
 });
+
+
+// Содержательные уточнения закреплены отдельно от числовых сценариев темы.
+it('редакционная граница: микрозадача планирования React не обещает commit до таймера', () => {
+  const microtask = t.GLOSSARY.find((x) => x.k === 'микрозадача')!.d;
+  expect(microtask).toContain('Scheduler');
+  expect(microtask).not.toContain('В обеих моделях');
+  // Показания привязаны к commit App, а не к гонке Scheduler против setTimeout(0).
+  expect(t.DEMO_REACT_SOURCE).toContain('useLayoutEffect(() =>');
+  expect(t.DEMO_REACT_SOURCE).toContain('commitListeners');
+  expect(t.DEMO_REACT_SOURCE).toContain('awaitingCommit.current');
+  expect(t.DEMO_REACT_SOURCE).not.toContain('window.setTimeout');
+  expect(t.GLOSSARY.find((x) => x.k === 'инвалидация')!.d).not.toContain('помечает **всё поддерево**');
+});

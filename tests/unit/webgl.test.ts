@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { countingContext, emptyCounters } from '@/widgets/draw-calls/lib/counter';
 import { aliveCount, glErrorName, resourceReport } from '@/widgets/context-loss/lib/resources';
 import { badLines, firstError, parseShaderLog } from '@/widgets/shader-lab/lib/parse-log';
-import { DEPTH_STEP, DRAW_MODES, FRAMEBUFFER_FACTS, LOSS_CAUSES, TEXTURE_FACTS } from '@/content/render/webgl/data';
+import { DEPTH_STEP, DRAW_MODES, FRAMEBUFFER_FACTS, LOSS_CAUSES, PIPELINE_STEPS, SHADER_PRESETS, STAGE_FACTS, TEXTURE_FACTS } from '@/content/render/webgl/data';
 
 /**
  * Структурные утверждения темы «WebGL: где кончается браузер».
@@ -25,11 +25,18 @@ describe('лог компилятора GLSL', () => {
 
     expect(issues).toHaveLength(1);
     expect(issues[0].severity).toBe('error');
-    // Второе число — номер СТРОКИ. Первое (0) — индекс исходника в массиве shaderSource,
+    // Второе число — номер СТРОКИ. Первое (0) — номер исходника в диагностике GLSL,
     // и принять его за колонку стоит получаса поисков не в том месте.
     expect(issues[0].line).toBe(8);
     expect(issues[0].source).toBe(0);
     expect(issues[0].text).toBe("'u_tim' : undeclared identifier");
+  });
+
+  it('объяснение номера исходника не приписывает WebGL массив строк OpenGL', () => {
+    // WebGL 1.0 §5.14.9: shaderSource(WebGLShader, DOMString), в отличие от OpenGL glShaderSource.
+    const note = SHADER_PRESETS.find((preset) => preset.note?.includes('0:10'))!.note;
+    expect(note).toContain('принимает одну строку');
+    expect(note).not.toContain('в массиве');
   });
 
   it('вторая ошибка часто следствие первой — обе видны, подсветка одна', () => {
@@ -297,7 +304,7 @@ describe('память текстур', () => {
     expect(d).toContain('16.8 млн');
   });
 
-  it('три полноэкранных прохода на 1920×1080 — около шести миллионов запусков шейдера', () => {
+  it('площадь трёх полноэкранных проходов 1920×1080 — около шести миллионов пикселей', () => {
     expect(Math.round((1920 * 1080 * 3) / 1e6)).toBe(6);
     const d = FRAMEBUFFER_FACTS.find((f) => f.t.includes('полный экран'))?.d ?? '';
     expect(d).toContain('шесть миллионов');
@@ -331,5 +338,21 @@ describe('причины потери контекста', () => {
     expect(LOSS_CAUSES.some((c) => c.includes('слишком много контекстов'))).toBe(true);
     expect(mdx).toContain('Почти ни один из этих случаев не зависит от вашего кода');
     expect(mdx).not.toMatch(/\n\s*Ни один из этих случаев/);
+  });
+});
+
+
+describe('площадь буфера — оценка работы, не счётчик запусков', () => {
+  it('фрагменты не отождествляются с точным числом пикселей', () => {
+    // Overdraw, ранние тесты, helper invocations и sample shading ломают равенство вызовы = пиксели.
+    const stage = STAGE_FACTS.find((fact) => fact.t === 'Два шейдера — две разные цены')!;
+    const post = FRAMEBUFFER_FACTS.find((fact) => fact.t === 'Каждый проход — полный экран фрагментов')!;
+    for (const fact of [stage, post]) {
+      expect(fact.d).toContain('не точное число вызовов');
+      expect(fact.d).toContain('сглаживания');
+      expect(fact.d).not.toContain('по разу на пиксель');
+    }
+    const raster = PIPELINE_STEPS.find((step) => step.startsWith('**Растеризация.**'))!;
+    expect(raster).toContain('не обязано точно совпадать');
   });
 });

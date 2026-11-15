@@ -1,8 +1,12 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 import { compileSemver } from '@/widgets/pm-lab/model/semver';
 import type { Registry } from '@/widgets/pm-lab/model/layout';
 
 /**
+ * Уточнения 2026-11: загрузчик читает exports/type, но не разрешает диапазоны; исходник
+ * раскладки показан и исполняется как LAYOUT_MODEL_CODE (package-managers.test.ts).
+ * Число вложенных копий после npm install намеренно не закрепляется точным числом.
  * Данные темы «Пакетные менеджеры: node_modules, lock-файлы и pnpm».
  *
  * Тема написана здесь. До неё предмет висел строкой «Отдельная тема — готовится» в «за кадром»
@@ -572,7 +576,7 @@ export const HISTORY_NOTE =
   'Раскладка npm зависит не только от `package.json`, но и от **порядка, в котором пакеты добавлялись**: установка поверх существующего дерева не переставляет то, что уже стоит. Один и тот же `package.json` даёт два разных дерева — и узнать, какое у коллеги, можно только из lock-файла. Вывод для своего кода: коммитьте lock-файл и не удаляйте его «чтобы починить установку» — вместе с ним уходит и раскладка. (Строки сняты до публикации `c@1.5.0`, поэтому старшая единица здесь — `1.3.0`.)';
 
 export const PROJECT_DUPES =
-  'Живой пример — собственный `node_modules` этого сайта. `npm ls semver` показывает: `@babel/core` требует `semver@^6`, и `semver@6.3.1` занял корень. Всем остальным — Astro, sharp, плагинам ESLint, typescript-eslint — нужен седьмой, и **`semver@7.8.5` лежит на диске тринадцать раз**, по 268 КБ, под каждым, кто его просит. А `import semver from \'semver\'` из кода сайта получил бы шестую версию — фантом, которого сайт не объявлял. Тест этой темы поэтому берёт `semver` не по голому имени, а от лица Astro: `createRequire` из папки `astro`.';
+  'Живой пример — собственный `node_modules` этого сайта. `npm ls semver` показывает: `@babel/core` требует `semver@^6`, и `semver@6.3.1` занял корень. Всем остальным — Astro, sharp, плагинам ESLint, typescript-eslint — нужен седьмой, и **`semver@7.8.5` лежит во многих вложенных папках**: разные ветви дерева не всегда могут использовать одну поднятую копию. А `import semver from \'semver\'` из кода сайта получил бы шестую версию — фантом, которого сайт не объявлял. Тест этой темы поэтому берёт `semver` не по голому имени, а от лица Astro: `createRequire` из папки `astro`.';
 
 /* ──────────────────── Раздел 3 · lock-файл ──────────────────── */
 
@@ -1204,3 +1208,235 @@ export const SOURCES: SourceGroup[] = [
 
 export const RELATED =
   'Смежное на сайте: [Модули и сборка, раздел «CommonJS против ESM и цена их стыковки»](/tooling/modules/#s3) — как загрузчик ищет пакет, фантомные зависимости со стороны загрузчика и dual package hazard. [Docker: образ и слои](/delivery/docker/#s3) — `npm ci` в слое, который переживает правки кода. [GitHub Actions: конвейер, раздел «Кеш и почему он промахивается»](/delivery/github-actions/#s5) — кеш зависимостей по хешу lock-файла. [Безопасность фронтенда](/platform/security/) — что делает вредный код, когда он уже в бандле. [Монорепозиторий](/tooling/monorepo/) — воркспейсы, фантом от соседнего пакета, порядок сборки и кеш задач. [Публикация npm-пакета](/tooling/package-publishing/) — поле `exports` по шагам, двойной пакет, типы и что уезжает в тарбол. [Цепочка поставок](/platform/supply-chain/) — скрипты установки, `integrity` в lock-файле, SRI в браузере и путаница зависимостей.';
+
+export const INSTALL_DIAGRAM: ConceptDiagramData = {
+  id: 'package-install-boundaries', title: 'Выбор версии, размещение и загрузка — три разных решения',
+  description: 'Диапазон ограничивает кандидатов. Менеджер выбирает версии и размещает их. После установки загрузчик ищет уже размещённый пакет; новую версию из реестра он не выбирает.',
+  width: 920, height: 280,
+  nodes: [
+    { id: 'range', x: 0, y: 30, width: 260, height: 220, label: '`package.json`', detail: '`a → c@^1` и `d → c@^2` задают ограничения, а не пути на диске.', tone: 'info' },
+    { id: 'layout', x: 330, y: 30, width: 260, height: 220, label: 'Менеджер пакетов', detail: 'Выбирает версии и место каждой копии. Lock-файл сохраняет выбранное дерево.', tone: 'warn' },
+    { id: 'node', x: 660, y: 30, width: 260, height: 220, label: 'Загрузчик Node', detail: 'Ищет пакет от импортирующего файла и читает его exports/type. Диапазоны зависимостей не разрешает.', tone: 'ok' },
+  ],
+  edges: [
+    { from: 'range', to: 'layout', label: 'install', labelX: 295, labelY: 125 },
+    { from: 'layout', to: 'node', label: 'import', labelX: 625, labelY: 125 },
+  ],
+};
+
+/** Единственный исполняемый исходник раскладки: страница, остров и тест. */
+export const LAYOUT_MODEL_CODE = `/** Строка так, как её печатает съёмка: \`путь версия\` или \`путь -> цель\`. */
+function formatEntry(e) {
+    return e.link !== undefined ? \`\${e.path} -> \${e.link}\` : \`\${e.path} \${e.version}\`;
+}
+const byName = (o) => Object.entries(o ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+function pick(registry, semver, name, range) {
+    return semver.maxSatisfying(Object.keys(registry[name] ?? {}), range);
+}
+/** Поиск, как у загрузчика Node: своя \`node_modules\`, потом папкой выше — до корня. */
+function lookup(from, name) {
+    for (let n = from; n; n = n.parent) {
+        const hit = n.children.get(name);
+        if (hit)
+            return hit;
+    }
+    return undefined;
+}
+function layoutNpm(registry, rootDeps, semver, options = {}) {
+    const root = { name: '', version: '', parent: null, children: new Map(), depth: 0, path: '' };
+    const queue = [root];
+    const all = [];
+    const place = (target, name, version) => {
+        const node = {
+            name,
+            version,
+            parent: target,
+            children: new Map(),
+            depth: target.depth + 1,
+            path: \`\${target.path ? \`\${target.path}/\` : ''}node_modules/\${name}\`,
+        };
+        target.children.set(name, node);
+        queue.push(node);
+        all.push(node);
+    };
+    // Пакеты обходятся по уровням, внутри уровня — по имени. Отсюда «кто первый встал наверх»:
+    // первым приходит зависимость пакета, чьё имя раньше по алфавиту.
+    while (queue.length) {
+        queue.sort((x, y) => x.depth - y.depth || (x.path < y.path ? -1 : x.path > y.path ? 1 : 0));
+        const node = queue.shift();
+        const manifest = node === root ? { deps: rootDeps } : registry[node.name][node.version];
+        const edges = [
+            ...byName(manifest.deps).map(([name, range]) => ({ name, range, peer: false })),
+            ...(options.legacyPeerDeps ? [] : byName(manifest.peers).map(([name, range]) => ({ name, range, peer: true }))),
+        ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+        for (const edge of edges) {
+            const found = lookup(node, edge.name);
+            if (found && semver.satisfies(found.version, edge.range))
+                continue; // дедупликация
+            if (edge.peer) {
+                // peer обязан лежать рядом с тем, кто его просит, — в той же node_modules.
+                const home = node.parent;
+                const there = home.children.get(edge.name);
+                if (there) {
+                    return {
+                        entries: [],
+                        error: {
+                            code: 'ERESOLVE',
+                            message: \`peer \${edge.name}@"\${edge.range}" from \${node.name}@\${node.version} — а рядом уже лежит \${edge.name}@\${there.version}\`,
+                        },
+                        warnings: [],
+                        visible: {},
+                    };
+                }
+                const version = pick(registry, semver, edge.name, edge.range);
+                if (!version)
+                    return notarget(edge.name, edge.range);
+                place(home, edge.name, version);
+                continue;
+            }
+            const version = pick(registry, semver, edge.name, edge.range);
+            if (!version)
+                return notarget(edge.name, edge.range);
+            // Подъём: как можно выше, но не выше первого тёзки с неподходящей версией.
+            let target = node;
+            for (let t = node; t; t = t.parent) {
+                if (t.children.has(edge.name))
+                    break;
+                target = t;
+            }
+            place(target, edge.name, version);
+        }
+    }
+    const copies = new Map();
+    for (const n of all)
+        copies.set(\`\${n.name}@\${n.version}\`, (copies.get(\`\${n.name}@\${n.version}\`) ?? 0) + 1);
+    const entries = all
+        .map((n) => {
+        const tags = [];
+        if (n.depth === 1)
+            tags.push(n.name in rootDeps ? 'declared' : 'phantom');
+        else
+            tags.push('nested');
+        if ((copies.get(\`\${n.name}@\${n.version}\`) ?? 0) > 1)
+            tags.push('duplicate');
+        return { path: n.path, version: n.version, tags };
+    })
+        .sort((a, b) => (formatEntry(a) < formatEntry(b) ? -1 : 1));
+    const visible = {};
+    for (const name of Object.keys(registry).sort())
+        visible[name] = root.children.get(name)?.version ?? null;
+    return { entries, warnings: [], visible };
+}
+function notarget(name, range) {
+    return {
+        entries: [],
+        error: { code: 'ETARGET', message: \`No matching version found for \${name}@\${range}\` },
+        warnings: [],
+        visible: {},
+    };
+}
+function layoutPnpm(registry, rootDeps, semver) {
+    const pkgs = new Map();
+    const warnings = [];
+    /** Первый пакет каждого имени в порядке обхода — его pnpm и поднимет в скрытую папку. */
+    const firstByName = new Map();
+    const publicLinks = new Map();
+    const rootResolved = new Map(); // имя → версия у приложения
+    for (const [name, range] of byName(rootDeps)) {
+        const v = pick(registry, semver, name, range);
+        if (!v)
+            return notarget(name, range);
+        rootResolved.set(name, v);
+    }
+    let level = [...rootResolved].map(([name, version]) => ({
+        job: { name, version, parentDeps: rootResolved },
+        attach: (id) => publicLinks.set(name, id),
+    }));
+    while (level.length) {
+        const next = [];
+        for (const { job, attach } of level) {
+            const manifest = registry[job.name][job.version];
+            const ownDeps = new Map();
+            for (const [dep, range] of byName(manifest.deps)) {
+                const v = pick(registry, semver, dep, range);
+                if (!v)
+                    return notarget(dep, range);
+                ownDeps.set(dep, v);
+            }
+            const peerIds = [];
+            const peerVersions = new Map();
+            for (const [peer, range] of byName(manifest.peers)) {
+                let v = job.parentDeps.get(peer);
+                if (v && !semver.satisfies(v, range)) {
+                    warnings.push(\`\${job.name}@\${job.version}: peer \${peer}@"\${range}", а у зависящего от него — \${peer}@\${v}\`);
+                }
+                if (!v) {
+                    v = pick(registry, semver, peer, range) ?? undefined;
+                    if (!v)
+                        return notarget(peer, range);
+                }
+                peerVersions.set(peer, v);
+                peerIds.push(\`\${peer}@\${v}\`);
+            }
+            // Пакет с peer — это пакет **вместе с** версией peer: у двух хозяев две разные папки.
+            const id = [\`\${job.name}@\${job.version}\`, ...peerIds].join('_');
+            attach(id);
+            if (!firstByName.has(job.name))
+                firstByName.set(job.name, id);
+            if (pkgs.has(id))
+                continue;
+            const pkg = { id, name: job.name, version: job.version, links: new Map() };
+            pkgs.set(id, pkg);
+            const children = [
+                ...[...ownDeps].map(([name, version]) => ({ name, version })),
+                ...[...peerVersions].map(([name, version]) => ({ name, version })),
+            ].sort((a, b) => (a.name < b.name ? -1 : 1));
+            for (const child of children) {
+                next.push({
+                    job: { name: child.name, version: child.version, parentDeps: ownDeps },
+                    attach: (childId) => pkg.links.set(child.name, childId),
+                });
+            }
+        }
+        level = next;
+    }
+    const entries = [];
+    for (const [name, id] of publicLinks) {
+        entries.push({ path: \`node_modules/\${name}\`, link: \`.pnpm/\${id}/node_modules/\${name}\`, tags: ['declared'] });
+    }
+    const dirsPerVersion = new Map();
+    for (const pkg of pkgs.values()) {
+        const key = \`\${pkg.name}@\${pkg.version}\`;
+        dirsPerVersion.set(key, (dirsPerVersion.get(key) ?? 0) + 1);
+    }
+    for (const pkg of pkgs.values()) {
+        const dup = (dirsPerVersion.get(\`\${pkg.name}@\${pkg.version}\`) ?? 0) > 1;
+        entries.push({
+            path: \`node_modules/.pnpm/\${pkg.id}/node_modules/\${pkg.name}\`,
+            version: pkg.version,
+            tags: dup ? ['duplicate'] : [],
+        });
+        for (const [dep, target] of pkg.links) {
+            entries.push({
+                path: \`node_modules/.pnpm/\${pkg.id}/node_modules/\${dep}\`,
+                link: \`../../\${target}/node_modules/\${dep}\`,
+                tags: [],
+            });
+        }
+    }
+    // Скрытый подъём (hoistPattern '*'): всё, чего нет наверху, — в .pnpm/node_modules.
+    // Туда заглядывают пакеты, когда ищут необъявленное; приложение туда не смотрит.
+    for (const [name, id] of firstByName) {
+        if (publicLinks.has(name))
+            continue;
+        entries.push({ path: \`node_modules/.pnpm/node_modules/\${name}\`, link: \`../\${id}/node_modules/\${name}\`, tags: ['hidden'] });
+    }
+    entries.sort((a, b) => (formatEntry(a) < formatEntry(b) ? -1 : 1));
+    const visible = {};
+    for (const name of Object.keys(registry).sort()) {
+        const id = publicLinks.get(name);
+        visible[name] = id ? pkgs.get(id).version : null;
+    }
+    return { entries, warnings, visible };
+}
+`;

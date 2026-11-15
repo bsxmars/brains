@@ -15,7 +15,7 @@ import { inlineMd } from '@/shared/lib/format';
 interface Lane {
   name: string;
   tone: 'warn' | 'ok';
-  nodes: { kind: 'ci' | 'git' | 'cluster' | 'arrow'; dir?: 'up' | 'down'; text: string }[];
+  nodes: { kind: 'ci' | 'git' | 'cluster' | 'controller' | 'arrow'; dir?: 'up' | 'down'; text: string }[];
   foot: string[];
 }
 
@@ -30,7 +30,7 @@ interface Props {
 const { data } = Astro.props;
 ---
 
-<figure class="hgpp-frame">
+<figure data-render-illustration="helm-gitops-push-pull-diagram" class="hgpp-frame">
   <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
 
   <div class="hgpp-lanes">

@@ -15,7 +15,7 @@ import Md from '@/shared/ui/Md.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { compileSemver } from '../model/semver';
 import type { SemverApi } from '../model/semver';
-import { formatEntry, layoutNpm, layoutPnpm } from '../model/layout';
+import { loadLayout } from '../model/layout';
 import type { Entry, Layout, Registry, Tag } from '../model/layout';
 import CodeView from '@/shared/ui/CodeView.vue';
 
@@ -34,10 +34,13 @@ interface Run {
 
 const props = defineProps<{
   code: string;
+  layoutCode: string;
   registry: Registry;
   scenarios: Scenario[];
   runs: Record<string, { npm: Run; pnpm: Run }>;
 }>();
+
+const { formatEntry, layoutNpm, layoutPnpm } = loadLayout(props.layoutCode);
 
 const scenarioId = ref(props.scenarios[0].id);
 const peerMode = ref<'default' | 'legacy'>('default');

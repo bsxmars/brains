@@ -20,11 +20,11 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import SelectionFigure from '@/widgets/srcset-lab/ui/SelectionFigure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -39,6 +39,9 @@ import {
   PLAIN_SRCSET,
   MARKUP_CODE,
   SRCSET_CODE,
+  SRCSET_W,
+  SIZES,
+  SRCSET_SCOPE,
   FILES,
   SCENARIOS,
   DEMO_CAPTION,
@@ -83,8 +86,8 @@ import {
 
     Браузер выбирает файл картинки раньше, чем знает, какого размера она будет на странице.
     Поэтому размер ему подсказывают заранее, в разметке. А скачанный файл — ещё не картинка:
-    перед отрисовкой его распаковывают в битмап, и тот занимает в памяти ширину × высоту × 4 байта,
-    сколько бы ни весил файл.
+    перед отрисовкой его декодируют. Для обычного 8-битного RGBA-буфера оценка памяти —
+    ширина × высота × 4 байта; сжатие файла эту арифметику не меняет.
 
   </Callout>
 
@@ -113,11 +116,17 @@ import {
   Дескриптор `800w` — ширина файла в пикселях. `sizes` читается слева направо: первое условие,
   которое подошло, задаёт ширину слота. Потом для каждого файла считается плотность — сколько
   его пикселей придётся на один CSS-пиксель слота. Файл 800 пикселей в слоте 400 даёт плотность 2.
-  Браузер берёт самый лёгкий файл, плотность которого не меньше DPR экрана.
+  В модели ниже выбирается кандидат с наименьшей достаточной плотностью. Это выбор по числу пикселей, а не по байтам файла.
 
-  <Card title="Модель выбора" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Md text={SRCSET_SCOPE} />
+
+  <SelectionFigure code={SRCSET_CODE} srcset={SRCSET_W} sizes={SIZES} />
+
+  <Disclosure title="Исходник учебной модели выбора">
+
     <CodeBlock code={SRCSET_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+
+  </Disclosure>
 
   ### Модель и Chromium на одной разметке
 
@@ -225,6 +234,11 @@ import {
 
   <CodeBlock lang="html" code={LAZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
+  Браузер загружает ленивые картинки с запасом по расстоянию. Размер запаса зависит от реализации
+  и условий сети; это не постоянный порог стандарта.
+
+  <Disclosure title="Пороги ленивой загрузки в Chromium 153">
+
   <Table
     head={['где картинка', 'тип сети', 'запрос ещё уходит, px', 'уже не уходит, px']}
     rows={LAZY_ROWS.map((r) => [r.where, r.net, String(r.last), String(r.first)])}
@@ -234,6 +248,8 @@ import {
   />
 
   <Md text={LAZY_NOTE} />
+
+  </Disclosure>
 
   ### Ленивая картинка на первом экране
 
@@ -252,6 +268,8 @@ import {
 
   ### С каким приоритетом стартуют картинки
 
+  <Disclosure title="Стартовые приоритеты на стенде Chromium 153">
+
   <Table
     head={['картинка', 'приоритет в Chromium 153']}
     rows={PRIORITY_ROWS.map((r) => [r.k, r.prio])}
@@ -262,6 +280,8 @@ import {
   />
 
   <Md text={PRIORITY_NOTE} />
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -305,7 +325,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Место под картинку"
-  lead="Пока файл едет, браузер не знает его размеров. Если место не зарезервировать, картинка приедет и растолкает текст под собой. Экран 375 px, картинка 1200×800 приходит через 800 мс."
+  lead="Размеры в атрибутах позволяют занять место ещё до получения данных изображения. Без них браузеру приходится ждать метаданных файла, и появление картинки может сдвинуть текст. В замере ниже: экран 375 px, картинка 1200×800 приходит через 800 мс."
 >
   <Table
     head={['вариант', 'CSS / разметка', '`aspect-ratio`', 'до загрузки', 'после', 'CLS']}
@@ -318,17 +338,7 @@ import {
 
   <Md text={RATIO_NOTE} />
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
 
-      Картинке нужны три подсказки, и все три пишут в разметке. `sizes` — какой ширины будет место,
-      чтобы браузер выбрал файл до CSS. `width` и `height` — какой формы место, чтобы ничего не
-      прыгало. И одна из двух: `fetchpriority="high"` для главной картинки первого экрана или
-      `loading="lazy"` для всего ниже. Формат экономит байты сети, а память решают только пиксели:
-      файл больше нужного стоит и трафика, и мегабайтов битмапа.
-
-    </DarkText>
-  </DarkPanel>
 </Section>
 
 <Section id="s8" eyebrow="Раздел 8" title="Тонкие места">

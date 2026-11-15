@@ -2,7 +2,7 @@
 title: "Server Components изнутри"
 order: 6
 kicker: фреймворки изнутри
-lead: "Серверный компонент исполняется на сервере и отправляет в браузер не HTML и не свой код, а то, что он вернул: дерево элементов в текстовом потоке Flight. По этому потоку видно, как React досылает результат `async`-компонентов, что можно передать клиентскому компоненту через границу `'use client'` и почему серверная функция приезжает в браузер номером, а не кодом."
+lead: "Серверный компонент исполняется на сервере и отправляет в браузер не HTML и не свой код, а то, что он вернул: дерево элементов в потоке Flight. По этому потоку видно, как React досылает результат `async`-компонентов, что можно передать клиентскому компоненту через границу `'use client'` и почему серверная функция приезжает в браузер номером, а не кодом."
 summary: "Чем Server Components отличаются от SSR, формат потока Flight строка за строкой, учебный сериализатор, сверенный с настоящим React, граница 'use client' и её ошибки, серверные функции, async-компоненты, Suspense и cache()."
 verifiedOn: "react-server-dom-webpack 19.3.0 · React 19.3.0 · Node 26.8.2, продакшен и отладочная сборки; сентябрь 2026"
 nav:
@@ -16,6 +16,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
@@ -32,6 +34,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import RscFlight from '@/widgets/rsc-flight/ui/RscFlight.vue';
 import {
+  MECHANISM_DIAGRAM,
   ACTION_CODE,
   ACTION_FACTS,
   ACTION_NOTE,
@@ -87,6 +90,8 @@ import {
 >
   <Plain text={PLAIN_RSC} />
 
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
+
   <Table
     head={SSR_VS_RSC.head}
     rows={SSR_VS_RSC.rows}
@@ -135,7 +140,7 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Формат потока: строки, номера и $-ссылки"
-  lead="Поток Flight — текст из строк `id:значение`. Значение почти всегда JSON, а всё, чего в JSON нет, — элементы, ссылки на модули, промисы, символы — записано строками с префиксом `$`."
+  lead="В показанном примере Flight состоит из текстовых строк `id:значение`. Значение почти всегда JSON, а всё, чего в JSON нет, — элементы, ссылки на модули, промисы, символы — записано строками с префиксом `$`."
 >
   <Plain text={PLAIN_FLIGHT} />
 
@@ -153,7 +158,7 @@ import {
   </Card>
 
   <Card title="Настоящий поток: клиентский лайк, async-комментарии, Suspense" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={FLIGHT_SAMPLE_VIEW} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="text" code={FLIGHT_SAMPLE_VIEW} size={11.5} lh={1.7} pad="14px 16px" />
 
     <CardNote tone="prose">
 
@@ -180,6 +185,7 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Справочник текстового снимка: строки и префиксы">
   ### Какие бывают строки
 
   <Table
@@ -202,6 +208,8 @@ import {
     minWidth={600}
   />
 
+  </Disclosure>
+
   <CardGrid min={280} gap={14} align="start">
     {FORMAT_FACTS.map((fact) => (
       <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
@@ -221,6 +229,7 @@ import {
 >
   <Md text={MINI_NOTE} />
 
+  <Disclosure title="Полный исходник учебного сериализатора и клиента">
   <Card title="Сервер: renderToFlight" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={FLIGHT_SERVER_CODE} size={11.5} lh={1.7} pad="14px 16px" />
   </Card>
@@ -236,6 +245,8 @@ import {
 
     </CardNote>
   </Card>
+
+  </Disclosure>
 
   ### Демо: поток у вас в браузере
 
@@ -275,7 +286,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Граница 'use client': что можно передать в пропсы"
-  lead="Всё, что серверный компонент кладёт в пропсы клиентского, превращается в текст и обратно. Данные это переносят, функции и экземпляры классов — нет."
+  lead="Пропсы клиентского компонента сериализуются в Flight и восстанавливаются клиентом. Поток может включать и бинарные данные. Поддерживаемые значения включают, например, Date, Map и Set. Обычные функции и экземпляры пользовательских классов эту границу не проходят; серверные функции передаются специальными ссылками."
 >
   <Plain text={PLAIN_BOUNDARY} />
 

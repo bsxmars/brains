@@ -131,6 +131,25 @@ describe('демо «Разбери JWT»: варианты отвечают т�
     expect(await run('expired', secret)).toEqual({ ok: false, reason: 'срок вышел' });
   });
 
+  it('JSON null, массив или примитив вместо объекта не выводят проверку из строя', async () => {
+    const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    for (const bad of [null, [], 'HS256', 42, true]) {
+      const headerToken = `${encode(bad)}.${encode({ exp: 2_000_000_000 })}.AA`;
+      const payloadToken = `${encode({ alg: 'HS256' })}.${encode(bad)}.AA`;
+      expect(await auth.verifyJwt(headerToken, secret)).toEqual({ ok: false, reason: 'не JSON-объекты' });
+      expect(await auth.verifyJwt(payloadToken, secret)).toEqual({ ok: false, reason: 'не JSON-объекты' });
+    }
+  });
+
+  it('выпуск нового ключа не отменяет старую подпись, пока старый ключ принимают', async () => {
+    const token = await auth.signJwt({ sub: 'alice', exp: 2_000_000_000 }, 'old');
+    await auth.signJwt({ sub: 'bob', exp: 2_000_000_000 }, 'new');
+    expect((await auth.verifyJwt(token, 'old')).ok).toBe(true);
+    expect((await auth.verifyJwt(token, 'new')).ok).toBe(false);
+    // Отзыв определяется набором принимаемых ключей, а не фактом ротации выпуска.
+    expect(t.REVOKE_NOTE).toContain('Сам выпуск нового ключа');
+  });
+
   it('мусор вместо токена не бросает', async () => {
     expect(await auth.verifyJwt('a.b', secret)).toEqual({ ok: false, reason: 'не три части' });
     expect(await auth.verifyJwt('!!.??.--', secret)).toEqual({ ok: false, reason: 'не разбирается' });

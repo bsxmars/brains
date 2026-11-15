@@ -1,6 +1,12 @@
+import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import {
   BASES,
+  HASH_REQUEST_CODE,
+  HASH_REQUEST_OUT,
+  ROUTE_DIAGRAM,
+  WORKFLOW_CODE,
+  WHAT_IS_SERVED,
   GLOSSARY,
   PATH_ROWS,
   PATH_TOTALS,
@@ -225,5 +231,40 @@ describe('вычитка 2026-10-30: утверждения темы проти�
     const term = GLOSSARY.find((g) => g.k.includes('trailingSlash'));
     expect(term?.k).toContain('`build.format`');
     expect(term?.d).toMatch(/`build\.format` решает, как раскладывать страницы/);
+  });
+});
+
+
+describe('маршрут и реально отправляемый запрос', () => {
+  it('канонический пример показывает, что фрагмент профиля не отправляется серверу', () => {
+    const output: string[] = [];
+    new Function('console', HASH_REQUEST_CODE)({ log: (value: string) => output.push(value) });
+    expect(output).toEqual(HASH_REQUEST_OUT);
+    expect(output).toEqual(['/app/profile/42', '/app/']);
+    const hashLeaf = ROUTE_DIAGRAM.forks.find((fork) => fork.ask.includes('фрагмент'))!.leaves[0];
+    expect(hashLeaf.code).toBe('200');
+    expect(hashLeaf.when).toContain('GET …/app/');
+  });
+  it('в историческом дереве нет неопределённого числа N тем', () => {
+    expect(WHAT_IS_SERVED).not.toMatch(/N тем/);
+    expect(WHAT_IS_SERVED).toContain('исторического снимка');
+  });
+});
+
+describe('полный workflow Pages можно запустить и его джобы связаны артефактом', () => {
+  const workflow = parse(WORKFLOW_CODE);
+  it('объявлены push в main и ручной запуск', () => {
+    expect(workflow.on.push.branches).toEqual(['main']);
+    expect(workflow.on).toHaveProperty('workflow_dispatch');
+  });
+  it('build читает репозиторий, deploy получает минимальные права публикации и OIDC', () => {
+    expect(workflow.permissions).toEqual({ contents: 'read' });
+    expect(workflow.jobs.deploy.permissions).toEqual({ pages: 'write', 'id-token': 'write' });
+    expect(workflow.jobs.deploy.needs).toBe('build');
+    expect(workflow.jobs.deploy.environment.name).toBe('github-pages');
+    expect(workflow.jobs.build.steps.find((step: { uses?: string }) => step.uses?.startsWith('actions/upload-pages-artifact@'))?.with.path).toBe('dist');
+    const deployment = workflow.jobs.deploy.steps.find((step: { id?: string }) => step.id === 'deployment');
+    expect(deployment.uses).toBe('actions/deploy-pages@v4');
+    expect(workflow.jobs.deploy.environment.url).toContain('steps.deployment.outputs.page_url');
   });
 });

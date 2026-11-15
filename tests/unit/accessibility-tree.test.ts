@@ -233,3 +233,29 @@ describe('номера шагов — по accname 1.2, на которую сс
     expect(t.NAME_CODE).toContain('// 2E. Родной способ HTML');
   });
 });
+
+
+it('пустая подпись по aria-labelledby не перекрывает запасное aria-label', () => {
+  // Chromium 153, CDP AX: Запасное. Accname 1.2 от 2026-11-04, 2B: вернуть только непустой итог.
+  const doc = mount('<span id="blank"></span><button aria-labelledby="blank" aria-label="Запасное">Текст</button>');
+  expect(api.accName(doc.querySelector('button')!)).toEqual({ name: 'Запасное', from: 'aria-label' });
+});
+
+it('visibility потомка можно вернуть, в отличие от display:none на предке', () => {
+  const doc = mount('<div style="visibility:hidden"><button style="visibility:visible">Видна</button></div>');
+  expect(api.isHidden(doc.querySelector('button')!)).toBe(false);
+});
+
+it('правило Label in Name различает текстовую подпись и значок', () => {
+  // WCAG 2.5.3 относится к тексту/изображениям текста; символ закрытия не обязан называться «×».
+  expect(t.NAME_FACTS[0].d).toContain('видимую текстовую подпись');
+  expect(t.NAME_FACTS[0].d).toContain('значок закрытия');
+});
+
+
+it('вложенный header не объявлен противоречием текущему HTML-AAM', () => {
+  // HTML-AAM, редакция 2026-10-26, §3.5.50: sectionheader; допускается не экспонировать без имени/фокуса.
+  const row = t.DIVERGE_ROWS.find((item) => item.k === '`<header>` внутри `<article>`')!;
+  expect(row.spec).toContain('`sectionheader`');
+  expect(row.spec).not.toContain('а `generic`');
+});

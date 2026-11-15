@@ -2,7 +2,7 @@
 title: Каскад и вычисление стилей
 order: 2
 kicker: браузер и рендеринг
-lead: "Когда несколько правил задают элементу один и тот же `color`, браузер выбирает победителя не по принципу «кто конкретнее». Он сравнивает правила по **шести признакам по очереди**, и специфичность среди них только пятая. Поэтому правило часто проигрывает «необъяснимо»: спор решился раньше, чем дошло до специфичности."
+lead: "Когда несколько правил задают элементу один и тот же `color`, браузер сначала сравнивает происхождение, важность, контекст и слой объявления. До специфичности он доходит только при равенстве предыдущих условий; перед порядком в файле учитывает близость `@scope`. Поэтому правило часто проигрывает «необъяснимо»: спор решился раньше, чем дошло до специфичности."
 summary: "Как браузер выбирает одно значение свойства из многих: шесть критериев каскада вживую, специфичность как тройка чисел, `inherit`/`initial`/`unset`/`revert` на настоящих элементах и цена чтения через `getComputedStyle`."
 verifiedOn: Chromium 153 (headless, Playwright 1.63), сентябрь 2026
 nav:
@@ -23,6 +23,8 @@ import CheckList from '@/shared/ui/CheckList.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -133,6 +135,7 @@ import {
   STAGE_SCENE_CODE,
   STAGE_SCENE_NOTE,
   STAGE_SCENE_STEPS,
+  VAR_VALUE_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Каскад и шаг style" lead={INTRO_NOTE} gap={24}>
@@ -155,8 +158,6 @@ import {
   </CardGrid>
 
   <Plain text={PLAIN_CASCADE} />
-
-  ### Слова, которые встретятся раньше объяснения
 
   <Glossary items={GLOSSARY} />
 
@@ -194,8 +195,8 @@ import {
   title="Почему победило именно это правило"
   lead="Восемь объявлений `color` спорят за одну кнопку на этой странице. Правила действительно вставлены в документ, а итоговый цвет демо читает у браузера."
 >
-  Каждое объявление проходит шесть проверок по очереди. Седьмая — близость области `@scope` —
-  появилась позже, её разбирает подраздел «Седьмой критерий».
+  Демо сравнивает объявления без `@scope`: шесть проверок по очереди. При областях
+  `@scope` перед порядком в файле учитывается ещё и близость корня области к элементу.
 
   <FlowChips
     minWidth={720}
@@ -343,7 +344,9 @@ import {
 
   </CardGrid>
 
-  ### Откуда стартует переход: `@starting-style`
+<Disclosure title="Начальный стиль и композиция нескольких анимаций">
+
+### Откуда стартует переход: `@starting-style`
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Начальное значение для того, чего ещё не было" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -396,7 +399,9 @@ import {
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ANIM_COMPOSE_NOTE} />
 
-  ### Седьмой критерий: чья область ближе к элементу
+</Disclosure>
+
+  ### Близость `@scope`: после специфичности, до порядка
 
   `@scope` ограничивает правила частью дерева: «внутри карточки, но не внутри вложенного
   блока». Раньше это выражали только длинными селекторами с `:not()`. Вместе с `@scope` в каскад
@@ -578,7 +583,9 @@ import {
     </Card>
   </CardGrid>
 
-  <CardGrid min={300} gap={16} align="start">
+<Disclosure title="Таблица наследуемых свойств и полный сброс">
+
+<CardGrid min={300} gap={16} align="start">
     <Card tone="ok" title="Наследуется — то, что логично для текста" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CheckList items={INHERIT_YES} tone="ok" size={14.5} />
     </Card>
@@ -599,6 +606,9 @@ import {
   </CardGrid>
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={ALL_NOTE} />
+
+</Disclosure>
+
 </Section>
 
 <Section
@@ -606,7 +616,7 @@ import {
   eyebrow="Раздел 4 · демо"
   eyebrowTone="demo"
   title="Стадии значения и цена чтения из JS"
-  lead="`getComputedStyle(el).color` почти ничего не стоит, а `.width` сразу после правки стилей заставляет браузер посчитать раскладку посреди вашего кода. Причина в том, что, несмотря на название, `getComputedStyle` возвращает не computed value, а **resolved value** — значение «для ответа». Что это такое, спецификация решает отдельно для каждого свойства. Для `color` это вычисленное значение, а для `width` — число, которое известно только после раскладки."
+  lead="`getComputedStyle(el).color` почти ничего не стоит, а `.width` сразу после правки стилей заставляет браузер посчитать раскладку посреди вашего кода. Причина в том, что, несмотря на название, `getComputedStyle` возвращает не computed value, а **resolved value** — значение «для ответа». Что это такое, спецификация решает отдельно для каждого свойства. Цвет в этом примере уже известен после вычисления стиля, а ширина зависит от раскладки."
 >
   <Plain text={PLAIN_VALUE_PATH} />
 
@@ -674,6 +684,8 @@ import {
   </CardGrid>
 
   <Plain text={PLAIN_IACVT} />
+
+  <ConceptDiagram data={VAR_VALUE_DIAGRAM} />
 
   <Card tone="err" title="Неподходящее значение в `var()` обнуляет свойство (IACVT)" titleSize={18} pad={22} gap={14}>
     <CodeBlock lang="css" code={IACVT_CODE} size={11.5} lh={1.7} pad="15px 17px" />
@@ -764,9 +776,9 @@ import {
   ### Инвалидация: скольким элементам пересчитать стиль
 
   Когда что-то меняется, браузер помечает элементы, которым надо пересчитать стиль, — это
-  называют инвалидацией. Цена шага style — число помеченных элементов, умноженное на цену
-  проверки селекторов у одного из них. Второй множитель браузеры почти свели к нулю, первый
-  целиком в руках автора. Эти цены меряют профайлером: в спецификации их нет.
+  называют инвалидацией. Цена зависит и от числа затронутых элементов, и от работы для каждого: проверки
+  подходящих правил, каскада, подстановки переменных и вычисления значений. Сначала полезно
+  выяснить, почему пересчёт захватил большую часть дерева. Эти цены меряют профайлером: в спецификации их нет.
 
   <CardGrid min={300} gap={16} align="start">
     <Card tone="ok" title="Пересчёт задевает мало элементов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -810,7 +822,9 @@ import {
     </CardNote>
   </Card>
 
-  ### Печать: другой носитель, тот же каскад
+<Disclosure title="Печать и каскад">
+
+### Печать: другой носитель, тот же каскад
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Правила печати в одном месте" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -827,6 +841,8 @@ import {
     ))}
 
   </CardGrid>
+
+</Disclosure>
 
 </Section>
 

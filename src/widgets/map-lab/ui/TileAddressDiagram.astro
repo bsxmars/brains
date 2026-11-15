@@ -1,0 +1,56 @@
+---
+import Md from '@/shared/ui/Md.astro';
+import { loadMaps } from '../model/run';
+import type { MapCodes } from '../model/types';
+
+interface Props { codes: MapCodes; point: { city: string; lng: number; lat: number } }
+const { codes, point } = Astro.props;
+const api = loadMaps(codes);
+const z = 2;
+const hit = api.tileOf(point.lng, point.lat, z);
+const world = api.project(point.lng, point.lat, z);
+const grid = Array.from({ length: 4 }, (_, y) => Array.from({ length: 4 }, (_, x) => ({ x, y }))).flat();
+const cell = 64;
+const dot = { x: 50 + world.x / 4, y: 80 + world.y / 4 };
+---
+
+<figure class="tad" data-render-illustration="map-tile-address">
+  <figcaption class="tad-title">Адрес тайла и пиксель внутри него — две системы координат</figcaption>
+  <div class="tad-scroll">
+    <svg class="tad-svg" viewBox="0 0 760 430" fill="none" role="img" aria-labelledby="tad-title tad-desc">
+      <title id="tad-title">{point.city} на квадратной сетке уровня {z}</title>
+      <desc id="tad-desc">Мир на уровне 2 состоит из четырёх столбцов и четырёх строк. Столбец x растёт вправо, строка y вниз. {point.city}: тайл {hit.z}/{hit.x}/{hit.y}, пиксель внутри тайла {hit.px}, {hit.py}. Справа выбранный тайл увеличен; обе точки вычислены функциями project и tileOf из темы.</desc>
+      <text x="50" y="28">МИР · z = {z}</text>
+      <text x="420" y="28">ТАЙЛ {hit.z}/{hit.x}/{hit.y}</text>
+      {grid.map((tile) => <g>
+        <rect class={tile.x === hit.x && tile.y === hit.y ? 'tad-hit' : 'tad-cell'} x={50 + tile.x * cell} y={80 + tile.y * cell} width={cell} height={cell} />
+        <text class="tad-small" x={61 + tile.x * cell} y={116 + tile.y * cell}>{tile.x}/{tile.y}</text>
+      </g>)}
+      <text x="50" y="65" class="tad-small">x → столбец</text>
+      <text x="50" y="368" class="tad-small">y ↓ строка · отсчёт с нуля</text>
+      <circle class="tad-point" cx={dot.x} cy={dot.y} r="5" />
+      <path class="tad-guide" d={`M ${50 + (hit.x + 1) * cell} ${80 + hit.y * cell} L 400 80 M ${50 + (hit.x + 1) * cell} ${80 + (hit.y + 1) * cell} L 400 336`} />
+      <rect class="tad-hit" x="400" y="80" width="256" height="256" />
+      <path class="tad-guide" d={`M 400 ${80 + hit.py} H ${400 + hit.px} V 80`} />
+      <circle class="tad-point" cx={400 + hit.px} cy={80 + hit.py} r="6" />
+      <text x="400" y="65" class="tad-small">0 → 255 по каждой оси</text>
+      <text x="400" y="368" class="tad-small">{point.city}: ({hit.px}, {hit.py})</text>
+      <text x="50" y="408" class="tad-small">Точка — результат проекции. Сетка показывает адреса, а не границы стран.</text>
+    </svg>
+  </div>
+  <Md text={`На уровне **${z}** выбранный тайл — **${hit.z}/${hit.x}/${hit.y}**. Его адрес нужен для запроса файла, а координаты **${hit.px}, ${hit.py}** — для положения точки внутри тайла. При смене масштаба пересчитываются оба числа; долгота и широта места остаются прежними.`} />
+</figure>
+
+<style>
+  .tad { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); box-shadow: var(--shadow-card); background: var(--surface); }
+  .tad-title { font-size: var(--fs-7); line-height: 1.45; color: var(--ink); font-weight: 600; }
+  .tad-scroll { overflow-x: auto; margin: 16px 0; }
+  .tad-svg { display: block; width: 100%; min-width: 760px; height: auto; }
+  .tad-svg text { font-size: var(--fs-4); font-family: var(--mono); fill: var(--prose); }
+  .tad-svg .tad-small { font-size: var(--fs-3); fill: var(--text-muted); }
+  .tad-cell { fill: var(--surface-2); stroke: var(--border-strong); }
+  .tad-hit { fill: var(--tone-info-bg); stroke: var(--tone-info-strong); stroke-width: 2; }
+  .tad-point { fill: var(--tone-err-strong); stroke: var(--surface); stroke-width: 2; }
+  .tad-guide { fill: none; stroke: var(--dim); stroke-dasharray: 5 4; }
+  .tad > :global(.md) { font-size: var(--fs-5); line-height: 1.6; color: var(--text-muted); }
+</style>

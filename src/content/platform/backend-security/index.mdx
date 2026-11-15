@@ -3,9 +3,9 @@ title: Безопасность бэкенда глазами фронтенда
 headingWidth: 24
 order: 10
 kicker: сеть и безопасность
-lead: "API-роут в Next, Nuxt или Astro — настоящий сервер: у него секреты, база и доступ во внутреннюю сеть. Четыре проверки, которые должны стоять в каждом обработчике, — владелец объекта, адрес исходящего запроса, параметры вместо склейки и список разрешённых полей, — и тест на каждую, который падает на наивной версии."
+lead: "API-роут в Next, Nuxt или Astro — настоящий сервер: у него секреты, база и доступ во внутреннюю сеть. Вход пользователя не разрешает любое действие: доступ к заказу проверяют по владельцу, исходящий URL — по адресу соединения, а входные значения не должны становиться командами или служебными полями записи."
 summary: "Доступ к чужому объекту по id и проверка владельца в запросе к базе; исходящий запрос на адрес пользователя (SSRF): разбор URL, адреса после резолва, проверка в lookup соединения и редиректы — с калькулятором, где рядом работает чёрный список строк; параметры SQL, экранирование HTML и execFile вместо exec; лишние поля в теле запроса и схема zod; ошибки без стека и секреты вне бандла; lock-файл глазами сервера. Весь код исполняется тестом темы."
-verifiedOn: "Node 26.8.2: node:sqlite, child_process (exec, execFile, shell: true и DEP0190), http.get с опцией lookup на своём сервере 127.0.0.1, парсер WHATWG URL; zod 4.6.2; package-lock.json этого курса; npm 11.19.1 (только справка npm audit). Сентябрь 2026. Agent из undici 8.10.2 с connect.lookup — тем же тестом. Реестры специальных адресов IANA, OWASP, Server Actions и бюллетень CVE-2025-29927, префиксы публичных переменных Vite, Next.js, Nuxt и Astro, адрес сервиса метаданных AWS, Google Cloud и Azure — сверены с первоисточниками 29 сентября 2026"
+verifiedOn: "Тест темы повторно пройден 12 ноября 2026. Node 26.8.2: node:sqlite, child_process (exec, execFile, shell: true и DEP0190), http.get с опцией lookup на своём сервере 127.0.0.1, парсер WHATWG URL; zod 4.6.2; package-lock.json этого курса; npm 11.19.1 (только справка npm audit). Сентябрь 2026. Agent из undici 8.10.2 с connect.lookup — тем же тестом. Реестры специальных адресов IANA, OWASP, Server Actions и бюллетень CVE-2025-29927, префиксы публичных переменных Vite, Next.js, Nuxt и Astro, адрес сервиса метаданных AWS, Google Cloud и Azure — сверены с первоисточниками 29 сентября 2026"
 nav:
   - { id: s1, label: Чужой объект по id }
   - { id: s2, label: Запрос на адрес пользователя }
@@ -17,6 +17,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,7 @@ import BsEgressCheck from '@/widgets/bs-egress-check/ui/BsEgressCheck.vue';
 import BsFieldAllowlist from '@/widgets/bs-field-allowlist/ui/BsFieldAllowlist.vue';
 import PollutionLab from '@/widgets/pollution-lab/ui/PollutionLab.vue';
 import {
+  EGRESS_BOUNDARY_DIAGRAM,
   INTRO_THESIS,
   PLAIN_SERVER,
   GLOSSARY,
@@ -161,6 +164,8 @@ import {
 
   ### Как проверить
 
+  <Disclosure title="Регрессионный тест доступа к каждому обработчику">
+
   <Card title="Тест: каждый просит чужое" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
     <CodeBlock code={CHECK_IDOR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
@@ -168,6 +173,8 @@ import {
       <Md text="На защищённой версии тест зелёный. На наивной он падает на второй строке таблицы — `cancelOrder(1) от u2`, ответ 200 вместо 404: проверка в `getOrder` есть, в `cancelOrder` её забыли. Таблицу «кто что просит» пишут один раз и прогоняют по **всем** обработчикам — тогда новый обработчик без проверки сразу даёт красный тест." />
     </CardNote>
   </Card>
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -178,13 +185,19 @@ import {
 >
   <Plain text={PLAIN_SSRF} />
 
+  <ConceptDiagram data={EGRESS_BOUNDARY_DIAGRAM} />
+
   <Card title="Пять шагов защитной проверки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <NumberedList items={EGRESS_STEPS} size={15} />
   </Card>
 
-  <Card tone="ok" title="Как правильно: проверка адреса, соединения и редиректов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+  <Disclosure title="Исходник политики URL, IP, lookup и редиректов">
+
+  <Card tone="ok" title="Учебная проверка адреса, соединения и редиректов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={EGRESS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 
   <Card tone="err" title="Как бывает: чёрный список строк" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={NAIVE_EGRESS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
@@ -272,7 +285,7 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Инъекции: SQL, HTML и командная строка"
-  lead="Это одна и та же ошибка в трёх местах: значение от пользователя вклеивают в текст, который потом разбирает другой язык — SQL, HTML или оболочка. Парсер этого языка не знает, где кончился ваш текст и началось значение. Исправляется это везде одинаково: значение передают отдельно от текста."
+  lead="Это одна и та же ошибка в трёх местах: значение от пользователя вклеивают в текст, который потом разбирает другой язык — SQL, HTML или оболочка. Парсер этого языка не знает, где кончился ваш текст и началось значение. В SQL используют параметры, процесс запускают без оболочки с массивом аргументов, а HTML кодируют для конкретного контекста. Общая цель — сохранить границу между данными и исполняемым синтаксисом."
 >
   <Plain text={PLAIN_PARAMS} />
 
@@ -306,9 +319,13 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Регрессионный тест SQL-параметров">
+
   <Card title="Как проверить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={CHECK_SQL_CODE} size={10.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 
   ### HTML, собранный на сервере
 
@@ -330,6 +347,8 @@ import {
     </Card>
   </CardGrid>
 
+  <Disclosure title="Регрессионный тест аргументов процесса">
+
   <Card title="Как проверить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
     <CodeBlock code={CHECK_EXEC_CODE} size={10.5} lh={1.65} pad="14px 16px" />
 
@@ -337,6 +356,8 @@ import {
       <Md text={EXEC_NOTE} />
     </CardNote>
   </Card>
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -413,9 +434,13 @@ import {
 
   <PollutionLab client:visible />
 
+  <Disclosure title="Регрессионный тест разрешённых полей">
+
   <Card title="Как проверить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={CHECK_MASS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -442,17 +467,25 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Регрессионный тест ответа об ошибке">
+
   <Card title="Как проверить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={CHECK_ERROR_CODE} size={10.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 
   ### Секрет в бандле
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={SECRETS_NOTE} />
 
+  <Disclosure title="Поиск известных значений секретов в клиентских файлах">
+
   <Card title="Как проверить: значения секретов против файлов клиента" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={FIND_LEAKS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 </Section>
 
 <Section

@@ -1,10 +1,10 @@
 ---
 title: Очереди и идемпотентность
-heading: "Очереди и идемпотентность: ровно один раз не бывает"
+heading: "Очереди и идемпотентность: где проходит граница гарантии"
 headingWidth: 24
 order: 4
 kicker: данные и бэкенд
-lead: "Обработчик начислил бонусы и упал, не успев сказать очереди «готово». Через 200 мс сообщение заберёт другой обработчик — и начислит ещё раз. Очередь не умеет «ровно один раз»: она выбирает между «может потеряться» и «может прийти дважды». Как устроено подтверждение, куда деваются зависшие и ядовитые сообщения и как сделать, чтобы дубль ничего не менял."
+lead: "Обработчик начислил бонусы и упал, не успев сказать очереди «готово». После повторной выдачи сообщение заберёт другой обработчик — и начислит ещё раз. Подтверждение очереди само по себе не делает внешний эффект однократным. Как устроено подтверждение, куда деваются зависшие и ядовитые сообщения и как сделать, чтобы дубль ничего не менял."
 summary: "Зачем очередь; «не больше одного раза» и «не меньше одного раза»; `XACK` до работы и после по шагам; список ожидания, `XPENDING`, счётчик доставок и `XAUTOCLAIM`; ядовитые сообщения и очередь мёртвых писем; ключ идемпотентности и `INSERT … ON CONFLICT DO NOTHING` в одной транзакции с эффектом; двойная запись и outbox; порядок и партиции; перебор всех точек падения."
 verifiedOn: "Redis 7.4.11 (redis:7-alpine в Docker), ioredis 5.11.1, @electric-sql/pglite 0.5.8 (PostgreSQL 18.3), PostgreSQL 16.15 (postgres:16-alpine, два сеанса psql), Node 24.11.0, октябрь 2026: журналы всех сценариев, перебор точек падения для двенадцати вариантов кода, медленный обработчик, удалённая запись и одновременная вставка ключа сняты стендом (пересборка — tests/unit/queues.test.ts при QUEUES_REDIS_CONTAINER и QUEUES_PG_CONTAINER); учебная модель сверена с ними строка в строку и с PGlite — при каждом прогоне. По документации: RabbitMQ, SQS и Kafka, Debezium"
 nav:
@@ -17,6 +17,7 @@ nav:
   - { id: s7, label: Порядок }
   - { id: s8, label: Все точки падения }
   - { id: s9, label: Тонкие места }
+  - { id: practice, label: Где применять }
   - { id: s10, label: Источники }
 ---
 
@@ -25,6 +26,8 @@ import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -38,6 +41,12 @@ import QueueLab from '@/widgets/queue-lab/ui/QueueLab.vue';
 import CrashLab from '@/widgets/queue-lab/ui/CrashLab.vue';
 import {
   GLOSSARY,
+  VERSION_STATE_SCHEMA,
+  VERSION_STATE_UPDATE,
+  VERSION_STATE_NOTE,
+  PRACTICE_CASES,
+
+  COMMIT_ACK_DIAGRAM,
   PLAIN_QUEUE,
   WHY_ROWS,
   EXAMPLE_TEXT,
@@ -98,8 +107,8 @@ import {
 <Section variant="intro" eyebrow="Ровно один раз" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Очередь не умеет доставлять «ровно один раз». Обработчик может упасть между «сделал»
-    и «сообщил, что сделал», и очереди остаётся выбрать: забыть сообщение или выдать его снова.
+    В этом примере Redis не фиксирует начисление бонусов общей транзакцией с XACK.
+    Обработчик может упасть между «сделал» и «сообщил, что сделал» — и получить повтор.
     **«Ровно один раз» собирают на стороне обработчика**: доставка «не меньше одного раза»
     плюс обработка, для которой повтор ничего не меняет.
 
@@ -119,7 +128,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Зачем очередь"
-  lead="Очередь разрывает вызов на две половины. Отправитель кладёт сообщение и сразу идёт дальше, обработчик забирает его, когда может. Упал обработчик или не успевает за потоком — сообщения ждут, а отправитель этого даже не замечает."
+  lead="Очередь разрывает вызов на две половины. Отправитель кладёт сообщение и сразу идёт дальше, обработчик забирает его, когда может. Упал обработчик или не успевает за потоком — сообщения образуют хвост. Его размер, retention и лимиты памяти ограничивают, как долго отправитель может не замечать отставание."
 >
   <CardGrid min={240} gap={14} align="start">
     {WHY_ROWS.map((row) => (
@@ -190,6 +199,19 @@ import {
     minWidth={700}
   />
 
+  <Md text={MODEL_NOTE} />
+
+  <Disclosure title="Полная модель: поток, база, обработчики и расписание">
+
+    <CodeBlock code={BROKER_CODE} />
+    <CodeBlock code={DB_CODE} />
+    <CodeBlock code={RUNNER_CODE} />
+    <CodeBlock code={CLAIM_CODE} />
+    <CodeBlock code={IDEMPOTENT_CODE} />
+    <CodeBlock code={PRODUCER_CODE} />
+
+  </Disclosure>
+
   ### Три падения по шагам
 
   <QueueLab client:visible parts={PARTS} scenarios={SCENES.ack} caption={CAPTIONS.ack} />
@@ -205,9 +227,6 @@ import {
 >
   <Plain text={PLAIN_VISIBILITY} />
 
-  <Card title="Забрать своё и чужое" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CLAIM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
 
   <CardGrid min={260} gap={14} align="start">
     {PENDING_FACTS.map((fact) => (
@@ -236,11 +255,6 @@ import {
 
   <QueueLab client:visible parts={PARTS} scenarios={SCENES.pending} caption={CAPTIONS.pending} />
 
-  ### Как устроен учебный Redis
-
-  <Card title="Поток, группа и список ожидания в памяти" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={BROKER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
 </Section>
 
 <Section
@@ -271,13 +285,8 @@ import {
 >
   <Plain text={PLAIN_UNIQUE} />
 
-  <Card title="Два обработчика с ключом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={IDEMPOTENT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+  <Md text={KEY_NOTE} />
 
-    <CardNote tone="prose">
-      <Md text={KEY_NOTE} />
-    </CardNote>
-  </Card>
 
   <CardGrid min={240} gap={14} align="start">
     {KEY_ORDER.map((k) => (
@@ -321,9 +330,8 @@ import {
 >
   <Plain text={PLAIN_OUTBOX} />
 
-  <Card title="Три издателя и ретранслятор" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PRODUCER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  <ConceptDiagram data={COMMIT_ACK_DIAGRAM} />
+
 
   <QueueLab client:visible parts={PARTS} scenarios={SCENES.outbox} caption={CAPTIONS.outbox} />
 
@@ -338,7 +346,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Два сеанса пишут в outbox" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="http" code={PG_RUNS['outbox-gap'].log.join('\n')} size={11} lh={1.6} pad="12px 14px" />
+      <CodeBlock lang="text" code={PG_RUNS['outbox-gap'].log.join('\n')} size={11} lh={1.6} pad="12px 14px" />
     </Card>
 
     <Card tone="err" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={GAP_NOTE} />
@@ -357,6 +365,9 @@ import {
 
   <Md text={ORDER_TEXT} />
 
+  <CodeBlock lang="sql" code={VERSION_STATE_SCHEMA + '\n\n' + VERSION_STATE_UPDATE + ';'} />
+  <Md text={VERSION_STATE_NOTE} />
+
   <Table
     head={['способ', 'как', 'цена']}
     rows={ORDER_ROWS.map((r) => [r.k, r.how, r.cost])}
@@ -372,7 +383,7 @@ import {
   id="s8"
   eyebrow="Раздел 8"
   title="Все точки падения"
-  lead="Один сценарий — один случай. Чтобы сказать «эффект ровно один раз при любом падении», нужно проверить все места, где процесс может упасть. Меток в коде немного, их можно перебрать: прогнать заказ через всю цепочку, роняя процесс на каждой метке по очереди."
+  lead="Один сценарий — один случай. Чтобы сказать «эффект ровно один раз при любом падении», нужно назвать границы проверки. Здесь перебираются явные метки между операциями: прогнать заказ через всю цепочку, роняя процесс на каждой метке по очереди."
 >
   <CrashLab client:visible parts={PARTS} schedule={FULL_SCHEDULE} producers={PRODUCER_OPTIONS} handlers={HANDLER_OPTIONS} caption={CRASH_CAPTION} />
 
@@ -385,24 +396,10 @@ import {
     minWidth={700}
   />
 
-  ### Как устроен прогон
-
-  <Md text={MODEL_NOTE} />
-
-  <CardGrid min={300} gap={16} align="start">
-    <Card title="Учебная база" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-
-    <Card title="Расписание и падения" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={RUNNER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
-  </CardGrid>
-
   <DarkPanel eyebrow="Что из этого следует">
     <DarkText size={18} lh={1.55} tone="prose">
 
-      **Ровно один раз из двенадцати вариантов даёт только один: outbox у издателя и ключ
+      **В заданном расписании и точках падения из двенадцати вариантов проходит только один: outbox у издателя и ключ
       в транзакции у обработчика.** Остальные теряют или удваивают хотя бы на одной метке.
       Оба приёма — про одно и то же: то, что должно случиться вместе, записывается одной
       транзакцией в одну базу, а всё, что пересекает границу систем, повторяется, пока не
@@ -414,6 +411,15 @@ import {
 
 <Section id="s9" eyebrow="Раздел 9" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Где применять">
+  <CardGrid min={260} gap={14} align="start">
+    {PRACTICE_CASES.map((item) => (
+      <Card title={item.t} text={item.d} />
+    ))}
+  </CardGrid>
 </Section>
 
 <Section id="s10" eyebrow="Раздел 10" title="Источники">

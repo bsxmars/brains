@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { MiniScenario } from '@/widgets/mini-fiber/model/types';
 
@@ -679,7 +680,7 @@ export const PLAIN_SCHEDULED =
   'Флаг `scheduled` — курьер, который зашёл за почтой. Пока он поднимается по лестнице, в ящик можно бросить ещё три письма — унесёт все разом. Звонить второй раз незачем: курьер уже идёт.';
 
 export const PLAIN_EFFECTS =
-  '`useLayoutEffect` — поправить картину, пока на ней ещё покрывало: зритель увидит уже поправленную. `useEffect` — поправить после открытия выставки: быстрее для открытия, но кто-то успеет заметить, как картину двигали.';
+  '`useLayoutEffect` — поправить картину, пока на ней ещё покрывало: зритель увидит уже поправленную. `useEffect` не предназначен для блокирующей правки до показа. В мини-версии он отложен отдельной задачей; в настоящем React его выполнение относительно paint зависит от причины обновления. После дискретного события он может выполниться ещё до paint.';
 
 /** Лид раздела «Элемент»: в MDX-атрибуте кавычки и фигурные скобки неудобны, поэтому строкой. */
 export const S1_LEAD =
@@ -956,3 +957,89 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Vue 3 изнутри](/frameworks/vue-internals/) — вторая модель, тоже собранная своими руками: вместо сверки дерева — таблица «кто что читал». [Ре-рендеринг в React](/frameworks/react-rerender/) — то же самое снаружи: сколько вызовов, что делает `memo`, где bailout. [React против Vue](/frameworks/react-vs-vue/) — вторая модель рядом с этой. [Реактивность Vue](/frameworks/vue-reactivity/) — как можно обойтись без сверки деревьев вовсе. [React изнутри: хуки и контекст](/frameworks/react-hooks-internals/) и [React изнутри: конкурентность и lanes](/frameworks/react-concurrent-internals/) — то, что эта мини-версия упрощает: настоящие хуки и полосы приоритетов. [MessageChannel](/js/message-channel/) — чем планировщик React отпускает поток. [Event Loop](/js/event-loop/) — микрозадача, в которой начинается батч.';
+
+
+/** Уточнение 2026-11-12: Отдельная задача useEffect названа выбором мини-версии, а не гарантией paint: react-internals.test.ts, редакционная граница; react.dev/reference/react/useEffect. */
+
+/** Причинная схема; это объяснение механизма, не журнал исполнения. */
+export const MECHANISM_DIAGRAM: ConceptDiagramData = {
+  "id": "react-internals-mechanism",
+  "title": "Черновик не становится экраном сам",
+  "description": "Current и work-in-progress — две роли дерева. Прерванное вычисление не должно публиковать частично собранный интерфейс.",
+  "width": 820,
+  "height": 570,
+  "nodes": [
+    {
+      "id": "0",
+      "x": 20,
+      "y": 20,
+      "width": 360,
+      "height": 210,
+      "label": "Current: принятый результат",
+      "detail": "С ним связаны опубликованный DOM и состояние последнего завершённого commit.",
+      "tone": "info"
+    },
+    {
+      "id": "1",
+      "x": 440,
+      "y": 20,
+      "width": 360,
+      "height": 210,
+      "label": "Work-in-progress: черновик",
+      "detail": "Render вычисляет следующий результат. В учебной версии здесь собираются изменения для host-среды.",
+      "tone": "neutral"
+    },
+    {
+      "id": "2",
+      "x": 20,
+      "y": 340,
+      "width": 360,
+      "height": 210,
+      "label": "Прерванный render",
+      "detail": "Черновик можно отбросить и вычислить заново. Опубликованный DOM остаётся от последнего commit.",
+      "tone": "warn"
+    },
+    {
+      "id": "3",
+      "x": 440,
+      "y": 340,
+      "width": 360,
+      "height": 210,
+      "label": "Завершённый render",
+      "detail": "Commit применяет изменения. Законченное дерево принимает роль current для следующего обновления.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "from": "0",
+      "to": "1",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "from": "1",
+      "to": "3",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "1",
+      "to": "2",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          410,
+          280
+        ],
+        [
+          200,
+          280
+        ]
+      ],
+      "dashed": true
+    }
+  ],
+  "note": "Стрелка к прерыванию означает альтернативу commit. Учебный host и настоящий DOM имеют разные детали применения изменений."
+};

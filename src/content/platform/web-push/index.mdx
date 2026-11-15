@@ -4,7 +4,7 @@ heading: "Web Push: путь уведомления от сервера до э�
 headingWidth: 24
 order: 18
 kicker: сеть и безопасность
-lead: "Сайт закрыт, браузер свёрнут — а уведомление «Заказ 1042 собран» всё равно появляется. Ваш сервер при этом не знает, где телефон, и не держит с ним соединения. Сообщение идёт через push-сервис производителя браузера, подписанное ключом вашего сервера и зашифрованное так, что посредник его не прочтёт."
+lead: "Уведомление может прийти без открытой вкладки сайта. Ваш сервер передаёт зашифрованное сообщение push-сервису, а браузер расшифровывает его и запускает Service Worker. Подпись VAPID удостоверяет отправителя перед push-сервисом; содержимое защищает отдельное шифрование."
 summary: "Три участника — ваш сервер, push-сервис (FCM, autopush) и Service Worker; подписка `pushManager.subscribe` и что лежит в `PushSubscription`; VAPID — JWT ES256 для push-сервиса; шифрование тела по RFC 8291: ECDH, HKDF с `auth`, AES-128-GCM и заголовок aes128gcm по байтам; `TTL`, `Urgency`, `Topic` и ответы 201, 403, 410; событие `push`, `showNotification` и `tag`; где push не дойдёт."
 verifiedOn: "web-push 3.6.7, Node 24.11.0, Chromium 153.0.8010.12 (Playwright 1.63, постоянный профиль, настоящая подписка FCM), октябрь 2026: доставка, ответы push-сервиса и замена по Topic сняты стендом; шифрование темы сверено с примером RFC 8291 байт в байт и с web-push в tests/unit/web-push.test.ts"
 nav:
@@ -19,13 +19,15 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Illustration from '@/shared/ui/Illustration.astro';
+import sealedPushImage from '@/assets/platform/push-sealed-message.png';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
@@ -81,6 +83,7 @@ import {
   PITFALLS,
   SOURCES,
   RELATED,
+  PUSH_TRUST_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Сообщение без открытой вкладки" gap={24}>
@@ -93,10 +96,9 @@ import {
 
   </Callout>
 
-  Push — единственный способ сказать что-то пользователю, когда ни одной вкладки сайта не
-  открыто. Пользователь один раз разрешает уведомления, браузер выдаёт странице подписку, и
-  страница отправляет её на ваш сервер. Дальше сервер может будить браузер когда угодно:
-  через минуту или через месяц.
+  Web Push позволяет доставлять события, когда ни одной вкладки сайта не открыто. Пользователь один раз разрешает уведомления, браузер выдаёт странице подписку, и
+  страница отправляет её на ваш сервер. Дальше сервер может отправлять сообщения, пока подписка действительна. Получение
+  зависит от связи, срока хранения и правил платформы; отправка не гарантирует показа.
 
   <Plain text={PLAIN_PUSH} />
 
@@ -114,6 +116,19 @@ import {
   </Card>
 
   <Plain text={PLAIN_SERVICE} />
+
+  <Illustration
+    id="push-sealed-message"
+    image={sealedPushImage}
+    title="Посредник проверяет отправителя и передаёт закрытое сообщение"
+    alt="Сервер запечатывает конверт; промежуточная служба проверяет отдельное удостоверение, не открывая конверт; браузер получателя открывает сообщение."
+    steps={[
+      'Сервер шифрует содержимое для подписки браузера.',
+      'Push-сервис проверяет VAPID, но передаёт зашифрованное тело.',
+      'Браузер расшифровывает тело и передаёт событие Service Worker.',
+    ]}
+    note="Конверт — метафора шифрования. VAPID подписывает отдельный JWT для push-сервиса; это не подпись текста уведомления."
+  />
 
   <Table
     head={['кто', 'что хранит', 'что видит']}
@@ -180,6 +195,9 @@ import {
 >
   <Plain text={PLAIN_VAPID} />
 
+  <ConceptDiagram data={PUSH_TRUST_DIAGRAM} />
+
+  <Disclosure title="Исходник: Подпись сервера и проверка push-сервиса">
   <Card title="Подпись сервера и проверка push-сервиса" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={VAPID_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -187,6 +205,7 @@ import {
       <Md text={VAPID_NOTE} />
     </CardNote>
   </Card>
+  </Disclosure>
 
   ### Заголовок из настоящей отправки
 
@@ -225,6 +244,7 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Исходник: Шифрование и расшифровка — на Web Crypto">
   <Card title="Шифрование и расшифровка — на Web Crypto" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PUSH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -232,6 +252,7 @@ import {
       <Md text={RFC_NOTE} />
     </CardNote>
   </Card>
+  </Disclosure>
 
   ### Тело по байтам
 
@@ -341,16 +362,16 @@ import {
 
   </CardGrid>
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
+  <Card title="Состояние заказа остаётся на сервере">
+
 
       Push только сообщает, что появилось что-то новое: будит Service Worker и показывает
       короткое уведомление. Он может не дойти, прийти позже или прийти последним из пяти.
       Само состояние — заказ, сообщения, статус — хранится на сервере, и сайт показывает его при
       открытии, был push или нет.
 
-    </DarkText>
-  </DarkPanel>
+
+  </Card>
 </Section>
 
 <Section id="s8" eyebrow="Раздел 8" title="Тонкие места">

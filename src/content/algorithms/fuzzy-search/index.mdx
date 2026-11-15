@@ -15,9 +15,12 @@ nav:
   - { id: s5, label: Ранжирование }
   - { id: s6, label: Fuse.js }
   - { id: s7, label: Тонкие места }
+  - { id: practice, label: Практика }
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
@@ -34,6 +37,12 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import FuzzyLab from '@/widgets/fuzzy-lab/ui/FuzzyLab.vue';
 import {
   GLOSSARY,
+  MECHANISM_DIAGRAM,
+  PRACTICE,
+  PRACTICE_CODE,
+  PRACTICE_OUT,
+  FUSE_LONG_CODE,
+  FUSE_LONG_OUT,
   PLAIN_SEARCH,
   PLAIN_TRIE,
   TRIE_CODE,
@@ -117,7 +126,11 @@ import {
   <Plain text={PLAIN_TRIE} />
 
   <Card title="Trie: вставка и поиск по префиксу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TRIE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная реализация префиксного дерева">
+
+      <CodeBlock code={TRIE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={TRIE_NOTE} />
@@ -149,7 +162,11 @@ import {
   <Plain text={PLAIN_RADIX} />
 
   <Card title="Radix: склеить цепочки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={RADIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная реализация сжатого дерева">
+
+      <CodeBlock code={RADIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <Table
@@ -176,7 +193,11 @@ import {
   диагональный шаг разрешён и для разных букв, но стоит 1. Это и есть замена.
 
   <Card title="Левенштейн и Дамерау" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={LEV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная реализация расстояний">
+
+      <CodeBlock code={LEV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <Table
@@ -194,7 +215,11 @@ import {
   <Plain text={PLAIN_BAND} />
 
   <Card title="Расстояние не больше k" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={WITHIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная реализация расстояния с порогом">
+
+      <CodeBlock code={WITHIN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={WITHIN_NOTE} />
@@ -211,7 +236,11 @@ import {
   <Plain text={PLAIN_TRIE_ROW} />
 
   <Card title="Обход trie со строкой таблицы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TRIE_FUZZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная реализация обхода trie с опечатками">
+
+      <CodeBlock code={TRIE_FUZZY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={TRIE_FUZZY_NOTE} />
@@ -235,7 +264,11 @@ import {
   <Plain text={PLAIN_BK} />
 
   <Card title="BK-дерево" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={BK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная реализация BK-дерева">
+
+      <CodeBlock code={BK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <Table
@@ -260,7 +293,11 @@ import {
   <Plain text={PLAIN_SUBSEQ} />
 
   <Card title="Счёт подпоследовательности" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SUBSEQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная реализация счёта подпоследовательности">
+
+      <CodeBlock code={SUBSEQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={SUBSEQ_NOTE} />
@@ -283,11 +320,19 @@ import {
   lead="Ближе — не значит лучше. Самое похожее по буквам слово может быть редким разделом, а человек искал большую тему с этим словом в середине названия. Порядок выдачи собирают из нескольких признаков, и расстояние — лишь один из них."
 >
   <Card title="Поиск по курсу целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SEARCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная реализация индекса и отбора кандидатов">
+
+      <CodeBlock code={SEARCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <Card title="Вес находки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={RANK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная реализация ранжирования">
+
+      <CodeBlock code={RANK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={RANK_NOTE} />
@@ -303,6 +348,8 @@ import {
   />
 
   <Md text={RANK_ROWS_NOTE} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 
   ### Поиск по курсу
 
@@ -323,7 +370,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Fuse.js изнутри"
-  lead="Fuse.js не строит ни trie, ни таблиц: он проходит каждую строку алгоритмом Bitap и ищет в ней кусок, похожий на запрос. От этого у него три свойства, которые стоит знать заранее: запрос не длиннее 32 символов, порог считается долей от длины запроса, а место совпадения в тексте влияет на счёт."
+  lead="Fuse.js не строит ни trie, ни таблиц: он проходит каждую строку алгоритмом Bitap и ищет в ней кусок, похожий на запрос. От этого у него три свойства, которые стоит знать заранее: один Bitap-фрагмент занимает до 32 кодовых единиц UTF-16, порог связан с числом ошибок, а место совпадения в тексте влияет на счёт. Длинный запрос разбивается на фрагменты, а не отклоняется."
 >
   <Plain text={PLAIN_BITAP} />
 
@@ -347,6 +394,13 @@ import {
     minWidth={680}
   />
 
+  ### Длинный запрос — несколько фрагментов
+
+  В установленном Fuse.js 7.5.0 каждый Bitap-вызов ограничен 32 кодовыми единицами. Обёртка делит длинный запрос на фрагменты, считает их отдельно и принимает строку, если совпал хотя бы один. При неполном последнем блоке фрагменты перекрываются. Поэтому даже `threshold: 0` не требует полного точного совпадения длинного запроса.
+
+  <CodeBlock lang="js" code={FUSE_LONG_CODE} />
+  <CodeBlock lang="text" code={FUSE_LONG_OUT.join('\n')} tone="ok" />
+
   ### Окно в 60 символов
 
   <Card title="Длинное поле" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
@@ -366,6 +420,27 @@ import {
 
 <Section id="s7" eyebrow="Раздел 7" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Подсказка, каталог и палитра команд">
+  Для города или артикула автодополнение обычно начинает с точного префикса: пользователь ещё не допечатал слово. Для команды вроде `vr` полезна подпоследовательность. Для опечаток в готовом слове нужен ограниченный допуск правок, часто более строгий у коротких запросов. Эти режимы можно объединять, но правило смешивания выдачи становится частью продукта.
+
+  ### Один ключ поиска для словаря и ввода
+
+  <CodeBlock lang="js" code={PRACTICE_CODE} />
+  <CodeBlock lang="text" code={PRACTICE_OUT.join('\n')} tone="ok" />
+  <Md text={PRACTICE} />
+
+  Снятие всех диакритик меняет различия между словами: уже показанный `ignoreDiacritics` превращает `й` в `и`. Политику `ё = е`, транслитерацию и исправление раскладки выбирают отдельно. `[...text]` считает кодовые точки, а не графемы; подробная механика — в [«Unicode и Intl»](/js/unicode-intl/#s4). Во время IME-композиции не стоит отправлять промежуточный текст как окончательный запрос.
+
+  ### Где проходит граница локального поиска
+
+  - **Небольшой словарь в браузере:** заранее построенный индекс уменьшает работу на вводе, но загрузка, построение и память тоже входят в цену. Debounce уменьшает число запусков, не сложность одного. Worker освобождает главный поток, но не делает вычисление дешевле.
+  - **Большой или закрытый каталог:** фильтрацию прав и получение актуальных кандидатов выполняет сервер. Браузерный Fuse не заменяет индекс базы. Полнотекстовый поиск по словам, поиск по триграммам и расстояние правок имеют разную семантику; одинаковое название fuzzy не делает их выдачу одинаковой.
+  - **Ранжирование:** отдельно оценивать, попал ли нужный объект в кандидаты, и какое место он получил. Наш `rank` — сумма вручную выбранных весов, а не гарантия, что любой точный результат выше любого результата с ошибкой. Для строгого приоритета сначала сравнивают цену правок, затем остальные признаки.
+
+  Для асинхронных подсказок результат привязывают к конкретному запросу: поздний ответ на старый ввод не должен заменять новый. Пустой запрос, отсутствие результатов, несколько одинаковых названий и выбор клавиатурой требуют явного поведения независимо от поискового алгоритма.
 </Section>
 
 <Section id="s8" eyebrow="Раздел 8" title="Источники">

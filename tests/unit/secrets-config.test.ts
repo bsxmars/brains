@@ -211,6 +211,31 @@ describe('конфиг при запуске: RENDER_CONFIG_CODE', () => {
     expect(t.RUNTIME_OUT).not.toContain('pg-Zx81-secret');
   });
 
+  it('показанный render-config.mjs действительно пишет исполняемый config.js в stdout', () => {
+    const file = join(dir, 'render-config.mjs');
+    writeFileSync(file, t.RENDER_CONFIG_ENTRY_CODE);
+    const out = execFileSync(process.execPath, [file], { env: { ...t.RUNTIME_ENV }, encoding: 'utf8' });
+    expect(out).toBe(t.RUNTIME_OUT);
+    const ctx = vm.createContext({ window: {} });
+    vm.runInContext(out, ctx);
+    expect((ctx.window as { __CONFIG__: Record<string, string> }).__CONFIG__).toEqual({
+      API_URL: t.RUNTIME_ENV.API_URL,
+      SENTRY_DSN: t.RUNTIME_ENV.SENTRY_DSN,
+      FEATURE_NEW_CART: t.RUNTIME_ENV.FEATURE_NEW_CART,
+    });
+    expect(out).not.toContain(t.RUNTIME_ENV.DB_PASSWORD);
+  });
+
+  it('allowlist имён не определяет секретность разрешённого значения', () => {
+    const password = 'server-only-canary';
+    const out = renderConfig({ API_URL: password, DB_PASSWORD: password });
+    const ctx = vm.createContext({ window: {} });
+    vm.runInContext(out, ctx);
+    expect((ctx.window as { __CONFIG__: Record<string, string> }).__CONFIG__).toEqual({ API_URL: password });
+    // DB_PASSWORD исключён по имени; то же значение в API_URL становится публичным.
+    expect(out).toContain(password);
+  });
+
   it('`<` экранирован, а значение после исполнения то же', () => {
     const evil = '</script><script>alert(1)</script>';
     const out = renderConfig({ API_URL: evil });

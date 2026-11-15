@@ -141,3 +141,14 @@ describe('числа в тексте совпадают с замерами', ()
     }
   });
 });
+
+
+it('автоматический минимум не обещает одинаковый эффект от hidden и clip', () => {
+  // Flexbox §4.5 различает computed scrollable/non-scrollable overflow, а не visible/остальное.
+  expect(t.MIN_AUTO_NOTE).toContain('`clip`');
+  expect(t.MIN_AUTO_NOTE).toContain('`auto`');
+  expect(t.MINIMUM_SCENES.map((scene) => scene.widths)).toEqual([
+    t.flexFixture('shrink-auto').measured,
+    t.flexFixture('shrink-zero').measured,
+  ]);
+});

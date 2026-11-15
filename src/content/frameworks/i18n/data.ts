@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { IcuPreset, IcuValues } from '@/widgets/i18n-lab/model/types';
 
@@ -150,11 +151,11 @@ export const CONCAT_NOTE =
 export const BREAK_CARDS = [
   {
     t: 'Порядок слов',
-    d: 'В английском «Delete 3 files from Downloads», в японском — «из Downloads 3 файла удалить?». Немецкий отправляет глагол в конец, арабский пишет справа налево. Любой порядок, зашитый в код, в каком-то языке будет неверным.',
+    d: 'В английском «Delete 3 files from Downloads», в японском — «из Downloads 3 файла удалить?». В немецком положение глагола зависит от конструкции, арабский текст идёт справа налево. Любой порядок, зашитый в код, в каком-то языке будет неверным.',
   },
   {
     t: 'Число',
-    d: 'Русскому нужно три формы слова и ещё одна для дробей, японскому — одна, арабскому — шесть. Выбор формы по `n === 1` верен только для английского; правила — в CLDR.',
+    d: 'Русскому нужно три формы слова и ещё одна для дробей, японскому — одна, арабскому — шесть. Проверки `n === 1` недостаточно для этих языков; категории и правила задаёт CLDR.',
   },
   {
     t: 'Род',
@@ -405,7 +406,7 @@ export const DEMO_PRESETS: IcuPreset[] = [
 export const DEMO_LOCALES = ['ru', 'en', 'uk', 'pl', 'ar', 'ja'];
 
 export const DEMO_CAPTION =
-  'Дерево строит `parse`, ветку выбирает `pick`, строку собирает `format` — функции из кода выше, без изменений. Категорию считает `Intl.PluralRules` вашего браузера. Направление вывода — `direction(locale)` из раздела [«Как выбрать локаль»](#s7): на `ar` строка выравнивается справа.';
+  'Дерево строит `parse`, ветку выбирает `pick`, строку собирает `format` — функции из кода выше, без изменений. Категорию считает `Intl.PluralRules` вашего браузера. Направление письма выбирает `Intl.Locale(locale).getTextInfo()`: для `ar` оно справа налево. Парсер и форматтер выполняются в браузере читателя; журнал библиотек для сравнения здесь заново не запускается.';
 
 // ─── Сборка сообщений ─────────────────────────────────────────────────────────────────────
 
@@ -569,20 +570,36 @@ export const VI_LAZY_CODE = `const loaders = {
   ru: () => import('./locales/ru.js'),
   uk: () => import('./locales/uk.js'),
 };
-const loaded = new Set(['en']);           // en лежит в основном бандле как запасной
+// Состояние принадлежит экземпляру i18n, а не всему модулю или всем SSR-запросам.
+const states = new WeakMap();
 
 export async function setLocale(i18n, locale) {
-  if (!loaded.has(locale)) {
-    const { default: messages } = await loaders[locale]();
-    i18n.global.setLocaleMessage(locale, messages);
-    loaded.add(locale);
+  let state = states.get(i18n);
+  if (!state) {
+    state = { loaded: new Set(i18n.global.availableLocales), pending: new Map(), request: 0 };
+    states.set(i18n, state);
   }
-  i18n.global.locale.value = locale;      // переключать после загрузки, не до
-  document.documentElement.lang = locale;
+  const loader = Object.hasOwn(loaders, locale) ? loaders[locale] : null;
+  if (!state.loaded.has(locale) && !loader) throw new RangeError('Неизвестная локаль: ' + locale);
+  const request = ++state.request;
+  if (!state.loaded.has(locale)) {
+    if (!state.pending.has(locale)) {
+      const pending = loader().then(({ default: messages }) => {
+        i18n.global.setLocaleMessage(locale, messages);
+        state.loaded.add(locale);
+      }).finally(() => state.pending.delete(locale));  // ошибка допускает новую попытку
+      state.pending.set(locale, pending);
+    }
+    await state.pending.get(locale);                  // повторный выбор делит загрузку
+  }
+  if (request !== state.request) return false;        // более новый выбор уже обогнал этот
+  i18n.global.locale.value = locale;                  // переключать после загрузки
+  if (typeof document !== 'undefined') document.documentElement.lang = locale;
+  return true;
 }`;
 
 export const VI_LAZY_NOTE =
-  'Каждый `import()` с постоянной строкой сборщик выносит в отдельный файл: в наших проверках esbuild с `splitting` дал основной модуль и по чанку на `ru` и `uk`. Пользователь качает только свой язык. Почему так устроены чанки — в теме [«Бандлер изнутри», раздел «Чанки»](/tooling/bundler-internals/#s4).';
+  'Каждый `import()` с постоянной строкой сборщик выносит в отдельный файл: в наших проверках esbuild с `splitting` дал основной модуль и по чанку на `ru` и `uk`. Пользователь качает выбранный язык. Одновременные запросы одного словаря разделяют промис, но словари устанавливаются отдельно в каждый экземпляр i18n. Если человек быстро выбрал ru, затем uk, поздний ответ ru может пополнить кеш, но уже не переключит язык назад. Ошибка import оставляет прежний язык и отклоняет setLocale: обработчик выбора должен показать ошибку и дать повторить попытку. Почему так устроены чанки — в теме [«Бандлер изнутри», раздел «Чанки»](/tooling/bundler-internals/#s4).';
 
 export const VI_REACT_FACTS = [
   {
@@ -860,3 +877,90 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Unicode и Intl, раздел «Форма слова при числе»](/js/unicode-intl/#s7) — категории CLDR, `Intl.PluralRules`, `NumberFormat`, `ListFormat`. [Время и даты, раздел «Сравнение и вывод»](/js/time-dates/#s4) — `Intl.DateTimeFormat` и часовые пояса. [SSR и гидратация, раздел «Несовпадения»](/frameworks/ssr-hydration/#s3) — что делает разная локаль сервера и клиента. [Роутер изнутри, раздел «Шаблон пути»](/frameworks/router/#s4) — как разбирается `/:locale/…`. [Бандлер изнутри, раздел «Чанки»](/tooling/bundler-internals/#s4) — во что превращается `import()` словаря. [CSP, раздел «Как браузер решает»](/platform/csp/#s1) — почему `new Function` бывает запрещён.';
+
+
+/** Предметная схема: границы и условия из сквозного примера темы. */
+export const ICU_OFFSET_DIAGRAM: ConceptDiagramData = {
+  "id": "icu-exact-offset-category",
+  "title": "Сначала точное число, затем категория числа с offset",
+  "description": "Сообщение «Аня и ещё # человека» использует n = 3 и offset:1. Явные ветки =0 и =1 сравниваются с полным n; категория и знак # относятся к остальным двум людям.",
+  "width": 1100,
+  "height": 580,
+  "nodes": [
+    {
+      "id": "values",
+      "x": 20,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "n = 3, name = «Аня»",
+      "detail": "Аргументы передаются в сообщение целиком. Именем уже назван один человек.",
+      "tone": "info"
+    },
+    {
+      "id": "exact",
+      "x": 400,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "Есть ветка =3?",
+      "detail": "Точные =0 и =1 не подходят. При совпадении точная ветка имела бы приоритет.",
+      "tone": "warn"
+    },
+    {
+      "id": "subtract",
+      "x": 780,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "Для plural: 3 − 1 = 2",
+      "detail": "Offset меняет число для категории и #, но не исходное n для точных веток.",
+      "tone": "neutral"
+    },
+    {
+      "id": "result",
+      "x": 400,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "Аня и ещё 2 человека",
+      "detail": "# форматируется как число 2. Форму слова и порядок задаёт выбранная ветка перевода.",
+      "tone": "ok"
+    },
+    {
+      "id": "category",
+      "x": 780,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "Русская категория: few",
+      "detail": "Intl.PluralRules для 2 выбирает few; если такой ветки нет, используется other.",
+      "tone": "info"
+    }
+  ],
+  "edges": [
+    {
+      "from": "values",
+      "to": "exact"
+    },
+    {
+      "from": "exact",
+      "to": "subtract",
+      "label": "нет",
+      "labelY": 100
+    },
+    {
+      "from": "subtract",
+      "to": "category",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "category",
+      "to": "result",
+      "fromSide": "left",
+      "toSide": "right"
+    }
+  ],
+  "note": "Это логический приоритет выбора ветки ICU MessageFormat 1. Числа и строка взяты из строки offset в таблице; учебный форматтер сверяется с intl-messageformat и @messageformat/core."
+};

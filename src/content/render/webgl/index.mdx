@@ -2,7 +2,7 @@
 title: WebGL и конвейер GPU
 order: 7
 kicker: браузер и рендеринг
-lead: "Для браузера WebGL-канвас — отдельный слой: готовая картинка, которую композитор выводит на экран вместе с остальной страницей. Всё, что внутри, рисуется **мимо style, layout и paint** — без стилей, раскладки и браузерной отрисовки. Рисуете вы сами, каждый кадр и целиком, а браузер только показывает результат."
+lead: "WebGL рисует содержимое canvas по вашим командам: вершины, шейдеры и текстуры превращаются в пиксели. Сам элемент canvas остаётся частью CSS-раскладки. Браузер размещает его на странице и объединяет готовую картинку с текстом и остальными элементами."
 summary: "Где кончается конвейер браузера и начинается конвейер GPU: вершины и фрагменты, цена вызова отрисовки, почему время здесь почти нечем померить и что происходит при потере контекста."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), рендерер ANGLE · Vulkan · SwiftShader — программный растеризатор; сентябрь 2026"
 nav:
@@ -23,8 +23,11 @@ import CheckList from '@/shared/ui/CheckList.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
-import FlowChips from '@/shared/ui/FlowChips.astro';
 import Md from '@/shared/ui/Md.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import Illustration from '@/shared/ui/Illustration.astro';
+import triangleRasterization from '@/assets/render/triangle-rasterization.png';
 import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -86,23 +89,22 @@ import {
   GLASS_SCENE_CODE,
   GLASS_STEPS,
   PLAIN_GLASS,
+  CANVAS_BOUNDARY_DIAGRAM,
+  RASTER_ILLUSTRATION,
 } from './data';
 
 <Section variant="intro" eyebrow="Идея" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Обычную страницу рисует браузер: сам считает стили, раскладку и отрисовку.
-    С WebGL он не делает почти ничего: выдаёт прямоугольник, соединённый с видеокартой,
-    и уходит. Внутри нет ни элементов, ни стилей, ни раскладки — <b>есть только ваш код
-    и конвейер GPU</b>.
+    У кнопки браузер хранит элемент, текст и стиль и сам решает, что обновить после правки.
+    Внутри WebGL-канваса таких элементов нет. <b>Положение объектов, рисование и выбор объекта
+    под указателем задаёт приложение</b>; браузер получает цветовой буфер.
 
   </Callout>
 
-  Кадр браузера заканчивается шагом `commit`: после него работа уходит с главного потока
-  к композитору — части браузера, которая собирает экран из готовых слоёв. Всё, что делает
-  композитор, продолжает работать, даже когда JS занят. Канвас с контекстом WebGL живёт именно
-  там: [он сам и есть слой композитора](/render/render-pipeline/#s4). Поэтому содержимое
-  канваса не проходит ни через стили, ни через раскладку, ни через браузерную отрисовку.
+  CSS по-прежнему задаёт размер и положение самого canvas. А его внутренние треугольники
+  не проходят через layout DOM: их координаты обрабатывает конвейер GPU. Поэтому переход
+  на canvas меняет обязанности приложения, а не просто включает «более быстрый DOM».
 
   <Plain text={PLAIN_LAYER} />
 
@@ -115,6 +117,8 @@ import {
   title="Где кончается браузер"
   lead="Одно и то же действие — «поменять то, что видно» — для обычного элемента и для канваса устроено совершенно по-разному. С обычным элементом основную работу делает браузер, внутри канваса — только ваш код."
 >
+  <ConceptDiagram data={CANVAS_BOUNDARY_DIAGRAM} />
+
   <Table
     head={BOUNDARY.head}
     rows={BOUNDARY.rows}
@@ -133,32 +137,9 @@ import {
 
   </CardGrid>
 
-  <Card pad={22} radius={5} gap={16}>
-    <div class="t-eyebrow t-eyebrow--panel">Кадр страницы и кадр канваса — один и тот же кадр</div>
-
-    <FlowChips
-      minWidth={700}
-      chips={[
-        { label: 'задача' },
-        { label: 'микрозадачи', tone: 'info' },
-        { label: 'rAF → ваш drawArrays', tone: 'warn' },
-        { label: 'style → layout → paint', tone: 'dashed' },
-        { label: 'commit', tone: 'ok' },
-        { label: 'композитор: слой канваса + слои страницы', tone: 'ok' },
-      ]}
-    />
-
-
-    Пунктиром — шаги, которые к канвасу отношения не имеют: они посчитают страницу вокруг него,
-    а его содержимое уже уехало командами в очередь драйвера. Ваш `rAF` при этом остаётся обычным
-    шагом кадра со всеми его свойствами: в скрытой вкладке его не вызовут вовсе, при занятом
-    главном потоке кадр не наступит ([«Кадр браузера», раздел «Кадра может не быть»](/render/render-pipeline/#s2)).
-
-    Отдельного потока для канваса у страницы нет, пока вы его не заведёте: как отдать канвас
-    воркеру через `transferControlToOffscreen()` — в [«Воркерах и параллелизме», раздел «Холст
-    в воркере»](/js/workers/#s6).
-
-  </Card>
+  Вызовы WebGL из `requestAnimationFrame` выполняет ваш JS на главном потоке. Команды GPU
+  исполняются отдельно; готовность процессора не означает готовность видеокарты. Для переноса
+  самого JS-рисования в воркер нужен [OffscreenCanvas](/js/workers/#s6).
 
   <DarkPanel eyebrow="Главная мысль темы">
     <DarkText size={18} lh={1.55} tone="prose">
@@ -185,9 +166,11 @@ import {
   eyebrow="Раздел 2 · демо"
   eyebrowTone="demo"
   title="Конвейер: вершины, шейдеры, фрагменты"
-  lead="Семь шагов от массива чисел до пикселей на экране. Два из них — ваши программы, и одна из них выполняется по разу на каждый пиксель."
+  lead="Массив вершин задаёт геометрию. Вершинный шейдер рассчитывает положения, растеризация находит покрытые фрагменты, а фрагментный шейдер вычисляет их цвета. Один пиксель может обрабатываться несколько раз, если его покрывают разные фигуры."
 >
   <Plain text={PLAIN_SHADERS} />
+
+  <Illustration id="triangle-rasterization" image={triangleRasterization} {...RASTER_ILLUSTRATION} />
 
   <Card title="Что происходит между `bufferData` и картинкой" titleSize={18} pad={22} gap={14}>
     <NumberedList items={PIPELINE_STEPS} size={15.5} />
@@ -227,7 +210,9 @@ import {
 
   </Card>
 
-  ### После шейдера: глубина и прозрачность
+<Disclosure title="Глубина и прозрачность: записанные примеры стенда">
+
+### После шейдера: глубина и прозрачность
 
   <Md text={DEPTH_LEAD} />
 
@@ -313,6 +298,8 @@ import {
     <Md text={TRANSPARENCY_NOTE} />
   </Card>
 
+</Disclosure>
+
   ### Текстуры: почему далёкое рябит
 
   <Plain text={PLAIN_MIPMAP} />
@@ -346,7 +333,9 @@ import {
 
   </CardGrid>
 
-  ### Рисовать не на экран: фреймбуферы
+<Disclosure title="Два прохода через framebuffer">
+
+### Рисовать не на экран: фреймбуферы
 
   <Md text={FRAMEBUFFER_LEAD} />
 
@@ -363,6 +352,9 @@ import {
     ))}
 
   </CardGrid>
+
+</Disclosure>
+
 </Section>
 
 <Section

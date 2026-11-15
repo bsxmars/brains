@@ -1,0 +1,51 @@
+---
+import Md from '@/shared/ui/Md.astro';
+interface Props { timing: { staleTime: number; lastObserverLeftAt: number; gcTime: number } }
+const { timing } = Astro.props;
+const removedAt = timing.lastObserverLeftAt + timing.gcTime;
+const x = (time: number) => 60 + time / removedAt * 720;
+const seconds = (time: number) => `${time / 1000} с`;
+---
+
+<figure class="cld" data-render-illustration="query-cache-lifetime">
+  <figcaption class="cld-title">Свежесть считают от ответа, удаление — от ухода последнего наблюдателя</figcaption>
+  <div class="cld-scroll">
+    <svg class="cld-svg" viewBox="0 0 840 355" fill="none" role="img" aria-labelledby="cld-title cld-desc">
+      <title id="cld-title">Два независимых срока записи кеша</title>
+      <desc id="cld-desc">Учебный пример: данные получены в нулевой момент, staleTime {seconds(timing.staleTime)}. Последний наблюдатель ушёл через {seconds(timing.lastObserverLeftAt)}; с этого момента идёт gcTime {seconds(timing.gcTime)}. Запись устаревает через {seconds(timing.staleTime)}, но остаётся в кеше до {seconds(removedAt)}, если никто не вернулся и новых запросов не было. Истечение staleTime само по себе запрос не запускает.</desc>
+      <text x="60" y="28" class="cld-label">СВЕЖЕСТЬ ДАННЫХ</text>
+      <rect class="cld-fresh" x={x(0)} y="50" width={x(timing.staleTime) - x(0)} height="60" rx="8" />
+      <rect class="cld-stale" x={x(timing.staleTime)} y="50" width={x(removedAt) - x(timing.staleTime)} height="60" rx="8" />
+      <text x={(x(0) + x(timing.staleTime)) / 2} y="86" text-anchor="middle">fresh</text>
+      <text x={(x(timing.staleTime) + x(removedAt)) / 2} y="86" text-anchor="middle">stale · данные всё ещё есть</text>
+      <text x="60" y="154" class="cld-label">ИСПОЛЬЗОВАНИЕ И ХРАНЕНИЕ</text>
+      <rect class="cld-active" x={x(0)} y="176" width={x(timing.lastObserverLeftAt) - x(0)} height="60" rx="8" />
+      <rect class="cld-unused" x={x(timing.lastObserverLeftAt)} y="176" width={x(removedAt) - x(timing.lastObserverLeftAt)} height="60" rx="8" />
+      <text x={(x(0) + x(timing.lastObserverLeftAt)) / 2} y="212" text-anchor="middle">читают</text>
+      <text x={(x(timing.lastObserverLeftAt) + x(removedAt)) / 2} y="212" text-anchor="middle">наблюдателей нет · идёт gcTime</text>
+      <line class="cld-axis" x1="60" x2="780" y1="276" y2="276" />
+      {[0, timing.lastObserverLeftAt, timing.staleTime, removedAt].map((time) => <g>
+        <line class="cld-axis" x1={x(time)} x2={x(time)} y1="269" y2="285" />
+        <text x={x(time)} y="310" text-anchor="middle">{seconds(time)}</text>
+      </g>)}
+      <text x="60" y="344" class="cld-note">Ответ получен</text>
+      <text x="780" y="344" text-anchor="end" class="cld-note">Запись удалена</text>
+    </svg>
+  </div>
+  <Md text={`Это учебная шкала, а не замер скорости сети. В **${seconds(timing.staleTime)}** данные только становятся устаревшими: автоматического запроса от одного истечения срока нет. Если наблюдатель вернётся до **${seconds(removedAt)}**, таймер удаления отменится; необходимость запроса решают свежесть и настройки обновления.`} />
+</figure>
+
+<style>
+  .cld { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); background: var(--surface); box-shadow: var(--shadow-card); }
+  .cld-title { color: var(--ink); font-size: var(--fs-7); line-height: 1.45; font-weight: 600; }
+  .cld-scroll { margin: 16px 0; overflow-x: auto; }
+  .cld-svg { display: block; min-width: 840px; width: 100%; height: auto; }
+  .cld-svg text { fill: var(--prose); font-family: var(--mono); font-size: var(--fs-5); }
+  .cld-svg .cld-label, .cld-svg .cld-note { fill: var(--text-muted); font-size: var(--fs-3); }
+  .cld-fresh { fill: var(--tone-ok-bg); stroke: var(--tone-ok-line); }
+  .cld-stale { fill: var(--tone-warn-bg); stroke: var(--tone-warn-line); }
+  .cld-active { fill: var(--tone-info-bg); stroke: var(--tone-info-line); }
+  .cld-unused { fill: var(--surface-2); stroke: var(--border-strong); }
+  .cld-axis { stroke: var(--dim); }
+  .cld > :global(.md) { color: var(--text-muted); font-size: var(--fs-5); line-height: 1.6; }
+</style>

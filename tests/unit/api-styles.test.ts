@@ -83,6 +83,16 @@ const deepQuery = (levels: number) => {
   return `{ ${q.replace(/^orders/, 'orders(first: 5)')} }`;
 };
 
+describe('protobuf раскрывает структуру без имён схемы', () => {
+  it('decodeRaw извлекает поле и границы строки без передачи PROTO', () => {
+    const bytes = api.encode(api.PROTO, 'Order', { id: 'o1001' });
+    const fields = api.decodeRaw(bytes);
+    expect(fields).toEqual([{ at: 0, field: 1, wire: 2, from: 2, end: 7 }]);
+    expect(new TextDecoder().decode(new Uint8Array(bytes.slice(fields[0].from, fields[0].end)))).toBe('o1001');
+    expect(t.PITFALLS.find((p) => p.n === '07')?.d).toContain('без `.proto`');
+  });
+});
+
 describe('схема: SDL и объект учебного исполнителя — одно и то же', () => {
   it('у каждого типа те же поля тех же типов', () => {
     const schema = buildSchema(t.SDL);

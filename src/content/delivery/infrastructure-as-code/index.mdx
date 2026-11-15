@@ -4,9 +4,9 @@ heading: "Инфраструктура как код: Terraform и OpenTofu из
 headingWidth: 24
 order: 19
 kicker: доставка
-lead: "Вы пишете не «создай сервер», а «сервер должен быть». Terraform сравнивает написанное с тем, что записано в файле состояния, и сам решает: создать, поправить на месте, заменить или удалить. Как устроен этот файл, почему в нём лежат пароли, откуда берётся порядок действий и почему удаление одного элемента из списка пересоздаёт половину инфраструктуры."
+lead: "Вы пишете не «создай сервер», а «сервер должен быть». Terraform сравнивает написанное с тем, что записано в файле состояния, и сам решает: создать, поправить на месте, заменить или удалить. Как устроен этот файл, почему в нём лежат пароли, откуда берётся порядок действий и почему удаление элемента списка сдвигает адреса и может вызвать неожиданные замены."
 summary: "Декларативность и цикл init/plan/apply; terraform.tfstate изнутри — serial, lineage, dependencies; пароль в состоянии открытым текстом, sensitive, шифрование OpenTofu и ephemeral; удалённое состояние и замок на своём http-бэкенде; граф зависимостей и граф apply; символы плана, forces replacement, known after apply и create_before_destroy; дрейф, refresh-only, import, -target; count против for_each и moved; модули; мини-планировщик, сверенный с tofu plan."
-verifiedOn: "OpenTofu 1.12.7 (образ ghcr.io/opentofu/opentofu, linux/arm64), hashicorp/local 2.9.1, hashicorp/random 3.9.1, Docker Desktop на macOS, октябрь 2026: 51 план (действия, причины, переносы, дрейф, граф apply), состояние, шифрование, замок на http-бэкенде, import, -target, ephemeral и модуль пересобираются tests/unit/infrastructure-as-code.test.ts при наличии Docker; мини-планировщик сверен со всеми 51 планом. Terraform на стенде не запускался: его отличия, бэкенды S3/GCS/azurerm/pg, Pulumi, AWS CDK и Crossplane — по документации"
+verifiedOn: "OpenTofu 1.12.7 (образ ghcr.io/opentofu/opentofu, linux/arm64), hashicorp/local 2.9.1, hashicorp/random 3.9.1, Docker Desktop на macOS, октябрь 2026: 51 план (действия, причины, переносы, дрейф, граф apply), состояние, шифрование, замок на http-бэкенде, import, -target, ephemeral и модуль пересобираются tests/unit/infrastructure-as-code.test.ts при наличии локального образа Docker и зеркала провайдеров TOFU_PLUGIN_DIR; без них проверяются сохранённые 51 план; мини-планировщик сверен со всеми 51 планом. Terraform на стенде не запускался: его отличия, бэкенды S3/GCS/azurerm/pg, Pulumi, AWS CDK и Crossplane — по документации"
 nav:
   - { id: s1, label: Желаемое состояние }
   - { id: s2, label: Файл состояния }
@@ -22,6 +22,8 @@ nav:
   - { id: s12, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -41,6 +43,8 @@ import IacLab from '@/widgets/iac-lab/ui/IacLab.vue';
 import { STATE_COUNT, STATE_FOREACH } from './stand';
 import {
   GLOSSARY,
+  RECONCILE_DIAGRAM,
+
   PLAIN_IAC,
   BASE_CONFIG,
   MAIN_TF,
@@ -136,10 +140,11 @@ import {
 
   </Callout>
 
-  Скрипт, который создаёт сервер, на втором запуске создаст второй сервер. Чтобы этого не
-  было, в него дописывают проверки: «если сервер уже есть — пропустить, если у него другой
-  размер — поменять». Terraform — это и есть такие проверки, написанные один раз для всех
-  ресурсов: вы описываете результат, а шаги к нему он выводит сам.
+  Повторяемый скрипт тоже может проверять текущее состояние, но ему приходится самому
+  связывать объекты с конфигурацией и решать порядок изменений. В Terraform эту связь
+  хранит state, зависимости задаёт граф, а допустимые изменения конкретного ресурса
+  определяет провайдер. Поэтому один и тот же синтаксис изменения поля может дать update
+  у одного ресурса и replace у другого.
 
   <Plain text={PLAIN_IAC} />
 
@@ -152,8 +157,14 @@ import {
   title="Желаемое состояние вместо шагов"
   lead="Пример на всю тему — пять ресурсов, которым не нужно облако: имя приложения, пароль, номер релиза и файлы на диске. Конфигурация говорит, что они должны быть и как связаны, но ни слова о том, в каком порядке их делать."
 >
+  <ConceptDiagram data={RECONCILE_DIAGRAM} />
+
   <Card title="main.tf" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock lang="hcl" code={MAIN_TF} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Конфигурация сквозного примера">
+
+      <CodeBlock lang="hcl" code={MAIN_TF} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <Table
@@ -198,7 +209,11 @@ import {
   <Plain text={PLAIN_STATE} />
 
   <Card title="terraform.tfstate — три записи из пяти" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock lang="json" code={STATE_JSON_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полный фрагмент состояния">
+
+      <CodeBlock lang="json" code={STATE_JSON_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <Table
@@ -258,7 +273,11 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="main.tf" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Disclosure title="Настройка шифрования состояния">
+
       <CodeBlock lang="hcl" code={ENCRYPTION_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     </Card>
 
     <Card title="terraform.tfstate после apply" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -431,7 +450,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Дрейф, refresh и импорт"
-  lead="Каждый план начинается с refresh: провайдер перечитывает объекты из состояния и сообщает, что изменилось без Terraform. Правку руками план покажет — и предложит откатить."
+  lead="Обычный план с включённым refresh перечитывает управляемые объекты через провайдера. Если наблюдаемое значение разошлось с конфигурацией, план может предложить вернуть его; refresh можно отключить, а ignore_changes и особенности провайдера меняют результат."
 >
   <Plain text={PLAIN_DRIFT} />
 
@@ -450,7 +469,7 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Блок import" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={IMPORT_HCL} size={11.5} lh={1.65} pad="14px 16px" />
+      <CodeBlock lang="hcl" code={IMPORT_HCL} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card title="План и сгенерированный код" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -529,7 +548,11 @@ import {
   lead={PLANNER_INTRO}
 >
   <Card title="plan(config, state, schema, world)" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PLAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Учебный планировщик">
+
+      <CodeBlock code={PLAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -542,6 +565,12 @@ import {
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={PLANNER_LIMITS} />
 
   ### Переключите и посмотрите на план
+
+  <Disclosure title="Схема модели и два сохранённых состояния OpenTofu">
+
+    <CodeBlock lang="json" code={JSON.stringify({ schema: SCHEMA, count: STATE_COUNT, forEach: STATE_FOREACH }, null, 2)} />
+
+  </Disclosure>
 
   <IacLab
     client:visible

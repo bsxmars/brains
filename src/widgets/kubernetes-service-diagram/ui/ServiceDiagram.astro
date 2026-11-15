@@ -4,7 +4,7 @@
  *
  * Весь смысл схемы — в том, что это **разные** участники. Сервис стоит в начале верхней
  * полосы (его селектор задаёт список), но в нижней его нет вовсе: запрос знает только адрес
- * сервиса, а пересылают его правила на узле. Не готовый под на схеме есть, а в списке — нет.
+ * сервиса, а пересылают его правила на узле. Неготовый под остаётся в EndpointSlice, но обычно исключён из направления трафика.
  *
  * HTML, а не SVG: на узком экране цепочки складываются в колонку, и подписи не мельчают.
  */
@@ -19,7 +19,7 @@ interface DiagramNode {
 interface Lane {
   k: string;
   nodes: DiagramNode[];
-  pods?: { t: string; ok: boolean }[];
+  pods?: { t: string; ok: boolean; reason?: string }[];
 }
 
 interface Props {
@@ -31,7 +31,7 @@ interface Props {
 const { title, caption, lanes } = Astro.props;
 ---
 
-<figure class="ksd">
+<figure data-render-illustration="kubernetes-service-diagram" class="ksd">
   <div class="t-eyebrow t-eyebrow--panel">{title}</div>
 
   {
@@ -62,7 +62,7 @@ const { title, caption, lanes } = Astro.props;
                     <div class="ksd-pod" data-ok={pod.ok ? 'yes' : 'no'}>
                       <span class="ksd-pod-mark" aria-hidden="true">{pod.ok ? '✓' : '✗'}</span>
                       <span set:html={inlineMd(pod.t)} />
-                      {!pod.ok && <span class="ksd-pod-off">— нет в списке</span>}
+                      {pod.reason && <span class="ksd-pod-off" set:html={inlineMd(pod.reason)} />}
                     </div>
                   ))}
                 </div>

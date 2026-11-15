@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { Status, TreeNode } from '@/widgets/boundary-lab/model/types';
 
@@ -309,23 +310,23 @@ export const TRANSITION_WHEN =
 // ─── Раздел 5. Граница ошибок ──────────────────────────────────────────────────────────────
 
 export const S5_LEAD =
-  'Ошибку из рендера React ловит тем же путём, что и промис: идёт вверх по дереву до ближайшей границы ошибок. Отдельного хука для этого нет — граница пишется классом, потому что ей нужны два метода, которых у функций нет.';
+  'Ошибку из рендера потомка React ловит тем же путём, что и промис: идёт вверх по дереву до ближайшей границы ошибок. Отдельного хука для этого нет — граница пишется классом, потому что ей нужны два метода, которых у функций нет.';
 
 export const BOUNDARY_CLASS_CODE = `class ErrorBoundary extends Component {
-  state = { error: null };
+  state = { hasError: false, error: null };
 
   // Рендер-фаза: по ошибке решить, что показать. Без побочных эффектов
   static getDerivedStateFromError(error) {
-    return { error };
+    return { hasError: true, error };
   }
 
-  // Коммит: заглушка уже на экране — время отправить отчёт
+  // Коммит: DOM заглушки обновлён — можно отправить отчёт
   componentDidCatch(error, info) {
     this.props.onError?.(error, info.componentStack);
   }
 
   render() {
-    if (this.state.error) return this.props.fallback;
+    if (this.state.hasError) return this.props.fallback;
     return this.props.children;
   }
 }`;
@@ -353,9 +354,11 @@ export const ERROR_ORDER_NOTE =
 
 export const NOT_CAUGHT_ROWS = [
   { k: 'ошибка в рендере потомка', res: '**ловит**', how: 'Заглушка границы вместо поддерева; соседи границы живут.' },
-  { k: '`use()` с отклонённым промисом', res: '**ловит**', how: 'Сначала покажется заглушка Suspense: React узнаёт, что промис отклонён, только подписавшись на него. Потом ошибка уходит к границе ошибок.' },
+  { k: 'синхронный бросок в эффекте или lifecycle потомка', res: '**ловит**', how: 'React вызывает эту работу сам и передаёт ошибку ближайшей границе. Отложенный then или таймер внутри эффекта — отдельный случай.' },
+  { k: 'отказ асинхронного действия useTransition', res: '**ловит**', how: 'React отслеживает промис действия и передаёт его ошибку границе. Это отличается от произвольного асинхронного колбэка.' },
+  { k: '`use()` с отклонённым промисом', res: '**ловит**', how: 'При первом чтении ещё не инструментированного промиса возможна заглушка Suspense, пока React узнаёт его состояние через подписку. Если статус rejected уже известен React, ошибка сразу уходит к границе ошибок.' },
   { k: 'обработчик события (`onClick`)', res: 'нет', how: 'Это не рендер. React передаёт ошибку в `reportError` — у `window` срабатывает событие `error`, экран не меняется.' },
-  { k: 'асинхронный код (`then`, `setTimeout`)', res: 'нет', how: 'Ошибка случится позже, когда рендер давно кончился. Отклонённый промис станет `unhandledrejection`.' },
+  { k: 'асинхронный код (`then`, `setTimeout`)', res: 'нет', how: 'Самостоятельный колбэк вызывается вне работы, обёрнутой React. Бросок в таймере идёт как необработанное исключение, отказ промиса — как `unhandledrejection`.' },
   { k: 'ошибка в самой границе', res: 'нет', how: 'Упала заглушка границы — ошибку получает **следующая** граница выше. Граница не ловит себя.' },
 ];
 
@@ -448,17 +451,17 @@ import { onErrorCaptured, shallowRef } from 'vue';
 
 defineProps({ fallback: String });
 const emit = defineEmits(['caught']);
-const error = shallowRef(null);
+const failed = shallowRef(false);
 
 onErrorCaptured((err, instance, info) => {
-  error.value = err;
+  failed.value = true;
   emit('caught', err, info);
   return false;   // дальше не всплывать
 });
 </script>
 
 <template>
-  <p v-if="error">{{ fallback }}</p>
+  <p v-if="failed">{{ fallback }}</p>
   <slot v-else />
 </template>`;
 
@@ -732,6 +735,133 @@ export const PITFALLS: Pitfall[] = [
 ];
 
 // ─── Источники ─────────────────────────────────────────────────────────────────────────────
+
+export const BOUNDARY_DECISION_DIAGRAM: ConceptDiagramData = {
+  "id": "suspense-promise-outcomes",
+  "title": "Три состояния одного промиса — три исхода чтения use",
+  "description": "React может вернуть значение, приостановить рендер или передать ошибку границе. Suspense не заменяет границу ошибок.",
+  "width": 840,
+  "height": 730,
+  "nodes": [
+    {
+      "id": "read",
+      "x": 0,
+      "y": 270,
+      "width": 240,
+      "height": 190,
+      "label": "use(userPromise)",
+      "detail": "Компонент читает тот же промис. Исход зависит от его текущего состояния.",
+      "tone": "ink"
+    },
+    {
+      "id": "ready",
+      "x": 300,
+      "y": 10,
+      "width": 240,
+      "height": 190,
+      "label": "fulfilled",
+      "detail": "Есть значение пользователя: use возвращает его в функцию Profile.",
+      "tone": "ok"
+    },
+    {
+      "id": "pending",
+      "x": 300,
+      "y": 270,
+      "width": 240,
+      "height": 190,
+      "label": "pending",
+      "detail": "Данных ещё нет: текущий рендер Profile не может завершиться.",
+      "tone": "warn"
+    },
+    {
+      "id": "rejected",
+      "x": 300,
+      "y": 530,
+      "width": 240,
+      "height": 190,
+      "label": "rejected",
+      "detail": "Промис отклонён: причиной сбоя становится значение отказа.",
+      "tone": "err"
+    },
+    {
+      "id": "content",
+      "x": 600,
+      "y": 10,
+      "width": 240,
+      "height": 190,
+      "label": "Содержимое",
+      "detail": "Profile возвращает элементы. Соседи внутри границы тоже должны завершиться.",
+      "tone": "ok"
+    },
+    {
+      "id": "fallback",
+      "x": 600,
+      "y": 270,
+      "width": 240,
+      "height": 190,
+      "label": "Suspense",
+      "detail": "При первом показе вместо всей ожидающей группы можно вывести её fallback.",
+      "tone": "warn"
+    },
+    {
+      "id": "error",
+      "x": 600,
+      "y": 530,
+      "width": 240,
+      "height": 190,
+      "label": "ErrorBoundary",
+      "detail": "Ближайшая граница ошибок может показать заглушку сбоя. Сама Suspense ошибку не обрабатывает.",
+      "tone": "err"
+    }
+  ],
+  "edges": [
+    {
+      "from": "read",
+      "to": "ready",
+      "via": [
+        [
+          270,
+          365
+        ],
+        [
+          270,
+          105
+        ]
+      ]
+    },
+    {
+      "from": "read",
+      "to": "pending"
+    },
+    {
+      "from": "read",
+      "to": "rejected",
+      "via": [
+        [
+          270,
+          365
+        ],
+        [
+          270,
+          625
+        ]
+      ]
+    },
+    {
+      "from": "ready",
+      "to": "content"
+    },
+    {
+      "from": "pending",
+      "to": "fallback"
+    },
+    {
+      "from": "rejected",
+      "to": "error"
+    }
+  ],
+  "note": "Повторный рендер после завершения промиса начинает функцию заново. При переходе уже показанное содержимое может оставаться видимым вместо новой заглушки."
+};
 
 export const SOURCES: Source[] = [
   {

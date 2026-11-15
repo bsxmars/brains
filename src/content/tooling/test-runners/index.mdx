@@ -4,7 +4,7 @@ heading: "Тест-раннеры изнутри: Vitest и Jest"
 headingWidth: 24
 order: 9
 kicker: сборка и инструменты
-lead: "`vitest run` выглядит как «запусти мои тесты», а на деле это четыре механизма подряд: поиск файлов по шаблону, сбор дерева `describe` и `test`, исполнение с хуками и изоляция каждого файла в своём мире. Как они устроены, где Vitest и Jest расходятся и почему тесты одного файла влияют друг на друга, а тесты разных — нет."
+lead: "`vitest run` выглядит как «запусти мои тесты», а на деле это четыре механизма подряд: поиск файлов по шаблону, сбор дерева `describe` и `test`, исполнение с хуками и изоляция каждого файла в своём мире. Как они устроены, где Vitest и Jest расходятся и почему состояние может протечь между тестами даже при изоляции модулей."
 summary: "Поиск тестовых файлов, сбор дерева и исполнение с хуками `beforeAll`/`beforeEach`/`afterEach`/`afterAll`, изоляция файлов в процессах и vm-контекстах, реестр модулей, подъём `vi.mock` и `jest.mock`, шпионы `vi.fn`, фейковые таймеры и очередь, утечки между тестами и перемешивание."
 verifiedOn: "vitest 5.0.0, jest 30.5.2 (jest-circus, babel-jest 30.5.2, babel-plugin-jest-hoist 30.5.0), @sinonjs/fake-timers 15.4.0, Node 24.11.0, октябрь 2026: журналы хуков, изоляции, таймеров, перемешивания и трансформации моков сняты настоящими раннерами на фикстурах темы и пересобираются tests/unit/test-runners.test.ts; учебный раннер сверен с обоими на шести фикстурах, учебные часы — с @sinonjs/fake-timers, шпион — с @vitest/spy и jest-mock"
 nav:
@@ -18,6 +18,10 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import Illustration from '@/shared/ui/Illustration.astro';
+import isolationImage from '@/assets/tooling/test-isolation-shared-resources.png';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -52,6 +56,7 @@ import {
   PLAIN_ISOLATION,
   COUNTER_CODE,
   ISO_TEST_CODE,
+  ISOLATION_RECORDER_CODE,
   ISO_HEAD,
   ISO_TABLE,
   ISO_TONES,
@@ -98,14 +103,15 @@ import {
   PITFALLS,
   SOURCES,
   RELATED,
+  RUNNER_PHASE_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Что внутри раннера" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Раннер исполняет тестовый файл **дважды по-разному**: сначала целиком, чтобы записать,
-    какие в нём тесты и хуки, потом — тест за тестом по записанному дереву. А каждый файл
-    живёт в своём мире со своими модулями. Отсюда почти всё неожиданное в тестах: и порядок
+    Сначала раннер вычисляет модуль тестового файла: `describe` вызывает свою функцию
+    и собирает дерево, а функции тестов и хуков регистрируются на будущее. Потом раннер
+    вызывает эти функции по собранному дереву — **модуль не исполняется второй раз целиком**. Отсюда почти всё неожиданное в тестах: и порядок
     строк, и моки, которые «не сработали», и тест, который падает только вместе с соседом.
 
   </Callout>
@@ -142,6 +148,8 @@ import {
 
   <Plain text={PLAIN_TWO_PHASES} />
 
+  <ConceptDiagram data={RUNNER_PHASE_DIAGRAM} />
+
   <CardGrid min={300} gap={16} align="start">
     <Card title="Фикстура: хуки на двух уровнях" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={HOOKS_FIXTURE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -154,8 +162,9 @@ import {
 
   <Md text={HOOKS_NOTE} />
 
-  ### Раннер в девяносто строк
+  ### Учебный раннер: сбор и исполнение
 
+  <Disclosure title="Исходник: Сбор и исполнение">
   <Card title="Сбор и исполнение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RUNNER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -163,6 +172,7 @@ import {
       <Md text={RUNNER_NOTE} />
     </CardNote>
   </Card>
+  </Disclosure>
 
   ### Одна фикстура, два раннера
 
@@ -183,9 +193,22 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Изоляция: файл в своём мире"
-  lead="Каждый тестовый файл получает свой реестр модулей. Поэтому модуль, импортированный в двух файлах, исполняется дважды и начинает с чистого состояния. А тесты одного файла видят один и тот же модуль — и всё, что предыдущий тест в нём оставил."
+  lead="При включённой изоляции раннер разделяет реестры модулей файлов. Тесты внутри одного файла обычно видят общий экземпляр модуля. Файловая система, сеть и база данных не становятся отдельными от смены реестра; опция Vitest isolate:false снимает и эту границу."
 >
   <Plain text={PLAIN_ISOLATION} />
+
+  <Illustration
+    id="test-isolation-shared-resources"
+    image={isolationImage}
+    title="Раздельные модули, общие внешние ресурсы"
+    alt="Два отдельных стола со своими блокнотами и модулями подключены к одному общему файловому шкафу и сетевому узлу."
+    steps={[
+      'Файл A получает свой реестр модулей при включённой изоляции.',
+      'Файлы, порт сервера и база могут оставаться общими для обоих тестов.',
+      'Файл B начинает со своих модулей, но внешние изменения A сами не исчезают.',
+    ]}
+    note="Столы — метафора тестовых файлов, а не число процессов. Изоляция модулей не является отдельной файловой системой или защитной песочницей."
+  />
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="counter.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -197,7 +220,9 @@ import {
     </Card>
   </CardGrid>
 
-  Оба файла запущены в одном воркере, друг за другом. В таблице — что увидел первый тест
+  <CodeBlock code={ISOLATION_RECORDER_CODE} />
+
+  Оба файла запущены при лимите в один воркер, друг за другом. В таблице — что увидел первый тест
   второго по счёту файла.
 
   <Table
@@ -213,6 +238,7 @@ import {
 
   ### Реестр модулей своими руками
 
+  <Disclosure title="Исходник: Загрузчик, моки и подъём">
   <Card title="Загрузчик, моки и подъём" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={MODULES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -220,6 +246,7 @@ import {
       <Md text={MODULES_NOTE} />
     </CardNote>
   </Card>
+  </Disclosure>
 
   ### Цена vm-контекста: чужой `Error`
 
@@ -357,9 +384,11 @@ import {
 
   ### Часы своими руками
 
+  <Disclosure title="Исходник: Очередь и прокрутка">
   <Card title="Очередь и прокрутка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CLOCK_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+  </Disclosure>
 
   <Card title="Расписание для демо" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
     <CodeBlock code={CLOCK_SCENARIO_CODE} size={11.5} lh={1.65} pad="14px 16px" />

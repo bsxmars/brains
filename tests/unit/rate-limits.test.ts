@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { isIP, type AddressInfo } from 'node:net';
 import { createRequire } from 'node:module';
 import Redis from 'ioredis';
 import { Agent, RetryAgent, RetryHandler, request } from 'undici';
@@ -418,15 +418,29 @@ describe('бюджет и предохранитель: STREAM_ROWS', () => {
 });
 
 describe('ключ лимита: CLIENT_IP_CODE против nginx real_ip_recursive', () => {
-  const ip = new Function(`${t.CLIENT_IP_CODE}\nreturn { clientIp, trusted };`)() as {
+  const ip = new Function(`${t.CLIENT_IP_CODE}\nreturn { clientIp, trusted, isIp };`)() as {
     clientIp(remote: string, xff: string | null, trusted: (s: string) => boolean): string;
     trusted(s: string): boolean;
+    isIp(s: string): boolean;
   };
 
   it('ответы совпадают с nginx (on) во всех строках', () => {
     for (const row of t.REALIP_ROWS) {
       expect(ip.clientIp(t.REALIP_REMOTE, row.xff, ip.trusted), String(row.xff)).toBe(row.on);
     }
+  });
+
+  it('мусорные IP отвергаются так же, как node:net, и не дают новый ключ лимита', () => {
+    for (const address of ['999.999.999.999', '1:2:3', ':::', '01.2.3.4', '1.2.3.4:80',
+      '203.0.113.7', '2001:db8::1', '::ffff:192.0.2.1', '::1']) {
+      expect(ip.isIp(address), address).toBe(isIP(address) !== 0);
+      if (isIP(address) === 0) expect(ip.clientIp(t.REALIP_REMOTE, address, ip.trusted)).toBe(t.REALIP_REMOTE);
+    }
+  });
+
+  it('частный адрес вне явного списка не получает право подставить X-Forwarded-For', () => {
+    expect(ip.trusted('10.0.0.99')).toBe(false);
+    expect(ip.clientIp('10.0.0.99', '6.6.6.6', ip.trusted)).toBe('10.0.0.99');
   });
 
   it('«первый адрес» — левый в цепочке; с off nginx берёт правый', () => {

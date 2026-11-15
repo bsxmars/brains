@@ -33,7 +33,7 @@ const pct = (v: number) => `${(v / max) * 100}%`;
 const side = (v: number) => (v / max > 0.8 ? 'left' : 'right');
 ---
 
-<figure class="chd">
+<figure data-render-illustration="compose-health-diagram" class="chd">
   <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(title)} />
 
   <div class="chd-scroll">

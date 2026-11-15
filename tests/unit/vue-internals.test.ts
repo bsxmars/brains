@@ -7,6 +7,7 @@ import {
   ITERATE_NOTE,
   MINI_VUE_CODE,
   RECEIVER_CODE,
+  REAL_ROWS,
 } from '@/content/frameworks/vue-internals/data';
 import {
   API_NAMES,
@@ -595,6 +596,21 @@ describe('намеренные отличия мини-версии от Vue', (
       void vc.value;
       expect(vc.deps.dep.subs).toBeUndefined();
     }
+  });
+
+  it('в Vue 3.5 computed сам подписчик, в мини-версии геттер выполняет вложенный эффект', () => {
+    const mini = loadMiniVue(MINI_VUE_CODE);
+    const mc = mini.computed(() => 1);
+    expect('effect' in mc).toBe(true);
+    if ('effect' in mc) expect(mc.effect).not.toBe(mc);
+    for (const build of ['production', 'development'] as Build[]) {
+      const vue = VUE[build].api;
+      const vc = vue.computed(() => 1) as unknown as { effect: unknown };
+      expect(vc.effect, build).toBe(vc);
+      const Effect = (vue as unknown as { ReactiveEffect: new (...args: never[]) => object }).ReactiveEffect;
+      expect(vc, build).not.toBeInstanceOf(Effect);
+    }
+    expect(REAL_ROWS.find((row) => row[0] === 'Подписчик `computed`')?.[2]).toContain('без вложенного `ReactiveEffect`');
   });
 });
 

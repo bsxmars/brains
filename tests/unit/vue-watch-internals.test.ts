@@ -5,6 +5,8 @@ import {
   CHAIN,
   CLEANUP_ORDER_CODE,
   CLEANUP_ORDER_OUT,
+  COMPONENT_NOTE,
+  COST_NOTE,
   DEEP_CODE,
   DEEP_OUT,
   DIRTY_ONLY_PATCH,
@@ -139,6 +141,30 @@ const EXAMPLES: [string, string, unknown[]][] = [
 describe.each(EXAMPLES)('%s', (_name, code, want) => {
   it.each(IMPLS)('%s', async (_impl, make) => {
     expect(await run(make(), code)).toEqual(want);
+  });
+});
+
+describe('границы стоимости и владения watcher’ом', () => {
+  it.each(IMPLS)('%s: две записи pre объединяют глубокий обход', async (_name, make) => {
+    expect(await run(make(), `let reads = 0
+let callbacks = 0
+const state = reactive({ n: 0, get observed() { reads++; return this.n } })
+const stopWatcher = watch(state, () => { callbacks++ })
+log(reads)
+state.n = 1
+state.n = 2
+log(reads)
+await nextTick()
+log(reads)
+log(callbacks)
+stopWatcher()`)).toEqual([1, 1, 2, 1]);
+    // Обычный deep watch платит за выполнение геттера, не за каждое присваивание.
+    expect(COST_NOTE).toContain('объединяются в одно задание');
+  });
+
+  it.each(IMPLS)('%s: список эффектов компонента не обещает остановку computed', async (_name, make) => {
+    expect(await run(make(), SCOPE_COMPUTED_CODE)).toEqual(SCOPE_COMPUTED_OUT);
+    expect(COMPONENT_NOTE).toContain('в список эффектов области не входит');
   });
 });
 

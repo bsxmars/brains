@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { AstExample } from '@/widgets/ast-lab/model/types';
 
@@ -277,7 +278,7 @@ export const DEMO_EXAMPLES: AstExample[] = [
 ];
 
 export const DEMO_CAPTION =
-  'Разбирает текст espree — тот же парсер, что у ESLint, а обход, правила, проходы и правки считают строки `traverse`, `noLooseEq`, `yoda` и `verifyAndFix`, напечатанные в теме. На обходе видно, что правило получает узел целиком — с детьми, родителем и местом в тексте. На исправлениях видно, что отложенная правка не теряется: правило находит ту же ошибку на следующем проходе, уже в новом тексте и с новым `range`.';
+  'Правило получает целый узел с детьми, родителем и местом в тексте. После замены выражения старые смещения уже непригодны: следующий проход заново разбирает текст и находит оператор на новом range. Сообщение без безопасной правки остаётся и после окончания исправлений.';
 
 // ─── Раздел 3. Области видимости ───────────────────────────────────────────────────────────
 
@@ -835,3 +836,24 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Транспиляция и полифилы, раздел «От запроса к плагинам»](/tooling/transpilation/#s2) — Babel тоже работает с деревом: плагины переписывают узлы синтаксиса. [Тест-раннеры изнутри, раздел «Моки и подъём»](/tooling/test-runners/#s3) — `jest.mock` поднимает наверх Babel-плагин, то есть правка дерева. [Бандлер изнутри, раздел «Граф модулей»](/tooling/bundler-internals/#s1) — сборщик тоже разбирает файлы, но ищет в них только импорты. [Source maps изнутри](/tooling/source-maps/) — как позиции в тексте переживают сборку. [TypeScript на уровне типов](/tooling/typescript/) — что делает компилятор, чьё дерево typescript-eslint переводит в ESTree. [CSS-инструменты](/tooling/css-tooling/) — то же дерево и обход, но для CSS: PostCSS, CSS-модули и сканер Tailwind. [Форматтер изнутри](/tooling/formatter/) — Doc и печать по ширине: как Prettier решает, где ломать строку.';
+
+/** Схема конкретного конфликта из DISCOUNT_MESSAGES и PASS_ROWS, не абстрактный конвейер. */
+export const MECHANISM_DIAGRAM: ConceptDiagramData = {
+  id: 'ast-fix-reparse',
+  title: 'Отложенную правку находят заново, а не переносят со старым range',
+  description: 'В первом сравнении функции discount правило yoda заменяет всё выражение, а no-loose-eq — оператор внутри. ESLint применяет одну из пересекающихся правок и получает новое дерево из нового текста.',
+  width: 980, height: 620,
+  nodes: [
+    { id: 'text', x: 0, y: 0, width: 260, height: 240, label: "'string' == typeof code", detail: 'В исходном файле сравнение занимает [66, 89], а оператор внутри — [75, 77].', tone: 'info' },
+    { id: 'fix', x: 360, y: 0, width: 260, height: 240, label: 'Две правки одного места', detail: 'yoda меняет [66, 89]. no-loose-eq меняет [75, 77]. Вторая правка пересекается с первой.', tone: 'warn' },
+    { id: 'apply', x: 720, y: 0, width: 260, height: 240, label: "typeof code == 'string'", detail: 'После yoda текст изменился. Старые смещения относятся к предыдущей версии файла.', tone: 'ok' },
+    { id: 'parse', x: 720, y: 380, width: 260, height: 240, label: 'Разобрать ещё раз', detail: 'Новый текст → новые токены → новое дерево → повторный вызов правил.', tone: 'info' },
+    { id: 'next', x: 0, y: 380, width: 260, height: 240, label: 'Новая правка [78, 80]', detail: "no-loose-eq снова находит ==. Получается typeof code === 'string'.", tone: 'ok' },
+  ],
+  edges: [
+    { from: 'text', to: 'fix' }, { from: 'fix', to: 'apply' },
+    { from: 'apply', to: 'parse', fromSide: 'bottom', toSide: 'top', label: 'новый текст', labelX: 850, labelY: 315 },
+    { from: 'parse', to: 'next', fromSide: 'left', toSide: 'right', label: 'новые смещения', labelX: 490, labelY: 485 },
+  ],
+  note: 'Между правками ESLint заново проверяет весь файл. Пересечение говорит только о совместимости диапазонов; оно не доказывает безопасность самой замены.',
+};

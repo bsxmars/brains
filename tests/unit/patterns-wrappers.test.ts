@@ -250,3 +250,32 @@ describe('тонкие места', () => {
     }
   });
 });
+
+
+describe('практический контракт', () => {
+  it('граница API различает данные, форму, статус и синтаксис JSON', async () => {
+    checkPage(t.PRACTICE_CODE);
+    expect(await execute(t.PRACTICE_CODE)).toEqual(t.PRACTICE_OUT);
+  });
+});
+
+
+it('граница API сохраняет URL и signal, а неверный id не достигает транспорта', async () => {
+  const code = t.PRACTICE_CODE + `
+const controller = new AbortController();
+let sends = 0;
+const users = createUsersApi(async (url, init) => {
+  sends++;
+  console.log(url + ' signal=' + (init.signal === controller.signal));
+  return Response.json({ id: 7, name: 'Анна' });
+}, 'https://api.example/v1/');
+await users.get(7, controller.signal);
+try { await users.get(-1); } catch (error) { console.log((error as Error).message); }
+console.log(sends);`;
+  checkPage(code);
+  expect((await execute(code)).slice(t.PRACTICE_OUT.length)).toEqual([
+    'https://api.example/v1/users/7 signal=true', 'Некорректный id', 1,
+  ]);
+  // Получение HTTP-ответа и чтение тела имеют разные границы отказа.
+  expect(t.FETCH_NOTES[0]).toContain('Чтение тела — отдельный асинхронный шаг');
+});

@@ -1,0 +1,59 @@
+---
+import { loadLookup, loadVlq } from '../model/run';
+import type { RawMap } from '../model/types';
+interface Props {
+  map: RawMap; generated: string; column: number; vlqCode: string; lookupCode: string;
+  copy: { title: string; generated: string; original: string; lookup: string; note: string; };
+}
+const { map, generated, column, vlqCode, lookupCode, copy } = Astro.props;
+const lines = loadVlq(vlqCode).decodeMappings(map.mappings);
+const original = loadLookup(lookupCode)(map, lines, 1, column);
+if (!original) throw new Error('Схема source map требует отображённую позицию');
+const originalText = map.sourcesContent[map.sources.indexOf(original.source)].split('\n')[original.line - 1];
+const focus = (line: string, at: number) => ({
+  before: `${at > 16 ? '…' : ''}${line.slice(Math.max(0, at - 16), at)}`,
+  at: line[at] || ' ', after: `${line.slice(at + 1, at + 25)}${line.length > at + 25 ? '…' : ''}`,
+});
+const left = focus(generated.split('\n')[0], column);
+const right = focus(originalText, original.column);
+---
+<figure class="smp" data-render-illustration="source-map-position">
+  <figcaption>{copy.title}</figcaption>
+  <div class="smp-scroll" role="region" tabindex="0" aria-label={copy.title}>
+    <div class="smp-pair">
+      <div class="smp-panel">
+        <div class="smp-label">{copy.generated}</div>
+        <code class="smp-position">cart.js:1:{column + 1}</code>
+        <pre><code>{left.before}<mark>{left.at}</mark>{left.after}</code></pre>
+        <p>line = 1 · column = {column}</p>
+      </div>
+      <div class="smp-arrow" aria-hidden="true">→</div>
+      <div class="smp-panel smp-source">
+        <div class="smp-label">{copy.original}</div>
+        <code class="smp-position">{original.source}:{original.line}:{original.column + 1}</code>
+        <pre><code>{right.before}<mark>{right.at}</mark>{right.after}</code></pre>
+        <p>line = {original.line} · column = {original.column}</p>
+      </div>
+    </div>
+    <p class="smp-rule">{copy.lookup}</p>
+  </div>
+  <p class="smp-note">{copy.note}</p>
+</figure>
+<style>
+  .smp { margin: 0; min-width: 0; padding: 22px; background: var(--surface); box-shadow: var(--shadow-card); border-radius: var(--r3); }
+  .smp figcaption { color: var(--ink); font-size: var(--fs-7); font-weight: 600; line-height: 1.45; }
+  .smp-scroll { overflow-x: auto; margin-top: 18px; }
+  .smp-pair { display: grid; grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr); gap: 12px; min-width: 900px; align-items: center; }
+  .smp-panel { min-width: 0; padding: 18px; border-radius: var(--r2); border: 1px solid var(--tone-warn-line); background: var(--tone-warn-bg); color: var(--tone-warn-strong); }
+  .smp-source { border-color: var(--tone-info-line); background: var(--tone-info-bg); color: var(--tone-info-strong); }
+  .smp-label { font-size: var(--fs-6); font-weight: 600; }
+  .smp-position { display: block; margin-top: 10px; font-size: var(--fs-3); overflow-wrap: anywhere; }
+  .smp pre { overflow-x: auto; padding: 12px; border-radius: var(--r1); background: var(--surface); color: var(--ink); font-size: var(--fs-3); line-height: 1.6; }
+  .smp pre code { background: transparent; padding: 0; font-size: inherit; }
+  .smp mark { background: var(--tone-warn-line); color: var(--ink); padding: 2px 0; border-bottom: 2px solid var(--tone-warn-strong); }
+  .smp-panel p { margin-bottom: 0; font: var(--fs-3) var(--mono); }
+  .smp-arrow { color: var(--text-muted); text-align: center; font-size: var(--fs-8); }
+  .smp-rule, .smp-note { color: var(--text-muted); font-size: var(--fs-5); line-height: 1.6; }
+  .smp-rule { min-width: 900px; }
+  .smp-note { margin-bottom: 0; }
+</style>

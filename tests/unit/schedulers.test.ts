@@ -363,3 +363,44 @@ describe('SCHED_SCENARIOS_WIRE разворачивается ровно в SCHE
     expect(JSON.stringify(t.SCHED_SCENARIOS_WIRE).length).toBeLessThan(JSON.stringify(t.SCHED_SCENARIOS).length / 10);
   });
 });
+
+
+describe('граница кооперативного планирования', () => {
+  it('порог 5 мс не прерывает цельную функцию на 20 мс — в модели и настоящем scheduler', () => {
+    const createHost = new Function(`${t.HOST_CODE}\nreturn createHost;`)() as () => Host & {
+      work(ms: number): void;
+      run(): void;
+    };
+    const mine = miniCreate as typeof realScheduler;
+    for (const create of [mine, realScheduler]) {
+      const host = createHost();
+      const scheduler = create(host);
+      const log: string[] = [];
+      scheduler.scheduleCallback(3, () => {
+        log.push(`start:${host.now()}`);
+        scheduler.scheduleCallback(1, () => { log.push(`urgent:${host.now()}`); });
+        host.work(20);
+        log.push(`end:${host.now()}:${scheduler.shouldYield()}`);
+      });
+      host.run();
+      expect(log).toEqual(['start:0', 'end:20:true', 'urgent:20']);
+    }
+  });
+});
+
+
+it('просроченный Immediate тоже может вернуть продолжение и уступить хосту', () => {
+  const createHost = new Function(`${t.HOST_CODE}\nreturn createHost;`)() as () => Host & { run(): void };
+  for (const create of [miniCreate as typeof realScheduler, realScheduler]) {
+    const host = createHost();
+    const scheduler = create(host);
+    const log: string[] = [];
+    scheduler.scheduleCallback(1, (didTimeout: boolean) => {
+      log.push(`start:${didTimeout}`);
+      host.postTask(() => { log.push('host'); });
+      return (expired: boolean) => { log.push(`continue:${expired}`); };
+    });
+    host.run();
+    expect(log).toEqual(['start:true', 'host', 'continue:true']);
+  }
+});

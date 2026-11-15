@@ -342,3 +342,36 @@ describe('параллелизм Cloud Run: словарь, таблица и в
     expect(run.conc).toContain('максимум 1000');
   });
 });
+
+
+describe('жизненный цикл подключения: отказ не становится вечным кешем', () => {
+  it('конкурентные вызовы делят один отказ, следующий вызов повторяет connect', async () => {
+    let attempts = 0;
+    const connect = async () => {
+      attempts++;
+      if (attempts === 1) throw new Error('temporarily unavailable');
+      return { query: async () => 'ok' };
+    };
+    const handler = new Function('connect', 'DB_URL', t.POOL_MODULE.replace(/^export /m, '') + '\nreturn handler;')(connect, 'postgres://') as () => Promise<string>;
+    const first = await Promise.allSettled([handler(), handler(), handler()]);
+    expect(first.map((r) => r.status)).toEqual(['rejected', 'rejected', 'rejected']);
+    expect(attempts).toBe(1);
+    expect(await handler()).toBe('ok');
+    expect(await handler()).toBe('ok');
+    expect(attempts).toBe(2);
+  });
+
+  it('соединение на один вызов закрывается и при ошибке запроса', async () => {
+    let closed = 0;
+    const connect = async () => ({ query: async () => { throw new Error('query failed'); }, end: async () => { closed++; } });
+    const handler = new Function('connect', 'DB_URL', t.POOL_PER_CALL.replace(/^export /m, '') + '\nreturn handler;')(connect, 'postgres://') as () => Promise<unknown>;
+    await expect(handler()).rejects.toThrow('query failed');
+    expect(closed).toBe(1);
+  });
+
+  it('пояснение node:vm не приравнивает синхронный timeout к CPU-лимиту платформы', () => {
+    // Прогон /wait в существующей EDGE_LOG-проверке уже показывает: async-ответ длится дольше timeout.
+    expect(t.EDGE_LOG_NOTE).toContain('не измеритель CPU');
+    expect(t.EDGE_LOG_NOTE).toContain('асинхронное продолжение');
+  });
+});

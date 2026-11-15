@@ -20,6 +20,8 @@ nav:
 ---
 
 import Md from '@/shared/ui/Md.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -45,6 +47,7 @@ import {
   ENGINES_HEAD, ENGINES_ROWS,
   PITFALLS, SOURCES, RELATED,
   CONTEXT_SCENE_CODE, CONTEXT_SCENE_NOTE, CONTEXT_STEPS, PLAIN_CONTEXT_STEPS, RESET_SCENE_CODE, RESET_STEPS,
+  SHADOW_PATHS_DIAGRAM,
 } from './data';
 
 <Section
@@ -84,6 +87,8 @@ import {
 
   <ShadowBoundary client:visible rows={BOUNDARY_ROWS} note={BOUNDARY_DEMO_NOTE} />
 
+  <ConceptDiagram data={SHADOW_PATHS_DIAGRAM} />
+
   <CardGrid min={280} gap={14} align="start">
     {INHERIT_FACTS.map((fact) => (
       <Card tone={fact.tone ?? 'neutral'} title={fact.t} titleSize={16} pad={18} gap={10} size={15.5} lh={1.6} text={fact.d} />
@@ -114,7 +119,7 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="`::slotted()`: только то, что легло в слот напрямую"
-  lead="Дети из светлого DOM принадлежат странице, но показываются внутри компонента. `::slotted()` даёт компоненту стилизовать их — ровно на один уровень и слабее, чем это делает страница."
+  lead="Дети из светлого DOM принадлежат странице, но показываются внутри компонента. `::slotted()` выбирает непосредственно назначенные в слот элементы. У обычных объявлений стиль страницы сильнее; `!important` меняет этот порядок."
 >
   <CodeBlock lang="html" code={SLOTTED_CODE} />
 
@@ -177,7 +182,9 @@ import {
 
   <Plain text={PLAIN_CONTEXT_STEPS} />
 
-  ### Все проверенные пары
+<Disclosure title="Все пары правил из стенда">
+
+### Все проверенные пары
 
   <Table
     head={CASCADE_HEAD}
@@ -186,6 +193,8 @@ import {
     cols="minmax(200px,1.1fr) minmax(200px,1.1fr) minmax(90px,.45fr) minmax(220px,1.2fr)"
     minWidth={780}
   />
+
+</Disclosure>
 
   ### Сцена: правила по обе стороны
 
@@ -271,7 +280,9 @@ import {
 
   <CodeBlock lang="css" code={RESET_CODE} />
 
-  <Table
+<Disclosure title="Результаты сброса и правила наследования у контролов">
+
+<Table
     head={RESET_HEAD}
     rows={RESET_ROWS}
     kinds={['mono', 'prose', 'prose', 'muted']}
@@ -298,13 +309,16 @@ import {
     cols="minmax(160px,1fr) minmax(160px,1fr) minmax(110px,.6fr)"
     minWidth={480}
   />
+
+</Disclosure>
+
 </Section>
 
 <Section
   id="s9"
   eyebrow="Раздел 9"
   title="Поддержка в трёх движках"
-  lead="Всё, что названо в теме, есть во всех трёх, кроме `:host-context()`. Расходятся движки в краевых случаях — и каждый из них выглядит как ошибка в вашем коде."
+  lead="Таблица фиксирует поведение версий стенда: Chromium 153, Firefox 155 и WebKit 26.6. Отсутствие отдельной возможности и различие в краевом случае требуют разных запасных решений."
 >
   <Table
     head={ENGINES_HEAD}

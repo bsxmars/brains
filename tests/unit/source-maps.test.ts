@@ -2,6 +2,9 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import { chromium } from 'playwright';
+import { withBrowser } from '../helpers/with-browser';
 import remapping from '@jridgewell/remapping';
 import { decode } from '@jridgewell/sourcemap-codec';
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
@@ -11,6 +14,45 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import * as t from '@/content/tooling/source-maps/data';
 import { loadLookup, loadVlq } from '@/widgets/source-map-lab/model/run';
 import type { RawMap } from '@/widgets/source-map-lab/model/types';
+
+it('Chromium берёт SourceMap header раньше комментария, не загружая карту сам', async () => {
+  let mapsRequested = 0;
+  const server = createServer((req, res) => {
+    const path = req.url ?? '/';
+    if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+      if (path === '/with-header.js') res.setHeader('SourceMap', '/header.map');
+      res.end(`console.log('loaded');\n${'//'}# sourceMappingURL=/comment.map`);
+    } else if (path.endsWith('.map')) {
+      mapsRequested++;
+      res.setHeader('Content-Type', 'application/json');
+      res.end('{"version":3,"sources":["x.ts"],"names":[],"mappings":"AAAA"}');
+    } else res.end(`<script src="${path}.js"></script>`);
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const port = (server.address() as { port: number }).port;
+    await withBrowser(chromium, {}, async (browser) => {
+      for (const [path, expected] of [['with-header', '/header.map'], ['without-header', '/comment.map']]) {
+        const page = await browser.newPage();
+        const cdp = await page.context().newCDPSession(page);
+        const parsed: string[] = [];
+        cdp.on('Debugger.scriptParsed', (event) => {
+          if (event.url.endsWith(`/${path}.js`)) parsed.push(event.sourceMapURL ?? '');
+        });
+        await cdp.send('Debugger.enable');
+        await page.goto(`http://127.0.0.1:${port}/${path}`);
+        expect(parsed).toEqual([expected]);
+        await page.close();
+      }
+    });
+    expect(mapsRequested).toBe(0);
+    expect(t.FIND_MAP_NOTE).toContain('побеждает заголовок');
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
 
 /**
  * Тема «Source maps изнутри».

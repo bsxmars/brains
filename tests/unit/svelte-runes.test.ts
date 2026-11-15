@@ -249,6 +249,21 @@ describe('сценарии: настоящий Svelte и мини-руны да�
   });
 });
 
+describe('чтение derived до запланированных эффектов', () => {
+  it('после записи синхронное чтение уже пересчитывает значение', async () => {
+    const code = `const n = $.state(1);
+const d = $.derived(() => { log('computed'); return $.get(n) * 2; });
+log('first: ' + $.get(d));
+$.set(n, 3);
+log('before read');
+log('read: ' + $.get(d));
+log('after read');`;
+    const expected = ['computed', 'first: 2', 'before read', 'computed', 'read: 6', 'after read'];
+    expect(await realLog(code)).toEqual(expected);
+    expect(await miniLog(t.MINI_RUNES_CODE, code)).toEqual(expected);
+  });
+});
+
 /** Испорченная копия мини-рун: замена обязана сработать, иначе проверка молча ничего не ломает. */
 function broken(find: string, replace: string): string {
   expect(t.MINI_RUNES_CODE, `в MINI_RUNES_CODE нет «${find}»`).toContain(find);

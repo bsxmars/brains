@@ -94,13 +94,16 @@ describe('состояние фона — та самая строка из те
   // хранилищем: ровно это стенд увидел после 45 с тишины (новый bootId, kept-session).
   type Listener = (msg: unknown, sender: unknown, reply: (v: unknown) => void) => unknown;
   const session = new Map<string, unknown>();
-  const boot = () => {
+  const boot = (failedReads = 0) => {
     const listeners: Listener[] = [];
     const chrome = {
       runtime: { onMessage: { addListener: (fn: Listener) => listeners.push(fn) } },
       storage: {
         session: {
-          get: async (key: string) => (session.has(key) ? { [key]: session.get(key) } : {}),
+          get: async (key: string) => {
+            if (failedReads-- > 0) throw new Error('storage недоступно');
+            return session.has(key) ? { [key]: session.get(key) } : {};
+          },
           set: async (items: Record<string, unknown>) => {
             for (const [k, v] of Object.entries(items)) session.set(k, v);
           },
@@ -116,6 +119,23 @@ describe('состояние фона — та самая строка из те
       });
     return { readGlobal, send };
   };
+
+  it('одновременные сообщения не теряют прибавления', async () => {
+    session.clear();
+    const worker = boot();
+    const replies = await Promise.all(Array.from({ length: 8 }, () => worker.send()));
+    expect(replies.flat()).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(session.get('seen')).toBe(8);
+    session.clear();
+  });
+
+  it('ошибка хранилища возвращается ответом и не ломает следующее сообщение', async () => {
+    session.clear();
+    const worker = boot(1);
+    expect(await worker.send()).toEqual([{ error: 'Не удалось сохранить счётчик' }]);
+    expect(await worker.send()).toEqual([1]);
+    session.clear();
+  });
 
   it('переменная обнуляется при перезапуске, storage.session — нет', async () => {
     const first = boot();

@@ -4,7 +4,7 @@ heading: "Контекст наложения, z-index и верхний сло�
 headingWidth: 24
 order: 20
 kicker: браузер и рендеринг
-lead: "Модальное окно с `z-index: 9999` прячется под блоком с `z-index: 2` — и это не ошибка браузера. `z-index` сравнивают только внутри одной группы элементов, контекста наложения, а группу молча создают `opacity`, `transform`, `filter` и ещё два десятка свойств. Как браузер выбирает порядок отрисовки, кто создаёт контекст, почему `isolation: isolate` — лекарство и что такое верхний слой, куда не дотянется никакой `z-index`."
+lead: "Модальное окно с `z-index: 9999` прячется под блоком с `z-index: 2` — и это не ошибка браузера. `z-index` сравнивают только внутри одной группы элементов, контекста наложения, а группу молча создают `opacity`, `transform`, `filter` и ещё два десятка свойств. Контекст ограничивает сравнение чисел: `isolation: isolate` замыкает его внутри компонента. Модальный `<dialog>` браузер помещает в верхний слой, поверх обычных контекстов."
 summary: "Семь шагов отрисовки из CSS 2.1 (приложение E), float и `inline-block` как «почти контекст», полный список свойств, создающих контекст, ловушка `z-index: 9999` и `isolation: isolate`, верхний слой: `showModal()`, `popover`, полный экран, `::backdrop`, порядок внутри слоя, инертность страницы под модальным окном."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless), Node 24.11.0, октябрь 2026: список свойств, порядок отрисовки, верхний слой, модальность и дерево доступности сняты стендом и снимаются заново в tests/unit/stacking.test.ts; функция темы paintOrder сверена с elementsFromPoint на сценах демо и 300 случайных деревьях"
 nav:
@@ -17,6 +17,8 @@ nav:
   - { id: s7, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ContextBoundaryDiagram from '@/widgets/stacking-lab/ui/ContextBoundaryDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -48,7 +50,6 @@ import {
   TRIGGER_NOTE,
   COMPOSITOR_NOTE,
   TRAP_HTML,
-  TRAP_STEPS,
   TRAP_FIXES,
   LEAK_HTML,
   LEAK_NOTE,
@@ -89,10 +90,6 @@ import {
   и позиционированных элементов свои шаги отрисовки. А некоторые элементы собирают своих
   потомков в отдельную группу, и внутри неё снова идут те же шаги.
 
-  Группу создаёт не только `z-index`, но и `opacity`, `transform`, `filter`, `will-change` —
-  свойства, которые ставят совсем не ради порядка. Поэтому слои часто ломаются там, где
-  `z-index` никто не трогал.
-
   <Plain text={PLAIN_CONTEXT} />
 
   <Glossary items={GLOSSARY} />
@@ -123,6 +120,8 @@ import {
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LAYERS_NOTE} />
   </CardGrid>
 
+<Disclosure title="Как учебная модель вычисляет порядок отрисовки">
+
   <Card title="`paintOrder`: дерево → контексты → порядок" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={STACKING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -130,6 +129,8 @@ import {
       <Md text={STACKING_NOTE} />
     </CardNote>
   </Card>
+
+</Disclosure>
 
   <CardGrid min={280} gap={14} align="start">
     {ORDER_FACTS.map((fact) => (
@@ -170,15 +171,11 @@ import {
   title="Ловушка 9999"
   lead="Самая частая жалоба на `z-index` — «ставлю больше, а не помогает». Браузер сравнивает это число только с соседями внутри того же контекста наложения, а не со всеми элементами страницы."
 >
-  <CardGrid min={300} gap={16} align="start">
-    <Card title="Модальное окно внутри шапки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock lang="html" code={TRAP_HTML} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
+  <Card title="Модальное окно внутри шапки" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <CodeBlock lang="html" code={TRAP_HTML} size={11.5} lh={1.65} pad="14px 16px" />
+  </Card>
 
-    <Card title="Что видит браузер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <NumberedList items={TRAP_STEPS} size={15.5} />
-    </Card>
-  </CardGrid>
+  <ContextBoundaryDiagram scene={DEMO_SCENES[0]} code={STACKING_CODE} />
 
   <CardGrid min={260} gap={14} align="start">
     {TRAP_FIXES.map((fix) => (
@@ -201,7 +198,7 @@ import {
 
   <Card tone="ok" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={ISOLATE_ADVICE} />
 
-  ### Соберите дерево сами
+  ### Изменение контекста меняет порядок
 
   <StackingLab
     client:visible

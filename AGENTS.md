@@ -52,6 +52,8 @@
 | Пейджер не ведёт не туда на краях курса | `tests/unit/neighbours.test.ts` |
 | Оси графиков считают верно | `tests/unit/chart.test.ts` |
 | Песочница отдаёт вывод примера целиком | `tests/unit/run-snippet-worker.test.ts` |
+| Приборы React/Vue совпадают с видимой таблицей по вызовам компонентов и записям DOM | `tests/e2e/two-models.spec.ts` |
+| Подписи инфографики восьми направлений и двух включённых в обход тем JS помещаются в узлы и полотно на 375 и 1280px | `tests/e2e/topic-illustrations.spec.ts` |
 
 ---
 

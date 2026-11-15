@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,8 @@ import EnvLab from '@/widgets/env-lab/ui/EnvLab.vue';
 import ScanLab from '@/widgets/env-lab/ui/ScanLab.vue';
 import {
   GLOSSARY,
+  PUBLIC_CONFIG_DIAGRAM,
+
   PLAIN_SECRET,
   TWELVE_TEXT,
   PUBLIC_TABLE,
@@ -63,7 +67,7 @@ import {
   ENV_FACTS,
   PLAIN_RUNTIME,
   RUNTIME_TEXT,
-  RENDER_CONFIG_CODE,
+  RENDER_CONFIG_ENTRY_CODE,
   RUNTIME_OUT,
   RUNTIME_HTML,
   ENTRYPOINT_CODE,
@@ -149,6 +153,8 @@ import {
   title="Что сборщик вписывает в бандл"
   lead="В браузере нет `process` и нет файлов `.env`. Поэтому сборщик подставляет значения при сборке — строкой, прямо в JS. После этого значение — часть файла, который скачивает каждый посетитель."
 >
+  <ConceptDiagram data={PUBLIC_CONFIG_DIAGRAM} />
+
   <Plain text={PLAIN_INLINE} />
 
   <Card title=".env фикстуры" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
@@ -224,9 +230,19 @@ import {
   <Md text={ORDER_NOTE} />
 
   <Card title="Загрузка по режиму с фильтром по префиксу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={LOAD_ENV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Загрузка .env-файлов">
+
+      <CodeBlock code={LOAD_ENV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     <Md text={LOAD_ENV_NOTE} />
   </Card>
+
+  <Disclosure title="Тексты .env-файлов, которые читает модель">
+
+    <CodeBlock lang="json" code={JSON.stringify(ENV_FILES, null, 2)} />
+
+  </Disclosure>
 
   <EnvLab
     client:visible
@@ -257,7 +273,7 @@ import {
   <Md text={RUNTIME_TEXT} />
 
   <Card title="Файл конфига из окружения" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={RENDER_CONFIG_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock code={RENDER_CONFIG_ENTRY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     <CodeBlock lang="text" code={'// renderConfig(env) в контейнере с API_URL, SENTRY_DSN, FEATURE_NEW_CART, DB_PASSWORD, HOME\n' + RUNTIME_OUT} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
@@ -374,9 +390,19 @@ import {
   <Plain text={PLAIN_ENTROPY} />
 
   <Card title="Правила и энтропия" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SCAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Сканер правил и энтропии">
+
+      <CodeBlock code={SCAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     <Md text={SCAN_NOTE} />
   </Card>
+
+  <Disclosure title="Полные входы учебного сканера">
+
+    <CodeBlock lang="json" code={JSON.stringify(SCAN_SAMPLES, null, 2)} />
+
+  </Disclosure>
 
   <ScanLab
     client:visible

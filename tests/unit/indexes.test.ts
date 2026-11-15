@@ -124,6 +124,12 @@ describe('таблица — это страницы', () => {
     expect(r.v).toMatch(/^PostgreSQL 18\./);
   });
 
+  it('lower не сохраняет порядок C: индекс по выражению нельзя объяснять незнанием планировщика', async () => {
+    expect(await one(db, `SELECT 'Z' COLLATE "C" < 'a' AS original, lower('Z') COLLATE "C" < lower('a') AS lowered`)).toEqual({
+      original: true, lowered: false,
+    });
+  });
+
   it('PLAN_SEQ без индекса, PLAN_INDEX с ним — дословно', async () => {
     expect(await plan(db, t.EMAIL_QUERY)).toBe(t.PLAN_SEQ);
     await db.exec(t.INDEX_SQL);
@@ -141,6 +147,37 @@ describe('таблица — это страницы', () => {
   it('PLAN_LOOPS: вложенный цикл, loops=5, 3 + 15 = 18 страниц', async () => {
     const sql = t.LOOPS_SQL.replace(/^EXPLAIN \(ANALYZE, BUFFERS\)\n/, '').replace(/;$/, '');
     expect(await plan(db, sql)).toBe(t.PLAN_LOOPS);
+    // Пять строк пользователей лежат на одной heap-странице, но буферные обращения повторяются.
+    const heap = await rows<{ ctid: string }>(db, 'SELECT u.ctid FROM orders o JOIN users u ON u.id = o.user_id WHERE o.id <= 5');
+    expect(new Set(heap.map((r) => pageOf(r.ctid))).size).toBe(1);
+    expect((await json(db, sql)).Plans![1]['Shared Hit Blocks']).toBe(15);
+  });
+
+  it('индекс ленты задаёт порядок и курсор из даты плюс уникального id без отдельной сортировки', async () => {
+    const feed = await freshDb(t.FEED_INDEX_SQL);
+    type FeedRow = { id: number; email: string; created_at: Date };
+    const first = (await feed.query<FeedRow>(t.FEED_QUERY_SQL, ['Москва', '2027-01-01', 100000])).rows;
+    expect(first).toHaveLength(20);
+    const last = first.at(-1)!;
+    const second = (await feed.query<FeedRow>(t.FEED_QUERY_SQL, ['Москва', last.created_at, last.id])).rows;
+    expect(second).toHaveLength(20);
+    expect(new Set([...first, ...second].map((r) => Number(r.id))).size).toBe(40);
+    const r = await feed.query<{ 'QUERY PLAN': { Plan: JsonNode }[] }>(`EXPLAIN (FORMAT JSON) ${t.FEED_QUERY_SQL}`, ['Москва', '2027-01-01', 100000]);
+    const p = r.rows[0]['QUERY PLAN'][0].Plan;
+    expect(p['Node Type']).toBe('Limit');
+    expect(p.Plans![0]['Node Type']).toBe('Index Scan');
+    await feed.close();
+  });
+
+  it('частичный индекс не получает запись, не подходящую под предикат', async () => {
+    const partial = await freshDb(t.PARTIAL_SQL.split(';')[0]);
+    const indexed = () => one<{ n: string }>(partial, "SELECT count(*) AS n FROM bt_page_items('users_blocked_created_idx', 1)");
+    const before = await indexed();
+    await partial.exec("INSERT INTO users VALUES (30001, 'outside@test', 'Москва', 'active', date '2026-01-01')");
+    expect(await indexed()).toEqual(before);
+    await partial.exec("INSERT INTO users VALUES (30002, 'inside@test', 'Москва', 'blocked', date '2030-01-01')");
+    expect(Number((await indexed()).n)).toBe(Number(before.n) + 1);
+    await partial.close();
   });
 
   it('первый запуск в сессии читает больше: FIRST_RUN', async () => {

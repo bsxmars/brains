@@ -7,6 +7,7 @@ import { setImmediate as nextTurn } from 'node:timers/promises';
 import { Worker } from 'node:worker_threads';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
+  ADD_WAT,
   BOUNDARY_BYTES,
   BOUNDARY_BYTES_CODE,
   BOUNDARY_SETUP_CODE,
@@ -127,6 +128,7 @@ describe('учебный модуль: байты, декодер и текст 
     expect(add.index).toBe(1);
     expect(upper.index).toBe(2);
     expect(watInstructions(MODULE_WAT, '$add')).toEqual(add.code);
+    expect(watInstructions(ADD_WAT, '$add')).toEqual(add.code);
     expect(watInstructions(MODULE_WAT, '$upper')).toEqual(upper.code);
     expect(upper.locals).toEqual(['i32', 'i32', 'i32']);
   });
@@ -346,8 +348,8 @@ describe('линейная память: страницы, потолок, ро�
 describe('граница: таблица темы вычислена, а не набрана', () => {
   it('runBoundary в Node даёт ровно BOUNDARY_ROWS', async () => {
     const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => () => Promise<unknown>;
-    const shown = await new AsyncFunction(`${BOUNDARY_BYTES_CODE}\n${BOUNDARY_SETUP_CODE}\nreturn [i32(2 ** 32 + 5), i64(5n)];`)();
-    expect(shown).toEqual([5, 6n]);
+    const shown = await new AsyncFunction(`${BOUNDARY_BYTES_CODE}\n${BOUNDARY_SETUP_CODE}\nreturn [i32(2 ** 32 + 5), i64(5n), i32(42.9)];`)();
+    expect(shown).toEqual([5, 6n, 42]);
     const got = await runBoundary(BOUNDARY_BYTES);
     expect(got).toEqual(BOUNDARY_ROWS.map(({ call, got }) => ({ call, got })));
   });

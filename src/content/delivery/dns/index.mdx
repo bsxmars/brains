@@ -4,7 +4,7 @@ heading: "DNS: от имени до адреса и как он влияет н�
 headingWidth: 24
 order: 20
 kicker: доставка
-lead: "Вы сменили IP-адрес сервера в панели DNS — а половина пользователей ещё час ходит на старый. Это не сбой, а устройство системы: ответ про имя проходит через несколько кешей, и каждый держит его столько, сколько разрешил TTL. Как резолвер спускается от корня до вашей зоны, что лежит в пакете, почему нельзя CNAME на голом домене и как менять адрес, никого не потеряв."
+lead: "После смены IP-адреса часть клиентов продолжает обращаться к старому серверу: в кеше остался прежний ответ или ещё открыто соединение. DNS связывает имена с записями через делегирования и кеши. TTL помогает планировать переезд, но не переключает всех клиентов одновременно."
 summary: "Stub, рекурсивный резолвер, корень, TLD и авторитетный сервер; делегирование NS и glue; пакет по байтам — заголовок, флаги RD/RA/AA, секции, сжатие имён указателями 0xC0; учебный итеративный резолвер с кешем по TTL и негативным кешем по SOA; CNAME и вершина зоны, ALIAS и CNAME flattening; смена адреса при TTL 3600 и 60, понижение TTL заранее, DNS-балансировка и долгие соединения; запись HTTPS, DoH, `dns.lookup` против `dns.Resolver` в Node."
 verifiedOn: "Node 24.11.0 (c-ares 1.34.5, libuv 1.51.0), dns-packet 5.6.1, DiG 9.10.6, октябрь 2026: свои авторитетные серверы и рекурсивный резолвер на node:dgram, без запросов в интернет; цепочка делегирований, байты пакетов, TTL из кеша, негативный кеш и ответы dns.Resolver сняты стендом и пересобираются tests/unit/dns.test.ts; учебный резолвер сверен с dig +norec по шагам и с пакетами серверов. ALIAS/ANAME, кеши ОС и браузера, DoH, EDNS и формат HTTPS — по документации и RFC"
 nav:
@@ -19,6 +19,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -37,6 +39,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import DnsLab from '@/widgets/dns-lab/ui/DnsLab.vue';
 import {
   GLOSSARY,
+  CACHE_ROLLOUT_DIAGRAM,
   PLAIN_DNS,
   PATH_CHIPS,
   PATH_NOTE,
@@ -171,9 +174,9 @@ import {
   Все четыре сервера стенда — одна функция над своими зонами. Она решает одно: моё это
   имя или нет, а если моё — есть ли у него запись нужного типа.
 
-  <Card title="AUTH_CODE" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={AUTH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  <Disclosure title="Как авторитетный сервер отвечает на запрос">
+    <CodeBlock code={AUTH_CODE} />
+  </Disclosure>
 </Section>
 
 <Section
@@ -200,9 +203,9 @@ import {
 
   <Md text={PACKET_NOTE} />
 
-  <Card title="Разбор пакета: PARSE_CODE" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PARSE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  <Disclosure title="Полный код разбора пакета">
+    <CodeBlock code={PARSE_CODE} />
+  </Disclosure>
 </Section>
 
 <Section
@@ -211,13 +214,13 @@ import {
   title="Рекурсивный резолвер изнутри"
   lead="Резолвер получает от клиента один вопрос с флагом RD и превращает его в серию вопросов без RD — по одному на каждый уровень делегирования."
 >
-  <Card title="RESOLVER_CODE" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Полный код учебного резолвера">
     <CodeBlock code={RESOLVER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={RESOLVER_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   ### Вопросы и кеш во времени
 
@@ -239,7 +242,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="TTL и кеш на каждом уровне"
-  lead="Между вашей зоной и вкладкой браузера стоит три-четыре кеша. Каждый держит ответ не дольше TTL, считая от момента, когда получил его сам."
+  lead="Ответ могут сохранить рекурсивный резолвер, ОС, браузер и само приложение. Обычный кеш отдаёт остаток TTL, но это не предел жизни открытого соединения и не универсальная гарантия срока хранения у всех клиентов."
 >
   <Table
     head={['уровень', 'кто держит', 'сколько', 'как сбросить']}
@@ -316,6 +319,8 @@ import {
     scenarios={ROLLOUT_SCENARIOS}
     caption={ROLLOUT_CAPTION}
   />
+
+  <ConceptDiagram data={CACHE_ROLLOUT_DIAGRAM} />
 
   ### Порядок смены адреса
 

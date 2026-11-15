@@ -1,7 +1,13 @@
+import { createServer } from 'node:http';
+import { chromium } from 'playwright';
 import { describe, expect, it } from 'vitest';
 import { buildRequest, compilePolicy } from '@/widgets/fetch-metadata-policy/model/policy';
 import {
   HTTP_NOTE,
+  BASELINE,
+  CORP_NOTE,
+  GLOSSARY,
+  RIP_MIDDLEWARE_CODE,
   PITFALLS,
   RIP_CODE,
   RIP_PRESETS,
@@ -18,8 +24,9 @@ import {
  *
  * Запросы — поддельные объекты `{ method, path, headers }`, как их отдаёт `node:http`.
  * Заголовки для «настоящих» случаев взяты из `SEC_FETCH_ROWS` — это то, что Chromium 153
- * прислал на стенде темы. Браузерное поведение (CORP, COOP, `frame-ancestors`, отсутствие
- * `Sec-Fetch-*` на http) снято стендом и здесь не проверяется — в Node ему взяться неоткуда.
+ * прислал на стенде темы. Таблицы CORP/COOP/frame-ancestors остаются снимком исторического стенда.
+ * Отдельный Chromium-контроль ниже повторяет Lax, SOP, CORP и HTTP loopback;
+ * он не выдаётся за пересъёмку всей исторической таблицы.
  */
 const policy = compilePolicy(RIP_CODE);
 
@@ -31,9 +38,9 @@ const meta = (site: string, mode: string, dest: string) => ({
 });
 
 describe('политика изоляции ресурсов: ветки', () => {
-  it('без заголовков пропускает — и это та самая дыра http', () => {
+  it('без заголовков пропускает — ветка не доказывает доверие клиенту', () => {
     expect(policy(req({}))).toEqual({ allow: true, rule: 'no-metadata' });
-    // Тема обещает, что на http политика не отказывает никому: это следствие ветки (1).
+    // Обычный HTTP на исторических .test хостах не давал metadata; loopback проверен ниже.
     expect(HTTP_NOTE).toMatch(/пропускает всё/);
   });
 
@@ -137,3 +144,110 @@ describe('текст темы не расходится с политикой', 
     expect(() => compilePolicy('function other() {}')).toThrow(/isolationPolicy/);
   });
 });
+
+
+// Исполняется печатаемая обвязка node:http, а не её копия в тесте.
+describe('Vary на обоих решениях middleware', () => {
+  it.each([
+    { site: 'same-origin', initial: 'Accept-Encoding', allowed: true },
+    { site: 'cross-site', initial: ['Accept-Encoding', 'sec-fetch-site'], allowed: false },
+    { site: 'same-origin', initial: '*', allowed: true },
+  ])('$site, Vary=$initial', ({ site, initial, allowed }) => {
+    const headers = new Map<string, string | string[]>([['Vary', initial]]);
+    let status = 200;
+    let appCalls = 0;
+    let ended = false;
+    const res = {
+      getHeader: (name: string) => headers.get(name),
+      setHeader: (name: string, value: string) => headers.set(name, value),
+      writeHead: (value: number) => { status = value; },
+      end: () => { ended = true; },
+    };
+    let request!: (req: object, res: object) => void;
+    const server = { on: (_event: string, listener: typeof request) => { request = listener; } };
+    const app = () => { appCalls++; };
+    new Function('server', 'app', `${RIP_CODE}\n${RIP_MIDDLEWARE_CODE}`)(server, app);
+    request({ url: '/avatar.png', method: 'GET', headers: meta(site, 'no-cors', 'image') }, res);
+    expect(status).toBe(allowed ? 200 : 403);
+    expect(appCalls).toBe(allowed ? 1 : 0);
+    expect(ended).toBe(!allowed);
+    const vary = String(headers.get('Vary'));
+    if (initial === '*') expect(vary).toBe('*');
+    else {
+      const names = vary.toLowerCase().split(',').map((name) => name.trim());
+      expect(names).toEqual(expect.arrayContaining(['accept-encoding', 'sec-fetch-site', 'sec-fetch-mode', 'sec-fetch-dest']));
+      expect(names.filter((name) => name === 'sec-fetch-site')).toHaveLength(1);
+    }
+  });
+});
+
+it('Chromium: Lax, SOP, HTTP loopback и конечный ресурс после redirect', async () => {
+  const seen: { path: string; cookie: string; site: string }[] = [];
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a/tQAAAAASUVORK5CYII=', 'base64');
+  const server = createServer((req, res) => {
+    const url = new URL(req.url!, 'http://localhost');
+    seen.push({ path: url.pathname, cookie: req.headers.cookie ?? '', site: String(req.headers['sec-fetch-site'] ?? '') });
+    if (url.pathname === '/redirect-html' || url.pathname === '/redirect-png') {
+      res.writeHead(302, { Location: url.pathname === '/redirect-html' ? '/login' : '/public.png' });
+      return res.end();
+    }
+    if (url.pathname.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png');
+      if (url.pathname === '/private.png') res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      return res.end(png);
+    }
+    res.setHeader('Content-Type', 'text/html');
+    if (url.pathname === '/framed') return res.end('<iframe></iframe><iframe></iframe>');
+    if (url.pathname === '/launcher') return res.end('<a id="go">go</a>');
+    res.end('<p>login or account</p>');
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as import('node:net').AddressInfo).port;
+  const target = `http://127.0.0.1:${port}`;
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext();
+    await context.addCookies([{ name: 'session', value: 'known', url: target, sameSite: 'Lax' }]);
+    const page = await context.newPage();
+    await page.goto(`http://localhost:${port}/launcher`);
+    const images = await page.evaluate(async (origin) => {
+      const result: Record<string, string> = {};
+      for (const path of ['/plain.png', '/private.png', '/redirect-html', '/redirect-png']) {
+        result[path] = await new Promise<string>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve('load');
+          img.onerror = () => resolve('error');
+          img.src = origin + path;
+        });
+      }
+      return result;
+    }, target);
+    expect(images).toEqual({ '/plain.png': 'load', '/private.png': 'error', '/redirect-html': 'error', '/redirect-png': 'load' });
+    const imageRequest = seen.find((request) => request.path === '/plain.png')!;
+    expect(imageRequest.cookie).toBe('');
+    expect(imageRequest.site).toBe('cross-site'); // HTTP loopback получает Fetch Metadata.
+    const foreign = await page.evaluate(async (origin) => {
+      const frame = document.createElement('iframe');
+      const ready = new Promise<void>((resolve) => { frame.onload = () => resolve(); });
+      frame.src = origin + '/framed';
+      document.body.append(frame);
+      await ready;
+      let locationError = '';
+      try { void frame.contentWindow!.location.href; }
+      catch (error) { locationError = (error as DOMException).name; }
+      return { length: frame.contentWindow!.length, locationError };
+    }, target);
+    expect(foreign).toEqual({ length: 2, locationError: 'SecurityError' });
+    await page.locator('#go').evaluate((link, href) => link.setAttribute('href', href), target + '/navigation');
+    await Promise.all([page.waitForURL(target + '/navigation'), page.locator('#go').click()]);
+    expect(seen.find((request) => request.path === '/navigation')!.cookie).toBe('session=known');
+    expect(BASELINE[0]).toContain('top-level GET');
+    expect(GLOSSARY.find((term) => term.k === 'группа контекстов просмотра')!.d).toContain('location.href');
+    expect(HTTP_NOTE).toContain('HTTP loopback');
+    expect(CORP_NOTE).toContain('вся цепочка и конечный ресурс');
+  } finally {
+    await browser.close();
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+}, 30_000);

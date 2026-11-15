@@ -630,3 +630,18 @@ resource "terraform_data" "probe" {
     expect(shape(compactState(bases.for_each))).toEqual(shape(stand.STATE_FOREACH));
   });
 });
+
+
+describe('сдвиг count и правила замены — разные причины', () => {
+  it('один сдвиг адресов даёт replace или update в зависимости от forceNew провайдера', () => {
+    const config = { ...t.BASE_CONFIG, resources: t.BASE_CONFIG.resources.map((r) =>
+      r.type === 'local_file' && r.name === 'env' ? { ...r, count: ['dev', 'prod'] } : r) };
+    const actualProvider = planner.plan(config, stand.STATE_COUNT, t.SCHEMA);
+    const updateProvider = planner.plan(config, stand.STATE_COUNT, { ...t.SCHEMA,
+      local_file: { ...t.SCHEMA.local_file, forceNew: [] } });
+    expect(actualProvider.changes.find((c) => c.addr === 'local_file.env[1]')!.action).toBe('replace');
+    expect(updateProvider.changes.find((c) => c.addr === 'local_file.env[1]')!.action).toBe('update');
+    // Снимки настоящего local-провайдера выше проверяют именно вариант replace.
+    expect(t.COUNT_ROWS.find((r) => r.k === 'убрать из середины')!.count).toContain('update/replace');
+  });
+});

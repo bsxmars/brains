@@ -14,6 +14,7 @@ import {
   REACT_MEMO_SUM_SRC,
   REACT_SUM_OUT,
   REACT_SUM_SRC,
+  REACT_WHAT_NOTE,
   SOLID_COUNTER_OUT,
   SOLID_COUNTER_SRC,
   SOLID_DESTRUCTURE,
@@ -493,6 +494,8 @@ describe('React: исполнение в happy-dom', () => {
     const direct = reactCompile(REACT_MEMO_SUM_SRC.replace('{total * (1 - discount)}', '{total}')).code;
     expect(direct).not.toContain(MEMO_DROPPED_LINE);
     expect(direct).toMatch(/if \(\$\[0\] !== items\) \{\n\s+t1 = sum\(items\);/);
+    // Числовой результат тоже кешируется: прежнее объяснение через отсутствие ссылки ложно.
+    expect(REACT_WHAT_NOTE).toContain('не запрет кешировать числа');
   });
 });
 

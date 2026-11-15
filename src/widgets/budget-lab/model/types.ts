@@ -38,6 +38,7 @@ export interface GraphApi {
   walk(graph: Graph, entries: string[], withDynamic?: boolean): Map<string, string | null>;
   pageChunks(graph: Graph, entries: string[], withDynamic?: boolean): string[];
   whyIncluded(graph: Graph, entries: string[], target: string, withDynamic?: boolean): string[] | null;
+  checkPageBudget(graph: Graph, entries: string[], rawSize: (file: string) => number, budgetKb: number): { files: string[]; bytes: number; roundedKb: number; over: boolean };
   weigh(chunks: string[], size: (file: string) => number): number;
 }
 

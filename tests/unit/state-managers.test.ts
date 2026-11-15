@@ -116,6 +116,33 @@ describe('стор: createStore из темы против zustand/vanilla', () 
 describe('Redux: createReduxStore из темы против redux.createStore', () => {
   const ACTIONS = [{ type: 'inc' }, { type: 'same' }, { type: 'rename', name: 'Боря' }, { type: 'unknown' }, { type: 'addTodo', text: 'хлеб' }];
 
+  it('dispatch фиксирует снимок подписок, а одинаковая функция может иметь две подписки', () => {
+    for (const create of [miniRedux, reduxCreateStore]) {
+      const store = create(reducer);
+      const log: string[] = [];
+      let offB = () => {};
+      let first = true;
+      store.subscribe(() => {
+        log.push('A');
+        if (first) {
+          first = false;
+          offB();
+          store.subscribe(() => log.push('C'));
+        }
+      });
+      offB = store.subscribe(() => log.push('B'));
+      const repeated = () => log.push('D');
+      const offFirst = store.subscribe(repeated);
+      store.subscribe(repeated);
+      store.dispatch({ type: 'unknown' });
+      expect(log).toEqual(['A', 'B', 'D', 'D']);
+      log.length = 0;
+      offFirst();
+      store.dispatch({ type: 'unknown' });
+      expect(log).toEqual(['A', 'D', 'C']);
+    }
+  });
+
   it('пять dispatch — пять вызовов подписчика у обоих, состояние одинаковое', () => {
     const run = (create: typeof reduxCreateStore) => {
       const store = create(reducer);

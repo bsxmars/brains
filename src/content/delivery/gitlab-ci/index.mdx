@@ -68,6 +68,7 @@ import {
   VAR_FACTS,
   VAR_ROWS,
   VAR_STEPS,
+  VARIABLE_SCOPE_NOTE,
   VARS_CODE,
   WORKSPACE_LOG,
   GLOSSARY,
@@ -100,7 +101,7 @@ import {
   STAGE_DIAGRAM,
 } from './data';
 
-<Section variant="intro" eyebrow="Зачем отдельная тема" gap={24}>
+<Section variant="intro" eyebrow="Граф, условия и передача файлов" gap={24}>
   <Callout size={19} pad="24px 26px">
 
     `.gitlab-ci.yml` выглядит как программа, но это описание: по нему GitLab сам решает, что
@@ -133,8 +134,9 @@ import {
     <Card tone="ok" title="Каждый джоб начинает с чистой копии репозитория" titleSize={16.5} pad={18} gap={9} size={15.5} lh={1.6}>
 
       Файлы, созданные предыдущим джобом, сами не переезжают. Доживает только то, что названо
-      артефактом или кешем. И ведут себя эти двое по-разному: артефакт приходит гарантированно,
-      кеш — нет.
+      артефактом или кешем. И ведут себя эти двое по-разному: артефакт — обязательный результат по имени,
+      кеш — необязательное ускорение. Ошибка получения нужного артефакта должна прервать джоб,
+      а промах кеша — привести к повторной установке или сборке.
 
     </Card>
   </CardGrid>
@@ -150,7 +152,7 @@ import {
 >
   <Plain text={PLAIN_STAGE_BARRIER} />
 
-  <CodeBlock lang="text" code={STAGES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={STAGES_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <StageBarrierDiagram data={STAGE_DIAGRAM} />
 
@@ -237,7 +239,7 @@ import {
   title="`needs`: джоб ждёт только тех, кто ему нужен"
   lead="Ключ `needs` снимает ожидание стадии — но только у того джоба, где он написан. Такой джоб стартует, как только готовы джобы, названные в `needs`. Конвейер из лестницы стадий превращается в граф зависимостей, и выясняется, что половина ожидания была ни за чем."
 >
-  <CodeBlock lang="text" code={NEEDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="yaml" code={NEEDS_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6}>
     <Md text={GRAPH_DEMO_NOTE} />
@@ -362,7 +364,7 @@ import {
   </Card>
 
   <Card title="Кеш между раннерами" titleSize={18} pad={22} gap={14}>
-    <CodeBlock lang="text" code={SHARED_CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
+    <CodeBlock lang="toml" code={SHARED_CACHE_CODE} size={11.5} lh={1.7} pad="14px 16px" />
 
     <Md text={SHARED_CACHE_NOTE} />
   </Card>
@@ -372,7 +374,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Переменные и их приоритеты"
-  lead="Одну и ту же переменную можно задать в семи местах — слоях. Выигрывает не тот слой, что ближе к джобу, а тот, что старше. Ниже одна переменная задана в пяти слоях, а `printenv` изнутри контейнера показывает, какое значение победило."
+  lead="Семь источников учебного стенда показывают главный принцип: выигрывает старший источник, а не ближайшая к script строка. Полный порядок GitLab включает и уровни, которых в этом локальном прогоне не было."
 >
   <Plain text={PLAIN_VAR_PRIORITY} />
 
@@ -387,7 +389,7 @@ import {
     minWidth={700}
   />
 
-  <Card title="Порядок целиком, от слабого к сильному" titleSize={18} pad={22} gap={14}>
+  <Card title="Семь источников стенда, от слабого к сильному" titleSize={18} pad={22} gap={14}>
     <NumberedList items={VAR_STEPS} size={14.5} />
 
     <CardNote tone="err">
@@ -398,6 +400,8 @@ import {
 
     </CardNote>
   </Card>
+
+  <Md text={VARIABLE_SCOPE_NOTE} />
 
   <CardGrid min={280} gap={14}>
     {VAR_FACTS.map((fact) => (

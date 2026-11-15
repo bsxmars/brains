@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { CascadeDecl, CascadeLayers, CriterionCopy } from '@/widgets/cascade-referee/model/types';
 import type { DefaultProp, KeywordCopy } from '@/widgets/defaulting-lab/model/types';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
@@ -128,9 +129,9 @@ import type { VarCase } from '@/widgets/var-substitution/model/types';
 // ---- Вводный раздел ----
 
 export const INTRO_NOTE =
-  'В [«Кадре браузера»](/render/render-pipeline/) шаг **style** виден снаружи: он идёт после вашего кода ' +
-  'и перед раскладкой, а его цена зависит от того, скольким элементам надо пересчитать стиль. Здесь — ' +
-  'что происходит внутри. Из десятка объявлений `color` браузер выбирает одно значение. А если ' +
+  'После правки класса у элемента может быть несколько подходящих объявлений одного свойства. ' +
+  'Каскад выбирает, какое из них применить. Например, из десятка объявлений `color` ' +
+  'элемент получает одно значение. А если ' +
   'не подошло ни одно, берёт значение у родителя или из спецификации.';
 
 export const INTRO_CARDS: { t: string; d: string; tone?: 'warn' | 'err' | 'ok' }[] = [
@@ -894,8 +895,8 @@ export const RESOLVED_ITEMS: ResolvedProp[] = [
   {
     name: 'color',
     declared: 'var(--tone-info-strong)',
-    stage: 'computed',
-    note: 'Токен подставился, ключевое слово стало каноническим `rgb(...)`. Это и есть computed value — то, что кешируется и наследуется.',
+    stage: 'used',
+    note: 'CSSOM относит ответ для color к used value. Здесь он совпадает с computed value: цвет уже известен после вычисления стиля и не требует размеров элемента.',
   },
   {
     name: 'font-size',
@@ -989,7 +990,7 @@ export const STAGE_ROWS: string[][] = [
 export const GCS_FACTS: { t: string; d: string; tone?: 'warn' | 'err' | 'ok' }[] = [
   {
     t: '`getComputedStyle` возвращает resolved value, а не computed',
-    d: 'Понятие из CSSOM, определённое **отдельно для каждого свойства**. Для `color`, `font-size`, `display` resolved value — это computed. Для `width`, `height`, `margin-*`, `padding-*`, `top`/`left` — used, то есть значение, которого до раскладки не существует.',
+    d: 'Понятие из CSSOM, определённое **отдельно для каждого свойства**. Для `font-size` и `display` это computed value. Для `color` CSSOM определяет used value, но здесь он совпадает с computed и не требует геометрии. У размеров, отступов и положения ответ может зависеть от layout и от того, создаёт ли элемент бокс.',
   },
   {
     tone: 'err',
@@ -1560,3 +1561,92 @@ export const SOURCES: Source[] = [
  */
 export const RELATED =
   'Смежное на сайте: [Стили веб-компонентов](/render/web-components-styles/) — как каскад работает на границе теневого дерева: `:host`, `::slotted`, `::part` и общие листы. [Кадр браузера](/render/render-pipeline/) — где во времени стоит шаг style и почему чередование чтения с записью дорого. [Критический путь и Web Vitals](/render/rendering-crp/) — что из этого видно в метриках и как блокирующий CSS задерживает первый кадр. [Реактивность Vue](/frameworks/vue-reactivity/) и [Ре-рендеринг в React](/frameworks/react-rerender/) — кто и когда меняет классы, с которых начинается пересчёт стилей. [Адаптивность изнутри](/render/responsive/) — вьюпорт, `svh`/`dvh`, `em` в медиазапросах, что ломает `container-type` и `clamp` при масштабе.';
+
+
+/** Предметная схема: те же объекты и зависимости, что в примере темы. */
+export const VAR_VALUE_DIAGRAM: ConceptDiagramData = {
+  "id": "cascade-var-value",
+  "title": "Почему `padding: 8px` не возвращается",
+  "description": "В примере `--gap: 10` объявлен без единицы. Подстановка происходит после того, как каскад уже выбрал `padding: var(--gap)`.",
+  "width": 840,
+  "height": 480,
+  "nodes": [
+    {
+      "id": "old",
+      "x": 0,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "`padding: 8px`",
+      "detail": "Корректная длина, но это более раннее объявление.",
+      "tone": "neutral"
+    },
+    {
+      "id": "win",
+      "x": 300,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "`padding: var(--gap)`",
+      "detail": "Последнее объявление выигрывает. Старое значение уже не запасной вариант.",
+      "tone": "info"
+    },
+    {
+      "id": "sub",
+      "x": 600,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Подставилось `10`",
+      "detail": "Переменная определена, но это не допустимая длина для padding.",
+      "tone": "err"
+    },
+    {
+      "id": "reset",
+      "x": 600,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "Начальный отступ `0`",
+      "detail": "Ошибка при вычислении: свойство не наследуется и получает initial.",
+      "tone": "warn"
+    },
+    {
+      "id": "discard",
+      "x": 0,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "К старому CSS не вернутся",
+      "detail": "Каскад заново не запускается. Фолбэк var нужен при отсутствии переменной.",
+      "tone": "neutral"
+    }
+  ],
+  "edges": [
+    {
+      "from": "old",
+      "to": "win",
+      "label": "позже",
+      "labelX": 270,
+      "labelY": 56
+    },
+    {
+      "from": "win",
+      "to": "sub"
+    },
+    {
+      "from": "sub",
+      "to": "reset",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "old",
+      "to": "discard",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "dashed": true
+    }
+  ],
+  "note": "`padding: 10` без var отбрасывается раньше, при разборе CSS. Тогда корректное `padding: 8px` остаётся в каскаде."
+};

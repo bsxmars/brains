@@ -413,3 +413,13 @@ describe('перемещения: vueMoves и reactMoves против Vue 3.5 и
     expect(opsOf(myers([...'ABCDEF'], [...'FABCDE']).script)).toBe('+=====-');
   });
 });
+
+it('новый ключ перед списком — вставка без перемещений в настоящих Vue и React', async () => {
+  const { from, to, mounted, moved } = t.PREPEND_CASE;
+  const results = [await runVue([...from], [...to]), runReact([...from], [...to])];
+  for (const result of results) {
+    expect(result.text).toBe(to);
+    expect(mountedOf(result.calls)).toBe(mounted);
+    expect(movedOf(result.calls)).toBe(moved);
+  }
+});

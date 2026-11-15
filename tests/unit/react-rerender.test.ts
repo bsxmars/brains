@@ -297,3 +297,36 @@ describe('«Проверь себя», задача H: хуков стало м�
     expect(mdx).toContain('`processRootScheduleInMicrotask`');
   });
 });
+
+
+// Содержательные уточнения закреплены отдельно от числовых сценариев темы.
+it('редакционная граница: useMemo кеширует вычисление без React.memo', async () => {
+  const { readFileSync } = await import('node:fs');
+  const mdx = readFileSync('src/content/frameworks/react-rerender/index.mdx', 'utf8');
+  // Реальный React: компонент вызывается трижды, дорогая функция — дважды.
+  const script = `
+    const { Window } = require('happy-dom');
+    const w = new Window(); Object.assign(globalThis, { window: w, document: w.document });
+    const React = require('react');
+    const { flushSync } = require('react-dom');
+    const { createRoot } = require('react-dom/client');
+    let renders = 0, calculations = 0;
+    function App({ value, noise }) {
+      renders++;
+      const result = React.useMemo(() => { calculations++; return value * value; }, [value]);
+      return React.createElement('p', null, result + ':' + noise);
+    }
+    const root = createRoot(document.createElement('div'));
+    for (const [value, noise] of [[2, 0], [2, 1], [3, 2]]) {
+      flushSync(() => root.render(React.createElement(App, { value, noise })));
+    }
+    process.stdout.write(JSON.stringify({ renders, calculations }));
+    root.unmount(); w.happyDOM.abort();
+  `;
+  const result = JSON.parse(execFileSync(process.execPath, ['-e', script], {
+    encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' },
+  }));
+  expect(result).toEqual({ renders: 3, calculations: 2 });
+  expect(mdx).toContain('`useMemo` полезен и без `memo`');
+  expect(mdx).not.toContain('не дают ничего, кроме своей собственной стоимости');
+});

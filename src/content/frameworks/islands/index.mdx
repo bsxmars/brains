@@ -4,7 +4,7 @@ heading: "Острова и resumability: Astro против гидратаци�
 headingWidth: 24
 order: 17
 kicker: фреймворки изнутри
-lead: "Полная гидратация отправляет в браузер код всей страницы и заставляет его повторить рендер сервера. Острова оставляют страницу HTML-документом и оживляют только интерактивные куски — каждый в свой момент. Этот сайт собран именно так, и все примеры взяты с него: что лежит в `<astro-island>`, какие пропсы доезжают, когда скачивается код и сколько он весит."
+lead: "При гидратации одного клиентского корня браузер выполняет его компоненты поверх серверного HTML. Острова оставляют страницу HTML-документом и оживляют только интерактивные куски — каждый в свой момент. Этот сайт собран именно так, и все примеры взяты с него: что лежит в `<astro-island>`, какие пропсы доезжают, когда скачивается код и сколько он весит."
 summary: "Полная гидратация против островов, устройство `<astro-island>`, сериализация пропсов, директивы `client:*` и их браузерные API, вес JS по шагам прокрутки, связь между островами, идея resumability в Qwik."
 verifiedOn: "Astro 7.3.2, @astrojs/vue 7.0.2, Vue 3.5.42, React 19.3.0, Chromium 153.0.8010.12 (Playwright 1.63), Node 24.11.0, октябрь 2026: острова, пропсы и граф чанков сняты с собранного dist/ этого сайта, загрузки при прокрутке — в Chromium; расчёт темы совпадает с записью браузера на двух страницах в трёх режимах и на стенде директив (tests/unit/islands.test.ts); пропсы сверены с serializeProps и восстановителем Astro. Qwik не устанавливался — раздел о нём по документации"
 nav:
@@ -20,11 +20,11 @@ nav:
 ---
 
 import Callout from '@/shared/ui/Callout.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
-import DarkPanel from '@/shared/ui/DarkPanel.astro';
-import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
@@ -35,6 +35,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import IslandsLab from '@/widgets/islands-lab/ui/IslandsLab.vue';
 import {
   GLOSSARY,
+  ISLAND_BOUNDARIES_DIAGRAM,
   PLAIN_ISLANDS,
   COMPARE,
   SITE_FACTS,
@@ -67,7 +68,6 @@ import {
   RESUME_CODE,
   RESUME_ROWS,
   QWIK_FACTS,
-  RESUME_SUMMARY,
   PITFALLS,
   SOURCES,
   RELATED,
@@ -76,17 +76,16 @@ import {
 <Section variant="intro" eyebrow="Код только там, где клик" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Острова не ускоряют гидратацию — они позволяют большую часть страницы **не гидратировать**
-    вовсе. Текст, таблицы и картинки приходят готовым HTML, и кода к ним не прилагается.
-    Код получают только куски, которые должны отвечать на клик, и только когда они
-    понадобились.
+    Острова позволяют оставить большую часть страницы **статическим HTML**. Код приложения
+    получают выбранные интерактивные участки, и условие запуска назначают каждому отдельно.
+    Нативным ссылкам, формам и раскрываемым блокам гидратация для базового поведения не нужна.
 
   </Callout>
 
-  Обычное приложение на Vue или React с серверным рендером оживает целиком. В браузер
-  уезжает код каждого компонента, даже того, что рисует абзац текста, и каждый ещё раз
-  выполняется, чтобы фреймворк нашёл свои узлы. На странице статьи с одним интерактивным
-  виджетом это почти вся работа впустую.
+  Размер клиентской области задаёт архитектура приложения. В обычном гидратируемом корне
+  участвуют и компоненты статического текста; Server Components и разделение кода могут
+  уменьшить эту область. В Astro статический текст обычно выводит шаблон, а отдельный
+  корень нужен только участку с состоянием и обработчиками.
 
   <Plain text={PLAIN_ISLANDS} />
 
@@ -97,8 +96,10 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Целиком или кусками"
-  lead="Полная гидратация делает страницу одним приложением: код всех компонентов едет в браузер, и всё дерево рендерится ещё раз. Острова оставляют страницу документом, а приложениями делают только интерактивные куски — каждый отдельно."
+  lead="Один гидратируемый корень связывает своё дерево компонентов с DOM. У островов несколько независимых корней внутри общего документа: их можно загружать и запускать по разным условиям."
 >
+  <ConceptDiagram data={ISLAND_BOUNDARIES_DIAGRAM} />
+
   <Table
     head={COMPARE.head}
     rows={COMPARE.rows}
@@ -107,7 +108,9 @@ import {
     minWidth={COMPARE.minWidth}
   />
 
-  ### Что видно на этом сайте
+  ### Снимок сборки этого сайта
+
+  Эти размеры и запросы сняты на сохранённой сборке октября 2026 года. После изменения уроков, зависимостей или числа островов они будут другими.
 
   <CardGrid min={260} gap={14} align="start">
     {SITE_FACTS.map((fact) => (
@@ -155,9 +158,13 @@ import {
 >
   <Plain text={PLAIN_PROPS} />
 
+  <Disclosure title="Учебный восстановитель значений props">
+
   <Card title="Как браузер собирает пропсы обратно" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={REVIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 
   ### Что приходит в компонент
 
@@ -191,6 +198,8 @@ import {
     minWidth={760}
   />
 
+  <Disclosure title="Исходник client:visible и результаты стенда директив">
+
   ### `client:visible` целиком
 
   <Card title="astro/dist/runtime/client/visible.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -213,6 +222,7 @@ import {
     cols="minmax(170px,.7fr) minmax(320px,2fr)"
     minWidth={520}
   />
+  </Disclosure>
 </Section>
 
 <Section
@@ -221,9 +231,13 @@ import {
   title="Что и когда скачивается"
   lead="Остров тянет за собой не один файл, а всё, что импортирует его модуль. Общие куски — рантайм фреймворка, общие компоненты — браузер скачивает один раз на страницу. Поэтому дороже всех обходится первый остров."
 >
+  <Disclosure title="Исходник модели загрузок по прокрутке">
+
   <Card title="Расчёт: что скачается на каждом шаге прокрутки" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PLAN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+  </Disclosure>
 
   ### Две страницы этого сайта
 
@@ -267,7 +281,7 @@ import {
 
   <CardGrid min={280} gap={14} align="start">
     <Card tone="info" title="Почему модуль один" titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={SHARED_MODULE_NOTE} />
-    <Card tone="warn" title="Почему Pinia не годится" titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={PINIA_NOTE} />
+    <Card tone="warn" title="Общий стор и отдельные приложения" titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={PINIA_NOTE} />
   </CardGrid>
 </Section>
 
@@ -302,11 +316,7 @@ import {
 
   </CardGrid>
 
-  <DarkPanel eyebrow="Что из этого следует">
-    <DarkText size={18} lh={1.55} tone="prose">
-      <Md text={RESUME_SUMMARY} />
-    </DarkText>
-  </DarkPanel>
+
 </Section>
 
 <Section id="s8" eyebrow="Раздел 8" title="Тонкие места">

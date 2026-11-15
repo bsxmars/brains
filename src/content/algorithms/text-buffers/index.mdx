@@ -4,7 +4,7 @@ heading: "Как редактор хранит текст: строка, gap buf
 headingWidth: 24
 order: 3
 kicker: алгоритмы во фронтенде
-lead: "Вставить букву в середину строки в JS — значит собрать новую строку, а с ней переписать весь текст. Для поля ввода это незаметно, для редактора кода на сто тысяч строк — нет. Поэтому редакторы держат текст иначе: с пустым местом у курсора, деревом кусков или списком ссылок на неизменные буферы."
+lead: "Вставка в JS-строку создаёт новое значение, но физическое копирование зависит от движка. Плоский буфер платит длиной текста, а другие структуры ограничивают работу областью правки или меняют ссылки на куски. Для поля ввода это незаметно, для редактора кода на сто тысяч строк — нет. Поэтому редакторы держат текст иначе: с пустым местом у курсора, деревом кусков или списком ссылок на неизменные буферы."
 summary: "Почему одна строка — плохой буфер и что с ней делает V8, gap buffer как в Emacs, rope со сбалансированным деревом и поиском по символу и по номеру строки, piece table и piece tree VS Code, отмена почти даром, связь с кусками CRDT — со счётчиками работы вместо секундомера."
 verifiedOn: "Node 24.11.0 (V8 13.6), vscode-languageserver-textdocument 1.0.14, yjs 13.6.33, октябрь 2026: четыре модели темы совпадают со строкой и split('\\n') на 3000 случайных последовательностях правок, счётчики работы и вывод V8 пересчитываются в tests/unit/text-buffers.test.ts; piece tree VS Code — по статье и исходникам, без запуска"
 nav:
@@ -14,9 +14,12 @@ nav:
   - { id: s4, label: Piece table }
   - { id: s5, label: Сравнение }
   - { id: s6, label: Тонкие места }
+  - { id: practice, label: Где применять }
   - { id: s7, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -34,6 +37,9 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TextBufLab from '@/widgets/textbuf-lab/ui/TextBufLab.vue';
 import {
   GLOSSARY,
+  MECHANISM_DIAGRAM,
+  PRACTICE,
+  PRACTICE_CASES,
   PLAIN_BUFFERS,
   STRING_CODE,
   STRING_NOTE,
@@ -52,6 +58,7 @@ import {
   ROPE_LEAF_NOTE,
   PLAIN_PIECE,
   PIECE_CODE,
+  PIECE_TRACE_CODE,
   PIECE_FACTS,
   PIECE_NOTE,
   PIECE_HISTORY,
@@ -75,9 +82,9 @@ import {
 <Section variant="intro" eyebrow="Буфер текста" gap={24}>
   <Callout size={19} pad="24px 26px">
 
-    Дорого не хранить текст, а **переписывать** его. Одна строка переписывает весь документ
-    на каждую букву. Gap buffer переписывает только то, что между старым и новым местом
-    курсора, rope — один короткий кусок, piece table — вообще ничего, кроме нового текста.
+    **Структура определяет, где возникает работа.** Плоская модель считает переписывание
+    результата целиком; gap buffer переносит текст при движении дырки; rope меняет листья
+    и путь в дереве; piece table меняет описания кусков и дописывает новый текст.
 
   </Callout>
 
@@ -95,11 +102,13 @@ import {
 <Section
   id="s1"
   eyebrow="Раздел 1"
-  title="Одна строка: каждая правка переписывает весь текст"
+  title="Одна строка: новое значение и отложенная цена"
   lead="Самое простое — держать документ одной строкой и на каждую правку собирать новую: кусок до места правки, вставку, кусок после. У всех моделей темы одни и те же функции — создать, вставить, удалить, отдать текст, найти начало строки — и два счётчика работы: так их можно сравнить на одних и тех же правках."
 >
   <Card title="Модель «одна строка»" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={STRING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходный код: string">
+      <CodeBlock code={STRING_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={STRING_NOTE} />
@@ -133,7 +142,9 @@ import {
   <Plain text={PLAIN_GAP} />
 
   <Card title="Gap buffer" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={GAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходный код: gap">
+      <CodeBlock code={GAP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -162,7 +173,9 @@ import {
   </CardGrid>
 
   <Card title="Rope со сбалансированным деревом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={ROPE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходный код: rope">
+      <CodeBlock code={ROPE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={ROPE_NOTE} />
@@ -191,12 +204,20 @@ import {
   <Plain text={PLAIN_PIECE} />
 
   <Card title="Piece table" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PIECE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходный код: piece">
+      <CodeBlock code={PIECE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={PIECE_NOTE} />
+
+
     </CardNote>
   </Card>
+
+  <CodeBlock code={PIECE_TRACE_CODE} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 
   <CardGrid min={260} gap={14} align="start">
     {PIECE_FACTS.map((fact) => (
@@ -225,7 +246,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Сравнение: кто сколько переписывает"
-  lead="Четыре модели на одних и тех же правках. Секундомер здесь врёт — машина, прогрев, сборщик мусора. Счётчики не врут: сколько символов переписано и сколько символов, узлов или кусков просмотрено, пока искали место."
+  lead="Четыре модели на одних и тех же правках. Секундомер здесь врёт — машина, прогрев, сборщик мусора. Что именно считают модели: сколько символов переписано и сколько символов, узлов или кусков просмотрено, пока искали место."
 >
   <TextBufLab
     client:visible
@@ -269,6 +290,15 @@ import {
 
 <Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+
+
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Где применять">
+  <Md text={PRACTICE} />
+  <CardGrid min={300} gap={16}>
+    {PRACTICE_CASES.map((item) => <Card title={item.t} text={item.d} />)}
+  </CardGrid>
 </Section>
 
 <Section id="s7" eyebrow="Раздел 7" title="Источники">

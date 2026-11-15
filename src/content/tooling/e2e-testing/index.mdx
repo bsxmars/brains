@@ -4,7 +4,7 @@ heading: "Тесты в браузере изнутри: локаторы, ав�
 headingWidth: 24
 order: 12
 kicker: сборка и инструменты
-lead: "`await page.getByRole('button').click()` — одна строка, а за ней процесс браузера, протокол отладки, поиск элемента заново на каждом действии и до семи проверок перед кликом с паузами 0, 20, 100, 100, 500 мс. Как Playwright дожидается кнопки, почему веб-ассерт и обычный `expect` ведут себя по-разному и откуда берутся тесты, которые то проходят, то нет."
+lead: "`await page.getByRole('button').click()` — одна строка, а за ней процесс браузера, протокол отладки, поиск элемента заново на каждом действии и поиск элемента и проверки его готовности перед кликом. Как Playwright дожидается кнопки, почему веб-ассерт и обычный `expect` ведут себя по-разному и откуда берутся тесты, которые то проходят, то нет."
 summary: "Процесс браузера и CDP, контекст как изолированный профиль; локатор как запрос против `ElementHandle`; `getByRole` и строгость; авто-ожидание: прикреплён, стабилен, видим, включён, не перекрыт — и лестница пауз; `force`, `dispatchEvent` и `el.click()` мимо проверок; веб-ассерты с повтором; гонка с сетью, общий стейт, повторы и статус `flaky`; что лежит в `trace.zip`."
 verifiedOn: "@playwright/test 1.63.0, Chromium 153.0.8010.12 (headless shell), Node 24.11.0, октябрь 2026: журналы действий (DEBUG=pw:api) на пяти фикстурах по три прогона, сообщения CDP (DEBUG=pw:protocol), спецификации темы и трасса сняты стендом на своём node:http; учебная autoWait сверена с журналами Playwright дословно, а её паузы — с исходником playwright-core в tests/unit/e2e-testing.test.ts"
 nav:
@@ -19,6 +19,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -64,6 +66,7 @@ import {
   TIMEOUT_NOTE,
   TIMEOUT_FACTS,
   BYPASS_ROWS,
+  BYPASS_HTML,
   BYPASS_NOTE,
   PLAIN_ASSERT,
   ASSERT_CODE,
@@ -83,6 +86,7 @@ import {
   PITFALLS,
   SOURCES,
   RELATED,
+  ACTION_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Между строкой теста и кнопкой" gap={24}>
@@ -205,6 +209,8 @@ import {
 >
   <Plain text={PLAIN_ACTIONABILITY} />
 
+  <ConceptDiagram data={ACTION_DIAGRAM} />
+
   <CardGrid min={240} gap={14} align="start">
     {ACT_STEPS.map((step) => (
       <Card title={step.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6} text={step.d} />
@@ -212,6 +218,7 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Исходник: `autoWait`: снимки состояния → журнал и момент клика">
   <Card title="`autoWait`: снимки состояния → журнал и момент клика" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="jsx" code={AUTOWAIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -219,6 +226,7 @@ import {
       <Md text={AUTOWAIT_NOTE} />
     </CardNote>
   </Card>
+  </Disclosure>
 
   ### Попытка за попыткой
 
@@ -259,6 +267,10 @@ import {
   title="Мимо проверок: force, dispatchEvent, el.click()"
   lead="У каждой проверки есть обход, и каждый обход проверяет уже не то, что сделал бы человек. Кнопка под оверлеем, четыре способа её «нажать»."
 >
+  <Disclosure title="HTML эксперимента: кнопка и перекрывающий её элемент">
+    <CodeBlock lang="html" code={BYPASS_HTML} />
+  </Disclosure>
+
   <Table
     head={['вызов', 'что получила страница', 'isTrusted']}
     rows={BYPASS_ROWS.map((r) => [r.k, r.got, r.trusted])}
@@ -275,7 +287,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Веб-ассерты: проверка, которая ждёт"
-  lead="Авто-ожидание есть у действий. У проверок его даёт только `expect`, которому передан локатор: он перечитывает страницу по той же лестнице пауз, пока условие не выполнится или не выйдет время."
+  lead="Веб-ассерты Playwright повторяют проверку: toHaveText читает состояние локатора, toHaveURL — адрес страницы. Обычный toBe сравнивает уже полученный снимок один раз; await перед чтением не превращает это сравнение в ожидание."
 >
   <Plain text={PLAIN_ASSERT} />
 

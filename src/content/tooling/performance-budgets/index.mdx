@@ -4,9 +4,9 @@ heading: "Бюджеты производительности: вес бандл
 headingWidth: 24
 order: 17
 kicker: сборка и инструменты
-lead: "Страница не стала медленнее за один день — она тяжелела по два килобайта в неделю, и никто не заметил. Бюджет превращает «не тяжелеть» в проверку на каждый пул-реквест. Какие байты считать, как собрать граф чанков, как ответить «почему этот модуль на странице» и как не утонуть в ложных срабатываниях — на настоящей сборке этого сайта и его стороже веса."
-summary: "Сырые байты против gzip и Brotli, критический путь против всех чанков, JS отдельно от CSS и шрифтов; живой бюджет сайта — weight.spec и его пороги; граф чанков из текста, из манифеста Vite и metafile esbuild; кратчайшая цепочка «кто тянет модуль»; Lighthouse CI, size-limit и RUM; порог, допуск, сравнение с базовой веткой и отчёт в пул-реквесте; хеши, общие чанки и одноимённые файлы."
-verifiedOn: "Astro 7.3.2 (Vite 8.3.0), es-module-lexer 2.3.2, acorn 8.18.0, esbuild 0.28.2, Node 24.11.0, Chromium 153 (Playwright 1.63), сборка сайта от 2 октября 2026: граф и размеры сняты с dist/ и сверяются tests/unit/performance-budgets.test.ts; функции темы сверены с weight.spec на всех страницах, с es-module-lexer и acorn на всех 313 чанках, с настоящими манифестом Vite и metafile esbuild; Lighthouse CI и size-limit — по документации"
+lead: "Страница не стала медленнее за один день — она тяжелела по два килобайта в неделю, и никто не заметил. Бюджет превращает «не тяжелеть» в проверку на каждый пул-реквест. Какие байты считать, как собрать граф чанков, как ответить «почему этот модуль на странице» и как не утонуть в ложных срабатываниях — на сохранённых сборках этого сайта и действующем правиле проверки веса."
+summary: "Сырые байты против gzip и Brotli, статическое замыкание против сетевого сценария, JS отдельно от CSS и шрифтов; живой бюджет сайта — weight.spec и его пороги; граф чанков из текста, из манифеста Vite и metafile esbuild; кратчайшая цепочка «кто тянет модуль»; Lighthouse CI, size-limit и RUM; порог, допуск, сравнение с базовой веткой и отчёт в пул-реквесте; хеши, общие чанки и одноимённые файлы."
+verifiedOn: "Astro 7.3.2 (Vite 8.3.0), es-module-lexer 2.3.2, acorn 8.18.0, esbuild 0.28.2, Node 24.11.0, Chromium 153 (Playwright 1.63), сборка сайта от 2 октября 2026: граф и размеры сохранены в tests/fixtures/performance-budgets/dist/ и сверяются tests/unit/performance-budgets.test.ts; текущие пороги и правило обхода отдельно сверяются с weight.spec, они не являются новым замером сайта; функции темы сверены с weight.spec на всех страницах, с es-module-lexer и acorn на всех 313 чанках, с настоящими манифестом Vite и metafile esbuild; Lighthouse CI и size-limit — по документации"
 nav:
   - { id: s1, label: Какие байты }
   - { id: s2, label: Живой бюджет }
@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,8 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import BudgetLab from '@/widgets/budget-lab/ui/BudgetLab.vue';
 import {
   GLOSSARY,
+  CLOSURE_DIAGRAM,
+  TRANSFER_ROWS,
   PLAIN_BUDGET,
   RESOURCE_ROWS,
   PLAIN_COMPRESSED,
@@ -53,6 +57,9 @@ import {
   PARSE_RESULT,
   PARSE_FACTS,
   FX_MAIN,
+  FX_FORMAT,
+  FX_CHART,
+  FX_HTML,
   VITE_MANIFEST_PRINT,
   MANIFEST_CODE,
   ESBUILD_GRAPH_PRINT,
@@ -105,7 +112,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Какие байты считать"
-  lead="Одна и та же страница этого сайта «весит» 0, 48, 121 или 467 КБ — смотря что считать. Вот что Chromium на самом деле скачал для темы «Source maps»: окно 1280×800, локальный сервер без сжатия, прокрутка до конца."
+  lead="Один сохранённый прогон страницы «Source maps» дал разные числа при разных правилах учёта. Это снимок сборки октября 2026: Chromium, окно 1280×800, локальный сервер без сжатия, прокрутка до конца; текущая сборка будет отличаться."
 >
   <Table
     head={['что', 'файлов', 'сырые байты', 'gzip', 'когда качается']}
@@ -130,7 +137,22 @@ import {
   Как сервер выбирает алгоритм и чем сжатие при сборке отличается от сжатия на лету — в
   [«Сжатии в вебе», раздел «Заранее или на лету»](/platform/compression/#s3).
 
-  ### Критический путь или все чанки
+  ### Артефакт, тело ответа и передача
+
+  <Table
+    head={['число', 'что означает', 'границы']}
+    rows={TRANSFER_ROWS.map((r) => [r.k, r.meaning, r.scope])}
+    kinds={['mono', 'prose', 'prose']}
+    cols="minmax(170px,.8fr) minmax(260px,1.2fr) minmax(260px,1.2fr)"
+    minWidth={760}
+  />
+
+  Нулевой `transferSize` не означает пустой скрипт: ресурс мог прийти из локального кеша.
+  А при закрытом доступе к межсайтовому таймингу нули не позволяют отличить кеш от скрытых
+  данных. Поэтому сравнение сборок фиксирует артефакты и правило подсчёта, а сетевой замер
+  дополнительно фиксирует сценарий, кеш и `Content-Encoding`.
+
+  ### Статическое замыкание и момент загрузки
 
   <Md text={CRITICAL_NOTE} />
 
@@ -148,18 +170,26 @@ import {
   lead="У этого курса бюджет уже есть: e2e-проверка `tests/e2e/weight.spec.ts`. Она считает сырые байты скриптов каждой страницы — замыкание статических импортов от файлов, названных в HTML, — и сравнивает с порогом категории."
 >
   <Table
-    head={['порог', 'КБ', 'страницы', 'сейчас, КБ']}
-    rows={WEIGHT_TIERS.map((r) => [r.name, String(r.kb), r.pages, r.now])}
+    head={['текущий порог', 'КБ', 'страницы', 'снимок 2 октября, КБ']}
+    rows={WEIGHT_TIERS.map((r) => [r.name, String(r.kb), r.pages, r.snapshot])}
     tones={WEIGHT_TIERS.map((r) => r.tone)}
     kinds={['mono', 'mono', 'prose', 'prose']}
     cols="minmax(200px,1fr) minmax(50px,.3fr) minmax(220px,1.4fr) minmax(170px,1fr)"
     minWidth={680}
   />
 
-  <Card title="Как weight.spec находит импорты и обходит граф" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock lang="ts" code={WEIGHT_SPEC_EXCERPT} size={11.5} lh={1.65} pad="14px 16px" />
-    <CodeBlock lang="ts" code={WEIGHT_SPEC_WALK} size={11.5} lh={1.65} pad="14px 16px" />
-  </Card>
+  Пороги и показанный исходник сверяются с текущим `weight.spec`. Последний столбец —
+  сохранённый снимок; новый прогон проверяет нынешнюю сборку, а не подгоняет её под эти байты.
+  Сторож сначала округляет сумму `байты / 1024` до целого числа, затем сравнивает с порогом.
+  Встроенные скрипты HTML, CSS, шрифты, worker и динамические ветки этим бюджетом не покрыты.
+
+  <Disclosure title="Действующее правило обхода weight.spec">
+
+    <CodeBlock lang="ts" code={WEIGHT_SPEC_EXCERPT} />
+    <CodeBlock lang="ts" code={WEIGHT_SPEC_WALK} />
+
+  </Disclosure>
+
 
   <CardGrid min={280} gap={14} align="start">
     {WEIGHT_FACTS.map((fact) => (
@@ -173,10 +203,13 @@ import {
   id="s3"
   eyebrow="Раздел 3"
   title="Граф чанков"
-  lead="Чтобы посчитать замыкание, нужен граф: какой чанк кого импортирует. Его можно вытащить из текста готовых файлов или взять у сборщика. Первый способ работает с любым `dist/`, второй надёжнее."
+  lead="Чтобы посчитать замыкание, нужен граф: какой чанк кого импортирует. Его можно вытащить из текста готовых файлов или взять у сборщика. Разбор текста требует знать формат путей и синтаксис импортов; манифест сохраняет связи, которые уже знает сборщик."
 >
+  <ConceptDiagram data={CLOSURE_DIAGRAM} />
+
   <Plain text={PLAIN_GRAPH} />
 
+  <Disclosure title="Исходник: Граф из текста чанков">
   <Card title="Граф из текста чанков" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={GRAPH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
@@ -184,6 +217,7 @@ import {
       <Md text={GRAPH_NOTE} />
     </CardNote>
   </Card>
+  </Disclosure>
 
   ### Где регулярка ошибается
 
@@ -207,22 +241,39 @@ import {
   ### Граф от сборщика
 
   <CardGrid min={300} gap={16} align="start">
-    <Card title="Фикстура: src/main.js" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={FX_MAIN} size={11.5} lh={1.65} pad="14px 16px" />
-    </Card>
+    <Disclosure title="Полный исходник маленькой сборки: main, format и chart">
+
+      <CodeBlock lang="html" code={FX_HTML} />
+      <CodeBlock code={FX_MAIN} />
+      <CodeBlock code={FX_FORMAT} />
+      <CodeBlock code={FX_CHART} />
+
+    </Disclosure>
 
     <Card title="Vite: dist/.vite/manifest.json" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Disclosure title="Снимок манифеста Vite">
+
       <CodeBlock lang="json" code={VITE_MANIFEST_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     </Card>
   </CardGrid>
 
   <Card title="Манифест и metafile — в тот же граф" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={MANIFEST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Адаптеры манифеста Vite и metafile esbuild">
+
+      <CodeBlock code={MANIFEST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="esbuild: fromMetafile(result.metafile)" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+      <Disclosure title="Граф из metafile esbuild">
+
       <CodeBlock lang="json" code={ESBUILD_GRAPH_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={MANIFEST_NOTE} />
@@ -241,6 +292,12 @@ import {
   <Plain text={PLAIN_WHY} />
 
   <Md text={WHY_NOTE} />
+
+  <Disclosure title="Входы страниц и точный снимок чанков для демо">
+
+    <CodeBlock lang="json" code={JSON.stringify({ pages: BUDGET_PAGES, chunks: BUDGET_CHUNKS }, null, 2)} />
+
+  </Disclosure>
 
   ### Граф страницы и порог
 
@@ -272,9 +329,14 @@ import {
     </Card>
   </CardGrid>
 
-  Обе схемы — по документации инструментов. Байты в них жёсткие (`error`), время — мягкое
-  (`warn`, медиана нескольких прогонов). У size-limit пути перечислены руками: какой файл
-  принадлежит какой странице, он не знает.
+  `resource-summary:script:size` в Lighthouse использует `transferSize` ресурсов из прогона,
+  а `weight.spec` — сырые файлы статического графа. Одинаковое число в конфигах не делает
+  эти бюджеты одинаковыми. Для времени `median` берёт медиану самой проверяемой метрики;
+  `median-run` выбрал бы значение одного репрезентативного прогона и мог дать другое число.
+
+  В конфиге Lighthouse байты блокируют проверку (`error`), время даёт предупреждение
+  (`warn`, медиана нескольких прогонов). У size-limit пути перечислены явно: конфиг
+  не восстанавливает по HTML принадлежность файлов странице.
 
   <CardGrid min={280} gap={14} align="start">
     {METRIC_FACTS.map((fact) => (
@@ -290,14 +352,20 @@ import {
   title="Бюджет в CI"
   lead="Проверка в конвейере отвечает на два вопроса. Первый — не вышла ли страница за порог: от него зависит, красный ли прогон. Второй — что изменилось против базовой ветки: это текст для человека в комментарии к пул-реквесту."
 >
+  <Disclosure title="Исходник: Порог, база, допуск, отчёт">
   <Card title="Порог, база, допуск, отчёт" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CI_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+  </Disclosure>
 
-  ### Две сборки этого сайта
+  Учебный `CI_CODE` сравнивает точную сумму байтов с порогом. Действующий `weight.spec`
+  округляет сумму до целых КБ: это два явно заданных правила, у которых различается граница.
+  Допуск в отчёте скрывает мелкие изменения, но не увеличивает сам бюджет.
+
+  ### Две сохранённые сборки: 1 и 2 октября 2026
 
   <CardGrid min={300} gap={16} align="start">
-    <Card tone="ok" title="«Цикл событий»: вчера против сегодня" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <Card tone="ok" title="«Цикл событий»: снимки 1 и 2 октября" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock lang="text" code={CI_REPORT_EVENT_LOOP} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
@@ -313,7 +381,11 @@ import {
   ### Конвейер
 
   <Card title="Схема: .github/workflows/budget.yml" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock lang="yaml" code={WORKFLOW_YAML} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Полная схема workflow: ветка и база">
+
+      <CodeBlock lang="yaml" code={WORKFLOW_YAML} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -338,9 +410,10 @@ import {
     <DarkText size={18} lh={1.55} tone="prose">
 
       **Бюджет полезен ровно настолько, насколько ему верят.** Жёсткий порог — на то, что
-      не шумит: байты замыкания по графу. Всё, что шумит или меняется без вашей правки, —
-      хеши, общие чанки, время из Lighthouse, — идёт в отчёт для человека, а не в красный
-      прогон. Иначе после третьего ложного срабатывания порог просто поднимут.
+      стабильно измеряется: байты одного артефакта по одному правилу. Хеши нужны для
+      идентификации файлов, но их смена сама по себе не означает рост. Общий чанк входит
+      в бюджет каждой зависимой страницы; рост его байтов может законно блокировать PR.
+      Для временных метрик порог выбирают с учётом разброса конкретного стенда.
 
     </DarkText>
   </DarkPanel>

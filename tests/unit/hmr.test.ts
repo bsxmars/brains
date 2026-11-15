@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as t from '@/content/tooling/hmr/data';
 import { loadFindBoundary } from '@/widgets/hmr-boundary/model/run';
@@ -178,3 +179,30 @@ describe('прод: подпись к бандлу считает строки �
   });
 });
 
+
+
+describe('Fast Refresh: настоящий валидатор установленного @vitejs/plugin-react', () => {
+  // Выполняется исходник плагина. Таймер заменён: React-рендер здесь не проверяется,
+  // проверяется синхронное решение о совместимости экспортов перед enqueueUpdate.
+  const runtime = readFileSync(new URL('../../node_modules/@vitejs/plugin-react/dist/refresh-runtime.js', import.meta.url), 'utf8')
+    .replace(/^export default .*$/m, '')
+    .replace(/^export (function|const) /gm, '$1 ');
+  const validate = new Function('window', 'setTimeout', 'clearTimeout', `${runtime}\nreturn validateRefreshBoundaryAndEnqueueUpdate;`)(
+    {}, () => 0, () => {},
+  ) as (id: string, before: Record<string, unknown>, after: Record<string, unknown>) => string | undefined;
+
+  const before = { Counter: function Counter() {}, label: 'cart' };
+  it('неизменившаяся примитивная константа рядом с компонентом допустима', () => {
+    expect(validate('counter', before, { Counter: function Counter() {}, label: 'cart' })).toBeUndefined();
+    // Короткая смысловая подстрока удерживает именно исправленное обещание текста.
+    expect(t.REACT_FACTS[0].d).toContain('неизменившаяся строковая константа');
+  });
+  it('новое значение константы инвалидирует границу', () => {
+    expect(validate('counter', before, { Counter: function Counter() {}, label: 'basket' })).toContain('"label" export is incompatible');
+  });
+  it('новая обычная функция несовместима, а прежний объект допустим', () => {
+    const shared = {};
+    expect(validate('counter', { Counter: function Counter() {}, shared }, { Counter: function Counter() {}, shared })).toBeUndefined();
+    expect(validate('counter', { Counter: function Counter() {}, helper() {} }, { Counter: function Counter() {}, helper() {} })).toContain('"helper" export is incompatible');
+  });
+});

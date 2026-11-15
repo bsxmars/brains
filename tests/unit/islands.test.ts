@@ -129,6 +129,8 @@ describe('стенд директив', () => {
     const idle = astroFile('runtime/client/idle.js');
     expect(idle).toContain('window.requestIdleCallback(cb, idleOptions)');
     expect(idle).toContain('setTimeout(cb, idleOptions.timeout || 200)');
+    // timeout делает callback доступным для очереди, а не гарантирует срок исполнения.
+    expect(t.DIRECTIVE_ROWS.find((row) => row.k === '`client:idle`')?.how).toContain('занятый поток задержит запуск');
     const media = astroFile('runtime/client/media.js');
     expect(media).toContain('matchMedia(options.value)');
     expect(media).toContain('mql.addEventListener("change", cb, { once: true })');
@@ -221,6 +223,25 @@ describe('пропсы: REVIVE_CODE против настоящего Astro', ()
 });
 
 describe('связь между островами и возобновление', () => {
+  it('два Vue-приложения могут явно использовать один экземпляр Pinia', () => {
+    const { createApp } = require('vue') as typeof import('vue');
+    const { createPinia, defineStore } = require('pinia') as typeof import('pinia');
+    const useCart = defineStore('shared-island-cart', { state: () => ({ items: 0 }) });
+    const shared = createPinia();
+    const appFor = (pinia: ReturnType<typeof createPinia>) => createApp({}).use(pinia);
+    const first = appFor(shared);
+    const second = appFor(shared);
+    const firstCart = first.runWithContext(() => useCart());
+    const secondCart = second.runWithContext(() => useCart());
+    expect(firstCart).toBe(secondCart);
+    firstCart.items++;
+    expect(secondCart.items).toBe(1);
+    const separate = appFor(createPinia());
+    expect(separate.runWithContext(() => useCart())).not.toBe(firstCart);
+    expect(t.PINIA_NOTE).toContain('один экземпляр');
+    expect(t.PINIA_NOTE).toContain('между запросами пользователей');
+  });
+
   it('LATE_CODE: остров, подписавшийся позже, слышит стор, но не событие', () => {
     const log = new Function('window', `${t.LATE_CODE}\nreturn log;`)(new EventTarget());
     expect(log).toEqual(t.LATE_LOG);

@@ -28,6 +28,7 @@ interface Props {
     title: string;
     total: number;
     stages: { name: string; jobs: Job[] }[];
+    alternative: { name: string; from: number; to: number; label: string };
     barriers: { at: number; label: string }[];
     axis: { at: number; label: string }[];
     caption: string;
@@ -38,7 +39,7 @@ const { data } = Astro.props;
 const pct = (t: number) => `${((t / data.total) * 100).toFixed(3)}%`;
 ---
 
-<figure class="glsd-frame">
+<figure data-render-illustration="gitlab-stage-barrier" class="glsd-frame">
   <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
 
   <div class="glsd-scroll">
@@ -78,6 +79,18 @@ const pct = (t: number) => `${((t / data.total) * 100).toFixed(3)}%`;
           </div>
         ))
       }
+
+      <div class="glsd-stage">
+        <div class="glsd-stage__name">с needs · расчёт, не замер</div>
+        <div class="glsd-row">
+          <span class="glsd-job">{data.alternative.name}</span>
+          <div class="glsd-track">
+            <span class="glsd-gap" style={`width:${pct(data.alternative.from)}`} />
+            <span class="glsd-bar glsd-bar--needs" style={`width:${pct(data.alternative.to - data.alternative.from)}`} />
+            <span class="glsd-note" set:html={inlineMd(data.alternative.label)} />
+          </div>
+        </div>
+      </div>
 
       <div class="glsd-row glsd-row--axis">
         <span />
@@ -178,6 +191,7 @@ const pct = (t: number) => `${((t / data.total) * 100).toFixed(3)}%`;
   .glsd-wait {
     flex: none;
   }
+  .glsd-bar--needs { background: var(--tone-ok-bg); border: 1px solid var(--tone-ok-line); }
   .glsd-bar {
     align-self: stretch;
     min-height: 26px;

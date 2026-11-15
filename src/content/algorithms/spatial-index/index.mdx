@@ -16,9 +16,12 @@ nav:
   - { id: s6, label: Ближайшие }
   - { id: s7, label: Движение }
   - { id: s8, label: Тонкие места }
+  - { id: practice, label: Где применять }
   - { id: s9, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -36,6 +39,9 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import SpatialLab from '@/widgets/spatial-lab/ui/SpatialLab.vue';
 import {
   GLOSSARY,
+  MECHANISM_DIAGRAM,
+  PRACTICE,
+  PICK_CODE,
   PLAIN_INDEX,
   SETUP,
   SPATIAL_CODES,
@@ -112,6 +118,8 @@ import {
   движение мыши, нужна структура, которая знает, где что лежит.
 
   <Plain text={PLAIN_INDEX} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 
   <Glossary items={GLOSSARY} />
 </Section>
@@ -207,7 +215,9 @@ import {
   <Plain text={PLAIN_GRID} />
 
   <Card title="Сетка и поиск по ней" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={GRID_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Построение сетки и запрос рамкой">
+      <CodeBlock code={GRID_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={GRID_NOTE} />
@@ -247,7 +257,9 @@ import {
   <Plain text={PLAIN_QUAD} />
 
   <Card title="Вставка и поиск рамкой" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={QUAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Вставка и поиск в квадродереве">
+      <CodeBlock code={QUAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={QUAD_NOTE} />
@@ -291,7 +303,9 @@ import {
   <Plain text={PLAIN_MBR} />
 
   <Card title="Узлы, вставка, поиск" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={RTREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Узлы и поиск в R-дереве">
+      <CodeBlock code={RTREE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={RTREE_NOTE} />
@@ -301,7 +315,9 @@ import {
   ### Разбиение переполненного узла
 
   <Card title="Квадратичное разбиение" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SPLIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Квадратичное разбиение узла">
+      <CodeBlock code={SPLIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <Md text={SPLIT_NOTE} />
@@ -316,6 +332,18 @@ import {
   />
 
   <Md text={TREE_NOTE} />
+
+  <Disclosure title="Поиск ближайших">
+
+    <CodeBlock code={KNN_CODE} />
+
+  </Disclosure>
+
+  <Disclosure title="Удаление и перемещение">
+
+    <CodeBlock code={REMOVE_CODE} />
+
+  </Disclosure>
 
   ### Поле с фигурами
 
@@ -359,13 +387,7 @@ import {
 >
   <Plain text={PLAIN_KNN} />
 
-  <Card title="k ближайших по R-дереву" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={KNN_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-
-    <CardNote tone="prose">
-      <Md text={KNN_NOTE} />
-    </CardNote>
-  </Card>
+  <Md text={KNN_NOTE} />
 
   <Table
     head={['10 000 точек, k = 5', 'проверок', 'узлов раскрыто', 'перебор']}
@@ -388,13 +410,7 @@ import {
   title="Движущиеся объекты"
   lead="Перетаскивание, анимация, игра: фигуры меняют координаты, и индекс должен за ними успевать. Дерево не замечает, что у объекта поменялись числа: его надо явно удалить и вставить заново — или перестроить индекс целиком."
 >
-  <Card title="Удаление и сдвиг" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={REMOVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
-
-    <CardNote tone="prose">
-      <Md text={REMOVE_NOTE} />
-    </CardNote>
-  </Card>
+  <Md text={REMOVE_NOTE} />
 
   ### Что выбрать
 
@@ -423,6 +439,24 @@ import {
 
 <Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Где применять">
+  <CardGrid min={280} gap={16}>
+    {PRACTICE.map((item) => <Card title={item.t} text={item.d} />)}
+  </CardGrid>
+
+  ### Круг под курсором: рамка, форма и слой
+
+  Два круга имеют общий центр, но разные радиусы и порядок слоёв. В точке (9, 9)
+  рамка большого круга подходит, сам круг — нет. В центре подходят оба; выбирается круг
+  с большим z. На окружности касание разрешено. Равный z в этом примере разрешается по id.
+
+  <CodeBlock code={PICK_CODE} />
+
+  В rbush объектами индекса служат сами записи circles. Для flatbush результат поиска —
+  индексы записей: адаптер должен вернуть соответствующие объекты. Эта проверка относится
+  к заполненным кругам, а не к обводке, произвольному Path2D или графической маске.
 </Section>
 
 <Section id="s9" eyebrow="Раздел 9" title="Источники">

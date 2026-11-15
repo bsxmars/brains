@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  HISTORICAL_SHARE_NOTE,
   MEASURED,
   SIZE_BARS,
   BUILD_VARIANTS,
@@ -79,8 +80,9 @@ describe('разбор docker history', () => {
     expect(tail(multi)).toEqual(tail(alpine));
   });
 
-  it('видит слои конфига, не кладущие ни одного файла', () => {
-    // `0B` — это не «мало», а «нисколько»: WORKDIR и ENV меняют только конфиг образа.
+  it('видит нулевой вклад шагов в исторической фикстуре, не путая его с RootFS-слоями', () => {
+    // Это вес записей данного прогона. WORKDIR может создать файловый слой с каталогом:
+    // число RootFS-слоёв независимо проверяет docker-mechanisms.test.ts.
     const workdir = findLayer(multi, 'WORKDIR');
     const user = findLayer(multi, 'USER node');
     expect(workdir?.bytes).toBe(0);
@@ -152,16 +154,16 @@ describe('числа страницы совпадают со снятыми', (
     }
   });
 
-  it('«три процента» в лиде темы — доля приложения в образе', () => {
+  it('«три процента» — доля приложения только в историческом снимке', () => {
     // Было «четыре процента»: ни одна строка таблицы размера столько не даёт.
     // Приложение поверх базы — 3.02% образа на node:22 и 3.04% у многоступенчатой сборки.
     const share = (image: number, base: number) => Math.round(((image - base) / image) * 100);
     expect(share(MEASURED.images.full, MEASURED.base['node:22'])).toBe(3);
     expect(share(MEASURED.images.multi, MEASURED.base['node:22-alpine'])).toBe(3);
     const mdx = readFileSync(new URL('../../src/content/delivery/docker/index.mdx', import.meta.url), 'utf8');
-    const lead = mdx.match(/^lead: "(.*)"$/m)![1];
-    expect(lead).toContain('всего три процента того, что уезжает на сервер');
-    expect(lead).not.toContain('четыре процента');
+    expect(HISTORICAL_SHARE_NOTE).toContain('всего три процента того, что уезжает на сервер');
+    expect(HISTORICAL_SHARE_NOTE).toContain('историческом снимке');
+    expect(mdx).toContain('text={HISTORICAL_SHARE_NOTE}');
   });
 
   it('полосы диаграммы показывают те же числа, что inspect', () => {

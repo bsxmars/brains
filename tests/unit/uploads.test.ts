@@ -255,6 +255,11 @@ describe('прогресс отправки в Chromium', () => {
       res.end('<!doctype html>p');
       return;
     }
+    if (req.url === '/reject') {
+      req.resume();
+      res.writeHead(413).end('too large');
+      return;
+    }
     if (req.url === '/received') {
       res.end(String(received));
       return;
@@ -321,6 +326,18 @@ describe('прогресс отправки в Chromium', () => {
     expect(r.atFull).toBeGreaterThan(0);
     expect(r.atFull).toBeLessThan(SIZE);
   }, 60_000);
+
+  it('onload учебной upload возвращает и HTTP 413, поэтому статус нужно проверить', async () => {
+    const page = await browser.newPage();
+    await page.goto(`http://localhost:${slowPort}/`);
+    const status = await page.evaluate(async (code) => {
+      const upload = new Function(`${code}\nreturn upload;`)();
+      return upload('/reject', new Blob(['body']), () => {});
+    }, t.PROGRESS_CODE);
+    await page.close();
+    expect(status).toBe(413);
+    expect(t.PROGRESS_FACTS[1].d).toContain('в том числе 413');
+  });
 
   it('слушатель на xhr.upload добавляет preflight, fetch тем же запросом — нет', async () => {
     const page = await browser.newPage();
@@ -693,6 +710,20 @@ describe('presigned URL: пример из документации AWS', () => 
     );
   });
 
+  it('подписанный URL в модели многоразовый до окончания срока', async () => {
+    const { url } = await sign.presign({ ...t.AWS_EXAMPLE, method: 'PUT' });
+    const secret = () => t.AWS_EXAMPLE.secret;
+    const now = Date.UTC(2013, 4, 24, 1);
+    expect((await sign.verifyPresigned('PUT', url, secret, now)).ok).toBe(true);
+    expect((await sign.verifyPresigned('PUT', url, secret, now + 1000)).ok).toBe(true);
+    // AWS отдельно определяет повторное использование и замену объекта; это не запрос к S3.
+    expect(t.DIRECT_FACTS[0].d).toContain('не одноразовый билет');
+    expect(t.DIRECT_FACTS[0].d).toContain('заменить объект');
+    // Подпись не знает о принятии файла приложением: от TOCTOU защищает фиксация байтов.
+    expect(t.DIRECT_FACTS[1].d).toContain('проверенной версии');
+    expect(t.DIRECT_UPLOAD_DIAGRAM.nodes.find((node) => node.id === 'accept')!.detail).toContain('Повторный PUT в staging не меняет');
+  });
+
   it('проверка: круг, подмена пути, метода, срока, чужой секрет', async () => {
     const { url } = await sign.presign(t.AWS_EXAMPLE);
     const secret = () => t.AWS_EXAMPLE.secret;
@@ -732,6 +763,12 @@ describe('проверки на сервере', () => {
     expect(safety.sniffType(enc.encode('<html><script>'))).toBeNull();
     expect(safety.sniffType(new Uint8Array(0))).toBeNull();
   }, 30_000);
+
+  it('одна сигнатура PNG проходит sniffType даже без содержимого изображения', () => {
+    const headerOnly = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(safety.sniffType(headerOnly)).toBe('image/png');
+    expect(t.SAFETY_RULES[0]).toContain('не доказывает');
+  });
 
   it('displayName не даёт выйти из каталога', () => {
     const dir = resolve(tmpdir(), 'uploads-root');

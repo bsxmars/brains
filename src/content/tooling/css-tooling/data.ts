@@ -1,3 +1,9 @@
+/**
+ * Уточнения 2026-11-13: преобразования не составляют обязательный общий pipeline;
+ * у !important обратный порядок слоёв проверен в Chromium на IMPORTANT_ORDER_CODE
+ * (css-tooling.test.ts). Полные TW_FILES показаны до сканера.
+ */
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { ModuleFile, TwFile } from '@/widgets/css-tooling-lab/model/types';
 
@@ -745,7 +751,7 @@ export const TW_LAYERS_CODE = `/*! tailwindcss v4.3.3 | MIT License | https://ta
 
 /** Chromium 153: `<button class="btn p-4">`, вывод Tailwind с `p-4` и правило `.btn` в трёх видах. */
 export const LAYER_PROBE: { k: string; padding: string; d: string; tone: 'ok' | 'err' }[] = [
-  { k: '.btn { padding: 0; }', padding: '0px', d: 'Правило вне слоёв сильнее любого слоя — `p-4` проиграл, хотя специфичность у них одинаковая.', tone: 'err' },
+  { k: '.btn { padding: 0; }', padding: '0px', d: 'Обычное правило вне слоёв сильнее обычных правил в слоях — `p-4` проиграл, хотя специфичность у них одинаковая.', tone: 'err' },
   { k: '#app .btn { padding: 0; }', padding: '0px', d: 'То же самое, только теперь виноватым кажется специфичность. Она не участвовала: спор решён раньше, на слоях.', tone: 'err' },
   { k: '@layer components { .btn { padding: 0; } }', padding: '16px', d: 'Свой код в слое `components`: утилиты объявлены позже и побеждают — класс в разметке решает, как и задумано.', tone: 'ok' },
 ];
@@ -917,3 +923,79 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Каскад и вычисление стилей, раздел «Шесть критериев»](/render/css-cascade/#s1) — слои и специфичность, на которых стоит всё про Tailwind. [AST и линтеры](/tooling/ast-linters/#s2) — обход дерева на примере ESLint. [Транспиляция и полифилы](/tooling/transpilation/#s2) — те же цели сборки для JavaScript. [Стили веб-компонентов](/render/web-components-styles/#s1) — изоляция через Shadow DOM. [Критический путь и Web Vitals](/render/rendering-crp/#s1) — почему CSS держит первый кадр. [Бандлер изнутри, раздел «Хеши в именах»](/tooling/bundler-internals/#s5) — хеши от содержимого для файлов. [HMR изнутри](/tooling/hmr/) — почему правка CSS-модуля обновляет страницу иначе, чем обычный CSS. [Форматтер изнутри](/tooling/formatter/) — Doc и печать по ширине: как Prettier решает, где ломать строку.';
+
+export const CSS_BOUNDARY_DIAGRAM: ConceptDiagramData = {
+  "id": "css-build-browser-boundary",
+  "title": "Преобразование CSS и выбор победителя — разные этапы",
+  "description": "Сборка выбирает и настраивает инструменты. Браузер получает результат и применяет свой каскад; компилятор не отменяет его правила.",
+  "width": 900,
+  "height": 610,
+  "nodes": [
+    {
+      "id": "source",
+      "x": 20,
+      "y": 10,
+      "width": 360,
+      "height": 240,
+      "label": "Исходники и конфигурация",
+      "detail": "CSS, классы в шаблонах, плагины и целевые браузеры. От них зависит, какая работа вообще нужна.",
+      "tone": "info"
+    },
+    {
+      "id": "build",
+      "x": 520,
+      "y": 10,
+      "width": 360,
+      "height": 240,
+      "label": "Выбранные преобразования",
+      "detail": "PostCSS с плагинами, Lightning CSS, Modules/scoped и Tailwind решают разные задачи. Они могут сочетаться; набор и порядок задаёт сборка.",
+      "tone": "warn"
+    },
+    {
+      "id": "output",
+      "x": 520,
+      "y": 350,
+      "width": 360,
+      "height": 240,
+      "label": "Обычный CSS",
+      "detail": "Новые селекторы, имена, fallback-декларации и утилиты. Для CSS Modules отдельно формируется соответствие имён в JavaScript.",
+      "tone": "neutral"
+    },
+    {
+      "id": "browser",
+      "x": 20,
+      "y": 350,
+      "width": 360,
+      "height": 240,
+      "label": "Каскад браузера",
+      "detail": "Важность, слои и специфичность выбирают победителя. У !important порядок слоёв обращается.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "to": "build",
+      "from": "source"
+    },
+    {
+      "to": "output",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "from": "build"
+    },
+    {
+      "to": "browser",
+      "fromSide": "left",
+      "toSide": "right",
+      "from": "output"
+    }
+  ],
+  "note": "Плагины не обязаны вызываться одной и той же цепочкой во всех проектах. Схема разделяет сборку и применение результата."
+};
+
+export const IMPORTANT_ORDER_CODE = `@layer components, utilities;
+@layer components { .btn { padding: 0 !important; } }
+@layer utilities { .p-4 { padding: 16px !important; } }
+.btn { padding: 32px !important; }`;
+export const IMPORTANT_ORDER_NOTE =
+  'В этом авторском CSS выигрывает components: у важных деклараций первым становится ранний слой, а !important вне слоёв слабее. Если убрать !important из всех строк, выиграет правило вне слоёв с padding:32px. Более поздний слой не является универсальным усилителем правила.';

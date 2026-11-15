@@ -4,7 +4,7 @@ heading: "Canvas 2D и OffscreenCanvas: рисовать вне DOM"
 headingWidth: 22
 order: 18
 kicker: браузер и рендеринг
-lead: "Холст — не дерево элементов, а одна таблица пикселей. Нарисованный круг нельзя кликнуть, подвинуть или прочитать вслух, зато тысяча кругов стоит столько же, сколько один. Почему линия в 1px выходит серой и двойной, почему на ретине всё мылится, куда копятся пути без `beginPath`, когда холст отказывается отдать свои пиксели и как рисовать в воркере, пока главный поток занят."
+lead: "Холст — не дерево элементов, а одна таблица пикселей. Нарисованный круг не становится отдельным элементом: попадание курсора, перемещение и текстовый эквивалент организует ваш код. Тысяча кругов не создаёт тысячу DOM-узлов, но команды рисования и закрашенные пиксели всё равно стоят работы. Почему линия в 1px выходит серой и двойной, почему на ретине всё мылится, куда копятся пути без `beginPath`, когда холст отказывается отдать свои пиксели и как рисовать в воркере, пока главный поток занят."
 summary: "Битмап против DOM и SVG, попадание и доступность, буфер против CSS-размера и `devicePixelRatio`, покрытие пикселя и полупиксельные линии, `save`/`restore`, пути и `beginPath`, `clearRect` под матрицей, цена кадра и слои, запачканный холст и CORS, `OffscreenCanvas` в воркере при занятом главном потоке, `ImageBitmap` и `createImageBitmap`."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63, headless, программная растеризация), Node 24.11.0, октябрь 2026; сброс пятна — ещё Firefox 155.0 и WebKit 26.6. Пиксели, снимки экрана, дерево доступности, слои, ошибки и кадры воркера сняты стендом и снимаются заново в tests/unit/canvas.test.ts; модель покрытия сверена с Chromium в 64 случаях"
 nav:
@@ -19,6 +19,8 @@ nav:
   - { id: s9, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -36,6 +38,7 @@ import LineLab from '@/widgets/canvas-lab/ui/LineLab.vue';
 import BusyLab from '@/widgets/canvas-lab/ui/BusyLab.vue';
 import {
   GLOSSARY,
+  CANVAS_SIZE_DIAGRAM,
   PLAIN_CANVAS,
   HIT_CODE,
   HIT_FACTS,
@@ -173,6 +176,8 @@ import {
 >
   <Plain text={PLAIN_BUFFER} />
 
+  <ConceptDiagram data={CANVAS_SIZE_DIAGRAM} />
+
   <CardGrid min={300} gap={16} align="start">
     <Card tone="err" title="Буфер в CSS-пикселях" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={NAIVE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -227,9 +232,13 @@ import {
 >
   <Plain text={PLAIN_COVERAGE} />
 
+<Disclosure title="Как учебная модель считает покрытие пикселя">
+
   <Card title="Модель: покрытие пикселя полосой" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={RASTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
+
+</Disclosure>
 
   <Card title="Проба: нарисовать и прочитать буфер" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={PROBE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -302,7 +311,7 @@ import {
     minWidth={680}
   />
 
-  ### Каждый холст получает свой слой
+  ### Какие слои получил Chromium на стенде
 
   <Table
     head={['элемент', 'слой', 'причина в Chromium']}
@@ -322,7 +331,7 @@ import {
   </CardGrid>
 
   <Card title="Предупреждение Chromium после серии чтений" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock lang="http" code={READBACK_WARNING} size={11.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={READBACK_WARNING} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 </Section>
 
@@ -330,7 +339,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Чужие пиксели: запачканный холст"
-  lead="Нарисовать на холсте картинку с другого origin можно всегда. Прочитать после этого его пиксели — только если сервер картинки разрешил это через CORS. Иначе холст считается запачканным, и всё, что выносит пиксели в JavaScript, бросает `SecurityError`."
+  lead="Загруженную картинку с другого origin можно нарисовать на холсте. Прочитать после этого его пиксели — только если картинка загружена с разрешением CORS. Иначе холст считается запачканным, и всё, что выносит пиксели в JavaScript, бросает `SecurityError`."
 >
   <Plain text={PLAIN_TAINT} />
 

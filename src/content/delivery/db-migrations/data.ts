@@ -1,7 +1,12 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { MigrationPlan, Schema, StatementCost } from '@/widgets/migration-lab/model/types';
 
 /**
+ * Уточнение 2026-11: пауза backfill — явный afterBatch, по умолчанию её нет;
+ * некорректный размер пачки отвергается до SQL (db-migrations.test.ts).
+ * Совместные писатели v1/v2 синхронизированы BEFORE-триггером; тест на PGlite проверяет
+ * поздние записи v1, откат после backfill и удаление триггера до первой записи v3.
  * Данные темы «Миграции базы без простоя».
  *
  * Тема написана здесь, 2026-10-01, для направления «Доставка».
@@ -288,6 +293,20 @@ const cost = (lock: string, rewrite = false, scans = 0): StatementCost => ({ loc
 export const BACKFILL_BATCH_SQL =
   'UPDATE users SET full_name = name WHERE id > 0 AND id <= 1000 AND full_name IS NULL';
 
+/** Пока возможна v1, name — источник истины. BEFORE-триггер выполняется в той же записи. */
+export const SYNC_FUNCTION_SQL = `CREATE FUNCTION sync_user_full_name() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.full_name := NEW.name;
+  RETURN NEW;
+END;
+$$`;
+export const SYNC_TRIGGER_SQL = `CREATE TRIGGER users_sync_full_name
+BEFORE INSERT OR UPDATE OF name ON users
+FOR EACH ROW EXECUTE FUNCTION sync_user_full_name()`;
+export const SYNC_REMOVE_SQL = 'DROP TRIGGER users_sync_full_name ON users';
+export const SYNC_PROTOCOL_SQL = [SYNC_FUNCTION_SQL, SYNC_TRIGGER_SQL].join(';\n\n') + ';';
+
 /**
  * Два плана для демо. `cost` у каждого оператора снят на таблице из 10 000 строк
  * (блокировка, перезапись, проходы); `schema` — схема после шага. Всё пересобирает тест.
@@ -302,15 +321,19 @@ export const PLANS: MigrationPlan[] = [
       {
         id: 'expand',
         label: '1. Расширить',
-        text: 'Добавить новый столбец необязательным. Старый код его не видит, `v3` ещё рано: `name` пока обязателен.',
-        statements: [{ sql: 'ALTER TABLE users ADD COLUMN full_name text', cost: cost(AE) }],
+        text: 'Добавить nullable full_name и до выката v2 установить BEFORE-триггер: каждая вставка и запись name синхронно обновляет full_name. Пока возможна v1, источник истины — name; v3 ещё рано.',
+        statements: [
+          { sql: 'ALTER TABLE users ADD COLUMN full_name text', cost: cost(AE) },
+          { sql: SYNC_FUNCTION_SQL, cost: cost('') },
+          { sql: SYNC_TRIGGER_SQL, cost: cost('ShareRowExclusiveLock') },
+        ],
         live: ['v1'],
         schema: S_EXPANDED,
       },
       {
         id: 'deploy-v2',
         label: '2. Выкат v2',
-        text: 'Схема не меняется, меняется код. Пока идёт выкат, `v1` и `v2` работают вместе, и обе версии на этой схеме исправны.',
+        text: 'Схема не меняется, меняется код. Пока v1 и v2 работают вместе, триггер синхронизирует записи v1 в full_name. Без него успешные SQL-запросы обеих версий не доказывали бы согласованность данных.',
         statements: [],
         live: ['v1', 'v2'],
         schema: S_EXPANDED,
@@ -318,7 +341,7 @@ export const PLANS: MigrationPlan[] = [
       {
         id: 'backfill',
         label: '3. Перенести данные',
-        text: 'Скопировать `name` в `full_name` у старых строк — пачками по тысяче. Запускают, когда последних подов `v1` уже нет: иначе `v1` успеет вставить строки без `full_name`.',
+        text: 'Скопировать `name` в `full_name` у старых строк — пачками по тысяче. После ухода v1 переносят оставшиеся NULL. Триггер остаётся, пока разрешён откат на v1: он защищает и от позднего обновления уже перенесённой строки.',
         statements: [{ sql: BACKFILL_BATCH_SQL, cost: cost('RowExclusiveLock') }],
         live: ['v2'],
         fallback: 'v1',
@@ -327,13 +350,15 @@ export const PLANS: MigrationPlan[] = [
       {
         id: 'constrain',
         label: '4. Сделать обязательным',
-        text: 'Перевернуть обязательность: `full_name` — `NOT NULL`, `name` — нет. Четыре команды вместо одной, чтобы не держать таблицу закрытой на время проверки. С этого шага `v1` не может вставить строку: откат — только на `v2`.',
+        text: 'Перевернуть обязательность: `full_name` — `NOT NULL`, `name` — нет. Проверку данных проводят под более мягким замком. После подтверждённого ухода всех писателей v1 закрывают откат на v1 и снимают триггер: он больше не должен переносить старое значение поверх записей v3. Итоговая схема не принимает INSERT v1; откат — только на v2.',
         statements: [
           { sql: 'ALTER TABLE users ADD CONSTRAINT full_name_present CHECK (full_name IS NOT NULL) NOT VALID', cost: cost(AE) },
           { sql: 'ALTER TABLE users VALIDATE CONSTRAINT full_name_present', cost: cost('ShareUpdateExclusiveLock', false, 1) },
           { sql: 'ALTER TABLE users ALTER COLUMN full_name SET NOT NULL', cost: cost(AE) },
           { sql: 'ALTER TABLE users DROP CONSTRAINT full_name_present', cost: cost(AE) },
           { sql: 'ALTER TABLE users ALTER COLUMN name DROP NOT NULL', cost: cost(AE) },
+          { sql: SYNC_REMOVE_SQL, cost: cost(AE) },
+          { sql: 'DROP FUNCTION sync_user_full_name()', cost: cost('') },
         ],
         live: ['v2'],
         fallback: 'v1',
@@ -350,7 +375,7 @@ export const PLANS: MigrationPlan[] = [
       {
         id: 'contract',
         label: '6. Сузить',
-        text: 'Удалить старый столбец — отдельным выкатом, когда откат на `v2` точно не понадобится. Вместе со столбцом уходят данные: вернуть их можно только из резервной копии.',
+        text: 'Удалить старый столбец — отдельным выкатом, когда откат на `v2` точно не понадобится. Возврат одного образа больше не работает: для обратного перехода придётся восстановить name из актуального full_name и снова согласовать совместные записи.',
         statements: [{ sql: 'ALTER TABLE users DROP COLUMN name', cost: cost(AE) }],
         live: ['v3'],
         fallback: 'v2',
@@ -397,7 +422,7 @@ export const DEMO_CAPTION =
   'Вердикт по каждому запросу считает функция `check` выше на схеме после шага. Тест выполняет те же девять запросов в настоящем Postgres на каждом шаге обоих планов и сверяет код ошибки и столбец. Блокировки и перезапись у операторов — снятые на таблице из 10 000 строк.';
 
 export const BACKFILL_RACE =
-  'Почему перенос — после того, как ушёл последний под `v1`. Пока `v1` работает, она вставляет строки без `full_name` и меняет `name`, не трогая `full_name`. Первое ловится: проверка `VALIDATE` на следующем шаге упадёт с `23514`. Второе молча: `v2` читает `coalesce(full_name, name)`, а в `full_name` лежит старое имя. Если дождаться нельзя — например, при откате на `v1` после переноса, — синхронизацию берёт на себя триггер, который копирует `name` в `full_name` при каждой записи, и его снимают на шаге «сузить».';
+  'Одной проверки схемы недостаточно. Без синхронизации v2 могла записать имя B в оба столбца, затем v1 — имя C только в name. COALESCE читает устаревшее B, а перенос только NULL уже не помогает. Поэтому план устанавливает BEFORE-триггер до совместной работы версий: он переносит каждую запись name в full_name внутри той же операции. Триггер снимают после ухода всех писателей v1 и закрытия отката на v1, до запуска v3; иначе вставка v3 без name затёрла бы full_name значением NULL.';
 
 // ─── Раздел 3. Блокировки ──────────────────────────────────────────────────────────────────
 
@@ -422,6 +447,7 @@ export const LOCK_PROBE_NOTE =
 
 /** Режим блокировки: имя в документации и имя в `pg_locks`. */
 export const LOCK_NAMES: Record<string, string> = {
+  '': 'без блокировки users',
   AccessShareLock: 'ACCESS SHARE',
   RowExclusiveLock: 'ROW EXCLUSIVE',
   ShareUpdateExclusiveLock: 'SHARE UPDATE EXCLUSIVE',
@@ -578,8 +604,11 @@ export const MVCC_TEXT =
 
 /** Учебный перенос. Тест исполняет ровно эту строку против PGlite. */
 export const BACKFILL_CODE = `// Перенос пачками: каждая пачка — отдельная короткая транзакция.
-// run(sql, params) выполняет запрос и возвращает число изменённых строк.
-async function backfill(run, maxId, batch = 1000) {
+// run(sql, params) фиксирует отдельную пачку и возвращает число изменённых строк.
+// Весь цикл не должен находиться внутри одной внешней транзакции.
+async function backfill(run, maxId, batch = 1000, afterBatch = async () => {}) {
+  if (!Number.isSafeInteger(maxId) || maxId < 0) throw new RangeError('maxId: нужен безопасный неотрицательный integer');
+  if (!Number.isSafeInteger(batch) || batch <= 0) throw new RangeError('batch: нужен положительный integer');
   const changed = [];
   for (let from = 0; from < maxId; from += batch) {
     changed.push(await run(
@@ -587,15 +616,16 @@ async function backfill(run, maxId, batch = 1000) {
       'WHERE id > $1 AND id <= $2 AND full_name IS NULL',
       [from, from + batch],
     ));
+    await afterBatch();                  // явная пауза или регулирование нагрузки вызывающим кодом
   }
   return changed;
 }
 
 // const { rows } = await db.query('SELECT max(id) AS max FROM users');
-// await backfill(run, rows[0].max);   // 10 000 строк → [1000, 1000, … ] — 10 пачек`;
+// await backfill(run, Number(rows[0].max ?? 0));   // 10 000 строк → [1000, 1000, … ] — 10 пачек`;
 
 export const BACKFILL_NOTE =
-  'Пачка — по диапазону ключа, а не «следующая тысяча пустых». Условие `full_name IS NULL` оставлено, чтобы перенос можно было запустить ещё раз: повтор пропустит готовые строки. Между пачками стоит пауза — место для живых запросов и для `VACUUM`.';
+  'Пачка — по диапазону ключа, а не «следующая тысяча пустых». Условие `full_name IS NULL` оставлено, чтобы перенос можно было запустить ещё раз: повтор пропустит готовые строки. Пауза не возникает от одного деления на пачки: после коммита вызывается `afterBatch`. В него можно передать ожидание или регулирование нагрузки. По умолчанию паузы нет. Числовая модель рассчитана на положительные id, помещающиеся в безопасный integer JS; для больших bigint нужен другой курсор.';
 
 export const PLAN_SUBQUERY_SQL =
   'UPDATE users SET full_name = name\nWHERE id IN (SELECT id FROM users WHERE full_name IS NULL ORDER BY id LIMIT 1000)';
@@ -651,14 +681,14 @@ export const TX_DDL_NOTE =
   'В Postgres изменения схемы транзакционны, как и изменения данных: миграция, упавшая на середине, не оставляет половину столбцов. Это не везде так — в MySQL каждый `ALTER TABLE` фиксируется сразу. Исключения и в Postgres есть: `CREATE INDEX CONCURRENTLY` вне транзакции, и откатывать его приходится руками.';
 
 export const ROLLBACK_ROWS = [
-  { step: '1. Расширить', down: '`DROP COLUMN full_name`', code: 'на `v1` — да', tone: 'ok' as const },
-  { step: '3. Перенести данные', down: 'не нужен: `name` не тронут', code: 'на `v1` — да, но `v1` не обновляет `full_name` (см. триггер)', tone: 'warn' as const },
-  { step: '4. Сделать обязательным', down: '`ALTER COLUMN full_name DROP NOT NULL`, `ALTER COLUMN name SET NOT NULL`', code: 'на `v2` — да; на `v1` — только после обратной миграции', tone: 'warn' as const },
-  { step: '6. Сузить', down: 'нет: данные `name` удалены вместе со столбцом', code: 'на `v2` — только после восстановления из копии', tone: 'err' as const },
+  { step: '1. Расширить', down: 'снять триггер и его функцию, затем `DROP COLUMN full_name`', code: 'на `v1` — да', tone: 'ok' as const },
+  { step: '3. Перенести данные', down: 'не нужен: `name` не тронут, триггер остаётся', code: 'на `v1` — да, записи синхронизирует триггер', tone: 'ok' as const },
+  { step: '4. Сделать обязательным', down: 'отдельный протокол: остановить v3, согласовать данные, вернуть ограничения и триггер', code: 'на `v2` — да; на `v1` — уже не возвратом одного образа', tone: 'warn' as const },
+  { step: '6. Сузить', down: 'восстановить name из full_name и согласовать совместные записи', code: 'на `v2` — после обратного протокола, не возвратом одного образа', tone: 'warn' as const },
 ];
 
 export const ROLLBACK_TEXT =
-  'Откат бывает двух видов, и путать их опасно. **Откат кода** — вернуть прошлый образ: секунды, и данные не трогаются. **Обратная миграция** («down») — вернуть схему: иногда простая, иногда невозможная. Пока все шаги «расширить и сузить» обратимы, откат кода остаётся кнопкой. Необратим только последний шаг — поэтому его откладывают, пока новая версия не поработает какое-то время — часто неделю-другую.';
+  'Откат бывает двух видов. **Откат кода** возвращает прошлый образ, но не схему и не данные. Он допустим только для версий, чьи запросы и протокол записей ещё поддерживаются. **Обратная миграция** («down») восстанавливает схему и при необходимости данные. В этом переименовании значение сохранилось в full_name: обратный переход возможен, но требует нового протокола, а не одной кнопки. Если удалены уникальные данные, которых больше нигде нет, понадобится резервная копия.';
 
 export const WHERE_TO_RUN =
   'Где запускать миграции. Не при старте каждого пода: десять подов начнут одну и ту же миграцию одновременно, а под, который при старте долго мигрирует, не готов к запросам — и выкат стоит, пока он не закончит. Обычно миграцию запускает одна задача перед выкатом: Job в кластере или хук `pre-upgrade` в Helm — оба разобраны в [«Kubernetes: развёртывание»](/delivery/kubernetes/#s1) и в [«Один манифест на много окружений»](/delivery/helm-gitops/#s6). Перед необратимым шагом снимают копию — например, снапшот диска из [«StatefulSet, тома и данные»](/delivery/statefulset/#s6).';
@@ -717,6 +747,11 @@ export const PITFALLS: Pitfall[] = [
 ];
 
 export const SOURCES: Source[] = [
+  {
+    title: 'PostgreSQL — CREATE TRIGGER',
+    href: 'https://www.postgresql.org/docs/18/sql-createtrigger.html',
+    what: 'BEFORE-триггер меняет строку до проверки ограничений; UPDATE OF реагирует на целевые столбцы команды',
+  },
   {
     title: 'PostgreSQL — Explicit Locking',
     href: 'https://www.postgresql.org/docs/current/explicit-locking.html',
@@ -843,4 +878,120 @@ export const ROLLBACK_TABLE = {
   cols: 'minmax(170px,.7fr) minmax(260px,1.4fr) minmax(260px,1.4fr)',
   kinds: ['prose', 'prose', 'prose'] as 'prose'[],
   minWidth: 720,
+};
+
+export const COMPATIBILITY_DIAGRAM: ConceptDiagramData = {
+  "id": "migration-compatibility-window",
+  "title": "У расширения и удаления разные условия допуска",
+  "description": "Пока v1 читает name, удалить name нельзя. После расширения v1 и переходная v2 работают вместе; удаление разрешается лишь после ухода старых писателей и закрытия окна отката.",
+  "width": 920,
+  "height": 290,
+  "nodes": [
+    {
+      "id": "0",
+      "x": 0,
+      "y": 30,
+      "width": 260,
+      "height": 230,
+      "label": "Схема: name",
+      "detail": "v1 читает и пишет name. Новый full_name ещё не существует.",
+      "tone": "info"
+    },
+    {
+      "id": "1",
+      "x": 330,
+      "y": 30,
+      "width": 260,
+      "height": 230,
+      "label": "Схема: оба столбца",
+      "detail": "v2 пишет оба значения. Перенос и проверка данных готовят переход; v1 ещё может записывать старый формат.",
+      "tone": "warn"
+    },
+    {
+      "id": "2",
+      "x": 660,
+      "y": 30,
+      "width": 260,
+      "height": 230,
+      "label": "Схема: full_name",
+      "detail": "v3 больше не требует name. До удаления подтверждают, что ни текущий код, ни допустимый откат не используют name.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "from": "0",
+      "to": "1",
+      "labelX": 295,
+      "labelY": 130
+    },
+    {
+      "from": "1",
+      "to": "2",
+      "labelX": 625,
+      "labelY": 130
+    }
+  ],
+  "note": "Совместимость запросов не доказывает равенство данных. В плане синхронизацию обеспечивает BEFORE-триггер; тест проверяет поздние записи v1 после записей v2 и backfill. Одной проверки SQL-схемы недостаточно."
+};
+
+export const QUEUE_DIAGRAM: ConceptDiagramData = {
+  "id": "migration-lock-convoy",
+  "title": "Ожидающая миграция задерживает новые чтения",
+  "description": "Длинный SELECT уже держит совместимую с чтением блокировку. Миграция ждёт ACCESS EXCLUSIVE. Следующие SELECT встают за её заявкой, хотя сами могли бы работать вместе с первым SELECT.",
+  "width": 920,
+  "height": 290,
+  "nodes": [
+    {
+      "id": "report",
+      "x": 0,
+      "y": 30,
+      "width": 260,
+      "height": 230,
+      "label": "A: длинный SELECT",
+      "detail": "ACCESS SHARE уже выдан. Пока транзакция A держит замок, миграция не получит исключительный режим.",
+      "tone": "info"
+    },
+    {
+      "id": "ddl",
+      "x": 330,
+      "y": 30,
+      "width": 260,
+      "height": 230,
+      "label": "B: ALTER TABLE ждёт",
+      "detail": "ACCESS EXCLUSIVE ещё не выдан. Ожидание в очереди уже влияет на запросы, пришедшие позже.",
+      "tone": "warn"
+    },
+    {
+      "id": "reads",
+      "x": 660,
+      "y": 30,
+      "width": 260,
+      "height": 230,
+      "label": "C: новые SELECT ждут",
+      "detail": "Ждут исключительной заявки B. Быстрая команда DDL может вызвать долгую остановку ещё до исполнения.",
+      "tone": "err"
+    }
+  ],
+  "edges": [
+    {
+      "from": "ddl",
+      "to": "report",
+      "fromSide": "left",
+      "toSide": "right",
+      "label": "ждёт A",
+      "labelX": 295,
+      "labelY": 130
+    },
+    {
+      "from": "reads",
+      "to": "ddl",
+      "fromSide": "left",
+      "toSide": "right",
+      "label": "за B",
+      "labelX": 625,
+      "labelY": 130
+    }
+  ],
+  "note": "lock_timeout ограничивает ожидание получения замка. Время самой команды ограничивается отдельно; одной настройки недостаточно для всей миграции."
 };

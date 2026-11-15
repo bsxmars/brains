@@ -301,6 +301,16 @@ describe('раздел 2: исходящий запрос на адрес пол
       expect(t.REBIND_NOTE).toContain('connect.lookup');
     });
 
+    it('пустой ответ DNS возвращает EGRESS_BLOCKED в обоих режимах lookup', async () => {
+      const guarded = egress.guardLookup((_hostname, _options, callback) => callback(null, []));
+      for (const all of [false, true]) {
+        const error = await new Promise<NodeJS.ErrnoException>((resolve, reject) => {
+          guarded('empty.example', { all }, (err) => err ? resolve(err) : reject(new Error('DNS без адресов разрешён')));
+        });
+        expect(error.code).toBe('EGRESS_BLOCKED');
+      }
+    });
+
     it('guardLookup отдаёт публичный адрес без изменений — в обоих режимах вызова', async () => {
       const guarded = egress.guardLookup(fakeDns({ 'a.example': ['93.184.215.14', '2606:2800:21f:cb07:6820:80da:af6b:8b2c'] }));
       const all = await new Promise((r) => guarded('a.example', { all: true }, (e, a) => r(e ?? a)));
@@ -572,6 +582,15 @@ describe('раздел 5: ошибки и секреты', () => {
 });
 
 /* ─────────────────────────── цепочка поставок ─────────────────────────── */
+
+describe('HTML-кодирование не является проверкой URL', () => {
+  it('javascript: не исчезает от кодирования символов — для href нужна своя политика', async () => {
+    const { escapeHtml } = await load(t.ESCAPE_CODE, ['escapeHtml']);
+    expect(escapeHtml('javascript:alert(1)')).toBe('javascript:alert(1)');
+    expect(escapeHtml('<img src=x onerror=alert(1)>')).toContain('&lt;img');
+    expect(t.ESCAPE_NOTE).toContain('не `href="javascript:…"`');
+  });
+});
 
 describe('раздел 6: цепочка поставок', () => {
   it('lockProblems на package-lock.json этого проекта: сотни пакетов, замечаний ноль', async () => {

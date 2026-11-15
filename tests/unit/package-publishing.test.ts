@@ -286,3 +286,36 @@ describe('вычитка 2026-10-30: лид раздела «ESM и CJS» не �
   });
 });
 
+
+describe('упаковка без публикации и граница exports', () => {
+  it('dry-run не пишет тарбол, но prepack может изменить проект; ignore-scripts блокирует это', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pp-dryrun-'));
+    writePackage(dir, { name: 'dryrun-probe', version: '1.0.0', files: ['generated.js'], scripts: { prepack: 'node prepare.cjs' } }, {
+      'prepare.cjs': "require('node:fs').writeFileSync('generated.js', 'module.exports = 1;\\n');",
+    });
+    const pack = (ignore: boolean) => JSON.parse(execFileSync('npm',
+      ['pack', '--dry-run', '--json', ...(ignore ? ['--ignore-scripts'] : [])],
+      { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ))[0].files.map((f: { path: string }) => f.path);
+    expect(pack(true)).not.toContain('generated.js');
+    expect(pack(false)).toContain('generated.js');
+    expect(readFileSync(join(dir, 'generated.js'), 'utf8')).toBe('module.exports = 1;\n');
+    expect(() => readFileSync(join(dir, 'dryrun-probe-1.0.0.tgz'))).toThrow();
+    const mdx = readFileSync('src/content/tooling/package-publishing/index.mdx', 'utf8');
+    expect(mdx).toContain('могут изменить локальные файлы');
+  });
+
+  it('закрытый подпуть по имени пакета остаётся читаемым через абсолютный путь', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pp-exports-boundary-'));
+    const pkg = join(dir, 'node_modules', 'closed-kit');
+    writePackage(pkg, { name: 'closed-kit', version: '1.0.0', exports: { '.': './index.cjs', './private.cjs': null } }, {
+      'index.cjs': 'module.exports = 1;', 'private.cjs': 'module.exports = 42;',
+    });
+    writeFileSync(join(dir, 'probe.cjs'), `const path = require('node:path');
+      try { require('closed-kit/private.cjs'); } catch (e) { console.log(e.code); }
+      console.log(require(path.resolve('node_modules/closed-kit/private.cjs')));`);
+    const out = execFileSync(process.execPath, ['probe.cjs'], { cwd: dir, encoding: 'utf8' });
+    expect(out.trim().split('\n')).toEqual(['ERR_PACKAGE_PATH_NOT_EXPORTED', '42']);
+    expect(t.DEMO_TEXT.ERR_PACKAGE_PATH_NOT_EXPORTED).toContain('по абсолютному пути');
+  });
+});

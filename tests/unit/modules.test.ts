@@ -1,10 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { type Browser, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  CJS_COUNTER_SOURCE,
+  CJS_REPLACE_SOURCE,
+  CYCLE_SOURCES,
+  LINK_INIT_A,
+  LINK_INIT_B,
+  MODULE_DCL_HTML,
+  DEFAULT_FUNCTION_CODE,
   EXTERNAL_CONFIG,
   EXTERNAL_FIRST_LINE,
   EXTERNAL_MAIN,
@@ -57,10 +64,13 @@ interface Report {
   fnTrace: string[];
   live: { before: number[]; after: number[] };
   cjs: number[];
+  namedDefault: string[];
+  linkInit: [boolean, string];
+  cjsReplace: string[];
 }
 
 const RUNNER = `
-const [, , base, readerUrl, dir] = process.argv;
+const [, , base, readerUrl, dir, namedDefaultUrl] = process.argv;
 const url = (name) => new URL(name, base).href;
 const out = {};
 
@@ -100,6 +110,17 @@ counter.increment();
 cjs.push(counter.count);
 out.cjs = cjs;
 
+const namedDefault = await import(namedDefaultUrl);
+out.namedDefault = [namedDefault.default()];
+namedDefault.replace();
+out.namedDefault.push(namedDefault.default());
+
+await import(dir + "/link-a.mjs");
+out.linkInit = (await import(dir + "/link-b.mjs")).beforeBody;
+const old = require(dir + "/replace.cjs");
+old.replace();
+out.cjsReplace = [old.kind, require(dir + "/replace.cjs").kind];
+
 console.log(JSON.stringify(out));
 `;
 
@@ -111,12 +132,16 @@ beforeAll(() => {
   writeFileSync(runner, RUNNER);
   writeFileSync(
     join(dir, 'counter.cjs'),
-    'let count = 0;\nmodule.exports = { count, increment() { count += 1; } };\n',
+    CJS_COUNTER_SOURCE,
   );
+
+  writeFileSync(join(dir, 'link-a.mjs'), LINK_INIT_A);
+  writeFileSync(join(dir, 'link-b.mjs'), LINK_INIT_B);
+  writeFileSync(join(dir, 'replace.cjs'), CJS_REPLACE_SOURCE);
 
   const stdout = execFileSync(
     process.execPath,
-    [runner, FIXTURES, dataUrl(READER(dataUrl(COUNTER))), dir],
+    [runner, FIXTURES, dataUrl(READER(dataUrl(COUNTER))), dir, dataUrl(DEFAULT_FUNCTION_CODE)],
     { encoding: 'utf8' },
   );
   report = JSON.parse(stdout) as Report;
@@ -338,6 +363,16 @@ describe('браузер: import maps, nomodule, WebAssembly (Chromium чере�
       Object.entries(source).map(([p, text]) => [p, [p.endsWith('.html') ? 'text/html; charset=utf-8' : 'text/javascript', text]]),
     );
 
+  it('DOMContentLoaded не ждёт завершения top-level await', async () => {
+    const { page } = await open({ '/index.html': ['text/html', MODULE_DCL_HTML] });
+    try {
+      await page.goto('http://lesson.test/', { waitUntil: 'domcontentloaded' });
+      expect(await page.evaluate('window.events')).toEqual(['module:start', 'DOMContentLoaded']);
+      await page.evaluate('window.releaseModule()');
+      await expect.poll(() => page.evaluate('window.events')).toEqual(['module:start', 'DOMContentLoaded', 'module:after-await']);
+    } finally { await page.close(); }
+  });
+
   it('scopes и префикс со слешем: одно имя vue — два файла', async () => {
     const { page, logs } = await open(asFiles(IMPORTMAP_FILES));
     await page.goto('http://lesson.test/');
@@ -428,4 +463,27 @@ describe('браузер: import maps, nomodule, WebAssembly (Chromium чере�
     expect(html.indexOf('type="importmap"')).toBeGreaterThan(-1);
     expect(html.indexOf('type="importmap"')).toBeLessThan(html.indexOf('type="module"'));
   }, 60_000);
+});
+
+
+describe('исходник перед демо и формы default', () => {
+  it('на связывании var уже undefined, а function уже вызывается', () => {
+    expect(report.linkInit).toEqual([true, 'ready']);
+  });
+
+  it('старый импортёр держит старый объект, следующий require получает текущее module.exports', () => {
+    expect(report.cjsReplace).toEqual(['old', 'new']);
+  });
+  it('печатные исходники цикла совпадают с файлами, исполняемыми обоими загрузчиками', () => {
+    for (const [name, code] of Object.entries(CYCLE_SOURCES)) {
+      expect(readFileSync(new URL(name, FIXTURES), 'utf8').trimEnd(), name).toBe(code);
+    }
+    const mdx = readFileSync(new URL('../../src/content/tooling/modules/index.mdx', import.meta.url), 'utf8');
+    expect(mdx.indexOf('code={LIVE_COUNTER}')).toBeLessThan(mdx.indexOf('<LiveBinding'));
+    expect(mdx.indexOf('Object.entries(CYCLE_SOURCES)')).toBeLessThan(mdx.indexOf('<CycleLab'));
+  });
+
+  it('именованное default function экспортирует живую привязку, а не снимок функции', () => {
+    expect(report.namedDefault).toEqual(['first', 'next']);
+  });
 });

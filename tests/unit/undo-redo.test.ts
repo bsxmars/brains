@@ -37,6 +37,29 @@ Date.now = realNow;
 // ─── Учебная история на виртуальном времени ─────────────────────────────────────────────────
 
 describe('HISTORY_CODE: стопки, снимки, группировка', () => {
+  it('вставка и история сохраняют UTF-16, включая emoji и составные графемы', () => {
+    for (const mode of ['ops', 'snapshots'] as const) {
+      const ed = createEditor({ mode });
+      const text = '🙂x👩‍💻е\u0301';
+      ed.insert(text, 0);
+      expect(ed.text).toBe(text);
+      expect(ed.sel).toEqual([text.length, text.length]);
+      ed.undo();
+      expect(ed.text).toBe('');
+      ed.redo();
+      expect(ed.text).toBe(text);
+    }
+  });
+
+  it('пустой ввод не уничтожает ветку redo', () => {
+    const ed = createEditor();
+    ed.insert('a', 0);
+    ed.undo();
+    ed.insert('', 1000);
+    expect(ed.redo()).toBe(true);
+    expect(ed.text).toBe('a');
+  });
+
   it('STACK_ROWS: две стопки и очистка redo новой правкой', () => {
     const ed = createEditor();
     let now = 0;

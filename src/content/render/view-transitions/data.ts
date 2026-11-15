@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { VtScenario } from '@/widgets/vt-lab/model/types';
 
@@ -651,3 +652,95 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Кадр браузера](/render/render-pipeline/#s1) — шаги кадра, между которыми снимаются состояния. [Навигации без ожидания](/platform/instant-navigation/#s5) — предрендер и активация, на которой приходит `pagereveal`. [Каскад и вычисление стилей](/render/css-cascade/#s1) — почему авторское правило перекрывает анимации браузера. [Ре-рендеринг в React](/frameworks/react-rerender/#s4) — батчинг и `flushSync`. [Реактивность Vue](/frameworks/vue-reactivity/#s3) — очередь, которую ждёт `nextTick`.';
+
+
+/** Предметная схема: те же объекты и зависимости, что в примере темы. */
+export const TRANSITION_STATE_DIAGRAM: ConceptDiagramData = {
+  "id": "vt-state-snapshots",
+  "title": "DOM изменился раньше, чем закончилась анимация",
+  "description": "Снимки отвечают за переход на экране, а колбэк — за состояние приложения. Пропуск анимации не откатывает выполненный колбэк.",
+  "width": 840,
+  "height": 480,
+  "nodes": [
+    {
+      "id": "old",
+      "x": 0,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Старый снимок",
+      "detail": "Снято положение карточки до перестановки.",
+      "tone": "info"
+    },
+    {
+      "id": "update",
+      "x": 300,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Колбэк меняет DOM",
+      "detail": "Карточка уже в новом месте; updateCallbackDone сообщает об окончании колбэка.",
+      "tone": "warn"
+    },
+    {
+      "id": "new",
+      "x": 600,
+      "y": 0,
+      "width": 240,
+      "height": 200,
+      "label": "Новый снимок",
+      "detail": "Из обновлённого DOM создаётся новое изображение. Готовность отмечает ready.",
+      "tone": "info"
+    },
+    {
+      "id": "live",
+      "x": 300,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "Новый DOM остаётся",
+      "detail": "`skipTransition()` пропускает анимацию, а выполненную перестановку сохраняет.",
+      "tone": "ok"
+    },
+    {
+      "id": "overlay",
+      "x": 600,
+      "y": 280,
+      "width": 240,
+      "height": 200,
+      "label": "Анимация снимков",
+      "detail": "Поверх страницы движутся old/new. Завершение отмечает finished.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "from": "old",
+      "to": "update"
+    },
+    {
+      "from": "update",
+      "to": "new"
+    },
+    {
+      "from": "new",
+      "to": "overlay",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "update",
+      "to": "live",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "overlay",
+      "to": "live",
+      "fromSide": "left",
+      "toSide": "right",
+      "dashed": true
+    }
+  ],
+  "note": "Схема успешного обновления и пропуска анимации. Если сам колбэк бросит ошибку, его побочные эффекты API тоже автоматически не отменяет."
+};

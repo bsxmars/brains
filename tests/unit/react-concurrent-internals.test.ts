@@ -807,3 +807,19 @@ describe('модель демо mini-lanes', () => {
     expect(awake.pending).toBe(0);
   });
 });
+
+
+// Содержательные уточнения закреплены отдельно от числовых сценариев темы.
+it('редакционная граница: выбранная работа React может содержать несколько lanes', async () => {
+  const { readFileSync } = await import('node:fs');
+  const t = await import('@/content/frameworks/react-concurrent-internals/data');
+  const pkg = createRequire(import.meta.url).resolve('react-dom/package.json');
+  const source = readFileSync(new URL('cjs/react-dom-client.production.js', `file://${pkg}`), 'utf8');
+  const start = source.indexOf('function getHighestPriorityLanes(');
+  const fn = source.slice(start, source.indexOf('\nfunction ', start + 1));
+  const choose = new Function(fn + ';return getHighestPriorityLanes;')() as (lanes: number) => number;
+  // Sync + Default выбираются вместе; «один бит» оставляем свойством мини-версии.
+  expect(choose(2 | 32)).toBe(2 | 32);
+  expect(choose(2 | 8 | 32 | 256)).toBe(2 | 8 | 32);
+  expect(t.S1_LEAD).toContain('Настоящий React 19.3 может вернуть набор lanes');
+});

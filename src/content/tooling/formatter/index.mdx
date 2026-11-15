@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -96,6 +98,7 @@ import {
   PITFALLS,
   SOURCES,
   RELATED,
+  MECHANISM_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Печать заново" gap={24}>
@@ -104,7 +107,7 @@ import {
     Prettier не двигает пробелы в вашем тексте. Он разбирает файл в дерево, из дерева строит
     **Doc** — описание того, где код *можно* перенести, — и печатает его с нуля под заданную
     ширину. От исходного вида остаются считаные мелочи, поэтому один и тот же код у всех
-    выглядит одинаково.
+    получает единую форму при одинаковых версиях и настройках.
 
   </Callout>
 
@@ -138,13 +141,13 @@ import {
     <CodeBlock code={NEST_CODE} size={11.5} lh={1.65} pad="14px 16px" />
   </Card>
 
-  <Card title="Его Doc: prettier.__debug.formatDoc" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Полный Doc сквозного вызова">
     <CodeBlock lang="text" code={DOC_NEST_PRINT} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={DOC_NEST_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
 
   ### Команды Doc
 
@@ -175,19 +178,21 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Печать по ширине"
-  lead="Печатник Doc ничего не знает о языке. Он держит одну цифру — сколько колонок осталось в текущей строке — и для каждой группы задаёт один вопрос: уместится ли она в этот остаток целиком."
+  lead="Печатник Doc не знает, где вызов функции, а где массив. Он исполняет команды Doc и проверяет, уместится ли плоский вариант группы в остаток строки вместе с продолжением после неё."
 >
   <Md text={WADLER_NOTE} />
 
   <Plain text={PLAIN_FITS} />
 
-  <Card title="Учебный принтер Doc" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
+  <Disclosure title="Полная реализация учебного принтера Doc">
     <CodeBlock code={PRINTER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
     <CardNote tone="prose">
       <Md text={FITS_NOTE} />
     </CardNote>
-  </Card>
+  </Disclosure>
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 
   ### Почему первой ломается внешняя группа
 
@@ -327,7 +332,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Форматтер и линтер"
-  lead="Линтер ищет ошибки, форматтер печатает форму. Пока каждый занят своим, они не мешают друг другу; мешают, когда у линтера остались правила про вид кода."
+  lead="ESLint сообщает о выбранных правилами проблемах и вносит точечные исправления. Prettier печатает форму целого файла. Если линтер требует переносы, противоречащие принтеру, два прохода начинают отменять работу друг друга."
 >
   <Md text={LINT_NOTE} />
 

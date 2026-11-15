@@ -88,6 +88,13 @@ function scene(W: number, H: number): Buffer {
 }
 
 describe('pickCandidate против Chromium на стенде', () => {
+  it('не выдаёт эвристику модели за обязательный выбор HTML', () => {
+    // HTML Selecting an image source оставляет окончательный выбор UA, в том числе с учётом сети.
+    expect(t.SRCSET_SCOPE).toContain('HTML не требует выбирать первый файл');
+    expect(t.SRCSET_SCOPE).toContain('сеть, кеш');
+    expect(t.DEMO_CAPTION).toContain('на черте или правее');
+  });
+
   for (const sc of t.SCENARIOS) {
     it.each(sc.runs.map((r) => [`${sc.id} ${r.vw}@${r.dpr}`, r] as const))('%s', (_, run) => {
       expect(api.pickCandidate(sc.srcset, sc.sizes, { vw: run.vw, dpr: run.dpr }).pick).toBe(run.got);
@@ -223,6 +230,13 @@ describe('файлы и форматы — пересборка sharp', () => {
 });
 
 describe('память битмапа', () => {
+  it('ограничивает формулу одним буфером с 8-битными компонентами RGBA', () => {
+    // Четыре компонента по байту не учитывают row alignment и дополнительные копии декодера.
+    expect(t.BITMAP_CODE).toContain('одного 8-битного RGBA-буфера');
+    expect(t.BITMAP_CODE).toContain('Не включает выравнивание');
+    expect(t.DECODE_NOTE).toContain('не обещание всегда держать две копии');
+  });
+
   const bitmapBytes = new Function(`${t.BITMAP_CODE}\nreturn bitmapBytes;`)() as (w: number, h: number) => number;
 
   it('код из темы считает то, что написано в его комментариях', () => {

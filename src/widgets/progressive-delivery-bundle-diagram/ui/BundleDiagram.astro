@@ -30,7 +30,7 @@ interface Props {
 const { data } = Astro.props;
 ---
 
-<figure class="pdbd-frame">
+<figure data-render-illustration="bundle-lifetime" class="pdbd-frame">
   <div class="t-eyebrow t-eyebrow--panel" set:html={inlineMd(data.title)} />
 
   <div class="pdbd-panes">

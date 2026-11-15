@@ -786,3 +786,15 @@ describe('за пределами мини-версии: гидратация и
     expect(logs).toEqual(DEVTOOLS_LOG);
   });
 });
+
+
+// Содержательные уточнения закреплены отдельно от числовых сценариев темы.
+it('редакционная граница: отдельная задача эффектов — выбор учебного renderer', async () => {
+  const t = await import('@/content/frameworks/react-internals/data');
+  const mdx = readFileSync('src/content/frameworks/react-internals/index.mdx', 'utf8');
+  // Node-host проверяет логи, но не может доказать, что браузер уже показал кадр.
+  expect(t.PLAIN_EFFECTS).toContain('до paint');
+  expect(t.PLAIN_EFFECTS).toContain('В мини-версии');
+  expect(mdx).toContain('Это выбор нашего планировщика');
+  expect(mdx).toContain('не два буквальных DOM');
+});

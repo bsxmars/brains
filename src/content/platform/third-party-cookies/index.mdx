@@ -4,7 +4,7 @@ heading: "Встроенный контент без сторонних кук: 
 headingWidth: 26
 order: 9
 kicker: сеть и безопасность
-lead: "Виджет чата, платёжная форма и кнопка входа живут во фрейме чужого сайта — и там их кука сторонняя. Firefox и WebKit такую куку не отдают, Chromium отдаёт, пока пользователь не запретил. Что работает везде: разделённая кука `Partitioned`, хранилище, разделённое по сайту верхнего уровня, доступ по кнопке через Storage Access API и сессия, переданная сайтом-хозяином."
+lead: "На сайте сервиса пользователь уже вошёл, а тот же сервис во фрейме магазина видит пустую сессию. SameSite и политика сторонних кук проверяют разные условия. Разделённая кука сохраняет состояние внутри одного сайта; общий вход требует отдельного разрешения или сессии от сайта-хозяина."
 summary: "Что такое сторонняя кука и что с ней делают Chromium, Firefox и WebKit; разделённые куки CHIPS и ключ раздела; разделение localStorage, IndexedDB, Cache Storage и BroadcastChannel; Storage Access API и что он отвечает без жеста; Related Website Sets и FedCM; как строить встраиваемый виджет — с таблицей из 27 случаев, снятой в трёх движках, и калькулятором, который её повторяет."
 verifiedOn: "Chromium 153.0.8010.12 (с разрешёнными и с ограниченными сторонними куками; разделение хранилища возвращено — Playwright его выключает), Firefox 155.0 с cookieBehavior=5 и CHIPS, WebKit 26.6 (сборка Playwright под macOS, не Safari); Playwright 1.63 против своего https-сервера на Node 26.8.2, сайты top.test, top2.test, shop.top.test, blog.top.test, embed.test, api.embed.test и www.embed.test, сентябрь 2026. Без таймерных замеров. Related Website Sets, FedCM, поведение Safari и инкогнито Chrome — по документации"
 nav:
@@ -31,8 +31,12 @@ import NumberedList from '@/shared/ui/NumberedList.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import PartitionDiagram from '@/widgets/chips-partition-diagram/ui/PartitionDiagram.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import TpcCookieVerdict from '@/widgets/tpc-cookie-verdict/ui/TpcCookieVerdict.vue';
 import {
   GLOSSARY,
@@ -78,6 +82,7 @@ import {
   SAA_TIMELINE,
   PLAIN_SAA_TIMELINE,
   RELATED,
+  SAA_ACCESS_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Чужая стена, свой пропуск" gap={24}>
@@ -111,7 +116,7 @@ import {
 
   ### Как одна кука проходит два фильтра в четырёх браузерах
 
-  <CodeBlock lang="sql" code={TWO_FILTERS_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
+  <CodeBlock lang="text" code={TWO_FILTERS_SCENE_CODE} size={11} lh={1.7} pad="14px 16px" />
 
   <Md text={TWO_FILTERS_SCENE_NOTE} />
 
@@ -148,15 +153,20 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="CHIPS: кука со своим разделом"
-  lead="С атрибутом `Partitioned` кука встраиваемого сайта сохраняется, но под каждым сайтом верхнего уровня у неё своя отдельная копия. Следить через такую куку за человеком нельзя, а чат на сайте магазина при этом помнит открытый разговор."
+  lead="Partitioned добавляет к куке раздел сайта верхнего уровня. Один embed.test получает независимые состояния под top.test и top2.test. Кука больше не даёт общий идентификатор между этими контекстами, а чат внутри одного магазина может помнить свой разговор."
 >
   <Plain text={PLAIN_PARTITION} />
 
   <Card title="Как поставить" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock lang="sql" code={CHIPS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
+    <CodeBlock lang="text" code={CHIPS_CODE} size={10.5} lh={1.65} pad="14px 16px" />
   </Card>
 
   ### Одна кука `embed.test` под двумя сайтами
+
+  <PartitionDiagram partitions={[
+    { site: 'https://top.test', cookie: CHIPS_READBACK[0].top.replaceAll('`', '') },
+    { site: 'https://top2.test', cookie: CHIPS_READBACK[0].top2.replaceAll('`', '') },
+  ]} />
 
   <Table
     head={['режим', 'фрейм под `top.test`', 'фрейм под `top2.test`', 'сам `embed.test`']}
@@ -178,6 +188,8 @@ import {
 
   </CardGrid>
 
+  <Disclosure title="Подробный журнал CHIPS: атрибуты и контекст запроса">
+
   <Table
     head={MEASURED_HEAD}
     rows={measuredRows('chips')}
@@ -185,6 +197,8 @@ import {
     cols={MEASURED_COLS}
     minWidth={900}
   />
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -225,7 +239,11 @@ import {
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={STORAGE_NOTE} />
 
-  <Card tone="err" color="tone" pad="16px 18px" radius={4} size={16} lh={1.6} text={PLAYWRIGHT_NOTE} />
+  <Disclosure title="Как настройки Playwright меняют результат проверки">
+
+    <Md text={PLAYWRIGHT_NOTE} />
+
+  </Disclosure>
 
   <CardGrid min={280} gap={14} align="start">
     {STORAGE_FACTS.map((fact) => (
@@ -242,16 +260,18 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="Storage Access API"
-  lead="Бывает, что встроенному коду нужна именно общая кука: пользователь уже вошёл на `embed.test` и хочет остаться в том же аккаунте во фрейме. Тогда фрейм может попросить доступ к ней. Попросить можно только в ответ на клик, а решает браузер."
+  lead="Если пользователю нужен тот же вход во фрейме, что и на самом embed.test, фрейм просит доступ к неразделённым кукам. Новое разрешение обычно запрашивают из клика. Сохранённое разрешение и доступ текущего документа проверяются отдельно; браузер может отказать."
 >
   <Plain text={PLAIN_SAA} />
+
+  <ConceptDiagram data={SAA_ACCESS_DIAGRAM} />
 
   <CardGrid min={320} gap={16} align="start">
     <Card title="Фрейм чата просит доступ" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={SAA_CODE} size={10.5} lh={1.65} pad="14px 16px" />
     </Card>
 
-    <Card title="Этот код во фрейме под `top.test`, клик — настоящий" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
+    <Card title="Результат доступа во фрейме под top.test на стенде" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <Table
         head={['режим', 'что показал `status`']}
         rows={SAA_CODE_RUN.map((r) => [r.k, r.status])}
@@ -299,9 +319,11 @@ import {
     minWidth={900}
   />
 
-  ### Related Website Sets и `requestStorageAccessFor`
+  <Disclosure title="Related Website Sets и requestStorageAccessFor: состояние механизма">
 
   <Card pad="16px 18px" radius={4} size={15.5} lh={1.6} text={RWS_NOTE} />
+
+  </Disclosure>
 </Section>
 
 <Section
@@ -354,17 +376,9 @@ import {
   eyebrow="Раздел 8"
   title="Источники"
 >
-  <CardGrid min={320} gap={16} align="start">
-    {SOURCES.map((group) => (
-      <Card title={group.t} titleSize={16.5} pad={18} radius={5} gap={10} size={15} lh={1.6}>
-        {group.items.map((item) => (
-          <Md text={item} />
-        ))}
-      </Card>
-
-    ))}
-
-  </CardGrid>
+  <Card pad={22}>
+    <SourceList items={SOURCES} />
+  </Card>
 
   <Card tone="dim" color="tone" pad="14px 16px" radius={4} size={14.5} lh={1.55}>
     <Md text={RELATED} />

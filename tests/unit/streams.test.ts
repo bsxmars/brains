@@ -7,6 +7,13 @@ import {
   BYOB_CODE,
   BYOB_FACTS,
   ITER_CODE,
+  INFLIGHT_ROWS,
+  QUEUE_STATES,
+  PARSER_CODE,
+  CHAIN_CODE,
+  FETCH_DECODE_NOTE,
+  PLAIN_READ_DEMAND,
+  SSE_TAIL_NOTE,
   ITER_FACTS,
   MEASURED,
   NODE_PIPE_CODE,
@@ -35,6 +42,12 @@ import {
  */
 
 describe('три числа: desiredSize = highWaterMark − queueTotalSize', () => {
+  it('предметная схема считает и принимает запись за порогом', () => {
+    expect(QUEUE_STATES).toEqual([
+      { queued: 0, desired: 2 }, { queued: 1, desired: 1 },
+      { queued: 2, desired: 0 }, { queued: 3, desired: -1 },
+    ]);
+  });
   it('дефолты спеки — те, что напечатаны в теме', () => {
     let readable: number | null = null;
     new ReadableStream({ start: (c) => void (readable = c.desiredSize) });
@@ -83,6 +96,19 @@ describe('три числа: desiredSize = highWaterMark − queueTotalSize', ()
     expect(errored).toBeNull();
   });
 
+  it('HWM 0 запрещает запас, но ожидающий read всё равно вызывает pull', async () => {
+    let pulls = 0;
+    const source = new ReadableStream({ pull(c) { pulls++; c.enqueue('чанк'); } }, { highWaterMark: 0 });
+    await Promise.resolve();
+    expect(pulls).toBe(0);
+    const reader = source.getReader();
+    expect(await reader.read()).toEqual({ value: 'чанк', done: false });
+    expect(pulls).toBe(1);
+    expect(PLAIN_READ_DEMAND).toContain('ожидающий читатель создаёт спрос');
+    await reader.cancel();
+    reader.releaseLock();
+  });
+
   it('pull зовут ровно до нуля, и ни разу больше', async () => {
     const trace: (number | null)[] = [];
     let pulls = 0;
@@ -109,9 +135,25 @@ describe('три числа: desiredSize = highWaterMark − queueTotalSize', ()
         c.enqueue(produced);
       },
     });
-    source.pipeThrough(new TransformStream({ transform: (chunk, c) => c.enqueue(chunk) }));
+    let transformed = 0;
+    const desiredAfterEnqueue: (number | null)[] = [];
+    const output = source.pipeThrough(new TransformStream({ transform(chunk, c) {
+      transformed++;
+      c.enqueue(chunk);
+      desiredAfterEnqueue.push(c.desiredSize);
+    } }));
     await new Promise((r) => setTimeout(r, 40));
     expect(produced).toBe(2);
+    expect(transformed).toBe(0);
+    // Эти два чанка ещё не являются очередью на выходе transform.
+    expect(INFLIGHT_ROWS[0].what).toContain('transform ещё не вызван');
+    const reader = output.getReader();
+    expect(await reader.read()).toEqual({ value: 1, done: false });
+    expect(transformed).toBe(1);
+    // Ожидающий read забрал чанк напрямую, desiredSize не стал -1.
+    expect(desiredAfterEnqueue).toEqual([0]);
+    await reader.cancel();
+    reader.releaseLock();
   });
 
   it('ByteLengthQueuingStrategy на обычных объектах не подвешивает стрим, а бросает', async () => {
@@ -249,6 +291,7 @@ describe('разбор SSE: состояние между чанками', () =>
     expect(naiveDecode(c.chunks), 'без flush последнее событие исчезает молча').toEqual([]);
     // А по спеке EventSource неполный хвост и должен выбрасываться — это выбор, а не баг.
     expect(await decodeChunks(c.chunks, { dispatchTail: false })).toEqual([]);
+    expect(SSE_TAIL_NOTE).toContain('EventSource по стандарту отбросит');
   });
 
   it('id переживает событие, event — нет', async () => {
@@ -560,4 +603,54 @@ describe('схема обратной волны', () => {
     expect(BACKPRESSURE_WAVE[6]).toContain('65 535');
     for (const r of WAVE_DIAGRAM.rows) expect(r.step).not.toContain('требует проверки');
   });
+});
+
+// Печатаемый фрагмент должен сохранять CRLF, разрезанный в любой позиции.
+it('PARSER_CODE сохраняет строки между чанками, как полный разборщик', () => {
+  const wire = 'event: token\r\ndata: привет\r\n\r\n';
+  for (let split = 1; split < wire.length; split++) {
+    const parser = new Function(`
+      let buf = '';
+      const lines = [];
+      const handleLine = (line) => lines.push(line);
+      const parser = { ${PARSER_CODE} };
+      return { push: (chunk) => parser.transform(chunk, {}), lines };
+    `)() as { push: (chunk: string) => void; lines: string[] };
+    parser.push(wire.slice(0, split));
+    parser.push(wire.slice(split));
+    expect(parser.lines, `граница ${split}`).toEqual(['event: token', 'data: привет', '']);
+  }
+});
+
+it('цепочка fetch не распаковывает повторно Content-Encoding', async () => {
+  const events: unknown[] = [];
+  const decodedBody = new Response(new TextEncoder().encode('data: привет\n\n'));
+  const run = new Function('fetch', 'url', 'SSEDecoderStream', 'render',
+    `return (async () => { ${CHAIN_CODE} })()`);
+  await run(() => Promise.resolve(decodedBody), '/events', SSEDecoderStream, (event: unknown) => events.push(event));
+  expect(events).toEqual([{ type: 'message', data: 'привет', id: '' }]);
+  expect(CHAIN_CODE).not.toContain('DecompressionStream');
+  expect(FETCH_DECODE_NOTE).toContain('fetch уже отдаёт распакованное тело');
+});
+
+it('запас цепочки совпадает со всеми строками INFLIGHT_ROWS', async () => {
+  for (const [index, highWaterMark] of [0, 1, 4].entries()) {
+    let produced = 0;
+    const source = new ReadableStream({ pull(c) { c.enqueue(++produced); } });
+    const output = source.pipeThrough(new TransformStream(undefined, undefined, { highWaterMark }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(produced, `HWM ${highWaterMark}`).toBe(Number(INFLIGHT_ROWS[index].n));
+    await output.cancel();
+  }
+});
+
+// CR — самостоятельный разделитель, если поток закончился до возможного LF.
+it.each([
+  { wire: 'data: x\r', dispatchTail: true, expected: ['x'] },
+  { wire: 'data: x\r', dispatchTail: false, expected: [] },
+  { wire: 'data: x\r\r', dispatchTail: false, expected: ['x'] },
+  { wire: 'data: x\r\n\r', dispatchTail: false, expected: ['x'] },
+])('EOF с CR: $wire, dispatchTail=$dispatchTail', async ({ wire, dispatchTail, expected }) => {
+  const events = await decodeChunks([wire], { dispatchTail });
+  expect(events.map((event) => event.data)).toEqual(expected);
 });

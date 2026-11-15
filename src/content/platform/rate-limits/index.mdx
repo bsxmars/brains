@@ -22,6 +22,8 @@ nav:
   - { id: s12, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -38,6 +40,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import RetryLab from '@/widgets/retry-lab/ui/RetryLab.vue';
 import {
+  MECHANISM_DIAGRAM,
   GLOSSARY,
   PLAIN_RATELIMIT,
   STATUS_ROWS,
@@ -119,6 +122,8 @@ import {
 
   <Plain text={PLAIN_RATELIMIT} />
 
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
+
   <Glossary items={GLOSSARY} />
 </Section>
 
@@ -126,7 +131,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="429 или 503"
-  lead="Оба кода значат «не сейчас», но говорят о разном. 429 — вы лично прислали слишком много. 503 — сервер не справляется ни с кем. От этого зависит, что клиенту делать дальше."
+  lead="Оба кода значат «не сейчас», но говорят о разном. 429 — исчерпана квота, которую сервер связал с запросом. 503 — временно недоступно обслуживание этого запроса; другие маршруты или экземпляры могут работать. От этого зависит, что клиенту делать дальше."
 >
   <Table
     head={['код', 'что значит', 'что делать клиенту']}
@@ -250,7 +255,9 @@ import {
   Для лимита важно другое: какому адресу в этом заголовке можно верить.
 
   <Card title="Адрес клиента для ключа лимита" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CLIENT_IP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходник выбора адреса клиента">
+      <CodeBlock code={CLIENT_IP_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <Table
@@ -274,7 +281,9 @@ import {
   <Plain text={PLAIN_SHARED} />
 
   <Card title="Счётчик в памяти и в Redis" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={LIMIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходник счётчиков в памяти и Redis">
+      <CodeBlock code={LIMIT_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <CardGrid min={280} gap={14} align="start">
@@ -302,8 +311,15 @@ import {
     minWidth={660}
   />
 
+  Сам ключ `Idempotency-Key` не делает `POST` безопасным. Сервер должен атомарно
+  связать ключ с операцией и сохранять результат на весь срок возможных повторов; повтор
+  использует тот же ключ и то же содержимое. `idempotencyKey` в функции ниже означает, что
+  такой контракт уже есть. После тайм-аута клиент не знает, выполнилась ли операция.
+
   <Card title="Политика повторов" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={POLICY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходник политики повторов">
+      <CodeBlock code={POLICY_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={DECIDE_NOTE} />
@@ -320,7 +336,9 @@ import {
   <Plain text={PLAIN_JITTER} />
 
   <Card title="Четыре формулы паузы" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={BACKOFF_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходник формул паузы">
+      <CodeBlock code={BACKOFF_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <Table
@@ -358,8 +376,18 @@ import {
   [«Долгих соединениях», раздел «Переподключение и heartbeat»](/platform/realtime/#s6). Здесь
   запросы обычные, HTTP, и у сервера есть лимит, который отвечает 429 с `Retry-After`.
 
+  <Disclosure title="Исходник предохранителя, который использует симуляция">
+    <CodeBlock code={BREAKER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    <CardNote tone="prose">
+      <Md text={BREAKER_NOTE} />
+    </CardNote>
+  </Disclosure>
+
   <Card title="Симуляция на виртуальных часах" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SIM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходник симуляции на виртуальных часах">
+      <CodeBlock code={SIM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <Md text={HERD_SETUP} />
@@ -411,13 +439,7 @@ import {
 
   <Md text={BUDGET_NOTE} />
 
-  <Card title="Предохранитель" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={BREAKER_CODE} size={11.5} lh={1.65} pad="14px 16px" />
 
-    <CardNote tone="prose">
-      <Md text={BREAKER_NOTE} />
-    </CardNote>
-  </Card>
 </Section>
 
 <Section

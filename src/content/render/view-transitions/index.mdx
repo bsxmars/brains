@@ -18,6 +18,8 @@ nav:
 ---
 
 import Md from '@/shared/ui/Md.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -39,6 +41,7 @@ import {
   ENGINES_HEAD, ENGINES_ROWS, ENGINES_NOTE,
   PITFALLS, SOURCES, RELATED,
   TIMELINE_SCENE_CODE, TIMELINE_SCENE_NOTE, TIMELINE_STEPS, OVERLAP_SCENE_CODE, OVERLAP_SCENE_NOTE, OVERLAP_STEPS, PLAIN_OVERLAP,
+  TRANSITION_STATE_DIAGRAM,
 } from './data';
 
 <Section
@@ -61,9 +64,13 @@ import {
 
   <CodeBlock code={BASIC_CODE} />
 
+  <ConceptDiagram data={TRANSITION_STATE_DIAGRAM} />
+
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={ORDER_NOTE} />
 
-  ### Один переход по времени
+<Disclosure title="Порядок промисов и сообщений на стенде">
+
+### Один переход по времени
 
   <CodeBlock code={TIMELINE_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
@@ -81,10 +88,12 @@ import {
 
   </CardGrid>
 
+</Disclosure>
+
   ### Дерево псевдоэлементов
 
   <Card title="Что строится к моменту `ready`" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={TREE_CODE} />
+    <CodeBlock lang="text" code={TREE_CODE} />
 
     <Md text={TREE_NOTE} />
   </Card>
@@ -192,7 +201,9 @@ import {
 
   <Plain text={PLAIN_OVERLAP} />
 
-  ### Все исходы
+<Disclosure title="Таблица исходов пропуска и ошибок">
+
+### Все исходы
 
   <Table
     head={ABORT_HEAD}
@@ -205,6 +216,9 @@ import {
   <Card tone="warn" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={ABORT_NOTE} />
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={ABORT_EXTRA} />
+
+</Disclosure>
+
 </Section>
 
 <Section
@@ -259,7 +273,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Поддержка в трёх движках"
-  lead="Переходы внутри документа есть во всех трёх, и ведут себя одинаково. Расходятся переходы между документами, переходы на отдельном элементе и имена, которые браузер придумывает сам."
+  lead="В снимке стенда базовые переходы внутри документа работают в трёх движках. Отличаются отдельные API, переходы между документами и взаимодействие с обновлениями фреймворка. Версии движков указаны у таблицы."
 >
   <Table
     head={ENGINES_HEAD}

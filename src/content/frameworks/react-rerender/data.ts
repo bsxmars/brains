@@ -1,3 +1,8 @@
+import tree_source from '@/widgets/react-rerender/ui/RenderTree.tsx?raw';
+import keys_source from '@/widgets/react-rerender/ui/ListKeys.tsx?raw';
+import batch_source from '@/widgets/react-rerender/ui/Batching.tsx?raw';
+import memo_source from '@/widgets/react-rerender/ui/MemoLab.tsx?raw';
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { SelfCheckItem } from '@/widgets/self-check/model/types';
 
@@ -7,8 +12,8 @@ import type { SelfCheckItem } from '@/widgets/self-check/model/types';
  * Источник — конспект `Study/js/21-react-reactivity.md`. Всё, что проверялось запуском,
  * проверено на React 19.3.0 под Node 24.11 (jsdom + `react-dom/client`, обновления
  * прогоняются через `act`): числа ре-рендеров в каждом сценарии, поведение `key={index}`
- * с локальным состоянием, батчинг в промисе и в таймауте, бесполезность `useCallback`
- * без `memo`, бессилие `memo` против контекста.
+ * с локальным состоянием, батчинг в промисе и в таймауте, влияние стабильных callback-пропсов
+ * на число вызовов с `memo` и без него, бессилие `memo` против контекста.
  *
  * Блок «Первый рендер» (`FIRST_RENDER`, `FIRST_RENDER_NOTE`, `STRICT_MODE_NOTE`, `SSE_NOTE`)
  * снят отдельным прогоном и на другом стенде: `react-dom/server` на React 19.3.0, без DOM,
@@ -816,3 +821,84 @@ export const SOURCES: Source[] = [
  */
 export const RELATED =
   'Смежное на сайте: [Длинные списки](/render/virtual-lists/) — когда дорог не ре-рендер, а сами десятки тысяч узлов: окно видимых строк. [React изнутри](/frameworks/react-internals/) — тот же механизм, собранный своими руками: файберы, две фазы, сверка по ключам, хуки как ячейки, батчинг — с пошаговым демо и сверкой с настоящим React. [Реактивность Vue](/frameworks/vue-reactivity/) — вторая модель: изменение будит только тех, кто читал значение, а не всё поддерево. [React против Vue](/frameworks/react-vs-vue/) — обе модели на одной задаче, с приборами на каждой половине. [React изнутри: хуки и контекст](/frameworks/react-hooks-internals/) — контекст и `useSyncExternalStore` изнутри: два пути ре-рендера, мимо которых идёт `memo`. [React изнутри: конкурентность и lanes](/frameworks/react-concurrent-internals/) — код, который стоит за переходами и прерыванием. [MessageChannel](/js/message-channel/) — чем именно планировщик React отпускает поток и почему не `setTimeout`. [Event Loop](/js/event-loop/) — откуда берётся микрозадача, в которой выполняется накопленный батч. [Кадр браузера](/render/render-pipeline/) — где в кадре стоит коммит и почему `useLayoutEffect` не даёт скачка. [Server Components изнутри](/frameworks/server-components/) — компоненты, которые выполняются только на сервере и не перерендериваются в браузере вовсе: формат потока и граница `\'use client\'`. [Стейт-менеджеры изнутри](/frameworks/state-managers/) — подписка на внешний стор и селекторы, из-за которых компонент рендерится лишний раз. [Формы во фреймворках](/frameworks/forms/) — сколько компонентов перерисовывает один символ в поле и почему уезжает каретка. [Внедрение зависимостей](/frameworks/dependency-injection/) — `provide`/`inject` во Vue, контекст React и иерархия инжекторов Angular.';
+
+
+/** Уточнение 2026-11-12: useMemo может кешировать вычисление без memo: реальный React проверяет 3 render против 2 вычислений в react-rerender.test.ts. */
+
+/** Причинная схема; это объяснение механизма, не журнал исполнения. */
+export const MECHANISM_DIAGRAM: ConceptDiagramData = {
+  "id": "react-rerender-mechanism",
+  "title": "Вызов компонента ещё не изменение страницы",
+  "description": "Фаза render вычисляет следующий результат. Публичный DOM меняется при commit; пропуск работы возможен до вызова компонента.",
+  "width": 820,
+  "height": 570,
+  "nodes": [
+    {
+      "id": "0",
+      "x": 20,
+      "y": 20,
+      "width": 360,
+      "height": 210,
+      "label": "Обновление состояния",
+      "detail": "React ставит работу для фибера. Уже этот этап может исключить обновление тем же значением.",
+      "tone": "info"
+    },
+    {
+      "id": "1",
+      "x": 440,
+      "y": 20,
+      "width": 360,
+      "height": 210,
+      "label": "Render: вычисление",
+      "detail": "При обходе проверяются работа, props и контекст. Компонент вызывается, если проверка не позволила пропуск.",
+      "tone": "neutral"
+    },
+    {
+      "id": "2",
+      "x": 20,
+      "y": 340,
+      "width": 360,
+      "height": 210,
+      "label": "Браузер рисует результат",
+      "detail": "После commit браузер выполняет необходимые этапы кадра. Число вызовов компонентов не равно числу покрашенных пикселей.",
+      "tone": "warn"
+    },
+    {
+      "id": "3",
+      "x": 440,
+      "y": 340,
+      "width": 360,
+      "height": 210,
+      "label": "Commit: изменение DOM",
+      "detail": "Вычисленное дерево принято. React применяет только нужные изменения и выполняет layout-эффекты.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "from": "0",
+      "to": "1",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "from": "1",
+      "to": "3",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "3",
+      "to": "2",
+      "fromSide": "left",
+      "toSide": "right"
+    }
+  ],
+  "note": "React может отказаться от незавершённого render. Побочные эффекты в теле компонента потому небезопасны."
+};
+
+/** Исходники работающих React-островов. */
+export const TREE_SOURCE = tree_source;
+export const KEYS_SOURCE = keys_source;
+export const BATCH_SOURCE = batch_source;
+export const MEMO_SOURCE = memo_source;

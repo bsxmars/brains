@@ -4,7 +4,7 @@ heading: "iframe: чужой и свой документ внутри стра�
 headingWidth: 24
 order: 23
 kicker: сеть и безопасность
-lead: "Чат поддержки, платёжная форма, видео, карта, предпросмотр письма — всё это фреймы: отдельные документы внутри страницы. Атрибут `sandbox` отнимает у такого документа способности, `allow` раздаёт права, а высоту, историю и клавиатуру фрейм делит с родителем по своим правилам."
+lead: "Платёжная форма видна внутри магазина, но её DOM может оставаться закрытым для магазина. Iframe создаёт отдельный документ; SOP ограничивает доступ между источниками, sandbox запрещает способности, allow делегирует отдельные API. Размер, сообщения, история и фокус требуют явного договора между документами."
 summary: "Как встроить документ: `src` и `srcdoc`, `title`, `loading=\"lazy\"`, размер 300 × 150; что родитель видит в своём и в чужом фрейме; `postMessage` с проверкой `origin` и `source` и почему `'*'` опасен; песочница по флагам, непрозрачный источник и как пара `allow-scripts allow-same-origin` её снимает; `allow`, `referrerpolicy`, `credentialless`; высота по содержимому через `ResizeObserver`; общая история и клавиатура; цена фрейма и когда он не нужен — всё снято в Chromium, Firefox и WebKit."
 verifiedOn: "Chromium 153.0.8010.12 (headless shell и полный channel: 'chromium' — для процессов), Firefox 155.0, WebKit 26.6 — сборки Playwright 1.63 на Node 26.8.2, ноябрь 2026. Сайты https://shop.example, https://widget.example и https://evil.example подставлены перехватом запросов Playwright. Таймерный замер один — поток фрейма при занятом родителе, и закреплён порядком величины. По документации, без запуска: чтение title программами экранного доступа, флаги allow-popups-to-escape-sandbox, allow-downloads, allow-top-navigation-by-user-activation, allow-storage-access-by-user-activation, работа credentialless (снята только поддержка). Всё остальное повторяет tests/unit/iframe.test.ts"
 nav:
@@ -29,6 +29,8 @@ import Md from '@/shared/ui/Md.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -62,6 +64,7 @@ import {
   PLAIN_ALLOW,
   ALLOW_CODE,
   FULLSCREEN_ROWS,
+  FULLSCREEN_HEADER_NOTE,
   ALLOW_NOTE,
   TOPNAV_NOTE,
   REFERRER_ROWS,
@@ -81,6 +84,8 @@ import {
   PITFALLS,
   SOURCES,
   RELATED,
+  SANDBOX_ORIGIN_DIAGRAM,
+  RESIZE_MESSAGE_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Документ в документе" gap={24}>
@@ -213,6 +218,8 @@ import {
 
   ### Пара, которая отменяет песочницу
 
+  <ConceptDiagram data={SANDBOX_ORIGIN_DIAGRAM} />
+
   <Card tone="err" title="allow-scripts + allow-same-origin для своего содержимого" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
     <CodeBlock code={ESCAPE_CODE} size={11} lh={1.65} pad="14px 16px" />
 
@@ -220,6 +227,8 @@ import {
       <Md text={ESCAPE_NOTE} />
     </CardNote>
   </Card>
+
+  <Disclosure title="Остальные флаги sandbox и их поддержка">
 
   ### Остальные флаги
 
@@ -232,13 +241,15 @@ import {
   />
 
   <Md text={FLAGS_NOTE} />
+
+  </Disclosure>
 </Section>
 
 <Section
   id="s5"
   eyebrow="Раздел 5"
   title="Права фрейма: allow, referrerpolicy, credentialless"
-  lead="Песочница отнимает, а атрибут `allow` раздаёт: полноэкранный режим, камеру, геолокацию. Чужой фрейм по умолчанию не получает ничего из этого, даже если пользователь уже разрешил это сайту-родителю."
+  lead="Атрибут allow делегирует возможности браузера — например, полный экран или камеру. Он не заменяет требования API и решение пользователя. Нормативно разрешение фрейму также ограничено политикой родителя; поддержку конкретного заголовка нужно проверять отдельно."
 >
   <Plain text={PLAIN_ALLOW} />
 
@@ -255,6 +266,8 @@ import {
   />
 
   <Md text={ALLOW_NOTE} />
+
+  <Md text={FULLSCREEN_HEADER_NOTE} />
 
   <Card tone="warn" color="tone" pad="16px 18px" radius={4} size={15.5} lh={1.6} text={TOPNAV_NOTE} />
 
@@ -282,6 +295,8 @@ import {
   lead="Высоты «по содержимому» у фрейма нет. Без размеров он 300 на 150 пикселей, что бы ни было внутри. Родитель не может измерить чужой документ, поэтому размер сообщает сам фрейм."
 >
   <Plain text={PLAIN_RESIZE} />
+
+  <ConceptDiagram data={RESIZE_MESSAGE_DIAGRAM} />
 
   <CardGrid min={320} gap={16} align="start">
     <Card title="Фрейм сообщает высоту" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -327,6 +342,8 @@ import {
   title="Цена фрейма и когда он не нужен"
   lead="Каждый фрейм — целый документ: свой разбор HTML, свои стили, свои встроенные объекты, иногда свой процесс. Это цена изоляции. Платить её стоит, только когда изоляция и нужна."
 >
+  <Disclosure title="Замер таймера: когда фрейм делит поток с родителем">
+
   Проверка: родитель 500 мс занят синхронным скриптом, а фрейм всё это время запускает
   таймер каждые 10 мс. В таблице — самая длинная пауза между срабатываниями таймера фрейма.
   Если фрейм делит поток с родителем, пауза растягивается до 500 мс.
@@ -340,6 +357,8 @@ import {
   />
 
   <Md text={THREAD_NOTE} />
+
+  </Disclosure>
 
   <CardGrid min={280} gap={14} align="start">
     {WHEN_CASES.map((item) => (

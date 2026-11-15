@@ -1,3 +1,8 @@
+/** Уточнения 2026-11-12: pagehide не гарантирован при завершении процесса (Page Lifecycle API);
+ * успехи bfcache считает pageshow.persisted, причины отказа — отдельный сигнал.
+ * Примеры активации, проверки сессии, hidden-сохранения и сокета исполняет
+ * instant-navigation.test.ts; это проверка кода приложения, не повтор браузерного стенда. */
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { PrerenderDiagramData } from '@/widgets/instant-navigation-prerender-diagram/model/types';
 import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
 
@@ -140,7 +145,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: '`persisted`',
-    d: 'Флаг у событий `pagehide` и `pageshow`. `true` в `pagehide` — страницу кладут в bfcache; `true` в `pageshow` — её оттуда достали. Единственный надёжный способ отличить возврат из кеша от обычной загрузки.',
+    d: 'Флаг у событий `pagehide` и `pageshow`. `true` в `pagehide` — браузер намерен сохранить страницу; её всё равно могут позже вытеснить; `true` в `pageshow` — её оттуда достали. Единственный надёжный способ отличить возврат из кеша от обычной загрузки.',
   },
   {
     k: 'Speculation Rules',
@@ -366,7 +371,7 @@ export const BFCACHE_STEPS: { k: string; when: string; what: string; cost: strin
   {
     k: 'Обработчик `unload`',
     when: 'срабатывает в момент ухода со страницы',
-    what: 'Сам обработчик срабатывает, и маячок статистики доходит до сервера. Но страница не восстанавливается: API сообщает причину `masked`, а DevTools показывают `UnloadHandlerExistsInMainFrame`. Поправка — тот же код в `pagehide`: событие приходит при любом уходе, в том числе в bfcache, и восстановлению не мешает.',
+    what: 'Сам обработчик срабатывает, и маячок статистики доходит до сервера. Но страница не восстанавливается: API сообщает причину `masked`, а DevTools показывают `UnloadHandlerExistsInMainFrame`. Поправка — тот же код в `pagehide`: событие приходит при обычной навигации, в том числе в bfcache, и восстановлению не мешает; при завершении процесса оно не гарантировано.',
     cost: '`pagehide` приходит и тогда, когда страница ещё вернётся, то есть уход больше не означает «насовсем». Код в `pagehide` должен быть готов к тому, что через десять секунд придёт `pageshow` с `persisted`.',
   },
   {
@@ -392,7 +397,7 @@ export const BLOCKERS_NOTE =
 export const NRR_CODE = `// на странице, которую только что загрузили по «назад»
 const nav = performance.getEntriesByType('navigation')[0];
 
-if (nav.type === 'back_forward' && nav.notRestoredReasons) {
+if (nav?.type === 'back_forward' && nav.notRestoredReasons) {
   // { url, reasons: [{ reason: 'response-cache-control-no-store' }], children: [...] }
   const reasons = nav.notRestoredReasons.reasons.map((r) => r.reason);
   sendToAnalytics({ bfcacheMiss: reasons });   // часто там только 'masked'
@@ -427,7 +432,7 @@ export const NRR_FACTS: { t: string; d: string; tone?: 'ok' | 'warn' | 'err' | '
 export const ENGINES_NOTE =
   'Таблица выше снята в Chromium, и у Firefox и Safari списки причин свои. Общее у всех трёх движков ' +
   'проверено запуском: `pageshow` и `pagehide` с полем `persisted` есть в Firefox 155 и WebKit 26.6 — ' +
-  'значит, код раздела [«Возврат из кеша»](#s3) работает везде. Остальное — только в Chromium: ' +
+  'это переносимый сигнал восстановления, но одного наличия API недостаточно, чтобы проверить восстановление страницы. Остальное — только в Chromium: ' +
   '`notRestoredReasons` в Firefox 155 и WebKit 26.6 нет (поле отсутствует у записи навигации), и события ' +
   '`freeze`/`resume` тоже. Поэтому полевая статистика причин отказа — это статистика одних пользователей ' +
   'Chromium; в остальных движках видно только сам факт — `type: "back_forward"` без восстановления. ' +
@@ -458,11 +463,16 @@ export const PAGESHOW_CODE = `addEventListener('pageshow', (event) => {
 addEventListener('pagehide', (event) => {
   // и уход в кеш, и настоящий уход: сохранить, отпустить ресурсы
   saveDraft();
-  socket.close();                        // иначе сервер не узнает, что страница ушла
+  socket.close();                        // начинаем закрытие соединения при уходе
+});
+
+// На телефоне pagehide может не прийти: сохраняем и при уходе в фон.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveDraft();
 });`;
 
 export const WS_CODE = `let socket;
-const connect = () => { socket = new WebSocket(URL); /* ... */ };
+const connect = () => { socket = new WebSocket(NOTIFY_URL); /* ... */ };
 connect();
 
 addEventListener('pagehide', () => socket.close(1000, 'page hidden'));
@@ -792,10 +802,8 @@ export const ACTIVATION_CHIPS = [
   { label: 'первый rAF, отложенные промисы', tone: 'ok' as const },
 ];
 
-export const ANALYTICS_CODE = `// ❌ считает просмотр в момент предрендера — даже если перехода не будет
-analytics.pageview();
-
-// ✅ просмотр — когда страницу показали
+export const ANALYTICS_CODE = `// Прямой analytics.pageview() здесь посчитал бы и отменённый предрендер.
+// Просмотр — когда страницу показали
 function whenActivated(fn) {
   if (document.prerendering) {
     document.addEventListener('prerenderingchange', fn, { once: true });
@@ -892,8 +900,8 @@ export const SPA_NOTE =
 export const CHOICE: string[] = [
   '**Многостраничный сайт** (блог, документация, магазин с серверной отрисовкой): документное правило `prerender` с `moderate` на внутренние ссылки плюс `immediate` на одну-две самые вероятные страницы. Выигрыш — вся загрузка следующей страницы.',
   '**SPA**: переходы внутри приложения и так не ходят в сеть за документом — здесь работает загрузка кода и данных заранее (`import()` по наведению, prefetch запросов). Правила пригодятся для переходов **из** SPA на отдельные страницы: вход, оплата, лендинги.',
-  '**Любой сайт**: убрать `unload`, не держать `window.open` со ссылкой на окно без нужды, закрывать соединения в `pagehide`. Это бесплатный мгновенный «назад».',
-  '**Проверять** на реальных пользователях: доля `back_forward`-загрузок с `notRestoredReasons` и доля визитов с `activationStart > 0`. Без этих двух чисел неизвестно, работает ли хоть что-то из настроенного.',
+  '**Любой сайт**: убрать `unload`, не держать `window.open` со ссылкой на окно без нужды, закрывать соединения в `pagehide`. Это убирает препятствия для мгновенного «назад», но решение о сохранении и вытеснении остаётся у браузера.',
+  '**Измерять** на реальных пользователях: успешные возвраты — `pageshow.persisted`; загрузки вместо восстановления — `type: "back_forward"`; причины отказа, где доступны, — `notRestoredReasons`. Для предрендера отдельно считать активации с `activationStart > 0`.',
 ];
 
 /* ──────────────────── Раздел 7 · тонкие места ──────────────────── */
@@ -969,10 +977,10 @@ export const SOURCES: SourceGroup[] = [
   {
     t: 'Спецификации',
     items: [
-      '**WHATWG HTML** — «Session history» и bfcache (`pageshow`/`pagehide`, `persisted`), Page Lifecycle (`freeze`/`resume`)',
-      '**WICG Speculation Rules** — синтаксис правил, `eagerness`, `Sec-Purpose`, `Speculation-Rules` как заголовок',
-      '**WICG Prerendering Revamped** — `document.prerendering`, `prerenderingchange`, `activationStart`, какие API откладываются до активации',
-      '**WICG NotRestoredReasons** — `PerformanceNavigationTiming.notRestoredReasons`, дерево причин, `masked`',
+      '[WHATWG HTML](https://html.spec.whatwg.org/multipage/browsing-the-web.html) — история документа, pageshow/pagehide и persisted; [Page Lifecycle API](https://developer.chrome.com/docs/web-platform/page-lifecycle-api) — freeze/resume и ненадёжность событий при завершении процесса',
+      '[WICG Speculation Rules](https://wicg.github.io/nav-speculation/speculation-rules.html) — синтаксис правил, `eagerness`, `Sec-Purpose`, `Speculation-Rules` как заголовок',
+      '[WICG Prerendering](https://wicg.github.io/nav-speculation/prerendering.html) — `document.prerendering`, `prerenderingchange`, `activationStart`, какие API откладываются до активации',
+      '[NotRestoredReasons](https://html.spec.whatwg.org/multipage/nav-history-apis.html#the-notrestoredreasons-interface) — `PerformanceNavigationTiming.notRestoredReasons`, дерево причин, `masked`',
     ],
   },
   {
@@ -981,10 +989,105 @@ export const SOURCES: SourceGroup[] = [
       '**web.dev** — «Back/forward cache», «Prerender pages in Chrome for instant page navigations», «Deprecating the unload event»',
       '**Chrome for Developers** — «Speculation Rules API», «Debugging speculation rules», «Back/forward cache notRestoredReasons API», «Cache-Control: no-store and bfcache»',
       '**MDN** — `Speculation Rules API`, `Document.prerendering`, `PerformanceNavigationTiming.activationStart`, `Sec-Purpose`',
-      '**GoogleChrome/web-vitals** — как библиотека считает метрики при предрендере и после bfcache',
+      '[GoogleChrome/web-vitals](https://github.com/GoogleChrome/web-vitals) — как библиотека считает метрики при предрендере и после bfcache',
     ],
   },
 ];
 
 export const RELATED =
   'Смежное на сайте: [View Transitions](/render/view-transitions/#s5) — анимация перехода между документами, в том числе к предрендеренной странице. [Планирование задач](/js/task-scheduling/#s4) — состояния страницы, заморозка и место bfcache среди них. [Сеть и кеширование](/platform/network/#s2) — HTTP-кеш, `no-store` и `no-cache`. [Критический путь](/render/rendering-crp/) — LCP, CLS, INP и чем их мерить. [Кадр браузера](/render/render-pipeline/#s2) — почему у спрятанной и замороженной страницы нет кадров. [Устройство браузера](/js/browser-architecture/#s1) — источник, сайт и процессы, в которых живёт предрендер.';
+
+
+/** Связи и границы механизма; числового замера схема не изображает. */
+export const MECHANISM_DIAGRAM: ConceptDiagramData = {
+  "id": "instant-navigation-mechanism",
+  "title": "Возврат к прежней странице и новая загрузка — разные пути",
+  "description": "Браузер может сохранить живой документ при уходе. Возврат зависит от того, сохранилась ли запись и разрешено ли её восстановление.",
+  "width": 860,
+  "height": 660,
+  "nodes": [
+    {
+      "id": "0",
+      "x": 20,
+      "y": 20,
+      "width": 280,
+      "height": 260,
+      "label": "Страница открыта",
+      "detail": "DOM, JS-состояние и таймеры принадлежат живому документу. HTTP-кеш хранит ответы, а не это состояние.",
+      "tone": "info"
+    },
+    {
+      "id": "1",
+      "x": 560,
+      "y": 20,
+      "width": 280,
+      "height": 260,
+      "label": "Страница в bfcache",
+      "detail": "Документ сохранён и приостановлен. Запись может быть вытеснена; pagehide.persisted выражает намерение сохранения.",
+      "tone": "neutral"
+    },
+    {
+      "id": "2",
+      "x": 20,
+      "y": 390,
+      "width": 280,
+      "height": 260,
+      "label": "Новый документ вместо прежнего",
+      "detail": "При отсутствии подходящей записи браузер загружает документ заново. HTTP-кеш всё ещё может дать сохранённые байты.",
+      "tone": "warn"
+    },
+    {
+      "id": "3",
+      "x": 560,
+      "y": 390,
+      "width": 280,
+      "height": 260,
+      "label": "Восстановление документа",
+      "detail": "DOM и JS продолжают жизнь. pageshow.persisted === true отличает этот путь от новой инициализации.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "from": "0",
+      "to": "1",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "from": "1",
+      "to": "3",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "0",
+      "to": "2",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "dashed": true
+    },
+    {
+      "from": "1",
+      "to": "2",
+      "fromSide": "left",
+      "toSide": "top",
+      "via": [
+        [
+          430,
+          150
+        ],
+        [
+          430,
+          330
+        ],
+        [
+          160,
+          330
+        ]
+      ],
+      "dashed": true
+    }
+  ],
+  "note": "Учебная схема механизма, не замер времени и не журнал сети. Сплошной путь — сохранение и восстановление; пунктир — новая загрузка при отказе или потере записи. Предрендер готовит другой, будущий документ."
+};

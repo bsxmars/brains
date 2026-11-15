@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 
 /**
@@ -38,6 +39,7 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  *     переопределение молча становится мёртвым методом;
  *   — объекты-состояния, заведённые по одному на всё приложение, при обратной ссылке через
  *     `setContext` публикуют чужой документ: последний `setContext` побеждает.
+ * Практика: requestId связывает ответ с текущей попыткой; устаревший ответ не меняет состояние — исполнение PRACTICE_CODE.
  */
 
 /* ──────────────────── Вводный раздел · словарь ──────────────────── */
@@ -830,3 +832,84 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Создание объектов: фабрика, строитель, прототип, одиночка](/patterns/creational/) — порождающие паттерны и что из них JS умеет сам. [Отмена и повтор: undo/redo изнутри](/algorithms/undo-redo/) — команда с откатом в настоящем редакторе: две стопки, обратные правки, группировка. [TypeScript на уровне типов, раздел «Сужение»](/tooling/typescript/#s2) — размеченные объединения и `assertNever`. [Стейт-менеджеры изнутри](/frameworks/state-managers/) — действия Redux как команды-данные. [Замыкания](/js/closures/) — откуда у команды без класса её данные. [Колбэки, раздел «this»](/js/callbacks/#s4) — что происходит с `this` у функции, переданной другой функции.';
+
+
+/** Практический пример: та же строка проверяется tsc и исполняется patterns-behavior.test.ts. */
+export const PRACTICE_CODE = `type SaveState =
+  | { kind: 'idle' }
+  | { kind: 'saving'; requestId: number; text: string }
+  | { kind: 'saved'; text: string };
+type SaveEvent =
+  | { type: 'save'; requestId: number; text: string }
+  | { type: 'resolved'; requestId: number }
+  | { type: 'rejected'; requestId: number };
+function transition(state: SaveState, event: SaveEvent): SaveState {
+  // Новое сохранение заменяет ожидаемое; отправка HTTP — вне reducer.
+  if (event.type === 'save') {
+    return { kind: 'saving', requestId: event.requestId, text: event.text };
+  }
+  if (state.kind !== 'saving' || state.requestId !== event.requestId) return state;
+  if (event.type === 'resolved') return { kind: 'saved', text: state.text };
+  return { kind: 'idle' };
+}
+let state: SaveState = { kind: 'idle' };
+state = transition(state, { type: 'save', requestId: 1, text: 'Версия 1' });
+state = transition(state, { type: 'save', requestId: 2, text: 'Версия 2' });
+const pending = state;
+state = transition(state, { type: 'resolved', requestId: 1 });
+console.log(state === pending); // старый ответ ничего не подтверждает
+state = transition(state, { type: 'resolved', requestId: 2 });
+console.log(state.kind === 'saved' ? state.text : 'не сохранено');
+console.log(transition({ kind: 'saving', requestId: 3, text: 'v3' },
+  { type: 'rejected', requestId: 3 }).kind);`;
+export const PRACTICE_OUT = [true, "Версия 2", "idle"];
+export const PRACTICE_DIAGRAM: ConceptDiagramData = {
+  "title": "Подтверждение относится к конкретной попытке",
+  "description": "После save(2) ожидается ответ №2. resolved(1) не может перевести документ в saved: совпасть должны и состояние, и requestId.",
+  "width": 1040,
+  "height": 290,
+  "nodes": [
+    {
+      "id": "idle",
+      "x": 10,
+      "y": 40,
+      "width": 260,
+      "height": 240,
+      "label": "idle",
+      "detail": "Нет ожидаемого сохранения. save(id, text) создаёт новую попытку.",
+      "tone": "neutral"
+    },
+    {
+      "id": "saving",
+      "x": 390,
+      "y": 40,
+      "width": 260,
+      "height": 240,
+      "label": "saving: requestId=2",
+      "detail": "resolved(1) игнорируется. rejected(2) возвращает idle. Новый save заменяет ожидаемую попытку.",
+      "tone": "warn"
+    },
+    {
+      "id": "saved",
+      "x": 770,
+      "y": 40,
+      "width": 260,
+      "height": 240,
+      "label": "saved: Версия 2",
+      "detail": "Только resolved(2) подтверждает именно этот текст. HTTP и повторы reducer не выполняет.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "to": "saving",
+      "from": "idle"
+    },
+    {
+      "to": "saved",
+      "from": "saving"
+    }
+  ],
+  "note": "Это защита UI от устаревшего ответа. Порядок записей на сервере требует отдельного протокола версий или условного обновления.",
+  "id": "patterns-behavior-boundary"
+};

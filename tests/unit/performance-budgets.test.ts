@@ -246,6 +246,9 @@ describe('снимок BUDGET_CHUNKS и числа в тексте', () => {
 
     const labs = closure('/kit/labs/');
     expect(Math.round(g.weigh(labs, raw) / 1024)).toBe(355);
+    // Таблица и подпись должны описывать тот же замороженный граф, а не более поздний замер.
+    expect(t.WEIGHT_TIERS.find((r) => r.name === 'LABS_BUDGET_KB')!.snapshot).toContain('355');
+    expect(pageOf('/kit/labs/').note).toContain('355 КБ на снимке');
     expect(Math.round(g.weigh(closure('/js/event-loop/'), raw) / 1024)).toBe(175);
   });
 
@@ -487,5 +490,59 @@ describe('CI_CODE на двух настоящих сборках сайта', (
     expect(ci.report('/tooling/source-maps/', r)).toBe(t.CI_REPORT_LEAK);
     expect(t.CI_LEAK_NOTE).toContain('207 465');
     expect(raw('client.CXQRFzvJ.js')).toBe(207465);
+  });
+});
+
+
+// Узкий контрпример к сумме деревьев: общая вершина, цикл, второй вход и dynamic-ветка.
+describe('границы бюджета: общий чанк и отдельный сценарий', () => {
+  const graph: Graph = {
+    a: { imports: ['shared'], dynamic: [] },
+    b: { imports: ['shared'], dynamic: ['chart'] },
+    shared: { imports: ['a'], dynamic: [] },
+    chart: { imports: ['shared'], dynamic: [] },
+  };
+  const sizes: Record<string, number> = { a: 100, b: 200, shared: 500, chart: 900 };
+
+  it('два входа, общий runtime и цикл не удваивают байты; dynamic добавляет только новое', () => {
+    const entries = ['a', 'b', 'a'];
+    expect(g.pageChunks(graph, entries)).toEqual(['a', 'b', 'shared']);
+    expect(g.weigh(g.pageChunks(graph, entries), (f) => sizes[f])).toBe(800);
+    expect(g.weigh(g.pageChunks(graph, entries, true), (f) => sizes[f])).toBe(1700);
+    expect(g.whyIncluded(graph, entries, 'chart')).toBeNull();
+    expect(g.whyIncluded(graph, entries, 'chart', true)).toEqual(['b', 'chart']);
+    // b остаётся самостоятельным входом, даже когда граф имеет другие пути к нему.
+    expect(g.whyIncluded({ ...graph, a: { imports: ['b'], dynamic: [] } }, entries, 'b')).toEqual(['b']);
+  });
+
+  it('сырой бюджет не переводится в gzip одним и тем же числовым порогом', () => {
+    const gz: Record<string, number> = { a: 90, b: 100, shared: 200, chart: 300 };
+    const rawResult = g.checkPageBudget(graph, ['a', 'b'], (f) => sizes[f] * 1024, 500);
+    const gzBytes = g.weigh(g.pageChunks(graph, ['a', 'b']), (f) => gz[f] * 1024);
+    expect(rawResult.bytes).toBe(800 * 1024);
+    expect(rawResult.over).toBe(true);
+    expect(gzBytes).toBe(390 * 1024);
+    expect(gzBytes).toBeLessThan(500 * 1024); // Отдельный показатель, а исходный порог относится к rawResult.
+    const ui = readFileSync(join(ROOT, 'src/widgets/budget-lab/ui/BudgetLab.vue'), 'utf8');
+    expect(ui).toContain('переключение не переводит сырой лимит в сжатый');
+  });
+
+  it('округление текущего weight.spec допускает 511 байт над номинальным КБ, но не 512', () => {
+    const one: Graph = { entry: { imports: [], dynamic: [] } };
+    expect(g.checkPageBudget(one, ['entry'], () => 190 * 1024 + 511, 190).over).toBe(false);
+    expect(g.checkPageBudget(one, ['entry'], () => 190 * 1024 + 512, 190).over).toBe(true);
+    const spec = readFileSync(join(ROOT, 'tests/e2e/weight.spec.ts'), 'utf8');
+    expect(spec).toContain('return Math.round(bytes / 1024);'); // Изменение округления — изменение правила бюджета.
+  });
+});
+
+
+describe('схема Lighthouse CI не смешивает агрегации', () => {
+  it('заявленная медиана относится к TBT, а не к выбору репрезентативного прогона', () => {
+    const config = JSON.parse(t.LHCI_CONFIG);
+    expect(config.ci.collect.numberOfRuns).toBeGreaterThan(1);
+    expect(config.ci.assert.assertions['total-blocking-time'][1].aggregationMethod).toBe('median');
+    // median-run — иной алгоритм по официальной документации LHCI, не синоним median.
+    expect(t.SOURCES.find((s) => s.title === 'Lighthouse CI — Configuration')!.what).toContain('median-run');
   });
 });

@@ -1,0 +1,58 @@
+---
+interface Props { from: string[]; to: string[] }
+const { from, to } = Astro.props;
+const x = (index: number) => 28 + index * 116;
+const center = (keys: string[], key: string) => x(keys.indexOf(key)) + 45;
+const kind = (key: string) => key === 'E' ? 'move' : key === 'H' ? 'new' : key === 'C' || key === 'D' ? 'stay' : 'edge';
+---
+
+<figure class="pld" data-render-illustration="patch-lis-order">
+  <figcaption class="pld-title">Остаться на месте — сохранить взаимный порядок</figcaption>
+  <p class="pld-note">После совпавших краёв A, B и F, G остаётся середина C, D, E → E, C, D, H. Номера в нижней строке — старые индексы + 1; ноль означает новый узел.</p>
+  <div class="pld-scroll">
+    <svg class="pld-svg" viewBox="0 0 960 405" role="img" aria-labelledby="pld-title pld-desc">
+      <title id="pld-title">Перестановка E перед C при сохранении C и D</title>
+      <desc id="pld-desc">Верхняя строка показывает старые узлы ABCDEFG, нижняя — ABECDHFG. C и D сохраняют взаимный порядок и входят в LIS. H создаётся перед F, затем существующий E перемещается перед C. Сдвиг экранных позиций C и D не означает вызова insert для них.</desc>
+      <text class="pld-label" x="28" y="30">Старые узлы</text>
+      {from.map((key, index) => <g>
+        <rect class:list={['pld-box', `pld-${kind(key)}`]} x={x(index)} y="48" width="90" height="62" rx="8" />
+        <text class="pld-key" x={x(index) + 45} y="88" text-anchor="middle">{key}</text>
+      </g>)}
+      {['C', 'D', 'E'].map((key) => <path class:list={['pld-path', `pld-${kind(key)}-path`]} d={`M ${center(from, key)} 114 C ${center(from, key)} 170 ${center(to, key)} 180 ${center(to, key)} 232`} />)}
+      <text class="pld-stay-label" x="28" y="170">C → D: порядок сохранён</text>
+      <text class="pld-move-label" x="650" y="170">E: один move</text>
+      <text class="pld-label" x="28" y="220">Новый порядок</text>
+      {to.map((key, index) => <g>
+        <rect class:list={['pld-box', `pld-${kind(key)}`]} x={x(index)} y="238" width="90" height="62" rx="8" />
+        <text class="pld-key" x={x(index) + 45} y="278" text-anchor="middle">{key}</text>
+        <text class="pld-index" x={x(index) + 45} y="335" text-anchor="middle">{from.indexOf(key) + 1}</text>
+      </g>)}
+      <path class="pld-bracket" d="M 260 345 v 10 H 698 v -10" />
+      <text class="pld-stay-label" x="480" y="390" text-anchor="middle">[5, 3, 4, 0] → LIS: 3, 4 → узлы C, D</text>
+    </svg>
+  </div>
+  <p class="pld-note">H — новая вставка, E — перенос существующего узла. C и D смещаются на экране вслед за вставками вокруг них, но рендерер не перемещает их отдельными операциями хоста.</p>
+</figure>
+
+<style>
+.pld { margin: 0; min-width: 0; padding: 20px; border-radius: var(--r3); background: var(--surface); box-shadow: var(--shadow-card); }
+.pld-title { color: var(--ink); font-size: var(--fs-7); font-weight: 600; line-height: 1.45; }
+.pld-note { margin: 10px 0 0; color: var(--text-muted); font-size: var(--fs-5); line-height: 1.6; }
+.pld-scroll { min-width: 0; overflow-x: auto; margin-top: 16px; }
+.pld-svg { display: block; width: 100%; min-width: 960px; height: auto; fill: none; }
+.pld-label, .pld-key, .pld-index, .pld-stay-label, .pld-move-label { font-family: var(--mono); }
+.pld-label { fill: var(--ink); font-size: var(--fs-5); }
+.pld-key { fill: var(--prose); font-size: var(--fs-7); }
+.pld-index { fill: var(--text-muted); font-size: var(--fs-5); }
+.pld-stay-label { fill: var(--tone-ok-text); font-size: var(--fs-4); }
+.pld-move-label { fill: var(--tone-warn-text); font-size: var(--fs-4); }
+.pld-box { stroke-width: 1; }
+.pld-edge { fill: var(--surface-2); stroke: var(--border); }
+.pld-stay { fill: var(--tone-ok-bg); stroke: var(--tone-ok-line); }
+.pld-move { fill: var(--tone-warn-bg); stroke: var(--tone-warn-line); }
+.pld-new { fill: var(--tone-info-bg); stroke: var(--tone-info-line); }
+.pld-path { stroke-width: 3; }
+.pld-stay-path { stroke: var(--tone-ok-text); }
+.pld-move-path { stroke: var(--tone-warn-text); stroke-dasharray: 8 6; }
+.pld-bracket { stroke: var(--dim); stroke-width: 1; }
+</style>

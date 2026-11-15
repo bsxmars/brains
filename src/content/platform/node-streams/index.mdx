@@ -2,7 +2,7 @@
 title: "node:stream изнутри"
 order: 6
 kicker: сеть и безопасность
-lead: "Readable, Writable, Duplex и Transform — это буфер, пара флагов и правило «звать `_read`, пока буфер ниже порога и прошлый вызов получил ответ». Из этого правила выводятся четыре режима чтения, порядок событий `'end'`, `'finish'` и `'close'` и то, почему `for await` тормозит источник, а `on('data')` — нет."
+lead: "Readable готовит данные по спросу, а Writable отвечает false, когда производителю пора подождать. pipeline связывает эти сигналы. Если читать через data и игнорировать результат write, очередь медленного клиента переедет в память процесса."
 summary: "Внутреннее состояние Readable и Writable по шагам, четыре режима чтения на модели, сверенной с Node, objectMode и размер, порядок end/finish/close, destroy и finished, генераторы, cork и _writev, отличия от Web Streams."
 verifiedOn: "Node 26.8.2, сентябрь 2026: каждый пример исполняет тест, вывод в теме — их вывод; модель демо сверена с node:stream на каждом сочетании переключателей"
 nav:
@@ -19,6 +19,8 @@ nav:
   - { id: s11, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -96,6 +98,7 @@ import {
   RELAY_SCENE_CODE,
   RELAY_SCENE_NOTE,
   RELAY_STEPS,
+  NODE_PRESSURE_DIAGRAM,
 } from './data';
 
 <Section variant="intro" eyebrow="Буфер, порог и флаги" gap={24}>
@@ -112,10 +115,13 @@ import {
   Классическая поломка выглядит так: сервер пересылает файл клиенту строкой
   `file.on('data', (c) => res.write(c))`. Диск читает быстрее, чем уходит в сеть, `write()`
   отвечает `false`, но этот ответ никто не слушает — и всё, что клиент ещё не забрал, копится
-  в памяти процесса. Та же пересылка через `pipeline(file, res)` держит в памяти всего несколько
-  чанков: она перестаёт звать `_read`, пока клиент не заберёт уже отправленное.
+  в памяти процесса. Та же пересылка через `pipeline(file, res)` соблюдает пороги
+  очередей: при `write() === false` приостанавливает чтение до `drain`. Объём памяти
+  зависит от размеров чанков и порогов всех звеньев.
 
   <Plain text={PLAIN_SHELF} />
+
+  <ConceptDiagram data={NODE_PRESSURE_DIAGRAM} />
 
   <Glossary items={GLOSSARY} />
 </Section>
@@ -259,6 +265,16 @@ import {
     <Md text={DEMO_NOTE} />
   </Card>
 
+  <Disclosure title="Модель Readable/Writable: исходник и границы">
+  <Card title="Readable и Writable одним файлом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
+    <Md text={MODEL_NOTE} />
+
+    <NumberedList items={MODEL_LIMITS} size={14.5} />
+
+    <CodeBlock code={NS_MODEL_CODE} size={11} lh={1.65} pad="14px 16px" />
+  </Card>
+  </Disclosure>
+
   <NsTickLab
     client:visible
     model={NS_MODEL_CODE}
@@ -285,15 +301,7 @@ import {
     </CardGrid>
   </CardGrid>
 
-  ### Модель, на которой работает демо
 
-  <Card title="Readable и Writable одним файлом" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-    <Md text={MODEL_NOTE} />
-
-    <NumberedList items={MODEL_LIMITS} size={14.5} />
-
-    <CodeBlock code={NS_MODEL_CODE} size={11} lh={1.65} pad="14px 16px" />
-  </Card>
 </Section>
 
 <Section
@@ -370,7 +378,7 @@ import {
   id="s6"
   eyebrow="Раздел 6"
   title="Ошибки и `destroy`"
-  lead="Стрим не бросает исключений в привычном смысле. Ошибка стрима — это вызов `destroy(err)`, а узнают о ней по событиям, которые приходят на следующем тике. Поэтому важно, кто слушает `'error'` и как отличить штатный конец от обрыва."
+  lead="Операционную ошибку передают через callback реализации или `destroy(err)`; слушатель узнаёт о ней по событию `error`. Это не исключает синхронных исключений при неверном вызове API. Поэтому важно, кто слушает `'error'` и как отличить штатный конец от обрыва."
 >
   <CardGrid min={320} gap={16} align="start">
     <Card title="`destroy`, `finished` и `addAbortSignal`" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -422,7 +430,7 @@ import {
   id="s8"
   eyebrow="Раздел 8"
   title="`cork`, `uncork` и `_writev`"
-  lead="`cork()` (от англ. «пробка») придерживает записи, чтобы потом отдать их одной пачкой: один системный вызов вместо нескольких. Пачкой они уйдут, только если у стока есть `_writev`."
+  lead="`cork()` (от англ. «пробка») придерживает записи, чтобы потом отдать их одной пачкой: один вызов `_writev` вместо серии `_write`. Превратится ли он в один системный вызов, зависит от реализации стока."
 >
   <CardGrid min={320} gap={16} align="start">
     <Card title="Пачкой и по одному" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
@@ -440,7 +448,7 @@ import {
   id="s9"
   eyebrow="Раздел 9"
   title="Против Web Streams: то же устройство, другие сигналы"
-  lead="Оба API устроены одинаково: очередь с порогом, и когда она полна, источник не зовут. Различаются они тем, как сообщают о состоянии (промисы против событий и ответа `false`) и сколько очередей прячут внутри."
+  lead="Оба API передают обратное давление через очереди с порогами. Это сигналы для сотрудничающего источника, а не жёсткие лимиты памяти. Различаются они тем, как сообщают о состоянии (промисы против событий и ответа `false`) и сколько очередей прячут внутри."
 >
   <Table
     head={COMPARE.head}

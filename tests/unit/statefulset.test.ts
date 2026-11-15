@@ -454,3 +454,18 @@ describe('вычитка: негативный кеш DNS и защита зая
     expect(step).toContain('не вернётся');
   });
 });
+
+
+describe('границы гарантий идентичности и порядка', () => {
+  it('схема различает логическое имя и новый объект Pod', () => {
+    expect(t.IDENTITY_DIAGRAM.recreated.same.join(' ')).toContain('data-db-1');
+    expect(t.IDENTITY_DIAGRAM.recreated.changed).toContain('новый UID');
+    expect(t.IDENTITY_DIAGRAM.recreated.changed).toContain('IP может измениться');
+    expect(t.IDENTITY_DIAGRAM.caption).toContain('прежний PVC не был удалён');
+  });
+  it('схема порядка относится к scale-down, а удаление самого набора не обещает порядок', () => {
+    expect(t.ORDER_DIAGRAM.lanes[1].k).toBe('уменьшение replicas');
+    expect(t.ORDER_DIAGRAM.caption).toContain('Удаление самого StatefulSet не обещает');
+    expect(t.UPDATE_WHY).toContain('ReadWriteOnce сам по себе ограничивает узел, а не число подов');
+  });
+});

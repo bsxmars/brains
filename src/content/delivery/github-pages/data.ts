@@ -55,6 +55,10 @@ import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
  *     а темы и шаблоны Jekyll к публикации статики не относятся;
  *   — «Скорость сборки» → снят: кеш между прогонами разобран в «GitHub Actions: кеш
  *     и промахи», и конвейер публикации уже ссылается туда из `WORKFLOW_STEPS`.
+ * Редактура ноября 2026: workflow дополнен триггерами, права разделены по джобам,
+ * upload-pages-artifact v4 — по текущей документации GitHub. Публикация не выполнялась;
+ * YAML и связь шагов проверяются тестом. HASH_REQUEST_CODE исполняется напрямую.
+ * Снимок dist остаётся историческим; неизвестное N тем не восстанавливается выдумкой.
  */
 
 // ---------------------------------------------------------------------------
@@ -107,13 +111,13 @@ export const NO_SERVER = [
   },
 ];
 
-export const WHAT_IS_SERVED = `# что лежит в опубликованном дереве этого сайта
+export const WHAT_IS_SERVED = `# форма дерева из исторического снимка (сентябрь 2026), не текущая сборка
 dist/
 ├── index.html                 # главная
 ├── js/          … 12 тем      # каждая тема — каталог с index.html внутри
 ├── render/      …  6 тем
 ├── platform/    …  6 тем
-├── delivery/    …  N тем
+├── delivery/                 # страницы направления из снимка
 ├── kit/
 ├── demo/modules/              # то, что лежало в public/, — как есть
 └── _astro/      148 файлов    # стили, скрипты и шрифты с хешем в имени
@@ -501,10 +505,14 @@ export const PUBLISH_ROWS = [
 ];
 
 export const WORKFLOW_CODE = `# .github/workflows/pages.yml
+name: Publish Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
 permissions:
   contents: read
-  pages: write
-  id-token: write          # без него deploy-pages не получит доступ
 
 concurrency:
   group: pages             # две публикации подряд не должны обгонять друг друга
@@ -516,18 +524,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: npm }
+        with: { node-version: 26.8.2, cache: npm }
       - run: npm ci
       - run: npm run build          # base берётся из конфига, а не отсюда
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with: { path: dist }
 
   deploy:
     needs: build
-    environment: github-pages
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/deploy-pages@v4`;
+      - id: deployment
+        uses: actions/deploy-pages@v4`;
 
 export const PIPELINE_FACTS = [
   {
@@ -547,7 +561,7 @@ export const PIPELINE_FACTS = [
  * у темы нет, а `act` публикацию не воспроизводит.
  */
 export const WORKFLOW_STEPS = [
-  '**`permissions`.** Права токена прогона. `contents: read` — прочитать репозиторий, `pages: write` — опубликовать сайт. `id-token: write` разрешает попросить короткоживущий подписанный токен: им `deploy-pages` удостоверяет, что публикует разрешённый конвейер, и хранить для этого секрет не нужно. Что это за токен — [GitHub Actions: права и секреты](/delivery/github-actions/#s7).',
+  '**`permissions`.** Права токена каждого джоба. По умолчанию здесь только чтение; deploy отдельно получает права публикации. `contents: read` — прочитать репозиторий, `pages: write` — опубликовать сайт. `id-token: write` разрешает попросить короткоживущий подписанный токен: им `deploy-pages` удостоверяет, что публикует разрешённый конвейер, и хранить для этого секрет не нужно. Что это за токен — [GitHub Actions: права и секреты](/delivery/github-actions/#s7).',
   '**`concurrency: pages`.** В группе `pages` одновременно идёт не больше одного прогона. Новый ждёт, пока закончится текущий, а из нескольких ждущих остаётся только самый свежий. `cancel-in-progress: false` не даёт прервать публикацию, которая уже идёт.',
   '**Джоб `build`.** Своя машина с пустой рабочей папкой, поэтому первым шагом стоит `checkout` — [почему папка пуста](/delivery/github-actions/#s2). `cache: npm` в `setup-node` сохраняет кеш пакетов между прогонами; как такой кеш ищет запись и когда промахивается — [GitHub Actions: кеш и промахи](/delivery/github-actions/#s5). Базовый путь конвейер не передаёт: он приходит из `astro.config.mjs`.',
   '**`upload-pages-artifact`.** Упаковывает `dist` в архив-артефакт. Только так файлы попадут в следующий джоб: машина у него другая, и общего диска нет — [GitHub Actions: артефакт](/delivery/github-actions/#s3). В архив уходит ровно дерево `dist`: ни исходников, ни `node_modules`.',
@@ -1006,6 +1020,7 @@ export const DOC_ONLY = [
 // ---------------------------------------------------------------------------
 
 export const SOURCES: Source[] = [
+  { title: 'HTTP Semantics — RFC 9110, Target Resource', href: 'https://httpwg.org/specs/rfc9110.html#target.resource', what: 'фрагмент URI отделяется клиентом и не входит в запрос к серверу' },
   {
     title: 'GitHub Pages limits',
     href: 'https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits',
@@ -1252,16 +1267,16 @@ export const PLAIN_DEPLOY =
  */
 export const ROUTE_DIAGRAM = {
   title: 'Что ответит Pages на клиентский адрес',
-  request: '`GET …/app/profile/42` — из новой вкладки, закладки или обновления',
+  request: 'Адрес профиля: отдельный путь или фрагмент после #',
   forks: [
     {
-      ask: 'файл `profile/42/index.html` в дереве есть',
+      ask: 'GET …/app/profile/42: файл profile/42/index.html есть',
       leaves: [
         { when: 'собрали страницы заранее', sees: 'профиль', code: '200', tone: 'ok' },
       ],
     },
     {
-      ask: 'файла нет — есть ли `404.html`?',
+      ask: 'GET …/app/profile/42: файла нет — есть ли 404.html?',
       leaves: [
         { when: 'нет', sees: 'страница GitHub «не найдено»; приложение не загрузилось', code: '404', tone: 'err' },
         { when: 'да, своя страница «не найдено»', sees: 'ваша «не найдено» в оформлении сайта', code: '404', tone: 'warn' },
@@ -1274,11 +1289,29 @@ export const ROUTE_DIAGRAM = {
         },
       ],
     },
+    {
+      ask: 'URL …/app/#/profile/42: фрагмент не уходит серверу',
+      leaves: [
+        { when: 'GET …/app/: есть обычный index.html', sees: 'профиль после запуска hash-router; сервер отдал корневой HTML', code: '200', tone: 'ok', flag: 'цена: маршрут живёт после # и не является отдельным HTTP-адресом профиля' },
+      ],
+    },
   ] as {
     ask: string;
     leaves: { when: string; sees: string; code: string; tone: 'ok' | 'warn' | 'err'; flag?: string }[];
   }[],
   head: { sees: 'человек видит', code: 'код' },
   caption:
-    'Статический сервер выбирает между «файл есть» и «файла нет» — и приём с копией `index.html` меняет то, что видит человек, но не код ответа.',
+    'Копия index.html в 404.html запускает роутер после ответа 404. Hash-router решает другую задачу: сервер получает путь до # и обычно отвечает 200 корневым HTML. Отдельного HTTP-запроса за профилем во втором случае нет.',
 };
+
+
+/** WHATWG URL: HTTP-запрос не содержит фрагмент. Тот же исходник исполняется тестом. */
+export const HASH_REQUEST_CODE = `function requestTarget(address) {
+  const url = new URL(address);
+  return url.pathname + url.search; // url.hash не входит в request-target
+}
+
+console.log(requestTarget('https://user.github.io/app/profile/42'));
+console.log(requestTarget('https://user.github.io/app/#/profile/42'));`;
+
+export const HASH_REQUEST_OUT = ['/app/profile/42', '/app/'];

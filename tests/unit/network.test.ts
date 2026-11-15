@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { DICTIONARY_LIMITS, DICTIONARY_MEASURED, PITFALLS } from '@/content/platform/network/data';
+import { DICTIONARY_LIMITS, DICTIONARY_MEASURED, PITFALLS, RESOURCE_TIMING_SOURCE } from '@/content/platform/network/data';
+import { loadTiming } from '@/widgets/resource-waterfall/model/timing';
 import { STAND as SW_STAND } from '@/content/render/service-worker/data';
 
 /**
@@ -64,5 +65,43 @@ describe('network: аварийный Service Worker', () => {
     expect(mdx).toContain('**мимо обработчика `fetch`**');
     const pit = PITFALLS.find((p) => p.t.startsWith('Service Worker, который держит'))!;
     expect(pit.d).toContain('аварийную кнопку **не** ломает');
+  });
+});
+
+
+describe('network: настоящие интервалы Resource Timing', () => {
+  const { resourceTimings, waterfallPhases } = loadTiming(RESOURCE_TIMING_SOURCE);
+  const timing = {
+    domainLookupStart: 30, domainLookupEnd: 35,
+    connectStart: 40, connectEnd: 60,
+    requestStart: 90, responseStart: 120, responseEnd: 150,
+  };
+
+  it('очередь между фазами не выдаётся за DNS, соединение или TTFB', () => {
+    // Паузы 35→40 и 60→90 намеренно не входят ни в один интервал.
+    expect(waterfallPhases(timing)).toEqual([
+      { key: 'dns', from: 30, to: 35 },
+      { key: 'connect', from: 40, to: 60 },
+      { key: 'wait', from: 90, to: 120 },
+      { key: 'transfer', from: 120, to: 150 },
+    ]);
+  });
+
+  it('переиспользованное соединение не рисует фиктивное рукопожатие', () => {
+    expect(waterfallPhases({ ...timing, domainLookupEnd: 30, connectEnd: 40 }).map((p) => p.key))
+      .toEqual(['wait', 'transfer']);
+  });
+
+  it('скрытые тайминги не превращаются в передачу от нуля до responseEnd', () => {
+    expect(waterfallPhases({ ...timing, responseStart: 0 })).toEqual([]);
+    expect(waterfallPhases({ ...timing, domainLookupEnd: NaN, connectEnd: 20 }).map((p) => p.key))
+      .toEqual(['wait', 'transfer']);
+  });
+
+  it('запись навигации включена: документ не теряется среди подресурсов', () => {
+    const navigation = { name: 'document' } as PerformanceEntry;
+    const resource = { name: 'app.js' } as PerformanceEntry;
+    const performance = { getEntriesByType: (type: string) => type === 'navigation' ? [navigation] : [resource] };
+    expect(resourceTimings(performance)).toEqual([navigation, resource]);
   });
 });

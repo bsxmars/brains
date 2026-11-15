@@ -1,5 +1,21 @@
-import type { GlossaryTerm, Pitfall, Prereq, SourceGroup } from '@/entities/lesson';
+import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { CookieSpec, EngineId, MeasuredRow, Outcome, RequestSpec } from '@/widgets/tpc-cookie-verdict/model/verdict';
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
+
+export const SAA_ACCESS_DIAGRAM: ConceptDiagramData = {
+  id: 'storage-access-permission-and-document',
+  title: 'Разрешение браузера и доступ текущего документа — разные состояния',
+  description: 'У браузера может быть сохранённое разрешение для пары сайтов, а у только что загруженного фрейма ещё нет активного доступа к неразделённым кукам. Схема показывает ветку ограниченного стороннего контекста.',
+  width: 640, height: 590,
+  nodes: [
+    { id: 'load', x: 10, y: 10, width: 260, height: 240, label: 'Документ загрузился', detail: 'hasStorageAccess проверяет доступ именно этого документа. Сохранённое разрешение ещё не равно кукам в запросе.', tone: 'info' },
+    { id: 'request', x: 370, y: 10, width: 260, height: 240, label: 'Запросить доступ', detail: 'При новом разрешении вызов делают из клика. Ранее выданное разрешение может позволить повторный вызов без жеста.', tone: 'warn' },
+    { id: 'fetch', x: 370, y: 340, width: 260, height: 240, label: 'Запрос после успеха', detail: 'Фрейм может использовать неразделённые куки. Domain, Secure, SameSite и credentials всё ещё проверяются.', tone: 'ok' },
+    { id: 'denied', x: 10, y: 340, width: 260, height: 240, label: 'Отказ или новый документ', detail: 'Отказ требует запасного пути входа. Новый документ заново проверяет и при необходимости активирует свой доступ.', tone: 'neutral' },
+  ],
+  edges: [{ from: 'load', to: 'request' }, { from: 'request', to: 'fetch', fromSide: 'bottom', toSide: 'top' }, { from: 'request', to: 'denied', fromSide: 'bottom', toSide: 'top', via: [[500, 295], [140, 295]], dashed: true }],
+  note: 'Учебная схема, не универсальный журнал API. Автоматическая активация, сохранение разрешений и запрос пользователю зависят от браузера; таблицы рядом подписаны версиями стенда.',
+};
 
 /**
  * Данные темы «Встроенный контент без сторонних кук: CHIPS, Storage Access API и разделённое
@@ -74,7 +90,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: 'Storage Access API',
-    d: '`document.hasStorageAccess()` и `document.requestStorageAccess()`: фрейм спрашивает доступ к своим **неразделённым** кукам. Ответ даёт браузер, часто после вопроса пользователю, и только в ответ на его жест.',
+    d: '`document.hasStorageAccess()` и `document.requestStorageAccess()`: фрейм спрашивает доступ к своим **неразделённым** кукам. Ответ даёт браузер. Для нового разрешения обычно нужна активация пользователя; сохранённое разрешение может активироваться повторным вызовом без неё.',
   },
   {
     k: 'жест пользователя',
@@ -131,7 +147,7 @@ export const PLAIN_PARTITION =
   'Камера хранения на вокзале: у каждого вокзала своя. Сдали сумку на вокзале `top.test` — забрать её можно только там. На вокзале `top2.test` ячейка с тем же номером пустая, хотя фирма камер одна и та же. Ключ раздела — название вокзала, а не фирмы.';
 
 export const PLAIN_SAA =
-  'Охранник на входе в чужое здание не пропустит ваш общий пропуск сам. Но можно **лично попросить**: подойти, показать пропуск, получить отметку. Просьба засчитывается, только если вы подошли сами, — записка, подброшенная охраннику (вызов без клика), не считается.';
+  'Охранник может хранить вчерашнее разрешение в журнале, а дверь сегодняшнего кабинета всё ещё закрыта. Нужно предъявить разрешение именно у этой двери. Для нового разрешения человек подходит сам; уже выданное иногда достаточно подтвердить без нового визита.';
 
 /* ──────────────────── Раздел 1 · что такое сторонняя кука ──────────────────── */
 
@@ -558,7 +574,7 @@ export const CHIPS_FACTS: { t: string; d: string; tone?: 'ok' | 'warn' | 'err' |
 /* ──────────────────── Раздел 3 · демо: уйдёт ли кука ──────────────────── */
 
 export const VERDICT_NOTE =
-  'Задайте признаки куки и запроса — калькулятор ответит за каждый движок и режим. Правила у него те же, по которым собрана таблица из 27 проверенных случаев, и с ней он совпадает в каждой клетке.';
+  'Калькулятор исполняет учебную модель зафиксированных версий и режимов. Она совпадает с 27 случаями снимка, но не спрашивает браузер читателя о его настройках. Path, срок, исключения временного доступа и другие не включённые в модель условия здесь не рассчитываются.';
 
 /* ──────────────────── Раздел 4 · разделённое хранилище ──────────────────── */
 
@@ -620,8 +636,8 @@ export const PLAYWRIGHT_NOTE =
 
 export const STORAGE_FACTS: { t: string; d: string; tone?: 'ok' | 'warn' | 'err' | 'info' }[] = [
   {
-    t: 'Разделено всё, что может связать два сайта',
-    d: '`localStorage`, IndexedDB, Cache Storage, `BroadcastChannel`, а по документации Chrome ещё Service Worker, `SharedWorker` и Web Locks. Под `top2.test` у фрейма пустое хранилище, как в первый раз.',
+    t: 'Какие каналы разделяет Chromium',
+    d: '`localStorage`, IndexedDB, Cache Storage, `BroadcastChannel`, а по документации Chrome ещё Service Worker, `SharedWorker` и Web Locks. Эта формулировка относится к Chromium стенда; расхождения WebKit в localStorage и Cache Storage указаны в таблице, поэтому единого результата для всех движков нет.',
     tone: 'info',
   },
   {
@@ -639,8 +655,10 @@ export const STORAGE_FACTS: { t: string; d: string; tone?: 'ok' | 'warn' | 'err'
 /* ──────────────────── Раздел 5 · Storage Access API ──────────────────── */
 
 /**
- * Код, который тема показывает, — **та же строка**, что исполнял стенд: `probe-saa-code.mjs`
- * читает `SAA_CODE` из этого файла и вставляет его во фрейм `embed.test` под `top.test`.
+ * Базовый обработчик requestStorageAccess → fetch снят скриптом `probe-saa-code.mjs`
+ * во фрейме embed.test под top.test. Текущий пример дополнен восстановлением granted,
+ * проверкой наличия API и обработкой ошибки fetch: эти ветки закреплены unit-harness
+ * tests/unit/third-party-cookies.test.ts; повторный браузерный прогон расширения не снимался.
  * Кнопку нажимал Playwright настоящим кликом; `status` показывал ответ сервера `/me` —
  * заголовок `Cookie`, с которым пришёл запрос.
  */
@@ -648,21 +666,41 @@ export const SAA_CODE = `const button = document.querySelector('#open-chat');
 const status = document.querySelector('#status');
 
 async function loadMe() {
-  const res = await fetch('/me', { credentials: 'include' });
-  status.textContent = await res.text();
+  try {
+    const res = await fetch('/me', { credentials: 'include' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    status.textContent = await res.text();
+  } catch {
+    status.textContent = 'не удалось загрузить профиль';
+  }
 }
 
-// При загрузке: доступ уже есть — кнопка не нужна.
-document.hasStorageAccess().then((has) => {
-  if (has) loadMe();
-});
+const supported = typeof document.hasStorageAccess === 'function'
+  && typeof document.requestStorageAccess === 'function';
+if (!supported) {
+  button.disabled = true;
+  status.textContent = 'нужен вход во всплывающем окне';
+} else {
+  async function restoreAccess() {
+    try {
+      if (await document.hasStorageAccess()) return loadMe();
+      // Не каждый браузер умеет этот permissions-запрос. При отказе остаётся кнопка.
+      const permission = await navigator.permissions.query({ name: 'storage-access' });
+      if (permission.state !== 'granted') return;
+      await document.requestStorageAccess(); // активировать сохранённое разрешение
+      await loadMe();
+    } catch { /* доступ не восстановлен: пользователь может нажать кнопку */ }
+  }
+  restoreAccess();
 
-button.addEventListener('click', () => {
-  // Вызов — первой строкой обработчика: после await WebKit считает жест потерянным.
-  document.requestStorageAccess().then(loadMe, () => {
-    status.textContent = 'нужен вход во всплывающем окне';
+  button.addEventListener('click', () => {
+    button.disabled = true;
+    // Здесь нет await перед API: сохраняем активацию пользователя.
+    document.requestStorageAccess().then(loadMe, () => {
+      status.textContent = 'нужен вход во всплывающем окне';
+    }).finally(() => { button.disabled = false; });
   });
-});`;
+}`;
 
 /** Что показал `status` после клика по кнопке — `probe-saa-code.mjs`. */
 export const SAA_CODE_RUN: { k: string; status: string; tone: 'ok' | 'err' | 'warn' }[] = [
@@ -707,7 +745,7 @@ export const SAA_ROWS: { k: string; chromium: string; firefox: string; webkit: s
 ];
 
 export const SAA_NOTE =
-  'Разрешение не действует само: даже выданное заранее, оно не прикладывает куки, пока документ фрейма не вызвал `requestStorageAccess()`. В нашей проверке Chromium с выданным разрешением загрузил фрейм без кук, `hasStorageAccess()` вернул `false`, и только после вызова `fetch` фрейма унёс `none=1`.';
+  'В Chromium стенда сохранённое разрешение не активировало доступ нового документа само: фрейм загрузился без кук, `hasStorageAccess()` вернул `false`, и только после вызова `fetch` фрейма унёс `none=1`.';
 
 /*
  * Жизнь фрейма от загрузки до куки — добавлено проходом «трудные места подробно»:
@@ -718,11 +756,11 @@ export const SAA_NOTE =
  */
 export const SAA_TIMELINE: string[] = [
   '**Фрейм чата загрузился под `top.test`.** Неразделённые куки `embed.test` в запрос документа не ушли — в Firefox, WebKit и ограниченном Chromium (Chromium по умолчанию их отдаёт, и там `hasStorageAccess()` сразу `true`). В остальных `hasStorageAccess()` отвечает `false`; код из примера поэтому ничего не загружает и ждёт кнопку.',
-  '**Попытка попросить доступ сразу, без клика**, кончается `NotAllowedError` во всех трёх движках. Так устроен API: без жеста пользователя браузер просьбу не рассматривает.',
+  '**Попытка попросить доступ сразу, без клика**, кончается `NotAllowedError` во всех трёх движках. Это случай свежего контекста без выданного разрешения. Уже сохранённое granted — отдельная ветка алгоритма, которая может пройти без жеста.',
   '**Пользователь нажал «Открыть чат».** Обработчик первой же строкой зовёт `requestStorageAccess()`. Именно первой: если перед вызовом стоит `await`, WebKit считает, что жест потерян.',
   '**Решает браузер, и каждый по-своему.** WebKit в наших проверках выдал доступ. Firefox выдал без вопроса, если пользователь раньше кликал на самом `embed.test`, и показал вопрос, если нет. Chromium в режиме без окна (headless) отказал; по документации в обычном окне он показывает вопрос. На отказ у кода есть запасной путь — всплывающее окно входа.',
   '**Доступ выдан — только теперь `fetch` фрейма уносит неразделённые куки.** Выдан он для пары «`embed.test` под `top.test`»; под `top2.test` спрашивать заново. `SameSite` продолжает действовать: в Chromium кука без атрибута, то есть `Lax`, не ушла и после доступа.',
-  '**Фрейм загрузили снова.** Браузер запомнил разрешение, но сам куки не приложит: документ фрейма должен вызвать `requestStorageAccess()` ещё раз. Теперь вызов проходит без вопроса и без жеста, поэтому его делают при каждой загрузке.',
+  '**Фрейм загрузили снова.** Браузер запомнил разрешение, но сам куки не приложит: документ фрейма должен вызвать `requestStorageAccess()` ещё раз. В Chromium стенда повторный вызов с granted прошёл без вопроса и без жеста. Пример пробует этот путь через Permissions API, а если он недоступен — оставляет кнопку.',
 ];
 
 export const PLAIN_SAA_TIMELINE =
@@ -730,8 +768,8 @@ export const PLAIN_SAA_TIMELINE =
 
 export const SAA_RULES: { t: string; d: string; tone?: 'ok' | 'warn' | 'err' | 'info' }[] = [
   {
-    t: 'Вызов — только из жеста',
-    d: 'Во всех трёх движках вызов при загрузке фрейма отвергнут с `NotAllowedError`. Поэтому виджету нужна кнопка вроде «Войти» или «Открыть чат»: без клика пользователя API не сработает.',
+    t: 'Новый доступ обычно запрашивают из жеста',
+    d: 'Во всех трёх движках вызов при загрузке фрейма отвергнут с `NotAllowedError`. Виджету нужна кнопка вроде «Войти» или «Открыть чат». Это не запрет на все вызовы без клика: ранее выданное разрешение позволяет повторно активировать доступ; такая ветка отдельно наблюдалась в Chromium.',
     tone: 'err',
   },
   {
@@ -827,7 +865,7 @@ export const PITFALLS: Pitfall[] = [
   {
     n: '05',
     t: 'Разрешение Storage Access не прикладывает куки само',
-    d: 'Разрешение, выданное заранее или в прошлый раз, срабатывает, только когда документ фрейма вызвал `requestStorageAccess()`. В нашей проверке фрейм с выданным разрешением загрузился без кук. Вызов нужен на каждой загрузке фрейма — после разрешения он проходит без вопроса и без жеста.',
+    d: 'Сохранённое разрешение и доступ нового документа — отдельные состояния. В Chromium стенда фрейм с выданным разрешением загрузился без кук. После новой загрузки проверьте доступ текущего документа; в Chromium стенда сохранённое разрешение потребовало повторного вызова и прошло без жеста. Другие браузеры могут активировать доступ автоматически по своим условиям.',
     tone: 'warn',
   },
   {
@@ -852,26 +890,13 @@ export const PITFALLS: Pitfall[] = [
 
 /* ──────────────────── Раздел 8 · источники ──────────────────── */
 
-export const SOURCES: SourceGroup[] = [
-  {
-    t: 'Спецификации',
-    items: [
-      '**RFC 6265bis** (IETF HTTP WG) — `SameSite`, контекст «same-site» и отказ ставить `Lax`/`Strict` из межсайтового контекста',
-      '**CHIPS** (Privacy CG) — атрибут `Partitioned`, ключ раздела и обязательный `Secure`',
-      '**Storage Access API** (Privacy CG, влит в HTML) — `hasStorageAccess`, `requestStorageAccess`, требование жеста пользователя',
-      '**Client-Side Storage Partitioning** (Privacy CG) — какие хранилища разделяются и по какому ключу',
-      '**FedCM** (W3C FedID CG) — `navigator.credentials.get({ identity })`',
-    ],
-  },
-  {
-    t: 'Документация движков',
-    items: [
-      '**Chrome for Developers** — «Cookies Having Independent Partitioned State (CHIPS)», «Storage partitioning», «Storage Access API», «Related Website Sets», «Test for third-party cookie restrictions»',
-      '**Privacy Sandbox** — объявление об изменениях в планах (октябрь 2025) и статус Related Website Sets',
-      '**MDN** — «Third-party cookies», «State Partitioning» (Total Cookie Protection), «Storage Access API», «FedCM API»',
-      '**WebKit blog** — «Full Third-Party Cookie Blocking and More», «Updates to Storage Policy»',
-    ],
-  },
+export const SOURCES: Source[] = [
+  { title: 'Storage Access API · Privacy CG', href: 'https://privacycg.github.io/storage-access/', what: 'Доступ документа и сохранённое разрешение; ветка granted обрабатывается до проверки transient activation.' },
+  { title: 'CHIPS · Chrome for Developers', href: 'https://privacysandbox.google.com/cookies/chips', what: 'Partitioned, Secure и независимые состояния под разными сайтами верхнего уровня.' },
+  { title: 'Client-Side Storage Partitioning · Privacy CG', href: 'https://privacycg.github.io/storage-partitioning/', what: 'Разделение хранилищ и каналов связи; область раздела не сводится к одному origin.' },
+  { title: 'Storage partitioning · Chrome for Developers', href: 'https://developer.chrome.com/docs/privacy-security/storage-partitioning', what: 'Какие API Chromium разделяет по контексту встраивания.' },
+  { title: 'Full Third-Party Cookie Blocking and More · WebKit', href: 'https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/', what: 'Политика WebKit и назначение Storage Access API; конкретная таблица темы относится к сборке Playwright.' },
+  { title: 'Update on plans for Privacy Sandbox technologies · 17 октября 2025', href: 'https://privacysandbox.com/news/update-on-plans-for-privacy-sandbox-technologies/', what: 'Объявлено сворачивание Related Website Sets, requestStorageAccessFor и других механизмов; это не измерение наличия метода в конкретном Chromium.' },
 ];
 
 export const RELATED =

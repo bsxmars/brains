@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { LRUCache } from 'lru-cache';
 import { lruMemoize, weakMapMemoize } from 'reselect';
@@ -208,7 +209,7 @@ describe('lru-cache изнутри', () => {
     const fakeFetch = async (url: string) => {
       calls++;
       await new Promise((r) => setTimeout(r, 5));
-      return { json: async () => ({ url }) };
+      return Response.json({ url });
     };
     const body = t.FETCH_CODE.replace(/^import .*\n/m, '');
     const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
@@ -470,12 +471,14 @@ describe('трассы и закреплённые числа', () => {
     for (let i = 1; i < caps.length; i++) {
       expect(Math.max(...gapsAt(caps[i]))).toBeLessThan(Math.min(...gapsAt(caps[i - 1])));
     }
-    // «LRU ни на одной трассе не обгоняет остальных»
+    // LRU не имеет единоличного преимущества; ничья с другими политиками возможна.
     for (const r of t.HIT_TABLE) expect(r.lru).toBeLessThanOrEqual(Math.max(r.lfu, r.tinylfu, r.sieve));
     // …но «не обгоняет никого» неверно: на «Смене» LRU выше LFU на всех трёх размерах.
     for (const r of t.HIT_TABLE.filter((x) => x.trace === 'shift')) expect(r.lru).toBeGreaterThan(r.lfu);
     const summary = readFileSync('src/content/algorithms/eviction/summary.md', 'utf8');
-    expect(summary).toContain('LRU не лидирует ни на одной трассе');
+    expect(summary).toContain('LRU не лидирует ни на одной трассе единолично');
+    expect(t.HIT_TABLE_NOTE).toContain('не имеет единоличного преимущества');
+    expect(at('loop', 200).lru).toBe(at('loop', 200).tinylfu);
     expect(summary).not.toContain('не обгоняет никого');
   });
 
@@ -549,4 +552,131 @@ describe('трассы и закреплённые числа', () => {
     tiny.get('q');
     expect(tiny.sketch.estimate('q')).toBe(1);
   });
+});
+
+
+describe('границы вместимости учебных кешей', () => {
+  it('в том числе при max=1 частые кандидаты TinyLFU не создают лишнее место', () => {
+    for (const { id } of ALGOS) {
+      for (const max of [1, 2, 4]) {
+        const c = makeCache(api, id, max);
+        for (let i = 0; i < 500; i++) {
+          const key = i % 7;
+          for (let j = 0; j < 8; j++) c.get(key);
+          c.set(key, key);
+          const keys = keysOf(id, c);
+          expect(keys.length, `${id}, max=${max}, step=${i}`).toBeLessThanOrEqual(max);
+          expect(new Set(keys).size).toBe(keys.length);
+          expect(c.get(key)).toBe(key);
+        }
+      }
+    }
+  });
+
+  it('вместимость — положительное целое, иначе конструктор отказывает', () => {
+    for (const { id } of ALGOS) {
+      for (const max of [0, -1, 1.5, NaN, Infinity]) {
+        expect(() => makeCache(api, id, max)).toThrow(RangeError);
+      }
+    }
+  });
+});
+
+
+describe('контракт кеша и границы учебных моделей', () => {
+  it('практический источник различает свежесть, инвалидацию, лимит и варианты ключа', () => {
+    const printed: unknown[] = [];
+    const body = t.PRACTICE_CODE.replace(/^import .*\n/m, '');
+    const cache = new Function('LRUCache', 'console', body + '\nreturn cache;')(
+      LRUCache, { log: (value: unknown) => printed.push(value) },
+    ) as LRUCache<string, string>;
+    expect(printed).toEqual(t.PRACTICE_OUT);
+    expect([...cache.keys()].map((key) => JSON.parse(key))).toEqual([
+      ['b', 'en', '7'], ['b', 'ru', '7'],
+    ]);
+    expect(cache.calculatedSize).toBe(4); // два значения v2 по две единицы UTF-16
+  });
+
+  it('FETCH_CODE отвергает HTTP 500 вместо сохранения JSON ошибки как пользователя', async () => {
+    const body = t.FETCH_CODE.replace(/^import .*\n/m, '');
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+    const fetch = vi.fn(async () => Response.json({ error: 'boom' }, { status: 500 }));
+    await expect(new AsyncFunction('LRUCache', 'fetch', body)(LRUCache, fetch)).rejects.toThrow('HTTP 500');
+    expect(fetch).toHaveBeenCalledTimes(1); // отказ одного общего запроса
+  });
+
+  it('слабые ключи включают незарегистрированный Symbol, но не Symbol.for', () => {
+    const local = Symbol('key');
+    const weak = new WeakMap<symbol, number>();
+    weak.set(local, 7);
+    expect(weak.get(local)).toBe(7);
+    expect(() => weak.set(Symbol.for('key'), 8)).toThrow(TypeError);
+    expect(t.PLAIN_WEAK).toContain('незарегистрированные символы');
+    expect(t.PLAIN_WEAK).toContain('момент очистки выбирает GC');
+  });
+
+  it('насыщенный sketch не является полным историческим счётчиком', () => {
+    const sketch = new api.CountMinSketch(256, Infinity);
+    for (let i = 0; i < 20; i++) sketch.increment('same');
+    expect(sketch.estimate('same')).toBe(15);
+    expect(sketch.estimate('same')).toBeLessThan(20);
+    expect(t.SKETCH_NOTE).toContain('оценка может быть ниже полного исторического счёта');
+  });
+
+  it('после сброса второй порог требует только половину sampleSize новых добавлений', () => {
+    const sketch = new api.CountMinSketch(256, 100);
+    for (let i = 0; i < 100; i++) sketch.increment(i);
+    expect(sketch.additions).toBe(50);
+    for (let i = 100; i < 149; i++) sketch.increment(i);
+    expect(sketch.additions).toBe(99);
+    sketch.increment(149);
+    expect(sketch.additions).toBe(50);
+    expect(t.TINYLFU_STEPS.at(-1)?.d).toContain('`5 × max` новых добавлений');
+  });
+
+  it('стоимость Map и синхронизация SIEVE названы с областью применимости', () => {
+    // Стандарт Map требует среднего сублинейного доступа, а не O(1) или равных наносекунд.
+    expect(t.LRU_STEPS[1].d).toContain('не нормативная гарантия `Map`');
+    expect(t.GLOSSARY.find((item) => item.k === '`O(1)`')?.d).toContain('модель стоимости');
+    expect(t.SIEVE_NOTE).toContain('Учебный JS-класс однопоточный');
+    expect(t.WHERE_NOTE).toContain('не её свежесть');
+  });
+});
+
+
+it('курсор LRU и итераторы LFU не удерживают историю полумиллиона попаданий', () => {
+  // Отдельный процесс с явным GC: сравниваем удержанную память с обычной Map,
+  // а не время операций и не точный размер heap. Запас покрывает JIT и служебные объекты.
+  const source = t.LRU_CODE + '\n' + t.LFU_CODE + '\nreturn { LRU, LFU };';
+  const probe = `
+    const { LRU, LFU } = new Function(${JSON.stringify(source)})();
+    const used = () => { globalThis.gc(); return process.memoryUsage().heapUsed; };
+    const measure = (make) => {
+      const cache = make();
+      for (let i = 0; i < 4; i++) cache.set(i, i);
+      for (let i = 0; i < 5000; i++) cache.get(i % 4);
+      const before = used();
+      for (let i = 0; i < 500000; i++) cache.get(i % 4);
+      const retained = Math.max(0, used() - before);
+      return { retained, values: [0, 1, 2, 3].map((key) => cache.get(key)) };
+    };
+    const control = measure(() => {
+      const map = new Map();
+      return {
+        set: (key, value) => map.set(key, value),
+        get(key) { const value = map.get(key); map.delete(key); map.set(key, value); return value; },
+      };
+    });
+    console.log(JSON.stringify({ control, lru: measure(() => new LRU(8)), lfu: measure(() => new LFU(8)) }));`;
+  const out = execFileSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', probe], {
+    encoding: 'utf8', timeout: 15000,
+  });
+  const result = JSON.parse(out) as Record<'control' | 'lru' | 'lfu', { retained: number; values: number[] }>;
+  for (const kind of ['lru', 'lfu'] as const) {
+    expect(result[kind].values).toEqual([0, 1, 2, 3]);
+    expect(result[kind].retained, kind + ': cache retained old iterator tables').toBeLessThan(
+      result.control.retained * 8 + 4_000_000,
+    );
+  }
+  expect(t.HOLES_NOTE).toContain('вечный курсор способен удерживать цепочку старых таблиц V8');
 });

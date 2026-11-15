@@ -2,7 +2,7 @@
 title: "React изнутри: свой рендерер и хуки"
 order: 3
 kicker: фреймворки изнутри
-lead: "Файбер, `alternate`, очередь хука, коммит — слова из исходников React. За ними стоит около трёхсот строк кода, и в этой теме они написаны по шагам: рендерят настоящее дерево, хранят состояние в хуках и объединяют обновления. Тест сверяет их поведение с React 19.3 — и там, где оно совпадает, и там, где нет."
+lead: "Файбер, `alternate`, очередь хука, коммит — слова из исходников React. Учебный рендерер воспроизводит часть этих механизмов примерно в трёхстах строках: рендерят настоящее дерево, хранят состояние в хуках и объединяют обновления. Тест сверяет их поведение с React 19.3 — и там, где оно совпадает, и там, где нет."
 summary: "Мини-React своими руками: элемент, файбер и прерываемый цикл, две фазы и двойная буферизация, сверка по ключам, хуки как массив ячеек, батчинг и порядок эффектов."
 verifiedOn: React 19.3 · Node 26.8
 nav:
@@ -19,6 +19,10 @@ nav:
   - { id: s11, label: Источники }
 ---
 
+import Illustration from '@/shared/ui/Illustration.astro';
+import renderDraftImage from '@/assets/frameworks/render-draft-commit.png';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
@@ -31,6 +35,7 @@ import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import MiniFiber from '@/widgets/mini-fiber/ui/MiniFiber.vue';
 import {
+  MECHANISM_DIAGRAM,
   BATCH_NOTE,
   DEMO_NOTE,
   DEMO_SCENARIOS,
@@ -155,6 +160,21 @@ import {
   lead="Render-фаза строит второе дерево — work-in-progress — и не трогает то, что видит пользователь. Коммит одним заходом применяет результат и меняет деревья ролями: дерево в работе становится текущим, а бывшее текущее — черновиком для следующего рендера."
 >
   <Plain text={PLAIN_BUFFERS} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
+
+  <Illustration
+    id="react-render-draft-commit"
+    image={renderDraftImage}
+    title="Незавершённый черновик не публикуется"
+    alt="Три сцены: готовый интерфейс; отдельный незавершённый черновик при прежнем экране; новый готовый интерфейс после публикации."
+    steps={[
+      'На экране — результат последнего commit.',
+      'Новый результат ещё вычисляется. Прежний интерфейс остаётся опубликованным.',
+      'Завершённый результат принят: commit публикует изменения.',
+    ]}
+    note="Метафора черновика и публикации. Это не два буквальных DOM: связи current и work-in-progress показаны точнее на схеме выше."
+  />
 
   <Card title="Рендерер не знает, во что рисует" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
 
@@ -302,7 +322,7 @@ import {
 <Section
   id="s6"
   eyebrow="Раздел 6"
-  title="Батчинг: одна микрозадача на все `setState`"
+  title="Батчинг мини-версии: одна микрозадача на все `setState`"
   lead="Рендер начинается не в `setState`, а в микрозадаче, которую ставит первый вызов. Флаг `scheduled` не даёт поставить вторую, пока первая не выполнилась, — и все `setState` одного обработчика попадают в один рендер."
 >
   <Plain text={PLAIN_SCHEDULED} />
@@ -320,7 +340,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Эффекты: layout — внутри коммита, `useEffect` — после"
-  lead="В render-фазе эффект только запоминает функцию и проверяет, изменились ли зависимости, — то есть пора ли её вызывать. Вызывает её коммит. Layout-эффекты выполняются в той же задаче, что и правка хоста. `useEffect` — позже, отдельной задачей: сначала все очистки, потом все эффекты."
+  lead="В render-фазе эффект только запоминает функцию и проверяет, изменились ли зависимости, — то есть пора ли её вызывать. Вызывает её коммит. В этой мини-версии layout-эффекты выполняются в той же задаче, что и правка хоста, а `useEffect` — отдельной задачей: сначала все очистки, потом все эффекты. Это выбор нашего планировщика; у React `useEffect` может выполниться и до paint."
 >
   <Plain text={PLAIN_EFFECTS} />
 
@@ -330,7 +350,7 @@ import {
 
   <CardGrid min={280} gap={14} align="start">
     <Card title="Первое монтирование" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={EFFECTS_MOUNT_LOG.join('\n')} tone="ok" />
+      <CodeBlock lang="text" code={EFFECTS_MOUNT_LOG.join('\n')} tone="ok" />
 
       Рендер сверху вниз, эффекты снизу вверх: список эффектов собирается на подъёме, и ребёнок
       попадает в него раньше родителя.
@@ -338,7 +358,7 @@ import {
     </Card>
 
     <Card title="Обновление `Counter`" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={EFFECTS_UPDATE_LOG.join('\n')} tone="ok" />
+      <CodeBlock lang="text" code={EFFECTS_UPDATE_LOG.join('\n')} tone="ok" />
 
       Очистка прошлого layout-эффекта — в коммите, до нового. Очистка прошлого `useEffect` —
       в отдельной задаче, но тоже до нового: новый эффект не увидит несобранный старый.
@@ -349,7 +369,7 @@ import {
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={EFFECTS_NOTE} />
 
   <Card tone="warn" title="Удаление: порядок обратный" titleSize={16.5} pad={18} gap={11} size={15.5} lh={1.6}>
-    <CodeBlock code={UNMOUNT_LOG.join('\n')} tone="ok" />
+    <CodeBlock lang="text" code={UNMOUNT_LOG.join('\n')} tone="ok" />
 
     <Md text={UNMOUNT_NOTE} />
   </Card>
@@ -384,20 +404,22 @@ import {
   <Card title="Где мини-версия расходится с React" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={NO_BAILOUT_CODE} />
 
-    <CodeBlock code={`мини-версия:  ${NO_BAILOUT_LOG.mini.join(' → ')}\nReact 19.3:   ${NO_BAILOUT_LOG.react.join(' → ')}`} tone="ok" />
+    <CodeBlock lang="text" code={`мини-версия:  ${NO_BAILOUT_LOG.mini.join(' → ')}\nReact 19.3:   ${NO_BAILOUT_LOG.react.join(' → ')}`} tone="ok" />
 
     <Md text={DIFF_NOTE} />
   </Card>
 
   ### Как это дерево видят инструменты разработчика
 
+  <Disclosure title="Подключение рендерера к React DevTools">
   <Card title="Хук, через который React DevTools читает файберы" titleSize={17} pad={20} gap={13} size={15.5} lh={1.6}>
     <CodeBlock code={DEVTOOLS_CODE} />
 
-    <CodeBlock code={DEVTOOLS_LOG.join('\n')} tone="ok" />
+    <CodeBlock lang="text" code={DEVTOOLS_LOG.join('\n')} tone="ok" />
 
     <Md text={DEVTOOLS_NOTE} />
   </Card>
+  </Disclosure>
 </Section>
 
 <Section id="s10" eyebrow="Раздел 10" title="Тонкие места">

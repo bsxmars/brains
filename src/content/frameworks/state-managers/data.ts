@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { LabAction, LabComponentId, LabMode } from '@/widgets/store-lab/model/types';
 
@@ -171,12 +172,13 @@ function createReduxStore(reducer) {
     getState: () => state,
     dispatch(action) {
       state = reducer(state, action);
-      listeners.forEach((listener) => listener());   // всем — даже если state тот же
+      [...listeners].forEach(({ listener }) => listener()); // снимок подписок на этот dispatch
       return action;
     },
     subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      const subscription = { listener };              // одна функция может подписаться дважды
+      listeners.add(subscription);
+      return () => listeners.delete(subscription);
     },
   };
 }`;
@@ -221,7 +223,7 @@ export const NOTIFY_ROWS: { k: string; zustand: string; redux: string; tone: 'ok
 ];
 
 export const REDUX_NOTE =
-  'Пять `dispatch` подряд — пять вызовов подписчика, хотя после двух из них состояние осталось тем же объектом. Так задумано: подписка в Redux — сигнал «что-то произошло», без подробностей. Решать, касается ли это компонента, должен селектор подписчика.';
+  'В последовательности `inc`, `same`, `rename`, `unknown`, `addTodo` — пять `dispatch` и пять вызовов подписчика. `same` и `unknown` попадают в ветку `default` показанного reducer и оставляют прежний объект состояния. Так задумано: подписка в Redux — сигнал «что-то произошло», без подробностей. Решать, касается ли это компонента, должен селектор подписчика.';
 
 export const PLAIN_IMMUTABLE =
   'Как версии документа в облаке. Каждая правка создаёт новую версию, старая остаётся как была. Чтобы понять, менялся ли документ, не нужно перечитывать текст — достаточно сравнить номер версии. Ссылка на объект и есть такой номер: другой объект — значит, было изменение.';
@@ -432,12 +434,12 @@ export const PINIA_USAGE_CODE = `const useApp = defineStore('app', {
   actions: { inc() { this.count++; } },
 });
 
-// в компоненте: никакого селектора и никакой подписки
+// в компоненте: без явного селектора и ручной подписки
 const store = useApp();
 // шаблон читает store.count — с этой минуты рендер подписан на count`;
 
 export const PINIA_NOTE =
-  'В Zustand на вопрос «касается ли меня изменение» отвечает селектор — после каждого изменения, у каждого подписчика. Vue отвечает на него заранее, при чтении: рендер прочитал `store.count` — значит, он записан в подписчики `count`. Лишних проверок после записи нет. Запись в `user.name` не будит ни `Counter`, ни `Summary`, и ни одной функции, похожей на селектор, при этом не вызывается.';
+  'В Zustand на вопрос «касается ли меня изменение» отвечает селектор — после каждого изменения, у каждого подписчика. Vue отвечает на него заранее, при чтении: рендер прочитал `store.count` — значит, он записан в подписчики `count`. Зависимости позволяют отсеять незаинтересованные эффекты до их выполнения; проверка изменения значения и работа планировщика при этом остаются. Запись в `user.name` не будит ни `Counter`, ни `Summary`, и ни одной функции, похожей на селектор, при этом не вызывается.';
 
 export const PINIA_COMPONENTS = [
   { k: '`Counter`', sel: '`store.count`' },
@@ -467,7 +469,7 @@ export const PINIA_FACTS: { t: string; d: string; tone?: 'warn' | 'err' | 'ok' }
   },
   {
     t: 'Три записи — один рендер',
-    d: 'Рендеры компонентов встают в очередь и выполняются после текущего кода. Сколько бы записей ни было, компонент перерисуется один раз. Как устроена очередь, разобрано в [«Реактивности Vue», раздел «Планировщик»](/frameworks/vue-reactivity/#s3).',
+    d: 'Рендеры компонентов встают в очередь и выполняются после текущего кода. Синхронные записи до одного сброса очереди объединяются в одно обновление компонента; записи из последующих задач могут дать новые обновления. Как устроена очередь, разобрано в [«Реактивности Vue», раздел «Планировщик»](/frameworks/vue-reactivity/#s3).',
   },
   {
     t: '`$subscribe` — для кода вне компонентов',
@@ -552,7 +554,7 @@ export const LAB_LOOP_NOTE =
   'Этот селектор на одном и том же состоянии возвращает разные объекты. Здесь он даёт лишний рендер на каждое уведомление, а в React с `useSyncExternalStore` — бесконечный цикл.';
 
 export const DEMO_CAPTION =
-  'Сравните «то же число» в разных режимах. Без селектора перерисуются все трое: стор собрал новый объект состояния. С селектором — только `Summary`, чей селектор каждый раз строит новый объект; `shallow` убирает и его. В режиме Pinia та же запись не будит никого и не вызывает ни одной проверки. Рендеры и проверки считают `createStore`, `subscribeSelector`, `shallow` и `defineStore`, напечатанные в разделах выше.';
+  'Сравните «то же число» в разных режимах. Без селектора перерисуются все трое: стор собрал новый объект состояния. С селектором — только `Summary`, чей селектор каждый раз строит новый объект; `shallow` убирает и его. В режиме Pinia запись того же числа не планирует новый рендер: Vue сравнил значение при записи. Рендеры и проверки считают `createStore`, `subscribeSelector`, `shallow` и `defineStore`, напечатанные в разделах выше.';
 
 export const COMPARE = {
   head: ['', 'Redux', 'Zustand', 'Pinia'],
@@ -662,3 +664,114 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [React изнутри: хуки и контекст, раздел «Внешний стор»](/frameworks/react-hooks-internals/#s6) — как устроен `useSyncExternalStore` и почему без него экран рвётся. [Ре-рендеринг в React, раздел «Мемоизация»](/frameworks/react-rerender/#s5) — `memo` и сравнение через `Object.is`. [Реактивность Vue, раздел «Граф»](/frameworks/vue-reactivity/#s2) — откуда Vue знает, кто что прочитал. [Vue 3 изнутри: watch, effectScope и computed 3.5, раздел «effectScope»](/frameworks/vue-watch-internals/#s4) — область, в которой Pinia держит эффекты стора. [Сигналы](/frameworks/signals/) — значение, которое само помнит читателей: та же идея, что у Pinia, без компонентов. [Кеш данных на клиенте](/frameworks/data-cache/) — серверное состояние в кеше по ключу: устаревание, дедупликация, инвалидация после мутации. [Внедрение зависимостей](/frameworks/dependency-injection/) — `provide`/`inject` во Vue, контекст React и иерархия инжекторов Angular. [Отмена и повтор](/algorithms/undo-redo/) — две стопки, снимки и обратные правки, группировка и история `<textarea>`.';
+
+
+/** Предметная схема: границы и условия из сквозного примера темы. */
+export const STORE_NOTIFICATION_DIAGRAM: ConceptDiagramData = {
+  "id": "store-notify-versus-render",
+  "title": "Новый объект состояния ещё не означает новое число для Counter",
+  "description": "В Zustand объектная запись с прежним count создаёт новый корень и уведомляет подписчиков. Дальше React сравнивает снимок каждого читателя: Counter может пропустить рендер, Whole — нет.",
+  "width": 1100,
+  "height": 580,
+  "nodes": [
+    {
+      "id": "set",
+      "x": 20,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "set({ count: 1 })",
+      "detail": "До записи count уже был равен 1. Обновление возвращает новый частичный объект.",
+      "tone": "info"
+    },
+    {
+      "id": "root",
+      "x": 400,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "Новый корень состояния",
+      "detail": "Слияние создало другой объект. Проверка ссылки самого стора пропускает уведомление.",
+      "tone": "warn"
+    },
+    {
+      "id": "notify",
+      "x": 780,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "Уведомление подписчиков",
+      "detail": "React проверяет getSnapshot для каждого читателя внешнего стора.",
+      "tone": "neutral"
+    },
+    {
+      "id": "stop",
+      "x": 20,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "Counter не обновляется",
+      "detail": "Object.is(1, 1) = true. Снимок для Counter не изменился.",
+      "tone": "ok"
+    },
+    {
+      "id": "counter",
+      "x": 400,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "Counter: s => s.count",
+      "detail": "Селектор снова вернул 1, хотя корень состояния другой.",
+      "tone": "info"
+    },
+    {
+      "id": "whole",
+      "x": 780,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "Whole: s => s",
+      "detail": "Снимок — новый корень. Сравнение ссылок даёт false, React планирует обновление.",
+      "tone": "warn"
+    }
+  ],
+  "edges": [
+    {
+      "from": "set",
+      "to": "root"
+    },
+    {
+      "from": "root",
+      "to": "notify"
+    },
+    {
+      "from": "notify",
+      "to": "whole",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "notify",
+      "to": "counter",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          930,
+          285
+        ],
+        [
+          550,
+          285
+        ]
+      ]
+    },
+    {
+      "from": "counter",
+      "to": "stop",
+      "fromSide": "left",
+      "toSide": "right"
+    }
+  ],
+  "note": "Схема соответствует строке «то же число» в таблице рендеров. В Pinia отбор зависимых эффектов организует Vue; это другой путь, рассмотренный в «Pinia: зависимости собирает Vue»."
+};

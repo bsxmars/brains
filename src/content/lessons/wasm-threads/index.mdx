@@ -2,7 +2,7 @@
 title: "WebAssembly: память, потоки и граница с JS"
 headingWidth: 24
 order: 22
-lead: "WebAssembly можно вызывать из JavaScript, но на границе действуют другие типы и правила памяти. Число может обрезаться до i32, строку часто передают как адрес и длину, а рост памяти меняет доступные виды на буфер. Параллельный расчёт строят из воркеров, отдельных экземпляров модуля и общей памяти с атомарными операциями."
+lead: "WebAssembly можно вызывать из JavaScript, но на границе действуют другие типы и правила памяти. Например, `i32` — целое число из 32 бит: при передаче в такой параметр число `42.9` станет `42`, а у слишком большого числа останутся только младшие 32 бита. Строку часто передают как адрес и длину, а рост памяти меняет доступные виды на буфер. Параллельный расчёт строят из воркеров, отдельных экземпляров модуля и общей памяти с атомарными операциями."
 summary: "Модуль и экземпляр по байтам, импорты и экспорты, линейная память, её рост и отсоединение буфера, таблицы; что происходит с числами и строками на границе с JS; общая память, атомарные инструкции и потоки на воркерах — живыми в Node и с точной ошибкой в неизолированном браузере; SIMD и что делают wasm-bindgen и Emscripten."
 verifiedOn: "Node 26.8.2 (V8 14.6): все модули собраны вручную байтами и исполнены тестом, потоки — два worker_threads на одной общей памяти. Chromium 153.0.8010.12 через Playwright 1.63 — страница без изоляции и с COOP/COEP на http://localhost. Без таймерных замеров. wasm-bindgen и Emscripten — по документации, без запуска"
 nav:
@@ -12,6 +12,7 @@ nav:
   - { id: s4, label: Общая память и потоки }
   - { id: s5, label: SIMD и инструменты }
   - { id: s6, label: Тонкие места }
+  - { id: practice, label: Где применять }
   - { id: s7, label: Источники }
 ---
 
@@ -27,10 +28,13 @@ import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
+import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import WasmBytes from '@/widgets/wasm-bytes/ui/WasmBytes.vue';
 import WasmBoundaryCheck from '@/widgets/wasm-bytes/ui/WasmBoundaryCheck.vue';
 import WasmSharedProbe from '@/widgets/wasm-bytes/ui/WasmSharedProbe.vue';
 import {
+  ADD_WAT,
+  BROWSER_USE_CASES, NODE_USE_CASES, WASM_DECISION,
   ATOMICS_NOTE,
   BOUNDARY_BYTES,
   BOUNDARY_BYTES_CODE, BOUNDARY_SETUP_CODE,
@@ -125,19 +129,23 @@ import {
   экспорт `upper` сможет вызвать её, когда закончит обработку строки в памяти.
   Другой экземпляр того же модуля может получить другой обработчик `report`.
 
-<Disclosure title="Текст модуля WAT и устройство его секций">
+<Disclosure title="Как читать инструкции Wasm: короткая функция add">
 
-  <Card title="Учебный модуль в текстовом виде" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-    <CodeBlock code={MODULE_WAT} lang="wasm" size={10.5} lh={1.6} pad="14px 16px" />
-  </Card>
+  <CodeBlock code={ADD_WAT} lang="wasm" />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6} text={WAT_NOTE} />
 
   <Card pad="15px 17px" radius={4} size={15.5} lh={1.6} text={SECTION_ORDER_NOTE} />
 
+  <p><a href={`data:text/plain;charset=utf-8,${encodeURIComponent(MODULE_WAT)}`} download="lesson-module.wat">Скачать полный исходник модуля (.wat)</a></p>
+
 </Disclosure>
 
   ### Разбор по байтам
+
+  Первые восемь байтов — заголовок файла. `00 61 73 6d` — сигнатура WebAssembly:
+  нулевой байт и буквы `asm`. Она позволяет распознать формат. Следующие
+  `01 00 00 00` — номер версии бинарного формата, то есть `1`, записанная четырьмя байтами.
 
   <Card tone="dim" color="tone" pad="15px 17px" radius={4} size={15.5} lh={1.6} text={DEMO_NOTE} />
 
@@ -369,10 +377,36 @@ import {
   <Pitfalls items={PITFALLS.filter((p) => ['04', '08', '10'].includes(p.n))} />
 </Section>
 
+<Section id="practice" eyebrow="Применение" title="Где WebAssembly нужен на практике"
+  lead="Wasm полезен, когда приложению нужно готовое вычислительное ядро или один алгоритм в разных средах. Интерфейс, сеть и хранение всё равно связывает окружающий код.">
+
+  ### В браузере
+
+  <CardGrid min={290} gap={14} align="start">
+    {BROWSER_USE_CASES.map((item) => (
+      <Card title={item.title} pad={20} gap={12} text={item.text} />
+    ))}
+  </CardGrid>
+
+  ### В Node.js
+
+  <CardGrid min={290} gap={14} align="start">
+    {NODE_USE_CASES.map((item) => (
+      <Card title={item.title} pad={20} gap={12} text={item.text} />
+    ))}
+  </CardGrid>
+
+  ### Когда переход оправдан
+
+  <NumberedList items={WASM_DECISION} />
+</Section>
+
 <Section id="s7" eyebrow="Раздел 7" title="Источники">
   <CardGrid min={280} gap={14} align="start">
     {SOURCES.map((item) => (
-      <Card label={item.t} labelSize={12.5} pad={18} radius={4} gap={9} size={15} lh={1.6} text={item.d} />
+      <Card pad={18} radius={4} gap={9}>
+        <SourceList items={[item]} />
+      </Card>
 
     ))}
 

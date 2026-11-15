@@ -2,7 +2,7 @@
 title: "Vue 3 изнутри: watch, effectScope и computed 3.5"
 order: 13
 kicker: фреймворки изнутри
-lead: "`watch` — эффект, который сравнивает старое и новое значение и откладывает колбэк в очередь. `effectScope` — список эффектов, которые останавливаются одним `stop`. `computed` в 3.5 узнаёт, изменилось ли что-то, по номерам версий, ничего не пересчитывая. Упрощённая копия этих механизмов работает на странице, а тест сверяет её с настоящим Vue 3.5."
+lead: "Пользователь допечатал запрос, а старый ответ пришёл позже нового. Watcher должен запустить очистку предыдущего действия; при уходе компонента — остановиться сам. Watch, области эффектов и версии computed решают разные части этой задачи: когда действовать, кто отвечает за остановку и где можно пропустить пересчёт."
 summary: "`watch` с `deep`, `once` и `onCleanup`, режимы `flush`, дерево `effectScope` и `computed` на версиях и узлах `Link` — мини-реализация в демо, сверенная тестом с `@vue/runtime-core` 3.5 в обеих сборках."
 verifiedOn: Vue 3.5.42 · Node 26.8.2
 nav:
@@ -24,6 +24,8 @@ import CodeBlock from '@/shared/ui/CodeBlock.astro';
 import Section from '@/shared/ui/Section.astro';
 import Table from '@/shared/ui/Table.astro';
 import Plain from '@/shared/ui/Plain.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
 import Pitfalls from '@/widgets/pitfalls/ui/Pitfalls.astro';
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
@@ -33,7 +35,7 @@ import ComputedChain from '@/widgets/mini-watch/ui/ComputedChain.vue';
 import {
   MINI_WATCH_CODE, STEP_SCOPE, STEP_LINK, STEP_EFFECT, STEP_SOURCES, STEP_COMPUTED, STEP_WATCH, STEP_QUEUE,
   INTRO_NOTE, PLAIN_INTRO, GLOSSARY, PLAIN_WATCH, SOURCES_CODE, SOURCES_HEAD, SOURCES_ROWS, WATCH_NOTE, DEEP_CODE, TRAVERSE_NOTE, COST_NOTE, OPTIONS_FACTS,
-  PLAIN_CLEANUP, CLEANUP_ORDER_CODE, CLEANUP_NOTE, RACE_NAIVE_CODE, RACE_CODE, RACE_STEPS, RACE_NOTE,
+  PLAIN_CLEANUP, CLEANUP_RACE_DIAGRAM, CLEANUP_ORDER_CODE, CLEANUP_NOTE, RACE_NAIVE_CODE, RACE_CODE, RACE_STEPS, RACE_NOTE,
   FLUSH_LEAD, FLUSH_CODE, FLUSH_NOTE, SSR_NOTE, EFFECT_VS_WATCH_HEAD, EFFECT_VS_WATCH_ROWS,
   PLAIN_SCOPE, SCOPE_CODE, SCOPE_NOTE, COMPONENT_NOTE, SCOPE_NODE_CODE, SCOPE_DEMO_NOTE, SCOPE_COMPUTED_CODE, SCOPE_COMPUTED_NOTE, PAUSE_CODE, PAUSE_NOTE,
   PLAIN_VERSIONS, LINK_SHAPE, LINK_NOTE, REFRESH_FACTS, DIRTY_ONLY_PATCH, DIRTY_ONLY_HEAD, DIRTY_ONLY_ROWS, DIRTY_ONLY_NOTE, CHAIN, CHAIN_DEMO_NOTE,
@@ -57,7 +59,7 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="`watch` поверх эффекта"
-  lead="Обычный эффект перезапускается после каждой записи в то, что он прочитал, и не помнит прошлого значения. Для побочных действий — запроса, записи в хранилище — нужно другое: реагировать, только если значение правда изменилось, и получать старое значение рядом с новым. Это и делает `watch`. Из источника он строит геттер, из геттера — эффект, а эффекту даёт `scheduler`, который ставит задание в очередь. Задание перечитывает источник, сравнивает результат со старым значением и только тогда зовёт колбэк. Все отличия `watch` от обычного эффекта — в этом задании и в том, как построен геттер."
+  lead="Watch отделяет чтение источника от побочного действия. Эффект выполняет геттер и собирает зависимости. Планировщик выбирает момент проверки. Задание перечитывает источник и решает, нужен ли колбэк: по сравнению значений либо принудительно для deep-источника. Чтения внутри колбэка новых зависимостей не создают."
 >
   <Plain text={PLAIN_WATCH} />
 
@@ -106,6 +108,8 @@ import {
 >
   <Plain text={PLAIN_CLEANUP} />
 
+  <ConceptDiagram data={CLEANUP_RACE_DIAGRAM} />
+
   <Card title="Когда вызывается очистка" titleSize={16.5} pad={18} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={CLEANUP_ORDER_CODE} />
 
@@ -113,6 +117,14 @@ import {
   </Card>
 
   ### Гонка вживую
+
+  <CodeBlock code={RACE_CODE} />
+
+  <Disclosure title="Тот же запрос без защиты от устаревшего ответа">
+
+    <CodeBlock code={RACE_NAIVE_CODE} />
+
+  </Disclosure>
 
   <RaceLab client:visible code={MINI_WATCH_CODE} naive={RACE_NAIVE_CODE} fixed={RACE_CODE} steps={RACE_STEPS} note={RACE_NOTE} />
 </Section>
@@ -164,6 +176,12 @@ import {
 
   ### Дерево областей вживую
 
+  <Disclosure title="Как создаётся каждый узел дерева областей">
+
+    <CodeBlock code={SCOPE_NODE_CODE} />
+
+  </Disclosure>
+
   <ScopeTree client:visible code={MINI_WATCH_CODE} nodeCode={SCOPE_NODE_CODE} note={SCOPE_DEMO_NOTE} />
 
   ### Чего область не касается
@@ -199,11 +217,15 @@ import {
 
   <Card tone="ok" color="tone" pad="15px 17px" radius={4} size={16} lh={1.6} text={LINK_NOTE} />
 
+  <Disclosure title="Исходник эффекта, ref и reactive на узлах Link">
+
   ### Эффект и источники на тех же связях
 
   <CodeBlock code={STEP_EFFECT} />
 
   <CodeBlock code={STEP_SOURCES} />
+
+  </Disclosure>
 
   ### `refreshComputed`
 
@@ -222,8 +244,6 @@ import {
   <CodeBlock code={REFRESH_SCENE_CODE} size={12} lh={1.7} pad="14px 16px" />
 
   <Md text={REFRESH_SCENE_NOTE} />
-
-  Та же запись по шагам — как её обрабатывает Vue 3.5 с версиями.
 
   <CardGrid min={290} gap={14} align="start">
     {REFRESH_STEPS.map((b) => (
@@ -281,7 +301,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Мини-версия против Vue 3.5"
-  lead="На всех примерах этой темы мини-версия и Vue печатают одно и то же. Различаются скорость отдельных операций и то, что настоящая реализация умеет сверх показанного."
+  lead="На сценариях watch, очистки, областей и цепочки computed журналы мини-версии сверены с Vue 3.5 в обеих сборках. Пауза областей и серверное поведение проверяются только на настоящем Vue: этих механизмов в мини-версии нет."
 >
   <Table
     head={REAL_HEAD}

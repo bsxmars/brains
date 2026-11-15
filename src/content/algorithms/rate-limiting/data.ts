@@ -1,7 +1,12 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { EventSequence } from '@/widgets/debounce-throttle/model/types';
 import type { RateCode, TapePreset } from '@/widgets/rate-lab/model/types';
 
+/** Редакция 14.11.2026: схема механизма и практические сценарии.
+ * Новые крайние случаи исполняются из канонических строк в тесте темы на официальном Node 26.8.2.
+ * Исторические версии и замеры ниже сохранены с исходными датами.
+ */
 /**
  * Данные темы «Debounce, throttle и token bucket: бюджет событий во времени».
  *
@@ -60,7 +65,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     k: '`maxWait`',
-    d: 'Потолок ожидания у debounce: сколько бы событий ни шло подряд, функция будет вызвана не позже чем через `maxWait` после прошлого вызова.',
+    d: 'Предел откладывания при непрерывных событиях: debounce пытается вызвать функцию после maxWait с прошлого вызова. Занятый поток и задержка таймера могут сдвинуть реальное выполнение; maxWait не даёт гарантии по настенным часам.',
   },
   {
     k: 'rate и burst',
@@ -275,7 +280,7 @@ function debounce(fn, wait, options = {}, clock) {
 }`;
 
 export const DEBOUNCE_NOTE =
-  'Обёртка помнит два момента: `lastCall` — когда её звали последний раз, и `lastInvoke` — когда последний раз звали саму `fn`. Решение «пора» принимает одна функция `due`: либо прошла тишина длиной `wait`, либо с прошлого вызова прошло `maxWait`. Таймер при этом **не переставляют на каждом событии**: он просыпается, смотрит на `lastCall` и, если события шли, засыпает на остаток. На ровном потоке из 40 событий раз в 100 мс lodash ставит 21 таймер, а не 40.';
+  'Учебный код воспроизводит моменты вызовов lodash на монотонных виртуальных часах. Сохранение this, возвращаемого результата, cancel и flush здесь опущено; для приложения это отдельные требования. Обёртка помнит два момента: `lastCall` — когда её звали последний раз, и `lastInvoke` — когда последний раз звали саму `fn`. Решение «пора» принимает одна функция `due`: либо прошла тишина длиной `wait`, либо с прошлого вызова прошло `maxWait`. Таймер при этом **не переставляют на каждом событии**: он просыпается, смотрит на `lastCall` и, если события шли, засыпает на остаток. На ровном потоке из 40 событий раз в 100 мс lodash ставит 21 таймер, а не 40.';
 
 export const STEADY_TIMERS = 21;
 
@@ -780,3 +785,122 @@ export const RATE_CODE: RateCode = {
   log: SLIDING_LOG_CODE,
   counter: SLIDING_COUNTER_CODE,
 };
+
+/** Механизм и практические границы; поведение канонических примеров проверяют тесты темы. */
+export const MECHANISM_DIAGRAM: ConceptDiagramData = {
+  "id": "rate-limiting-mechanism",
+  "title": "Debounce не защищает от старого ответа",
+  "description": "Пауза сокращает число запросов. Отдельный номер версии связывает ответ с актуальным вводом; менять его нужно сразу при новом событии, ещё до следующего запроса.",
+  "width": 700,
+  "height": 640,
+  "nodes": [
+    {
+      "id": "input",
+      "x": 20,
+      "y": 20,
+      "width": 260,
+      "height": 260,
+      "label": "Изменился запрос",
+      "detail": "Сразу увеличить версию и отменить предыдущий запрос.",
+      "tone": "info"
+    },
+    {
+      "id": "delay",
+      "x": 420,
+      "y": 20,
+      "width": 260,
+      "height": 260,
+      "label": "Пауза debounce",
+      "detail": "Если ввод продолжается, откладывается запуск нового запроса.",
+      "tone": "neutral"
+    },
+    {
+      "id": "request",
+      "x": 420,
+      "y": 360,
+      "width": 260,
+      "height": 260,
+      "label": "Ответ сервера",
+      "detail": "Промис может завершиться после нового ввода, даже если пытались вызвать abort().",
+      "tone": "warn"
+    },
+    {
+      "id": "publish",
+      "x": 20,
+      "y": 360,
+      "width": 260,
+      "height": 260,
+      "label": "Проверка версии",
+      "detail": "Показывать результат только для текущей версии и неотменённого сигнала.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "from": "input",
+      "to": "delay"
+    },
+    {
+      "from": "delay",
+      "to": "request",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "request",
+      "to": "publish",
+      "fromSide": "left",
+      "toSide": "right"
+    }
+  ]
+};
+
+export const PRACTICE_CARDS = [
+  {
+    "t": "Подсказки поиска",
+    "d": "Debounce уменьшает число запросов, но старый запрос уже мог уйти. Номер поколения и AbortController решают две разные задачи: первый запрещает устаревшему ответу менять экран, второй старается прекратить лишнюю работу."
+  },
+  {
+    "t": "Сохранение документа",
+    "d": "Debounce подходит для отправки последнего состояния после паузы. При непрерывном вводе нужен maxWait, а при закрытии редактора — явная политика flush или отдельное сохранение. Отложить вызов не означает надёжно сохранить изменения при закрытии вкладки."
+  },
+  {
+    "t": "Загрузка и API в Node",
+    "d": "Token bucket допускает короткий всплеск до burst и ограничивает среднюю скорость. Ограничение числа одновременно выполняемых запросов задаётся отдельно: медленные ответы могут накопить много работы даже при малом числе стартов в секунду."
+  }
+];
+
+/** Тест задерживает ответы независимо от AbortSignal: поколение нужно и при неработающей отмене. */
+export const AUTOCOMPLETE_CODE = `function createAutocomplete(request, show, onError, clock, wait = 300) {
+  let generation = 0;
+  let active = null;
+  let closed = false;
+  const run = debounce(async (query, version) => {
+    if (closed || version !== generation) return;
+    const controller = new AbortController();
+    active = controller;
+    try {
+      const result = await request(query, controller.signal);
+      if (!closed && version === generation && !controller.signal.aborted) show(result);
+    } catch (error) {
+      if (!closed && version === generation && !controller.signal.aborted) onError(error);
+    } finally {
+      if (active === controller) active = null;
+    }
+  }, wait, {}, clock);
+
+  return {
+    input(query) {
+      if (closed) return;
+      generation++;                      // сразу, ещё до следующего запроса
+      active?.abort();
+      run(query, generation);
+    },
+    dispose() {
+      closed = true;
+      generation++;
+      active?.abort();
+      // Отложенный callback ещё может проснуться, но не начнёт запрос.
+    },
+  };
+}`;

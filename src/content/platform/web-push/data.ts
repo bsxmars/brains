@@ -1,3 +1,9 @@
+/**
+ * Уточнения 2026-11-12: VAPID подписывает JWT для push-сервиса,
+ * содержимое сообщения защищает отдельное шифрование RFC 8291. Механизмы
+ * сверяются независимо в web-push.test.ts с web-push и векторами RFC.
+ */
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { PushMode } from '@/widgets/push-lab/model/types';
 
@@ -762,3 +768,92 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Сеть и кеширование, раздел «Service Worker»](/platform/network/#s5) — регистрация, жизненный цикл и обновление Service Worker. [Аутентификация, раздел «Подпись JWT»](/platform/authentication/#s2) — устройство и проверка JWT. [Passkeys и WebAuthn, раздел «Вход и подпись»](/platform/passkeys/#s3) — ECDSA P-256, DER и r‖s на `crypto.subtle`. [Долгие соединения](/platform/realtime/#s1) — WebSocket и SSE, когда вкладка открыта. [Хранилища браузера](/platform/browser-storage/) — где Service Worker держит данные между пробуждениями.';
+
+export const PUSH_TRUST_DIAGRAM: ConceptDiagramData = {
+  "id": "push-two-key-purposes",
+  "title": "Удостоверение отправителя и защита содержимого — разные задачи",
+  "description": "Push-сервис проверяет VAPID JWT, но зашифрованный текст предназначен браузеру. У двух механизмов разные ключи и разные получатели.",
+  "width": 890,
+  "height": 560,
+  "nodes": [
+    {
+      "id": "vapid",
+      "x": 0,
+      "y": 10,
+      "width": 250,
+      "height": 220,
+      "label": "Ключи VAPID сервера",
+      "detail": "Сервер подписывает JWT своим закрытым ключом. Это не ключ шифрования сообщения.",
+      "tone": "info"
+    },
+    {
+      "id": "jwt",
+      "x": 320,
+      "y": 10,
+      "width": 250,
+      "height": 220,
+      "label": "JWT в Authorization",
+      "detail": "aud называет push-сервис, exp ограничивает срок токена. Содержимое сообщения сюда не входит.",
+      "tone": "neutral"
+    },
+    {
+      "id": "service",
+      "x": 640,
+      "y": 10,
+      "width": 250,
+      "height": 220,
+      "label": "Проверка push-сервисом",
+      "detail": "Сервис сверяет подпись и ключ, связанный с подпиской, затем принимает запрос.",
+      "tone": "warn"
+    },
+    {
+      "id": "sub",
+      "x": 0,
+      "y": 340,
+      "width": 250,
+      "height": 220,
+      "label": "Секреты подписки",
+      "detail": "Сервер получает открытый p256dh и auth. Закрытый ключ получателя остаётся у браузера.",
+      "tone": "info"
+    },
+    {
+      "id": "body",
+      "x": 320,
+      "y": 340,
+      "width": 250,
+      "height": 220,
+      "label": "Зашифрованное тело",
+      "detail": "ECDH и HKDF выводят ключ сообщения; AES-GCM защищает текст и его целостность.",
+      "tone": "neutral"
+    },
+    {
+      "id": "browser",
+      "x": 640,
+      "y": 340,
+      "width": 250,
+      "height": 220,
+      "label": "Расшифровка браузером",
+      "detail": "Посредник передаёт тело, а браузер расшифровывает его и доставляет данные Service Worker.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "to": "jwt",
+      "from": "vapid"
+    },
+    {
+      "to": "service",
+      "from": "jwt"
+    },
+    {
+      "to": "body",
+      "from": "sub"
+    },
+    {
+      "to": "browser",
+      "from": "body"
+    }
+  ],
+  "note": "Два пути сходятся в одном HTTP-запросе к endpoint. Успешный ответ push-сервиса ещё не доказывает доставку уведомления на экран."
+};

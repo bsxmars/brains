@@ -46,6 +46,37 @@ async function openPglite() {
 }
 
 describe('модель шаг в шаг совпадает с журналами Redis 7.4 + PGlite', () => {
+  it('claim сохраняет stream ID, новая публикация того же event_id получает другой ID', async () => {
+    const clock = { now: 0 };
+    const broker = model.createBroker(clock);
+    await broker.call('XGROUP', 'CREATE', 'events', 'bonus', '$', 'MKSTREAM');
+    const first = await broker.call('XADD', 'events', '*', 'event', 'o-1');
+    await broker.call('XREADGROUP', 'GROUP', 'bonus', 'w1', 'COUNT', '1', 'STREAMS', 'events', '>');
+    clock.now = 1000;
+    const claimed = await broker.call('XAUTOCLAIM', 'events', 'bonus', 'w2', '500', '0-0', 'COUNT', '1');
+    expect(claimed).toEqual(['0-0', [[first, ['event', 'o-1']]], []]);
+    const publishedAgain = await broker.call('XADD', 'events', '*', 'event', 'o-1');
+    expect(publishedAgain).not.toBe(first);
+    expect(t.KEY_NOTE).toContain('stream ID сохраняется');
+  });
+
+  it('версия переставляет полные состояния, но пропуск старой дельты теряет начисление', async () => {
+    const pg = new PGlite();
+    await pg.exec(t.VERSION_STATE_SCHEMA);
+    for (const events of [[['paid', 1], ['cancelled', 2]], [['cancelled', 2], ['paid', 1]]] as const) {
+      await pg.exec("UPDATE order_projection SET status = 'new', version = 0");
+      for (const [status, version] of events) await pg.query(t.VERSION_STATE_UPDATE, ['o-1', status, version]);
+      expect((await pg.query('SELECT status, version FROM order_projection')).rows).toEqual([{ status: 'cancelled', version: 2 }]);
+    }
+    // Наивная замена snapshot на delta в том же условии уже неверна: v1 пропущена.
+    await pg.exec('ALTER TABLE order_projection ADD COLUMN points int NOT NULL DEFAULT 0');
+    await pg.exec('UPDATE order_projection SET version = 0');
+    for (const version of [2, 1]) await pg.query('UPDATE order_projection SET points = points + 10, version = $1 WHERE version < $1', [version]);
+    expect((await pg.query('SELECT points FROM order_projection')).rows).toEqual([{ points: 10 }]);
+    expect(t.ORDER_ROWS.find((row) => row.k === 'версия в событии')!.cost).toContain('полное состояние');
+    await pg.close();
+  });
+
   for (const sc of t.SCENARIOS) {
     it(sc.id, async () => {
       const r = await model.runSchedule(modelEnv(model).env, sc.schedule, sc.variant, sc.crash);

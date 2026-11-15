@@ -46,6 +46,7 @@ async function site<T>(
   browser: Browser,
   pages: Record<string, string>,
   fn: (page: Page, hits: string[]) => Promise<T>,
+  headersByUrl: Record<string, Record<string, string>> = {},
 ): Promise<T> {
   const ctx = await browser.newContext();
   const hits: string[] = [];
@@ -55,7 +56,7 @@ async function site<T>(
     hits.push(key);
     const body = pages[key];
     if (body === undefined) return route.fulfill({ status: 404, body: 'нет' });
-    return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body });
+    return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body, headers: headersByUrl[key] });
   });
   const page = await ctx.newPage();
   try {
@@ -107,6 +108,8 @@ describe.each(ENGINES)('%s', (engine) => {
         expect(hits).not.toContain('https://widget.example/lazy');
         await page.evaluate(() => document.querySelector('iframe')!.scrollIntoView());
         await expect.poll(() => hits.includes('https://widget.example/lazy'), { timeout: 5000 }).toBe(true);
+        // Это стенд с отступом 6000px, не гарантия ждать появления iframe на экране.
+        expect(t.EMBED_FACTS.find((fact) => fact.t.includes('lazy'))?.d).toContain('может начать загрузку заранее');
       });
     });
   });
@@ -419,6 +422,20 @@ describe.each(ENGINES)('%s', (engine) => {
   });
 
   describe('«Права фрейма»', () => {
+    it('Permissions-Policy родителя: Chromium применяет fullscreen=(), Firefox/WebKit стенда — нет', async () => {
+      const pages = {
+        [SHOP]: doc('<iframe src="https://widget.example/" allow="fullscreen"></iframe>'),
+        [WIDGET]: doc('<script>parent.postMessage(document.fullscreenEnabled, "*")</script>'),
+      };
+      await site(b(), pages, async (page) => {
+        await page.goto(SHOP);
+        await expect.poll(() => page.evaluate(() => (window as unknown as { msgs: [string, boolean][] }).msgs.length)).toBe(1);
+        expect(await page.evaluate(() => (window as unknown as { msgs: [string, boolean][] }).msgs[0][1])).toBe(engine !== 'chromium');
+        expect(t.PLAIN_ALLOW).toContain('не расширяет запрет в Permissions-Policy');
+        expect(t.FULLSCREEN_HEADER_NOTE).toContain('true` в Firefox 155 и WebKit 26.6');
+      }, { [SHOP]: { 'Permissions-Policy': 'fullscreen=()' } });
+    });
+
     it('FULLSCREEN_ROWS: document.fullscreenEnabled внутри фрейма', async () => {
       const report = '<script>parent.postMessage(document.fullscreenEnabled, "*")</script>';
       const cases: [string, string][] = [
@@ -484,6 +501,33 @@ describe.each(ENGINES)('%s', (engine) => {
   });
 
   describe('«Высота по содержимому»', () => {
+    it('RESIZE_PARENT_CODE: отвергает неверную высоту даже от правильного виджета', async () => {
+      const pages = {
+        [SHOP]: doc(`<iframe id="chat" src="https://widget.example/chat"></iframe><iframe src="https://evil.example/"></iframe><script>${t.RESIZE_PARENT_CODE}</script>`),
+        'https://widget.example/chat': doc('виджет'),
+        [EVIL]: doc('чужой'),
+      };
+      await site(b(), pages, async (page) => {
+        await page.goto(SHOP);
+        await page.waitForLoadState('load');
+        const chat = page.frames().find((frame) => frame.url().includes('widget.example'))!;
+        await chat.evaluate(() => {
+          parent.postMessage({ type: 'resize', height: 320.2 }, 'https://shop.example');
+          for (const height of ['999', -1, 10_001, NaN, Infinity, null]) {
+            parent.postMessage({ type: 'resize', height }, 'https://shop.example');
+          }
+          parent.postMessage({ type: 'resize-test-done' }, 'https://shop.example');
+        });
+        await expect.poll(() => page.evaluate(() => (window as unknown as { msgs: [string, { type: string }][] }).msgs.some(([, data]) => data.type === 'resize-test-done'))).toBe(true);
+        const height = () => page.evaluate(() => document.querySelector<HTMLIFrameElement>('#chat')!.style.height);
+        expect(await height()).toBe('321px');
+        const evil = page.frames().find((frame) => frame.url().includes('evil.example'))!;
+        await evil.evaluate(() => parent.postMessage({ type: 'resize', height: 999 }, 'https://shop.example'));
+        await expect.poll(() => page.evaluate(() => (window as unknown as { msgs: [string, unknown][] }).msgs.some(([origin]) => origin === 'https://evil.example'))).toBe(true);
+        expect(await height()).toBe('321px');
+      });
+    });
+
     it('RESIZE_*_CODE: высота растёт с содержимым и сжимается обратно, полосы прокрутки нет', async () => {
       const pages = {
         [SHOP]: doc(`<iframe id="chat" src="https://widget.example/chat"></iframe><script>${t.RESIZE_PARENT_CODE}</script>`),

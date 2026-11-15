@@ -17,7 +17,6 @@ import DemoFrame from '@/shared/ui/DemoFrame.vue';
 import { SegmentedControl } from '@/shared/ui';
 import { runCycle } from '../model/run';
 import type { CycleRun, CycleVariant } from '../model/types';
-import CodeView from '@/shared/ui/CodeView.vue';
 
 const OPTIONS = [
   { value: 'fn' as const, label: 'function' },
@@ -53,13 +52,6 @@ const broken = computed(() => Boolean(current.value?.error));
       <div v-if="!current" class="empty">грузим модули настоящим import()…</div>
 
       <template v-else>
-        <div class="split">
-          <div v-for="file in current.sources" :key="file.name" class="pane">
-            <div class="t-label">{{ file.name }}</div>
-            <CodeView class="code" :code="file.code" />
-          </div>
-        </div>
-
         <div class="out">
           <div class="t-label">журнал: что тела модулей успели записать</div>
           <div class="screen" data-code>
@@ -102,16 +94,6 @@ const broken = computed(() => Boolean(current.value?.error));
         </div>
       </template>
     </div>
-
-    <template #footer>
-      <div class="disclaimer">
-        Оба модуля — обычные файлы в <code>public/demo/modules/</code>, их можно открыть по адресу
-        и сверить. Загружает их настоящий <code>import()</code> в вашем браузере, текст ошибки
-        приходит от движка. Blob-URL здесь не годится принципиально: адрес блоба появляется
-        только после создания блоба, а в цикле адрес каждого модуля обязан стоять внутри
-        другого. Те же файлы выполняет <code>tests/unit/modules.test.ts</code> в Node.
-      </div>
-    </template>
   </DemoFrame>
 </template>
 
@@ -137,26 +119,6 @@ const broken = computed(() => Boolean(current.value?.error));
   font-size: var(--fs-3);
   font-style: italic;
   color: var(--ghost);
-}
-
-.split {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
-  gap: 14px;
-}
-.pane {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  min-width: 0;
-}
-.code {
-  margin: 0;
-  padding: 13px 15px;
-  border-radius: var(--r2);
-  font-size: var(--fs-3);
-  line-height: 1.7;
-  overflow-x: auto;
 }
 
 .out {
@@ -251,9 +213,4 @@ const broken = computed(() => Boolean(current.value?.error));
   color: var(--ink);
 }
 
-.disclaimer {
-  font-size: var(--fs-5);
-  line-height: 1.55;
-  color: var(--text-muted);
-}
 </style>

@@ -1,0 +1,22 @@
+{
+  "checkedOn": "2026-11-14",
+  "release": "v1.7.0",
+  "projection": "metadata.annotations gateway.networking.k8s.io/channel from pinned official CRDs",
+  "resources": [
+    {
+      "kind": "TLSRoute",
+      "channel": "standard",
+      "source": "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.7.0/config/crd/standard/gateway.networking.k8s.io_tlsroutes.yaml"
+    },
+    {
+      "kind": "TCPRoute",
+      "channel": "standard",
+      "source": "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.7.0/config/crd/standard/gateway.networking.k8s.io_tcproutes.yaml"
+    },
+    {
+      "kind": "UDPRoute",
+      "channel": "standard",
+      "source": "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.7.0/config/crd/standard/gateway.networking.k8s.io_udproutes.yaml"
+    }
+  ]
+}

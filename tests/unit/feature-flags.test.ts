@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { InMemoryProvider, OpenFeature, type EvaluationContext } from '@openfeature/server-sdk';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -311,5 +312,31 @@ describe('модель демо', () => {
       ['off', 80],
     ]);
     expect(t.FLAG_CODE.split('\n').length).toBeLessThanOrEqual(75);
+  });
+});
+
+
+describe('решение схемы — тот же evaluate', () => {
+  it('сотрудник и страна обходят долю; отсутствие ключа возвращает default, а не случайную группу', () => {
+    const answers = t.DECISION_CASES.map((item) => api.evaluate('new-cart', FLAGS['new-cart'], item.context, false));
+    expect(answers).toEqual([
+      { value: true, variant: 'on', reason: 'TARGETING_MATCH' },
+      { value: false, variant: 'off', reason: 'TARGETING_MATCH' },
+      { value: false, reason: 'ERROR', errorCode: 'TARGETING_KEY_MISSING' },
+    ]);
+    expect(t.VS_WHY).toContain('делит запросы');
+    expect(t.VS_WHY).toContain('липкости');
+  });
+  it('источник вычислителя напечатан перед схемой и интерактивным демо', () => {
+    const mdx = readFileSync('src/content/delivery/feature-flags/index.mdx', 'utf8');
+    expect(mdx.indexOf('code={FLAG_CODE}')).toBeLessThan(mdx.indexOf('<FlagDecisionDiagram'));
+    expect(mdx.indexOf('code={FLAGS_CODE}')).toBeLessThan(mdx.indexOf('<FlagLab'));
+  });
+  it('удаление настройки может вернуть старому клиенту false после раскатки на 100%', () => {
+    const all = demoFlag(FLAGS['new-cart'], 100, false, false);
+    expect(api.evaluate('new-cart', all, { targetingKey: 'user-7' }, false).value).toBe(true);
+    expect(api.evaluate('new-cart', undefined, { targetingKey: 'user-7' }, false))
+      .toEqual({ value: false, reason: 'ERROR', errorCode: 'FLAG_NOT_FOUND' });
+    expect(t.DEBT_STEPS[2]).toContain('старых клиентов');
   });
 });

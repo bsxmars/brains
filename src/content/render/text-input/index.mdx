@@ -4,7 +4,7 @@ heading: "Ввод текста в браузере: события, IME и ав
 headingWidth: 24
 order: 17
 kicker: браузер и рендеринг
-lead: "Человек нажал клавишу — поле получило пять событий, и только одно из них позволяет не пустить букву в поле. Японское слово набирается так, что `preventDefault()` перестаёт работать. Автозаполнение меняет поле без единого нажатия, а `el.value = …` — без единого события."
+lead: "Клавиша, правка и новое значение — три разных события для кода формы. `beforeinput` позволяет остановить отменяемую правку, `input` сообщает результат. Набор через IME, автозаполнение и запись `value` из кода проходят по разным путям: фильтр по `keydown` их не заменяет."
 summary: "Порядок `keydown` → `keypress` → `beforeinput` → `input` → `keyup`, `inputType` и что отменяемо; `key` против `code` на русской раскладке, устаревшие `keyCode` и `keypress`; IME: `insertCompositionText`, неотменяемый `beforeinput`, Enter с `isComposing` и код 229; вставка и `clipboardData`, HTML в `contenteditable`; `el.value` без событий и без истории, `setRangeText`; автозаполнение — токены `autocomplete`, события без нажатий и `:autofill`; `contenteditable`, `execCommand` и `beforeinput`. Учебная модель поля сверена с журналами Chromium."
 verifiedOn: "Chromium 153.0.8010.12 (Playwright 1.63: headless shell и полный Chromium для автозаполнения), Node 24.11.0, macOS, октябрь 2026: журналы событий, вставка, история правок, contenteditable и автозаполнение сняты в Chromium и снимаются заново tests/unit/text-input.test.ts; модель simulateField сверена с журналами на всех сценариях. Раскладка и IME имитированы командами CDP; keyCode 229, Safari, менеджер паролей и one-time-code — по документации"
 nav:
@@ -20,6 +20,8 @@ nav:
   - { id: s10, label: Источники }
 ---
 
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -37,6 +39,7 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import InputLab from '@/widgets/input-lab/ui/InputLab.vue';
 import {
   GLOSSARY,
+  INPUT_EDIT_DIAGRAM,
   PLAIN_INPUT,
   STAND_RUNS,
   DEMO_SCENARIOS,
@@ -95,11 +98,6 @@ import {
 
   </Callout>
 
-  Кажется, что поле ввода — это просто строка, в которую падают буквы. На деле браузер
-  сообщает о каждой правке несколькими событиями: какая клавиша нажата, какую правку он
-  собирается сделать, что получилось. Отличить символ от вставки, недописанное японское слово
-  от готового и автозаполнение от набора можно только по этим событиям.
-
   <Plain text={PLAIN_INPUT} />
 
   <Glossary items={GLOSSARY} />
@@ -120,6 +118,8 @@ import {
   />
 
   <Md text={ORDER_NOTE} />
+
+  <ConceptDiagram data={INPUT_EDIT_DIAGRAM} />
 
   ### Чем правка была: `inputType`
 
@@ -158,13 +158,15 @@ import {
   Ctrl+X что-то вырежет, а Backspace в начале поля ничего не сотрёт. Вставку мышью через
   контекстное меню он не увидит вовсе — клавиш там нет. `beforeinput` знает правку: что вставится
   (`data`) и какого она рода (`inputType`), — и при этом приходит одинаково на клавиатуру,
-  вставку, перетаскивание и отмену. Фильтр «только цифры» ставят в `beforeinput`.
+  вставку, перетаскивание и отмену. Фильтр «только цифры» может отменять подходящие правки в `beforeinput`, если `event.cancelable` — `true`. При наборе через IME это условие не выполняется: итог проверяют после завершения композиции.
 
   ### Модель поля
 
-  Весь этот порядок можно записать функцией примерно на восемьдесят строк. Она берёт поле,
-  шаги и список событий, которые слушатель отменяет, и выдаёт журнал событий — такой же,
-  какой пишет Chromium.
+  Учебная `simulateField` принимает шаги и список отменяемых событий. Она вычисляет журнал для
+  ограниченного набора правок; это не внутренний код браузера. `watchField` отдельно записывает
+  события настоящего поля, в том числе с вашей раскладкой и методом ввода.
+
+<Disclosure title="Исходник учебной модели поля">
 
   <Card title="simulateField" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={SIM_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -173,6 +175,8 @@ import {
       <Md text={SIM_NOTE} />
     </CardNote>
   </Card>
+
+</Disclosure>
 
   <Card title="watchField — журнал настоящего поля" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={WATCH_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -371,7 +375,7 @@ import {
   id="s8"
   eyebrow="Раздел 8"
   title="contenteditable: `beforeinput` вместо `execCommand`"
-  lead="В `<input>` правка меняет строку. В `contenteditable` — дерево HTML: абзацы, переносы, теги жирного. Описывает правки тот же `beforeinput`, и отменить можно любую."
+  lead="В `<input>` правка меняет строку. В `contenteditable` — дерево HTML: абзацы, переносы, теги жирного. Описание пользовательской правки приходит в `beforeinput`; возможность отмены проверяют по `cancelable`. Шаг композиции IME — исключение: отменить его нельзя."
 >
   <Table
     head={['действие', '`inputType`', 'HTML после']}

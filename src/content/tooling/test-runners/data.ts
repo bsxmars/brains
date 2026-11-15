@@ -1,3 +1,10 @@
+/**
+ * Уточнения 2026-11-13: сбор вызывает describe, но не тела test; внешние ресурсы
+ * не изолируются сменой JS-реестра. Falsy-ошибки отделены от успеха, interval0 отличён
+ * от timeout, recorder канонический. Проверки test-runners.test.ts запускают оба раннера
+ * и сравнивают часы с fake-timers; afterAll/file-status явно вне API массива модели.
+ */
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { RealRun, RunnerName, Scenario } from '@/widgets/test-runner-lab/model/types';
 
@@ -560,22 +567,26 @@ function collect(file, flavor) {
 async function run(root, flavor) {
   const results = [];
   const after = (list) => (flavor.afterHooks === 'stack' ? [...list].reverse() : list);
-  const attempt = async (fn) => { try { await fn(); return null; } catch (e) { return e; } };
+  const success = { ok: true };
+  const attempt = async (fn) => { try { await fn(); return success; } catch (error) { return { ok: false, error }; } };
 
   async function runTest(test, chain, broken) {
-    let error = broken;
+    let outcome = broken;
     // beforeEach — от внешнего блока к внутреннему, до первой ошибки
     for (const suite of chain) {
-      for (const hook of suite.beforeEach) if (!error) error = await attempt(hook);
+      for (const hook of suite.beforeEach) if (outcome.ok) outcome = await attempt(hook);
     }
-    if (!error) error = await attempt(test.fn);
+    if (outcome.ok) outcome = await attempt(test.fn);
     // afterEach — от внутреннего к внешнему, и все, даже после ошибки
     for (const suite of [...chain].reverse()) {
-      for (const hook of after(suite.afterEach)) error = (await attempt(hook)) ?? error;
+      for (const hook of after(suite.afterEach)) {
+        const cleanup = await attempt(hook);
+        if (!cleanup.ok) outcome = cleanup;
+      }
     }
-    results.push(error
-      ? { name: test.name, state: 'fail', error: String(error.message ?? error) }
-      : { name: test.name, state: 'pass' });
+    results.push(outcome.ok
+      ? { name: test.name, state: 'pass' }
+      : { name: test.name, state: 'fail', error: String(outcome.error?.message ?? outcome.error) });
   }
 
   function skipAll(suite) {
@@ -587,10 +598,11 @@ async function run(root, flavor) {
 
   async function runSuite(suite, chain, broken) {
     for (const hook of suite.beforeAll) {
-      if (broken && flavor.beforeAllFails === 'skip') break;
-      broken = (await attempt(hook)) ?? broken;
+      if (!broken.ok && flavor.beforeAllFails === 'skip') break;
+      const setup = await attempt(hook);
+      if (!setup.ok) broken = setup;
     }
-    if (broken && flavor.beforeAllFails === 'skip') {
+    if (!broken.ok && flavor.beforeAllFails === 'skip') {
       skipAll(suite);                               // vitest: тесты блока пропущены
     } else {
       for (const child of suite.children) {
@@ -601,12 +613,12 @@ async function run(root, flavor) {
     for (const hook of after(suite.afterAll)) await attempt(hook);
   }
 
-  await runSuite(root, [root], null);
+  await runSuite(root, [root], success);
   return results;
 }`;
 
 export const RUNNER_NOTE =
-  'Сбор — это обычный вызов функций: `describe` кладёт узел в дерево и заходит в него, `test` кладёт лист. Исполнение — обход того же дерева. Цепочка `chain` — путь от файла до текущего блока: по ней и собираются `beforeEach` и `afterEach` всех уровней. Три различия раннеров сведены в `FLAVORS`, всё остальное у Vitest и Jest совпадает.';
+  'Сбор — это обычный вызов функций: `describe` кладёт узел в дерево и заходит в него, `test` кладёт лист. Исполнение — обход того же дерева. Цепочка `chain` — путь от файла до текущего блока: по ней и собираются `beforeEach` и `afterEach` всех уровней. Три различия выбранных фикстур сведены в `FLAVORS`. Это ограниченная модель: она возвращает статусы тестов, но не итог файла. Ошибка `afterAll` у настоящего раннера проваливает файл и запуск даже при прошедших тестах; учебный массив этого не показывает. Отказы `beforeAll`, `beforeEach`, тела теста и `afterEach` учитываются независимо от истинности брошенного значения.';
 
 export const DEMO_CAPTION =
   'Обе колонки считает `RUNNER_CODE` выше: та же фикстура, разные `FLAVORS`. Выделены строки, которых нет в журнале соседа или которые стоят у него в другом месте. Отметка под колонкой сравнивает ответ учебного раннера с журналом, который на этой же фикстуре выдал настоящий раннер.';
@@ -744,7 +756,7 @@ export interface GenIsoRow {
 }
 
 export const ISO_NOTE =
-  'Внутри одного файла утечка есть всегда: второй тест получает счётчик `2` и все три метки первого. Модуль `counter.js` исполнился один раз на файл, и оба теста держат один и тот же экземпляр. Между файлами по умолчанию не течёт ничего — но по разным причинам. Vitest в режиме `forks` заводит новый процесс на каждый файл. Jest остаётся в одном процессе, но исполняет каждый файл в новом vm-контексте и со своим реестром модулей.';
+  'В показанной фикстуре внутри одного файла состояние сохраняется: второй тест получает счётчик `2` и все три метки первого. Модуль `counter.js` исполнился один раз на файл, и оба теста держат один и тот же экземпляр. Между файлами в этих запусках сбрасываются показанные JS-метки. Общая файловая система, порты и база этим не разделяются. Vitest в режиме `forks` заводит новый процесс на каждый файл. Jest остаётся в одном процессе, но исполняет каждый файл в новом vm-контексте и со своим реестром модулей.';
 
 /** Учебный загрузчик: реестр модулей на файл, моки и подъём. Сверяется тестом с Jest. */
 export const MODULES_CODE = `// Учебный загрузчик CommonJS. Раннер заводит такой на каждый тестовый файл.
@@ -1145,13 +1157,13 @@ function createClock(start = 0) {
   let nextId = 1;
   let order = 0;                          // очерёдность среди таймеров на одно время
   let ticking = false;
-  const timers = new Map();               // id → { at, order, fn, every }
+  const timers = new Map();               // id → { at, order, fn, interval, every }
 
   function add(fn, delay, every) {
     const id = nextId++;
     // 0 мс, назначенные во время прокрутки, становятся 1 мс — как в @sinonjs/fake-timers
     const ms = delay || (ticking ? 1 : 0);
-    timers.set(id, { at: now + ms, order: order++, fn, every: every ? ms : 0 });
+    timers.set(id, { at: now + ms, order: order++, fn, interval: every, every: every ? ms : 0 });
     return id;
   }
 
@@ -1167,7 +1179,7 @@ function createClock(start = 0) {
 
   function fire({ id, t }) {
     now = t.at;
-    if (t.every) {                        // интервал встаёт в конец очереди снова
+    if (t.interval) {                        // интервал встаёт в конец очереди снова
       t.at += t.every;
       t.order = order++;
     } else timers.delete(id);
@@ -1189,7 +1201,11 @@ function createClock(start = 0) {
       const end = now + ms;
       ticking = true;
       try {
-        for (let n = next(end); n; n = next(end)) fire(n);
+        // Интервал 0 остаётся на том же времени: advance тоже нужен предохранитель.
+        for (let i = 0, n = next(end); n; n = next(end)) {
+          if (i++ === 10000) throw new Error('Aborting after running 10000 timers, assuming an infinite loop!');
+          fire(n);
+        }
       } finally { ticking = false; }
       now = end;
     },
@@ -1525,3 +1541,106 @@ export const SOURCES: Source[] = [
 
 export const RELATED =
   'Смежное на сайте: [Модули и сборка, раздел «Три фазы»](/tooling/modules/#s1) — карта модулей и почему модуль исполняется один раз. [Модули и сборка, раздел «CommonJS против ESM»](/tooling/modules/#s3) — `require`, `module.exports` и кеш `require`. [HMR изнутри](/tooling/hmr/) — тот же конвейер Vite, что переписывает тестовые файлы Vitest. [Event Loop, раздел «Таймеры»](/js/event-loop/#s4) — настоящие таймеры, которые подменяют фейковые. [Транспиляция и полифилы](/tooling/transpilation/) — Babel, через который Jest пропускает тесты. [Тесты в браузере изнутри](/tooling/e2e-testing/) — локаторы, авто-ожидание Playwright и почему e2e-тесты мигают. [Внедрение зависимостей](/frameworks/dependency-injection/) — `provide`/`inject` во Vue, контекст React и иерархия инжекторов Angular.';
+
+export const RUNNER_PHASE_DIAGRAM: ConceptDiagramData = {
+  "id": "runner-collect-execute",
+  "title": "Модуль вычисляют при сборе; позже вызывают зарегистрированные функции",
+  "description": "describe участвует в построении дерева сразу. Тело test и хуки исполняются в другой фазе — это не повторный запуск всего файла.",
+  "width": 940,
+  "height": 580,
+  "nodes": [
+    {
+      "id": "files",
+      "x": 0,
+      "y": 10,
+      "width": 260,
+      "height": 230,
+      "label": "Выбор файлов",
+      "detail": "Шаблон, исключения и конфигурация определяют, какие модули попадут в прогон.",
+      "tone": "info"
+    },
+    {
+      "id": "evaluate",
+      "x": 340,
+      "y": 10,
+      "width": 260,
+      "height": 230,
+      "label": "Вычисление модуля",
+      "detail": "Выполняется верхний уровень: импорты, присваивания, вызовы describe/test и регистрации хуков.",
+      "tone": "neutral"
+    },
+    {
+      "id": "tree",
+      "x": 680,
+      "y": 10,
+      "width": 260,
+      "height": 230,
+      "label": "Дерево suite/test",
+      "detail": "describe вызывает callback при сборе. Функция test и хуки пока только сохранены.",
+      "tone": "warn"
+    },
+    {
+      "id": "report",
+      "x": 0,
+      "y": 340,
+      "width": 260,
+      "height": 230,
+      "label": "Результат файла",
+      "detail": "Отказы сборки, упавшие хуки и тесты имеют разные статусы. Одного счётчика тестов недостаточно.",
+      "tone": "info"
+    },
+    {
+      "id": "cleanup",
+      "x": 340,
+      "y": 340,
+      "width": 260,
+      "height": 230,
+      "label": "Хуки и завершение",
+      "detail": "Порядок определяется раннером и режимом. Очистка внешних ресурсов остаётся задачей теста.",
+      "tone": "ok"
+    },
+    {
+      "id": "run",
+      "x": 680,
+      "y": 340,
+      "width": 260,
+      "height": 230,
+      "label": "Исполнение функций",
+      "detail": "По дереву вызываются beforeEach, тело теста и afterEach. Отдельно работают beforeAll/afterAll.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "to": "evaluate",
+      "from": "files"
+    },
+    {
+      "to": "tree",
+      "from": "evaluate"
+    },
+    {
+      "to": "run",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "from": "tree"
+    },
+    {
+      "to": "cleanup",
+      "fromSide": "left",
+      "toSide": "right",
+      "from": "run"
+    },
+    {
+      "to": "report",
+      "fromSide": "left",
+      "toSide": "right",
+      "from": "cleanup"
+    }
+  ],
+  "note": "Схема фаз не задаёт порядок concurrent-тестов и не обещает изоляцию файловой системы или сети."
+};
+
+export const ISOLATION_RECORDER_CODE = String.raw`// appendFileSync импортирован из node:fs; logFile — один путь для обоих файлов.
+const record = (...args) => appendFileSync(logFile,
+  [...args.map(String), process.pid].join(' ') + '\n');`;

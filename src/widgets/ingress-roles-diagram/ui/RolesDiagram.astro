@@ -22,12 +22,13 @@ interface Props {
   caption: string;
   layers: Layer[];
   links: string[];
+  checks?: { t: string; d: string }[];
 }
 
-const { title, caption, layers, links } = Astro.props;
+const { title, caption, layers, links, checks } = Astro.props;
 ---
 
-<figure class="ird">
+<figure data-render-illustration="ingress-roles-diagram" class="ird">
   <div class="t-eyebrow t-eyebrow--panel">{title}</div>
 
   <div class="ird-stack">
@@ -61,6 +62,10 @@ const { title, caption, layers, links } = Astro.props;
     }
   </div>
 
+  {checks && <div class="ird-checks">
+    {checks.map((check) => <div class="ird-check"><strong set:html={inlineMd(check.t)} /><span set:html={inlineMd(check.d)} /></div>)}
+  </div>}
+
   <figcaption class="t-note" set:html={inlineMd(caption)} />
 </figure>
 
@@ -75,6 +80,9 @@ const { title, caption, layers, links } = Astro.props;
     border-radius: var(--r4);
     background: var(--surface);
   }
+
+  .ird-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 10px; }
+  .ird-check { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--r2); background: var(--surface-2); color: var(--prose); font-size: var(--fs-3); line-height: 1.5; }
 
   .ird-stack {
     display: flex;

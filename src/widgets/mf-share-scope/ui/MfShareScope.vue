@@ -245,8 +245,8 @@ const scopeRows = computed(() => {
             <SegmentedControl v-model="strictModel" class="l-pills" label="strictVersion" :options="strictOptions" />
           </div>
           <div class="mf-field">
-            <span class="t-label">eager у host</span>
-            <SegmentedControl v-model="eagerModel" class="l-pills" label="eager у host" :options="onOff" />
+            <span class="t-label">eager + ранний импорт host</span>
+            <SegmentedControl v-model="eagerModel" class="l-pills" label="eager + ранний импорт host" :options="onOff" />
           </div>
         </div>
       </div>

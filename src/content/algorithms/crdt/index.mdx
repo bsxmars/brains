@@ -1,10 +1,10 @@
 ---
-title: "CRDT: как два редактора сливают правки без сервера"
-heading: "CRDT: как два редактора сливают правки без сервера"
+title: "CRDT: как редакторы объединяют независимые правки"
+heading: "CRDT: как редакторы объединяют независимые правки"
 headingWidth: 24
 order: 2
 kicker: алгоритмы во фронтенде
-lead: "Двое правят один текст, каждый в своей копии, а правки доходят друг до друга с опозданием и в разном порядке. CRDT — структуры данных, у которых слияние копий всегда даёт один ответ: конфликт решён заранее правилом, и сервер, расставляющий правки по очереди, не нужен."
+lead: "Каждый участник редактирует свою копию, а обновления приходят с задержкой и повторами. CRDT задаёт правила, по которым копии сходятся после получения одних и тех же правок. Сервер не обязан упорядочивать каждую правку, но доставка, хранение и права доступа по-прежнему нужны."
 summary: "Почему правка «по индексу» ломается при одновременной работе, OT против CRDT, три свойства слияния на G-Counter, PN-Counter, LWW-Register и OR-Set, последовательность с id и соседом слева в духе RGA, порядок конфликтующих вставок, надгробия и их цена, векторные часы и обмен разницей, Yjs изнутри — с байтами на настоящем Yjs."
 verifiedOn: "yjs 13.6.33, Node 24.11.0, октябрь 2026: мини-CRDT темы сходится на всех порядках доставки, итоги и байты сверены с настоящим Yjs в tests/unit/crdt.test.ts"
 nav:
@@ -14,9 +14,12 @@ nav:
   - { id: s4, label: Векторные часы }
   - { id: s5, label: Yjs }
   - { id: s6, label: Тонкие места }
+  - { id: practice, label: Где применять }
   - { id: s7, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -34,6 +37,10 @@ import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CrdtLab from '@/widgets/crdt-lab/ui/CrdtLab.vue';
 import {
   GLOSSARY,
+  MECHANISM_DIAGRAM,
+  PRACTICE_CODE,
+  PRACTICE_OUT,
+  PRACTICE,
   PLAIN_CRDT,
   NAIVE_CODE,
   NAIVE_PRINT,
@@ -95,6 +102,8 @@ import {
   <Plain text={PLAIN_CRDT} />
 
   <Glossary items={GLOSSARY} />
+
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
 </Section>
 
 <Section
@@ -139,7 +148,7 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Простые CRDT: слияние без конфликтов"
-  lead="Чтобы копии сходились при любом порядке доставки, у слияния должно быть три свойства. Проще всего увидеть их не на тексте, а на счётчике, одном поле и множестве."
+  lead="Для слияния полных состояний важны три свойства: коммутативность, ассоциативность и идемпотентность. У CRDT на операциях свои требования к причинному порядку или отложенному применению: их нельзя заменить одним этим списком. Проще всего увидеть их не на тексте, а на счётчике, одном поле и множестве."
 >
   <CardGrid min={240} gap={14} align="start">
     {MERGE_RULES.map((rule) => (
@@ -151,7 +160,9 @@ import {
   <Plain text={PLAIN_MERGE} />
 
   <Card title="Счётчики: G-Counter и PN-Counter" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={G_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Счётчики: исходный код">
+      <CodeBlock code={G_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={COUNTER_NOTE} />
@@ -160,11 +171,15 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Одно поле: LWW-Register" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LWW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="Регистр с выбором одной записи: исходный код">
+        <CodeBlock code={LWW_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      </Disclosure>
     </Card>
 
     <Card title="Множество: OR-Set" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={OR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="Множество с метками добавлений: исходный код">
+        <CodeBlock code={OR_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      </Disclosure>
     </Card>
   </CardGrid>
 
@@ -196,7 +211,9 @@ import {
   <Plain text={PLAIN_TOMBSTONE} />
 
   <Card title="Мини-CRDT текста" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SEQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Последовательность с постоянными id: исходный код">
+      <CodeBlock code={SEQ_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={SEQ_NOTE} />
@@ -242,7 +259,9 @@ import {
   <Plain text={PLAIN_VECTOR} />
 
   <Card title="Сравнить часы и найти разницу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={VV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Сравнение часов и недостающие правки: исходный код">
+      <CodeBlock code={VV_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <CardGrid min={260} gap={14} align="start">
@@ -301,6 +320,20 @@ import {
 
 <Section id="s6" eyebrow="Раздел 6" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Где применять">
+  <CardGrid min={300} gap={16}>
+    {PRACTICE.map((item) => <Card title={item.t} text={item.d} />)}
+  </CardGrid>
+
+  ### Две копии сошлись, а ограничение нарушено
+
+  Два клиента сначала получили общий текст, затем работали без связи. После обмена текст совпал, повтор обновления не добавил лишней записи. Но независимые бронирования одной переговорной сохранились оба: правило слияния не решает, кому разрешено занять единственное место.
+
+  <CodeBlock code={PRACTICE_CODE} />
+  <CodeBlock code={PRACTICE_OUT.join('\n')} lang="text" tone="ok" />
 </Section>
 
 <Section id="s7" eyebrow="Раздел 7" title="Источники">

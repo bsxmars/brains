@@ -1,3 +1,4 @@
+import type { ConceptDiagramData } from '@/shared/ui/concept-diagram';
 import type { GlossaryTerm, Pitfall, Prereq, Source } from '@/entities/lesson';
 import type { GuardRun, GuardScenario, RouterCodes, ShopLevel, Strategy } from '@/widgets/router-lab/model/types';
 
@@ -2079,3 +2080,118 @@ export const SCROLL_ROWS: string[][] = [
 export const NAVAPI_SCROLL_ROWS: string[][] = NAVAPI_SCROLL.map((r) => [r.k, String(r.before), String(r.after), `\`${r.focus.toLowerCase()}\``]);
 
 export const NAVAPI_ORDER_TEXT = NAVAPI_ORDER.map((e, i) => `${i + 1}. ${e}`).join('\n');
+
+
+/** Предметная схема: границы и условия из сквозного примера темы. */
+export const ROUTER_CONFIRMATION_DIAGRAM: ConceptDiagramData = {
+  "id": "router-confirmation-boundary",
+  "title": "Запрошенный маршрут и подтверждённый маршрут — разные состояния",
+  "description": "Схема относится к программному router.push в vue-router. До успешного завершения проверок новый адрес ещё является целью перехода. Guard может отменить её или задать другую цель.",
+  "width": 1100,
+  "height": 580,
+  "nodes": [
+    {
+      "id": "request",
+      "x": 20,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "router.push(target)",
+      "detail": "Приложение запросило переход. Текущий экран пока остаётся прежним.",
+      "tone": "info"
+    },
+    {
+      "id": "match",
+      "x": 400,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "Поиск записи и matched",
+      "detail": "Путь сопоставлен с маршрутами; определены уходящие, остающиеся и входящие записи.",
+      "tone": "neutral"
+    },
+    {
+      "id": "guards",
+      "x": 780,
+      "y": 20,
+      "width": 300,
+      "height": 210,
+      "label": "Проверки и ленивый код",
+      "detail": "Выполняются подходящие guards, загружаются нужные компоненты.",
+      "tone": "warn"
+    },
+    {
+      "id": "stay",
+      "x": 20,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "Прежний маршрут",
+      "detail": "Отмена не означает успешную смену экрана. Результат push нужно проверить.",
+      "tone": "neutral"
+    },
+    {
+      "id": "cancel",
+      "x": 400,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "false или другая цель",
+      "detail": "false отменяет переход; перенаправление запускает переход к другому адресу.",
+      "tone": "err"
+    },
+    {
+      "id": "commit",
+      "x": 780,
+      "y": 350,
+      "width": 300,
+      "height": 210,
+      "label": "Подтверждение",
+      "detail": "History API и текущий маршрут обновляются; Vue планирует отрисовку нового экрана.",
+      "tone": "ok"
+    }
+  ],
+  "edges": [
+    {
+      "from": "request",
+      "to": "match"
+    },
+    {
+      "from": "match",
+      "to": "guards"
+    },
+    {
+      "from": "guards",
+      "to": "commit",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "разрешено",
+      "labelX": 930,
+      "labelY": 300
+    },
+    {
+      "from": "guards",
+      "to": "cancel",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          930,
+          270
+        ],
+        [
+          550,
+          270
+        ]
+      ],
+      "dashed": true
+    },
+    {
+      "from": "cancel",
+      "to": "stay",
+      "fromSide": "left",
+      "toSide": "right"
+    }
+  ],
+  "note": "При popstate адрес уже изменён браузером: отмена требует также восстановления истории. Navigation API имеет свой порядок commit; учебная схема не объединяет эти режимы в один алгоритм."
+};

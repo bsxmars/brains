@@ -7,7 +7,7 @@ import {
   type Engine,
   type EngineId,
 } from '../../src/widgets/tpc-cookie-verdict/model/verdict';
-import { SAA_CODE, VERDICT_MEASURED } from '../../src/content/platform/third-party-cookies/data';
+import { SAA_CODE, SAA_RULES, VERDICT_MEASURED } from '../../src/content/platform/third-party-cookies/data';
 
 /**
  * Тема «Встроенный контент без сторонних кук».
@@ -115,19 +115,20 @@ describe('setCookieLine печатает то, что выбрано', () => {
  * WebKit жеста — `NotAllowedError` два прогона из двух.
  */
 describe('SAA_CODE: запрос доступа — первой строкой обработчика', () => {
-  function harness(opts: { has: boolean; grant: boolean }) {
+  function harness(opts: { has: boolean; grant: boolean; permission?: 'granted' | 'prompt'; supported?: boolean; networkError?: boolean }) {
     const trace: string[] = [];
     let inClick = false;
     let clickHandler: (() => unknown) | null = null;
     const status = { textContent: '' };
     const button = {
+      disabled: false,
       addEventListener: (type: string, fn: () => unknown) => {
         if (type === 'click') clickHandler = fn;
       },
     };
     const document = {
       querySelector: (sel: string) => (sel === '#open-chat' ? button : sel === '#status' ? status : null),
-      hasStorageAccess: () => {
+      hasStorageAccess: opts.supported === false ? undefined : () => {
         trace.push('has');
         return Promise.resolve(opts.has);
       },
@@ -138,16 +139,17 @@ describe('SAA_CODE: запрос доступа — первой строкой 
     };
     const fetch = (url: string, init: { credentials: string }) => {
       trace.push(`fetch ${url} ${init.credentials}`);
-      return Promise.resolve({ text: () => Promise.resolve('none=1') });
+      return opts.networkError ? Promise.reject(new TypeError('network')) : Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('none=1') });
     };
-    new Function('document', 'fetch', SAA_CODE)(document, fetch);
+    const navigator = { permissions: { query: () => Promise.resolve({ state: opts.permission ?? 'prompt' }) } };
+    new Function('document', 'fetch', 'navigator', SAA_CODE)(document, fetch, navigator);
     const click = async () => {
       inClick = true;
       clickHandler!();
       inClick = false;
       for (let i = 0; i < 10; i++) await Promise.resolve();
     };
-    return { trace, status, click };
+    return { trace, status, button, click };
   }
 
   it('без доступа: клик зовёт requestStorageAccess синхронно, отказ печатает запасной путь', async () => {
@@ -171,6 +173,25 @@ describe('SAA_CODE: запрос доступа — первой строкой 
     for (let i = 0; i < 10; i++) await Promise.resolve();
     expect(h.trace).toEqual(['has', 'fetch /me include']);
     expect(h.status.textContent).toBe('none=1');
+  });
+
+  it('сохранённое granted активирует новый документ без клика', async () => {
+    const h = harness({ has: false, grant: true, permission: 'granted' });
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(h.trace).toEqual(['has', 'request:outside-click', 'fetch /me include']);
+    expect(h.status.textContent).toBe('none=1');
+    // Новое разрешение и повторная активация granted — разные ветки стандарта.
+    expect(SAA_RULES[0]!.d).toContain('не запрет на все вызовы без клика');
+  });
+
+  it('нет API — явный запасной путь, сетевой отказ — ошибка загрузки', async () => {
+    const unsupported = harness({ has: false, grant: false, supported: false });
+    expect(unsupported.button.disabled).toBe(true);
+    expect(unsupported.status.textContent).toBe('нужен вход во всплывающем окне');
+    expect(unsupported.trace).toEqual([]);
+    const failed = harness({ has: true, grant: true, networkError: true });
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(failed.status.textContent).toBe('не удалось загрузить профиль');
   });
 });
 

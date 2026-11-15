@@ -18,6 +18,8 @@ nav:
   - { id: s8, label: Источники }
 ---
 
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
 import Callout from '@/shared/ui/Callout.astro';
 import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
@@ -35,6 +37,7 @@ import StampedeDiagram from '@/widgets/cdn-cache-stampede-diagram/ui/StampedeDia
 import SourceList from '@/widgets/source-list/ui/SourceList.astro';
 import CdnStream from '@/widgets/cdn-stream/ui/CdnStream.vue';
 import {
+  MECHANISM_DIAGRAM,
   INTRO_CALLOUT,
   PLAIN_SHARED,
   GLOSSARY,
@@ -116,10 +119,12 @@ import {
   id="s1"
   eyebrow="Раздел 1"
   title="Кто вправе хранить"
-  lead="Браузер может хранить почти всё: ответ всё равно достанется тому же человеку. Общий кеш отдаст ответ следующему: страница «Мой профиль», положенная в CDN, покажет второму читателю имя первого. Поэтому RFC 9111 задаёт ему отдельные правила: что запрещено хранить, что разрешено только явно и какой срок читать."
+  lead="Частный HTTP-кеш обслуживает одного пользователя, общий — многих. Обоим нужны разрешение на хранение и подходящий ключ; у общего кеша есть дополнительные ограничения. Общий кеш отдаст ответ следующему: страница «Мой профиль», положенная в CDN, покажет второму читателю имя первого. Поэтому RFC 9111 задаёт ему отдельные правила: что запрещено хранить, что разрешено только явно и какой срок читать."
 >
   <Card title="Правила общего кеша" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={RULES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Правила хранения учебного кеша">
+      <CodeBlock code={RULES_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    </Disclosure>
   </Card>
 
   <Table
@@ -158,6 +163,11 @@ import {
   </CardGrid>
 
   ### Нормализация: четыре записи одного адреса
+
+  Удалять параметр или менять порядок параметров в ключе можно только тогда, когда origin
+  считает запросы эквивалентными. Если origin различает `?sort=price` и `?sort=name`, а кеш
+  выбросил `sort`, попадание начнёт возвращать чужую сортировку. Нормализация — часть
+  контракта с приложением, а не универсальная уборка URL.
 
   <Card title="Ключ без мусора" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock code={NORMALIZE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -230,7 +240,9 @@ import {
   ### Код учебного кеша
 
   <Card title="`createCache` — общий кеш целиком" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={CACHE_CODE} size={11} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Исходник createCache">
+      <CodeBlock code={CACHE_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={CACHE_NOTE} />
@@ -238,7 +250,9 @@ import {
   </Card>
 
   <Card title="Обёртка на node:http" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={PROXY_CODE} size={11} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Обёртка учебного кеша на node:http">
+      <CodeBlock code={PROXY_CODE} size={11} lh={1.65} pad="14px 16px" />
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={PROXY_NOTE} />
@@ -289,7 +303,7 @@ import {
   id="s4"
   eyebrow="Раздел 4"
   title="Purge, теги и версии в адресе"
-  lead="Сбросить копию до срока можно двумя способами: сменить адрес, чтобы старая копия стала никому не нужна, или приказать кешу её выбросить. Первый работает везде и без гонок, но годится не для всех адресов; второй — только там, где у кеша есть API."
+  lead="Сбросить копию до срока можно двумя способами: сменить адрес, чтобы старая копия стала никому не нужна, или приказать кешу её выбросить. Первый отделяет версии ключом, но требует согласованной публикации ссылок и самих файлов; второй — только там, где у кеша есть API."
 >
   <Card title="Теги в ответе и purge по тегу" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="http" code={PURGE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
@@ -321,7 +335,7 @@ import {
   id="s5"
   eyebrow="Раздел 5"
   title="CDN изнутри"
-  lead="CDN — это много общих кешей в разных городах, маршрутизация, которая приводит читателя к ближайшему, и уровни, которые не дают ста PoP одновременно пойти к одному origin. Всё, что происходило с копией по дороге, остаётся в двух заголовках ответа: `Age` и `Cache-Status`."
+  lead="CDN распределяет общие кеши по городам и направляет запрос в выбранную точку присутствия. Ближайшая по сети точка не обязана быть ближайшей географически. Щит объединяет промахи разных PoP перед origin; `Age` и необязательный `Cache-Status` помогают понять путь ответа, но не являются полным журналом сети."
 >
   <CardGrid min={280} gap={14} align="start">
     {CDN_FACTS.map((fact) => (
@@ -382,7 +396,9 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="LRU в процессе" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LRU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="Реализация LRU">
+        <CodeBlock code={LRU_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      </Disclosure>
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={LRU_NOTE} />
@@ -402,13 +418,15 @@ import {
 
   <Plain text={PLAIN_RACE} />
 
+  <ConceptDiagram data={MECHANISM_DIAGRAM} />
+
   <CardGrid min={300} gap={16} align="start">
     <Card title="Чтение, запись и джиттер" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
       <CodeBlock code={ASIDE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
     </Card>
 
     <Card tone="err" title="Как это случилось" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6}>
-      <CodeBlock code={RACE_LOG.map((line, i) => `${i + 1}. ${line}`).join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
+      <CodeBlock lang="text" code={RACE_LOG.map((line, i) => `${i + 1}. ${line}`).join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
 
       <Md text={RACE_NOTE} />
     </Card>
@@ -433,8 +451,9 @@ import {
       «В информатике две сложные вещи: инвалидация кеша и именование», — фраза, которую
       приписывают Филу Карлтону. Инвалидировать трудно, потому что копий больше, чем вы
       видите: в каждом PoP, в каждом процессе, у каждого читателя, — и события между ними
-      идут в произвольном порядке. **Отследить все копии нельзя, поэтому у каждой есть TTL**:
-      после него любая ошибка исправится сама. А если назвать данные по содержимому, как файлы
+      идут в произвольном порядке. **TTL ограничивает время жизни отдельной копии**.
+      Он не исправит неверный ключ или чтение из отстающей реплики: после истечения туда
+      может снова попасть неверный ответ. Срок дополняет правильный ключ и согласованный сброс. А если назвать данные по содержимому, как файлы
       с хешем в имени, инвалидировать их не нужно вовсе.
 
     </DarkText>

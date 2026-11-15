@@ -458,3 +458,69 @@ describe('демо считает теми же функциями', () => {
     }
   });
 });
+
+describe('практика: debounce и устаревшие ответы', () => {
+  type Search = { input(query: string): void; dispose(): void };
+  type Request = (query: string, signal: AbortSignal) => Promise<string[]>;
+  const createSearch = new Function(`${t.DEBOUNCE_CODE}\n${t.AUTOCOMPLETE_CODE}\nreturn createAutocomplete;`)() as (
+    request: Request, show: (result: string[]) => void, onError: (error: unknown) => void,
+    clock: ReturnType<WrapperApi['createClock']>, wait?: number,
+  ) => Search;
+
+  it('новый ввод блокирует старый ответ до запуска следующего запроса, даже без поддержки abort', async () => {
+    const clock = W.createClock();
+    const pending: { query: string; signal: AbortSignal; resolve(result: string[]): void }[] = [];
+    const request: Request = (query, signal) => new Promise((resolve) => pending.push({ query, signal, resolve }));
+    const show = vi.fn();
+    const onError = vi.fn();
+    const search = createSearch(request, show, onError, clock);
+    search.input('ко');
+    clock.advanceTo(300);
+    expect(pending.map((p) => p.query)).toEqual(['ко']);
+    clock.advanceTo(350);
+    search.input('кофе');
+    expect(pending[0].signal.aborted).toBe(true);
+    pending[0].resolve(['устаревшее']);
+    await Promise.resolve();
+    expect(show).not.toHaveBeenCalled();
+    clock.advanceTo(650);
+    pending[1].resolve(['кофейня']);
+    await Promise.resolve();
+    expect(show.mock.calls).toEqual([[['кофейня']]]);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('dispose не даёт ожидающему debounce начать запрос; актуальная ошибка обрабатывается', async () => {
+    const clock = W.createClock();
+    const error = new Error('offline');
+    const request = vi.fn<Request>().mockRejectedValue(error);
+    const show = vi.fn();
+    const onError = vi.fn();
+    const search = createSearch(request, show, onError, clock);
+    search.input('a');
+    clock.advanceTo(300);
+    await Promise.resolve();
+    expect(onError).toHaveBeenCalledWith(error);
+    search.input('b');
+    search.dispose();
+    clock.advanceTo(1000);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(show).not.toHaveBeenCalled();
+  });
+});
+
+
+it('результат lodash debounce: leading свежий, отложенное событие получает последний выполненный', () => {
+  vi.useFakeTimers({ now: 0 });
+  const wrapped = ldDebounce((x: number) => x * 10, 100, { leading: true });
+  expect(wrapped(1)).toBe(10);
+  vi.advanceTimersByTime(50);
+  expect(wrapped(2)).toBe(10);
+  vi.advanceTimersByTime(100);
+  // trailing уже вычислил 20; новый leading сразу возвращает 30.
+  expect(wrapped(3)).toBe(30);
+  const trailing = ldDebounce((x: number) => x * 10, 100);
+  expect(trailing(4)).toBeUndefined();
+  vi.advanceTimersByTime(100);
+  expect(trailing(5)).toBe(40);
+});

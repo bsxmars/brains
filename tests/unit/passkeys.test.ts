@@ -222,6 +222,25 @@ describe('VERIFY_CODE против @simplewebauthn/server', () => {
     expect(port.checks.find((c) => c.k === 'подпись')?.got).toBe(true);
   });
 
+  it('подпись может быть верной, даже когда строгая политика счётчика отказывает', async () => {
+    const response = await runScenario(api, { ...scenario('login'), stored: 3 }, REG);
+    expect(response.checks.find((c) => c.k === 'подпись')?.got).toBe(true);
+    expect(response.checks.filter((c) => c.got !== c.want).map((c) => c.k)).toEqual(['signCount']);
+    expect(response.ok).toBe(false);
+    // §6.1.1 WebAuthn: клон, неисправность или гонка; тест показывает границу политики.
+    expect(t.COUNTER_NOTE).toContain('не доказательство');
+    expect(t.COUNTER_NOTE).toContain('не в порядке создания');
+  });
+
+  it('BE допускает резервирование независимо от текущего BS', () => {
+    const bytes = b(S.login1.response.authenticatorData);
+    bytes[32] = (bytes[32] | 0x08) & ~0x10;
+    const flags = api.parseAuthData(bytes).flags;
+    expect(flags.BE).toBe(true);
+    expect(flags.BS).toBe(false);
+    expect(t.STORED_ROWS.find((r) => r.k === 'BE, BS')?.d).toContain('Флаги не говорят');
+  });
+
   it('любой изменённый бит флагов ломает подпись — у нас и у библиотеки', async () => {
     const login = scenario('login');
     const flags = b(login.cred.response.authenticatorData)[32];

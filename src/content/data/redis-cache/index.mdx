@@ -16,6 +16,7 @@ nav:
   - { id: s6, label: Вытеснение }
   - { id: s7, label: Холодный кеш }
   - { id: s8, label: Тонкие места }
+  - { id: practice, label: Где применять }
   - { id: s9, label: Источники }
 ---
 
@@ -24,6 +25,8 @@ import Card from '@/shared/ui/Card.astro';
 import CardGrid from '@/shared/ui/CardGrid.astro';
 import CardNote from '@/shared/ui/CardNote.astro';
 import CodeBlock from '@/shared/ui/CodeBlock.astro';
+import Disclosure from '@/shared/ui/Disclosure.astro';
+import ConceptDiagram from '@/shared/ui/ConceptDiagram.astro';
 import DarkPanel from '@/shared/ui/DarkPanel.astro';
 import DarkText from '@/shared/ui/DarkText.astro';
 import Md from '@/shared/ui/Md.astro';
@@ -38,6 +41,9 @@ import HerdLab from '@/widgets/cache-race-lab/ui/HerdLab.vue';
 import EvictLab from '@/widgets/cache-race-lab/ui/EvictLab.vue';
 import {
   GLOSSARY,
+  PRACTICE_CASES,
+
+  VERSION_BARRIER_DIAGRAM,
   PLAIN_CACHE,
   INTRO_CALLOUT,
   REDIS_CODE,
@@ -157,7 +163,7 @@ import {
   id="s2"
   eyebrow="Раздел 2"
   title="Срок ключа: сколько может врать кеш"
-  lead="Ключ со сроком Redis удалит сам. Это не способ обновлять данные, а предохранитель: что бы ни пошло не так с удалением, ошибочная копия проживёт не дольше срока."
+  lead="Ключ со сроком Redis удалит сам. Это срок конкретной записи от последнего SET, а не предел отставания от COMMIT: медленный читатель может положить старое позже, а отстающая реплика — повторно заполнить кеш старым."
 >
   <Card title="Сроки на стенде" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
     <CodeBlock lang="text" code={TTL_LOG.join('\n')} size={11.5} lh={1.7} pad="14px 16px" />
@@ -186,18 +192,30 @@ import {
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="База-заглушка" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={DB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="Учебная база">
+
+        <CodeBlock code={DB_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      </Disclosure>
     </Card>
 
     <Card title="Планировщик шагов" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={SCHEDULE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="Планировщик шагов клиентов">
+
+        <CodeBlock code={SCHEDULE_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      </Disclosure>
     </Card>
   </CardGrid>
 
   <Md text={SCHEDULE_NOTE} />
 
   <Card title="Учебный Redis" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={REDIS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Команды учебного Redis">
+
+      <CodeBlock code={REDIS_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   ### Три гонки
@@ -215,12 +233,20 @@ import {
   <Plain text={PLAIN_LEASE} />
 
   <Card title="Аренда, версия, двойное удаление" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Аренда, версия и двойное удаление">
+
+      <CodeBlock code={FIX_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <CardGrid min={300} gap={16} align="start">
     <Card title="Библиотека Lua для Redis" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5}>
-      <CodeBlock code={LUA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+      <Disclosure title="Атомарные функции Redis">
+
+        <CodeBlock lang="lua" code={LUA_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+      </Disclosure>
     </Card>
 
     <Card tone="info" titleSize={16.5} pad={18} radius={5} gap={11} size={15.5} lh={1.6} text={FUNCTIONS_NOTE} />
@@ -229,6 +255,8 @@ import {
   ### Те же гонки с защитой
 
   <CacheRaceLab client:visible parts={MODEL_PARTS} scenarios={FIX_ONLY} rows={ROWS} caption={RACE_FIX_CAPTION} />
+
+  <ConceptDiagram data={VERSION_BARRIER_DIAGRAM} />
 
   ### Что от чего защищает
 
@@ -254,7 +282,11 @@ import {
   <Plain text={PLAIN_HERD} />
 
   <Card title="Четыре читателя: без защиты, замок, XFetch, мягкий срок" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={HERD_CODE} size={11} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Читатели с защитой от толпы">
+
+      <CodeBlock code={HERD_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={LOCK_NOTE} />
@@ -289,7 +321,11 @@ import {
   ### Поток через истечение
 
   <Card title="Виртуальное время" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={SIM_CODE} size={11} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Планировщик виртуального времени">
+
+      <CodeBlock code={SIM_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <Table
@@ -355,7 +391,11 @@ import {
   </CardGrid>
 
   <Card title="Вытеснение с выборкой и пулом" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={EVICT_CODE} size={11} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Модель вытеснения">
+
+      <CodeBlock code={EVICT_CODE} size={11} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
 
     <CardNote tone="prose">
       <Md text={EVICT_MODEL_NOTE} />
@@ -365,7 +405,11 @@ import {
   ### 700 ключей в память на 298
 
   <Card title="Нагрузка" titleSize={17} pad={20} gap={12} size={15.5} lh={1.6}>
-    <CodeBlock code={WORKLOAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+    <Disclosure title="Нагрузка для модели вытеснения">
+
+      <CodeBlock code={WORKLOAD_CODE} size={11.5} lh={1.65} pad="14px 16px" />
+
+    </Disclosure>
   </Card>
 
   <Table
@@ -386,7 +430,7 @@ import {
   id="s7"
   eyebrow="Раздел 7"
   title="Холодный кеш после рестарта"
-  lead="Redis держит данные в памяти. Переживут ли они рестарт, зависит от того, успел ли он записать снимок на диск, — и от того, как именно его остановили."
+  lead="Redis держит данные в памяти. Переживут ли они рестарт, зависит от RDB/AOF, состояния диска и способа остановки. Ниже — исторический стенд с RDB и без AOF, а не все режимы долговечности Redis."
 >
   <Md text={COLD_TITLE_NOTE} />
 
@@ -423,6 +467,15 @@ import {
 
 <Section id="s8" eyebrow="Раздел 8" title="Тонкие места">
   <Pitfalls items={PITFALLS} />
+
+</Section>
+
+<Section id="practice" eyebrow="Практика" title="Где применять">
+  <CardGrid min={260} gap={14} align="start">
+    {PRACTICE_CASES.map((item) => (
+      <Card title={item.t} text={item.d} />
+    ))}
+  </CardGrid>
 </Section>
 
 <Section id="s9" eyebrow="Раздел 9" title="Источники">
