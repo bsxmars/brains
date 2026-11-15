@@ -1,16 +1,7 @@
 /**
- * Выжимка темы — «ключ ответа» из `summary.md` рядом с `index.mdx`.
- *
- * Файл лежит в папке темы, но коллекция его не видит: загрузчик берёт только `*\/index.mdx`.
- * Поэтому выжимку читаем здесь, сырым текстом через `import.meta.glob`, и разбираем по одному
- * шаблону — все `summary.md` написаны по нему: заголовок, строка-пояснение, четыре блока
- * `<details>` со списками и строка «Где у нас в проекте». Пометки `> ⚠` — заметки автору,
- * на страницу они не выводятся.
- *
- * Разбор свой, а не markdown-процессор: внутри блоков только списки и строчная разметка,
- * а её курс разбирает `inlineMd` — так текст выжимки выглядит как остальной текст страницы.
+ * Открытая выжимка темы из summary.md: заголовок и короткий список главных мыслей.
+ * Строчную разметку выводит inlineMd; сам Markdown не попадает в HTML страницы.
  */
-
 const FILES = import.meta.glob<string>('/src/content/*/*/summary.md', {
   query: '?raw',
   import: 'default',
@@ -19,25 +10,12 @@ const FILES = import.meta.glob<string>('/src/content/*/*/summary.md', {
 
 export interface AnswerKeyItem {
   text: string;
-  /** Вложенный нумерованный список — шаги «Как работает». */
   steps: string[];
 }
 
-export interface AnswerKeyBlock {
-  title: string;
-  hint: string;
+export interface AnswerKey {
   items: AnswerKeyItem[];
 }
-
-export interface AnswerKey {
-  blocks: AnswerKeyBlock[];
-  /** Своя строка читателя; `undefined`, пока там заглушка «заполнить самому». */
-  project?: string;
-}
-
-const BLOCK = /<details>\s*<summary><b>([^<]+)<\/b>\s*—\s*([^<]+)<\/summary>([\s\S]*?)<\/details>/g;
-const PROJECT = /^\*\*Где у нас в проекте:\*\*\s*(.*)$/m;
-const PLACEHOLDER = /заполнить самому/;
 
 function parseItems(body: string): AnswerKeyItem[] {
   const items: AnswerKeyItem[] = [];
@@ -58,22 +36,14 @@ function parseItems(body: string): AnswerKeyItem[] {
 }
 
 export function parseAnswerKey(source: string): AnswerKey {
-  const blocks = [...source.matchAll(BLOCK)].map(([, title, hint, body]) => ({
-    title: title.trim(),
-    hint: hint.trim(),
-    items: parseItems(body),
-  }));
-  const project = source.match(PROJECT)?.[1].trim();
-  return {
-    blocks,
-    project: project && !PLACEHOLDER.test(project) ? project : undefined,
-  };
+  const body = source.replace(/^# [^\n]*(?:\n|$)/, '');
+  return { items: parseItems(body) };
 }
 
-/** Ключ ответа темы или `undefined`, если `summary.md` рядом с ней нет. */
+/** Выжимка темы или undefined, если файла или главных тезисов нет. */
 export function getAnswerKey(collection: string, id: string): AnswerKey | undefined {
   const source = FILES[`/src/content/${collection}/${id}/summary.md`];
   if (!source) return undefined;
   const key = parseAnswerKey(source);
-  return key.blocks.length ? key : undefined;
+  return key.items.length ? key : undefined;
 }

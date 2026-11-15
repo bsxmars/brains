@@ -910,6 +910,6 @@ describe('когда приходит popstate: тонкое место 01 и в
     for (const r of push) expect(r.events.some((e) => e.startsWith('popstate:'))).toBe(false);
     expect(t.PITFALLS.find((p) => p.n === '01')!.d).toContain('только на ход по истории и на смену якоря');
     const summary = readFileSync(new URL('../../src/content/frameworks/router/summary.md', import.meta.url), 'utf8');
-    expect(summary).toContain('`popstate` — только на ход по истории и смену якоря');
+    expect(summary).toContain('При переходе по истории адрес уже изменён браузером');
   });
 });

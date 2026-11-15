@@ -443,8 +443,6 @@ describe('вычитка: негативный кеш DNS и защита зая
     const dns = t.PITFALLS.find((p) => p.t === 'Имя пода есть, а DNS молчит')!;
     expect(dns.d).toContain('5 секунд');
     expect(dns.d).not.toContain('до 30 секунд');
-    const summary = readFileSync(new URL('../../src/content/delivery/statefulset/summary.md', import.meta.url), 'utf8');
-    expect(summary).toContain('«нет такого» 5 с');
   });
 
   // kubectl delete по умолчанию --wait=true: ждёт, пока финализатор kubernetes.io/pvc-protection снимут.

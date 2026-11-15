@@ -161,9 +161,9 @@ describe('MYERS_CODE: кратчайший скрипт правок', () => {
     }
   });
 
-  it('summary.md: «удаления раньше вставок» ведёт в «Тонкие места» — там это и сказано', () => {
+  it('минимальность отделена от читаемости, а правило ничьей объяснено в тонких местах', () => {
     const summary = readFileSync('src/content/algorithms/diff/summary.md', 'utf8');
-    expect(summary).toContain('удаления у Майерса раньше вставок → «раздел Майерс», «раздел Тонкие места»');
+    expect(summary).toContain('Кратчайший скрипт не обязательно удобен человеку');
     expect(t.PITFALLS.find((p) => p.n === '06')!.d).toContain('удаления всегда идут раньше вставок');
     expect(t.MYERS_NOTE).not.toContain('раньше вставок');
   });

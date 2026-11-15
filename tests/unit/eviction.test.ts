@@ -476,7 +476,7 @@ describe('трассы и закреплённые числа', () => {
     // …но «не обгоняет никого» неверно: на «Смене» LRU выше LFU на всех трёх размерах.
     for (const r of t.HIT_TABLE.filter((x) => x.trace === 'shift')) expect(r.lru).toBeGreaterThan(r.lfu);
     const summary = readFileSync('src/content/algorithms/eviction/summary.md', 'utf8');
-    expect(summary).toContain('LRU не лидирует ни на одной трассе единолично');
+    expect(summary).toContain('Выбирайте политику по характерным трассам и цене промаха');
     expect(t.HIT_TABLE_NOTE).toContain('не имеет единоличного преимущества');
     expect(at('loop', 200).lru).toBe(at('loop', 200).tinylfu);
     expect(summary).not.toContain('не обгоняет никого');

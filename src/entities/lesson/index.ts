@@ -13,4 +13,4 @@ export { neighbours } from './model/neighbours';
 export type { Neighbours } from './model/neighbours';
 export { getAnswerKey, parseAnswerKey } from './model/summary';
 export type { GlossaryTerm, Pitfall, Prereq, Source, SourceGroup } from './model/topic';
-export type { AnswerKey, AnswerKeyBlock, AnswerKeyItem } from './model/summary';
+export type { AnswerKey, AnswerKeyItem } from './model/summary';

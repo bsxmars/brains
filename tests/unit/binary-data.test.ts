@@ -370,9 +370,10 @@ describe('утверждения текста закрыты проверкам�
     expect(t.PNG_CODE).toContain('new Uint32Array(256)');
   });
 
-  it('summary: Uint32Array ошибается одинаково на x86 и ARM, а не на любой машине', () => {
+  it('выжимка различает порядок платформы и порядок внешнего формата', () => {
     const summary = readFileSync(new URL('../../src/content/lessons/binary-data/summary.md', import.meta.url), 'utf8');
-    expect(summary).toContain('на любой x86- и ARM-машине');
+    expect(summary).toContain('порядке байтов платформы');
+    expect(summary).toContain('порядок байтов файлового или сетевого формата');
     expect(t.PITFALLS.find((p) => p.n === '02')!.d).toContain('На любом x86 и ARM');
   });
 

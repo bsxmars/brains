@@ -686,9 +686,9 @@ describe('полный Chromium: автозаполнение — AUTOFILL', () 
 });
 
 describe('выжимка не спорит с темой', () => {
-  it('«любая правка отменяемая» — с оговоркой про IME: шаг набора неотменяемый', () => {
+  it('ядро не обещает отменяемость любого шага композиции IME', () => {
     const summary = readFileSync('src/content/render/text-input/summary.md', 'utf8');
     expect(t.STAND_RUNS.ime.log.filter((e) => e.type === 'beforeinput').every((e) => !e.cancelable)).toBe(true);
-    expect(summary).toContain('`beforeinput`, отменяемая, кроме шага IME');
+    expect(summary).toContain('некоторые шаги композиции IME нельзя отменить');
   });
 });

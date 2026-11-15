@@ -522,10 +522,10 @@ describe('вычитка: ACME и выжимка не противоречат �
   });
 
   // NODE_VERDICTS: недоверенный корень без присланного корня — UNABLE_TO_GET_ISSUER_CERT_LOCALLY.
-  it('выжимка называет оба кода недоверенного корня, как NODE_VERDICTS', () => {
+  it('присланный корень не становится доверенным: оба варианта отказа NODE_VERDICTS', () => {
     expect(t.NODE_VERDICTS['shop|leaf+int|notrust|shop.test']).toBe('UNABLE_TO_GET_ISSUER_CERT_LOCALLY');
     expect(t.NODE_VERDICTS['shop|leaf+int+root|notrust|shop.test']).toBe('SELF_SIGNED_CERT_IN_CHAIN');
     const summary = readFileSync(new URL('../../src/content/delivery/tls-certificates/summary.md', import.meta.url), 'utf8');
-    expect(summary).toContain('корень не доверен — `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`');
+    expect(summary).toContain('сам по себе не делает его доверенным');
   });
 });

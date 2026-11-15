@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -116,10 +116,8 @@ describe('задержка таймера', () => {
     // курс говорит то же в «Event Loop» (виджет timer-clamp: «0 приводится к 1 мс» — только Node).
     expect(t.TIMER_NOTE).not.toContain('как в браузере');
     expect(t.TIMER_NOTE).toContain('в браузере `0` так и остаётся нулём');
-    // 0 и 0.5 — строки без предупреждения: в выжимке `< 1` отделено от `Timeout*Warning`.
+    // 0 и 0.5 — строки без предупреждения; подробный договор закреплён таблицей темы.
     expect(t.TIMER_ROWS.filter((r) => ['setTimeout(f, 0)', 'setTimeout(f, 0.5)'].includes(r.call)).map((r) => r.warning)).toEqual(['—', '—']);
-    const summary = readFileSync('src/content/lessons/node-event-loop/summary.md', 'utf8');
-    expect(summary).toContain('`< 1` → 1 мс; отрицательная');
   });
 });
 
