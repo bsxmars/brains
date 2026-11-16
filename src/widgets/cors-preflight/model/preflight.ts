@@ -148,7 +148,7 @@ export function classify(request: CorsRequest): PreflightVerdict {
 
   if (simple && request.method === 'POST' && contentType === 'text') {
     notes.push(
-      '⚠️ **Вот та самая дыра.** `POST` с `text/plain` — простой запрос, и в теле при этом может ' +
+      '⚠️ **Возможна дыра в защите от CSRF.** `POST` с `text/plain` — простой запрос, и в теле при этом может ' +
         'лежать валидный JSON. Preflight не будет, разрешения никто не спросит, куки уйдут ' +
         'по обычным правилам. Хендлер вида `json.NewDecoder(r.Body).Decode(&req)` на ' +
         '`Content-Type` не смотрит — и выполнит команду с чужого сайта. Лечится строгой ' +

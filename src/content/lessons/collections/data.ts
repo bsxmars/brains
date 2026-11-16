@@ -534,7 +534,7 @@ export const GROUPBY_FACTS = [
   },
   {
     k: 'цены словаря без прототипа — те же',
-    d: 'Результат `Object.groupBy` платит те же цены, что `Object.create(null)`: `String(byType)` и шаблонная строка с ним бросают `TypeError`, `hasOwnProperty` у него нет — только `Object.hasOwn(byType, key)`.',
+    d: 'У результата `Object.groupBy` те же ограничения, что у `Object.create(null)`: `String(byType)` и шаблонная строка с ним бросают `TypeError`, `hasOwnProperty` у него нет — только `Object.hasOwn(byType, key)`.',
   },
   {
     k: 'не метод массива',

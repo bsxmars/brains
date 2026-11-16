@@ -328,7 +328,7 @@ import {
         <Md text={`**На старте:** ${p.start}.`} />
         <Md text={`**Пропала база:** ${p.db}.`} />
         <Md text={`**Процесс завис:** ${p.hang}.`} />
-        <Md text={`**Чем платит:** ${p.cost}`} />
+        <Md text={`**Затраты и ограничения:** ${p.cost}`} />
       </Card>
 
     ))}
@@ -408,7 +408,7 @@ import {
     {ROLLOUT_STEPS.map((r) => (
       <Card title={r.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
         <Md text={r.how} />
-        <Md text={`**Чем платит:** ${r.cost}`} />
+        <Md text={`**Затраты и ограничения:** ${r.cost}`} />
       </Card>
 
     ))}

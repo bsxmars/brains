@@ -47,7 +47,7 @@ const onMain = computed(() => stageList.value.filter((s) => s.state === 'main').
   <DemoFrame>
     <template #toolbar>
       <div class="bar">
-        <span class="t-label">двигаем одно и то же</span>
+        <span class="t-label">способ анимации</span>
         <SegmentedControl v-model="caseKey" class="l-pills" label="Чем двигать" :options="caseOptions" />
       </div>
     </template>
@@ -68,7 +68,7 @@ const onMain = computed(() => stageList.value.filter((s) => s.state === 'main').
       </div>
 
       <div class="driver">
-        <span class="t-label">значение на каждый кадр считает</span>
+        <span class="t-label">кто вычисляет значения анимации</span>
         <Md class="driver__text" :text="current.driver" />
       </div>
 
@@ -84,11 +84,11 @@ const onMain = computed(() => stageList.value.filter((s) => s.state === 'main').
 
     <template #footer>
       <div class="disclaimer">
-        Всё это — браузерное поведение, запуском в Node не проверяется. Проверять надо там, где оно
-        происходит: DevTools → Animations показывает у анимации поле Composited и причину отказа,
-        а самая честная проверка — заблокировать главный поток на несколько секунд и посмотреть,
-        продолжается ли движение. Отдельное условие для двух нижних вариантов: у элемента должен
-        быть свой композитный слой — для объявленных заранее анимаций браузер создаёт его сам.
+        В DevTools → Animations поле Composited показывает, выполняет ли анимацию композитор,
+        а при отказе указывает причину. Проверить зависимость от главного потока можно и напрямую:
+        заблокировать его на несколько секунд и посмотреть, продолжается ли движение.
+        Чтобы менять transform без повторной отрисовки, элементу нужен отдельный композитный слой.
+        Для заранее объявленных композитных анимаций браузер создаёт его сам.
       </div>
     </template>
   </DemoFrame>

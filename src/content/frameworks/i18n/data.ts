@@ -749,7 +749,7 @@ export const PITFALLS: Pitfall[] = [
   },
   {
     n: '03',
-    t: 'Апостроф перед `{` съедает аргумент',
+    t: 'Апостроф перед `{` превращает подстановку в обычный текст',
     d: "Французское `Supprimer l'{item} ?` в `intl-messageformat` даёт «Supprimer l{item} ?»: апостроф открыл цитату, и аргумент стал текстом. `@messageformat/core` на той же строке печатает «l'image» — библиотеки расходятся. Надёжно — типографский апостроф `’` или удвоенный `''`.",
     code: "new IntlMessageFormat(\"Supprimer l'{item} ?\", 'fr').format({ item: 'image' });\n// → 'Supprimer l{item} ?'",
     tone: 'err',

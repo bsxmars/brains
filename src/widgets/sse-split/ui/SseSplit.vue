@@ -18,6 +18,9 @@ import { SegmentedControl } from '@/shared/ui';
 import { decodeChunks, naiveDecode, type SseEvent } from '../model/sse';
 import type { SseCase } from '../model/types';
 
+const MATCHING_RESULTS =
+  'Разделение на чанки в этом случае не нарушило разбор: оба способа вернули одинаковые события. Ошибка наивного способа проявляется при других границах чанков, поэтому обычный тест может её не обнаружить.';
+
 const props = defineProps<{ cases: SseCase[] }>();
 
 const caseKey = ref(props.cases[0].key);
@@ -114,10 +117,7 @@ const claimHolds = computed(() => !ready.value || current.value.breaks === !same
 
       <div class="verdict" :data-tone="same ? 'ok' : 'err'">
         <template v-if="!ready">прогоняем поток через настоящий трансформ…</template>
-        <template v-else-if="same">
-          Здесь разборы совпали: граница прошла мимо больного места. Это часть честного ответа —
-          наивный код ломается не всегда, потому и доживает до прода.
-        </template>
+        <Md v-else-if="same" as="span" :text="MATCHING_RESULTS" />
         <template v-else>
           Разборы разошлись — и ни один из них не бросил исключения. Наивный отдал
           {{ naive.length }} событ{{ naive.length === 1 ? 'ие' : 'ий' }} вместо

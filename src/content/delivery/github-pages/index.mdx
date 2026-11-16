@@ -356,7 +356,7 @@ import {
     {DEPLOY_FILES.map((f) => (
       <Card title={f.k} titleSize={16} pad={18} radius={5} gap={9} size={15.5} lh={1.6}>
         <Md text={f.what} />
-        <Md text={`**Чем платит:** ${f.cost}`} />
+        <Md text={`**Затраты и ограничения:** ${f.cost}`} />
       </Card>
 
     ))}
@@ -459,7 +459,7 @@ import {
   <Plain text={PLAIN_ARTIFACT} />
 
   <Table
-    head={['способ', 'что происходит', 'чем платите']}
+    head={['способ', 'что происходит', 'затраты и ограничения']}
     rows={PUBLISH_ROWS.map((r) => [r.k, r.what, r.why])}
     tones={PUBLISH_ROWS.map((r) => r.tone)}
     kinds={['mono', 'prose', 'muted']}

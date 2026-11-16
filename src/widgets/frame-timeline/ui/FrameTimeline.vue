@@ -105,14 +105,16 @@ const ticks = computed(() =>
             <div class="lane__name t-label">{{ lane.label }}</div>
             <div class="lane__track">
               <span
-                v-for="phase in lane.items"
+                v-for="(phase, phaseIndex) in lane.items"
                 :key="phase.id"
                 class="phase"
                 :data-tone="phase.tone"
                 :data-state="state(phase)"
+                :title="phase.label"
+                :aria-label="phase.label"
                 :style="`left:${pct(phase.at)}%;width:${pct(phase.ms)}%`"
               >
-                <span class="phase__label">{{ phase.label }}</span>
+                <span class="phase__label">{{ phaseIndex + 1 }}</span>
               </span>
             </div>
           </div>
@@ -121,6 +123,21 @@ const ticks = computed(() =>
             <span v-for="tick in ticks" :key="tick">{{ tick }}</span>
           </div>
         </div>
+      </div>
+
+      <div v-for="lane in lanes" :key="`key-${lane.key}`" class="phase-key">
+        <div class="t-label">{{ lane.label }}</div>
+        <ol class="phase-key__items">
+          <li
+            v-for="(phase, phaseIndex) in lane.items"
+            :key="phase.id"
+            class="phase-key__item"
+            :data-state="state(phase)"
+          >
+            <span class="phase-key__number">{{ phaseIndex + 1 }}</span>
+            <span>{{ phase.label }}</span>
+          </li>
+        </ol>
       </div>
 
       <div class="info">
@@ -132,10 +149,9 @@ const ticks = computed(() =>
 
     <template #footer>
       <div class="disclaimer">
-        Длительности отрезков модельные: это порядки величин, чтобы картинка читалась, а не замер
-        конкретной страницы. Не выдумано здесь одно число — бюджет кадра, 1000 / 60 ≈ {{ budget }} мс.
-        Порядок шагов — из HTML Standard, §8.6 «update the rendering»; сверяйте его со спекой
-        на день чтения, а не с этой дорожкой.
+        Длительности этапов условные. Интервал между обновлениями экрана при 60 Гц рассчитан
+        по формуле: 1000 / 60 ≈ {{ budget }} мс. Порядок шагов основан на HTML Standard,
+        §8.6 «update the rendering».
       </div>
     </template>
   </DemoFrame>
@@ -204,22 +220,49 @@ const ticks = computed(() =>
 }
 
 .phase {
+  box-sizing: border-box;
   position: absolute;
   top: 3px;
   bottom: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  padding: 0;
   border-radius: var(--r1);
   overflow: hidden;
   transition: all 0.2s;
 }
 .phase__label {
   font-family: var(--mono);
-  /* `--fs-2`, а не `--fs-3`: подпись живёт внутри отрезка фиксированной ширины (строки YAML — в колонке), и ступень крупнее обрезала бы её сильнее, чем мелкий кегль мешал читать. */
   font-size: var(--fs-2);
   white-space: nowrap;
+}
+
+.phase-key__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 8px 16px;
+  padding: 0;
+  margin: 8px 0 0;
+  list-style: none;
+}
+.phase-key__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: var(--fs-3);
+  line-height: 1.5;
+  color: var(--prose);
+}
+.phase-key__number {
+  flex: 0 0 2ch;
+  text-align: end;
+  color: var(--text-muted);
+}
+.phase-key__item[data-state='active'] {
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .phase[data-tone='ink'] {

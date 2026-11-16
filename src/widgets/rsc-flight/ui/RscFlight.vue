@@ -18,6 +18,9 @@ import { loadClient, loadPage, loadServer, makeQuery, pageApi } from '../model/r
 import type { ManifestEntry, PageOptions, PropKind } from '../model/types';
 import { splitRows, viewTree } from '../model/view';
 
+const WAITING_WITHOUT_BOUNDARY =
+  'Ответ серверного компонента ещё не получен, а выше него нет Suspense с заглушкой. Поэтому показ всей страницы отложен до получения ответа.';
+
 const props = defineProps<{
   serverCode: string;
   clientCode: string;
@@ -183,9 +186,7 @@ const tree = computed(() =>
         </div>
 
         <div v-if="!tree" class="rsc-empty">Пока ни одного куска.</div>
-        <div v-else-if="tree.blank" class="rsc-blank">
-          Экран пуст: в дереве есть дыра без Suspense над ней — показать заглушку негде, ждёт вся страница.
-        </div>
+        <Md v-else-if="tree.blank" class="rsc-blank" :text="WAITING_WITHOUT_BOUNDARY" />
         <ul v-else class="rsc-tree">
           <li
             v-for="(l, i) in tree.lines"

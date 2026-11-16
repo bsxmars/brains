@@ -681,7 +681,7 @@ import Glossary from '@/widgets/topic-blocks/ui/Glossary.astro';
     {PUMP_ROWS.map((row) => (
       <Card tone={row.tone} color="tone" label={row.k} labelTone="tone" labelSize={12.5} pad={17} radius={5} gap={9} size={15.5} lh={1.6}>
         <Md text={row.what} />
-        <Md text={`**Чем платит:** ${row.cost}`} />
+        <Md text={`**Затраты и ограничения:** ${row.cost}`} />
       </Card>
 
     ))}
